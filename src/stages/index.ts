@@ -1,0 +1,21 @@
+import { assembleStage } from "./assemble.js";
+import { captionsStage } from "./captions.js";
+import { clipsStage } from "./clips.js";
+import { fitStage } from "./fit.js";
+import { keyframesStage } from "./keyframes.js";
+import { scriptStage } from "./script.js";
+import { silenceStage } from "./silence.js";
+import type { Stage } from "./types.js";
+import { ttsStage } from "./tts.js";
+
+/** Pipeline order. Audio stages come before any visual stage: audio drives timing (spec §3). */
+export const STAGES: Stage[] = [
+  scriptStage,
+  ttsStage,
+  silenceStage,
+  keyframesStage,
+  clipsStage,
+  fitStage,
+  captionsStage,
+  assembleStage,
+];
