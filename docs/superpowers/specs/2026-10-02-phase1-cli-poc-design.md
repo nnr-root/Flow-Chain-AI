@@ -111,7 +111,9 @@ Let `clipDur` = source clip duration, `target = frames_i / fps`.
 | `target/clipDur <= 1.25` | `{kind:"slow", factor}` | `setpts=factor*PTS`, then `-frames:v` |
 | `target/clipDur > 1.25` | `{kind:"slow+freeze", factor:1.25, freezeSec}` | `setpts=1.25*PTS,tpad=stop_mode=clone:stop_duration=freezeSec` |
 
-All plans also apply `scale=W:H:force_original_aspect_ratio=increase,crop=W:H,fps=30,format=yuv420p`.
+All plans also apply `scale=W:H:force_original_aspect_ratio=increase,crop=W:H,fps=30,format=yuv420p`
+followed by a safety `tpad=stop_mode=clone:stop_duration=0.5` (freeze plans: `freezeSec + 0.5`), and the
+output is cut with `-frames:v frames_i`, so the frame count is exact even after fps conversion.
 Mode 2 clips are generated at exactly `frames_i` and always resolve to `trim` (a no-op cut).
 
 ### 4.6 Silence removal (stage 3)
@@ -122,7 +124,8 @@ Mode 2 clips are generated at exactly `frames_i` and always resolve to `trim` (a
 3. `keepSegments`: complement of silences, then each silence is shrunk by **80 ms padding** on each
    side adjacent to speech (leading/trailing silence trimmed to 80 ms). Silences that become ≤ 0
    after padding are dropped.
-4. Apply with `aselect='between(t,a0,b0)+between(t,a1,b1)…',asetpts=N/SR/TB`.
+4. Apply with one `atrim=start=a:end=b,asetpts=PTS-STARTPTS` per keep segment joined by `concat=n=K:v=0:a=1`
+   (sample-accurate; `aselect` was measured 64 ms off because it works on whole audio frames).
 5. `remapTimings(words, keepSegments)` moves word timings onto the trimmed timeline (§5.2).
 6. `duration` = `ffprobe` of the output WAV (authoritative), `removedSec` = original − trimmed.
 
@@ -141,7 +144,8 @@ Oversample to avoid zoompan jitter: scale the keyframe to 4× output width first
 
 ### 4.9 Captions (stage 7)
 
-- Global word times = scene-relative times + `start_i` (in frame-exact seconds, §4.4).
+- Global word times = scene-relative times + cumulative **audio** start of the scene (captions follow
+  speech; the video boundary differs by ≤ ½ frame, §4.4).
 - Words grouped into pages of ≤ 3 words, breaking early after `. , ! ? ;`.
 - One ASS `Dialogue` event per word: shows the whole page in uppercase, active word highlighted
   (`{\c&H00E5FF&}` yellow, others white), from word start to next word start (last word: to its end).
@@ -162,8 +166,8 @@ Oversample to avoid zoompan jitter: scale the keyframe to 4× output width first
    `-movflags +faststart`. Length is pinned explicitly: `-frames:v totalFrames` for video and
    `apad,atrim=end=totalFrames/fps` for audio (no reliance on `-shortest`).
 6. `chain.png`: for every clip, first and last frame scaled to 360 px height, laid out with
-   `tile=2xN` (rows = scenes in order, columns = first/last; Mode 2 rows included). This is the
-   drift-inspection artifact.
+   `xstack` (rows = scenes in order, columns = first/last of the raw clip; Mode 2 rows included). This
+   is the drift-inspection artifact.
 
 ## 5. Data Model
 
@@ -226,9 +230,10 @@ const FitPlan = z.discriminatedUnion("kind", [
 const SceneState = z.object({
   idx:       z.number(),
   mode:      z.union([z.literal(1), z.literal(2)]),
-  nonces:    z.record(StageName, z.number()).default({}),   // bumped by reroll
-  stages:    z.record(StageName, StageRecord).default({}),
-  audio:     z.object({ raw: z.string(), trimmed: z.string(), duration: z.number(),
+  nonces:    z.partialRecord(StageName, z.number()).default({}),   // bumped by reroll
+  stages:    z.partialRecord(StageName, StageRecord).default({}),
+  tts:       z.object({ raw: z.string(), words: z.array(WordTiming) }).optional(),   // untrimmed TTS output
+  audio:     z.object({ path: z.string(), duration: z.number(),                        // after silence removal
                         words: z.array(WordTiming), removedSec: z.number() }).optional(),
   keyframe:  z.object({ path: z.string(), seed: z.number(), sourceUrl: z.string() }).optional(),
   clip:      z.object({ path: z.string(), sourceUrl: z.string().optional(), duration: z.number(),
@@ -245,7 +250,7 @@ const Manifest = z.object({
                       voiceId: z.string(), bgm: z.string().optional() }),
   models:  z.object({ llm: z.string(), tts: z.string(), image: z.string(), video: z.string() }),
   script:  Script.optional(),
-  runStages: z.record(StageName, StageRecord).default({}),   // run-level stages: script, captions, assemble
+  runStages: z.partialRecord(StageName, StageRecord).default({}),   // run-level stages: script, captions, assemble
   scenes:  z.array(SceneState),
   final:   z.object({ path: z.string(), duration: z.number(), captions: z.string(),
                       chain: z.string() }).optional(),
@@ -288,7 +293,7 @@ src/
   pipeline.ts            ordered stages, skip rule, cost estimate + confirm, ledger
   doctor.ts
   manifest/  schema.ts  store.ts  hash.ts
-  providers/ types.ts  gemini.ts  elevenlabs.ts  fal-image.ts  fal-video.ts  retry.ts
+  providers/ types.ts  gemini.ts  elevenlabs.ts  fal.ts  retry.ts  download.ts
   media/     ffmpeg.ts  silence.ts  frames.ts  kenburns.ts  fit.ts  timeline.ts  captions.ts
              assemble.ts  contact-sheet.ts
   stages/    script.ts  tts.ts  silence.ts  keyframes.ts  clips.ts  fit.ts  captions.ts  assemble.ts
@@ -310,15 +315,20 @@ interface TtsProvider   { speak(req: { text: string; previousText?: string; next
                             : Promise<{ audio: Buffer; words: WordTiming[] }> }
 interface ImageProvider { generate(req: { prompt: string; width: number; height: number; seed?: number })
                             : Promise<{ url: string; seed: number }> }
-interface VideoProvider { imageToVideo(req: { imagePath: string; prompt: string; durationSec: 5 | 10; aspect: Aspect })
-                            : Promise<{ url: string }> }   // adapter uploads imagePath via fal.storage.upload
+interface VideoProvider { imageToVideo(req: { imagePath: string; prompt: string; durationSec: 5 | 10 })
+                            : Promise<{ url: string }> }   // adapter uploads imagePath via fal.storage.upload;
+                                                           // Kling v2.1 takes aspect from the input image
 
 interface Stage {
   name: StageName
   perScene: boolean
-  inputsFor(m: Manifest, sceneIdx?: number): Promise<unknown>   // async: may hash files
-  estimateCostUsd(m: Manifest, sceneIdx?: number): number
-  run(ctx: StageContext, sceneIdx?: number): Promise<void>
+  paid: boolean
+  appliesTo?(m: Manifest, scene: number): boolean               // e.g. keyframes only where needed
+  deps(m: Manifest, scene?: number): Dep[]                      // only for pricing cascades
+  inputsFor(ctx: StageContext, scene?: number): Promise<unknown> // async: hashes upstream files
+  outputsFor(m: Manifest, scene?: number): string[]             // must exist for a cache hit
+  estimateCostUsd(ctx: StageContext, scene?: number): number    // never throws; uses fallbacks
+  run(ctx: StageContext, scene?: number): Promise<number>       // returns USD for the ledger
 }
 ```
 
@@ -338,8 +348,15 @@ Price table (USD) in `config.ts`, overridable via `prices.json`:
 | ElevenLabs | 0.30 / 1 000 characters (adjust to plan) |
 | Gemini | 0.30 / 1M input tokens, 2.50 / 1M output tokens (estimate) |
 
-- Before any paid stage: print a per-scene/per-stage estimate. Confirm interactively if the total
-  exceeds `--budget` (default `FLOWCHAIN_BUDGET_USD=3`). Paid rerolls always confirm. `--yes` skips.
+- **Two checkpoints:** (1) at start, covering all remaining work with fallbacks where data is not yet
+  known (≈130 narration chars/scene, 10 s clips); (2) right before `keyframes`, when script and audio
+  exist and every remaining estimate is exact. At each checkpoint print a per-scene/per-stage table and
+  confirm interactively if the planned total exceeds `--budget` (default `FLOWCHAIN_BUDGET_USD=3`), or
+  for a reroll whenever paid work is planned; checkpoint 2 only re-asks if its paid total exceeds what
+  was already confirmed. `--yes` skips.
+- Planning which (stage, scene) pairs will run uses each stage's static `deps()` (upstream stage/scene
+  pairs) to propagate "will run" downstream, so a reroll's cascade is priced before it happens.
+  Execution itself still decides purely by input hash.
 - Ledger entries are **computed** from the price table and actual request parameters, not provider
   invoices; `status` labels them as estimated actuals.
 - Typical 4-scene 9:16: Mode 1 ≈ $1.20; Mode 2 only ≈ $0.30.
@@ -384,7 +401,8 @@ RUNS_DIR=./runs
 3. **Pipeline** (fake providers that emit generated media and count calls): full Mode 1 / Mode 2 /
    hybrid runs; resume after injected failure at scene 3 clips makes zero repeat calls for completed
    work; cascade with shots `[cut, continue, continue, cut]` (all Mode 1) — `reroll --scene 2
-   --stage clips` regenerates clips 2 and 3 only (scene 4 is a cut); estimate equals ledger sum for a fresh run.
+   --stage clips` regenerates clips 2 and 3 only (scene 4 is a cut); checkpoint-2 estimate equals the
+   ledger sum of the media stages for a fresh run.
 4. **Live smoke** (`npm run smoke`, manual, ~$1–2): 3 scenes, real APIs. Never in CI.
 
 ## 12. Definition of Done
