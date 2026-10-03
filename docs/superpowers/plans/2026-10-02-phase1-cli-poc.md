@@ -34,7 +34,7 @@
 1. `SceneState` stores TTS output and trimmed audio separately (`tts: {raw, words}` and `audio: {path, duration, words, removedSec}`) so re-running `silence` never loses the original word timings.
 2. The `Stage` interface receives the `StageContext` (it needs the run dir to hash files) and adds `paid`, `deps()` and `outputsFor()`. *(Superseded by the final-review fix wave:)* `run()` receives a `RunContext` (adds `inputHash` and `charge(usd)`) and returns nothing; paid stages call `ctx.charge()` right after each provider success, which appends the ledger entry and saves the manifest immediately.
 3. fal image and video adapters live in one file, `src/providers/fal.ts` (they share one client).
-4. LLM and TTS calls take no `AbortSignal`; `withRetry` enforces their timeouts by racing, which is acceptable only because repeating them cannot buy a long-running job twice. *(Corrected by the final-review fix wave:)* racing timeouts is **not** sufficient for fal image/video — abandoning a `subscribe` call and resubmitting leaves the first job running and billing. fal jobs therefore use the queue API (`queue.submit` once, request id saved in the manifest before waiting, then `queue.status` / `queue.result`); a timeout or error while waiting never resubmits, and resume polls the saved id (spec §6). `withRetry` no longer retries non-retryable errors (HTTP 400/401/403/404/422, errors marked non-retryable) and keeps the original error as `cause`.
+4. LLM and TTS calls take no `AbortSignal`; `withRetry` enforces their timeouts by racing, which is acceptable only because repeating them cannot buy a long-running job twice. *(Corrected by the final-review fix wave:)* racing timeouts is **not** sufficient for fal image/video — abandoning a `subscribe` call and resubmitting leaves the first job running and billing. fal jobs therefore use the queue API (`queue.submit` once, request id saved in the manifest before waiting, then `queue.status` / `queue.result`); a timeout or error while waiting never resubmits, and resume polls the saved id (spec §6). `withRetry` no longer retries non-retryable errors (HTTP 400/401/403/404/422, errors marked non-retryable) and keeps the original error as `cause`. *(Corrected again after the final re-review:)* the submit itself is not raced either: free preparation (seam render, image upload) runs first, then the submit gets a deadline that aborts the HTTP request via `abortSignal`, so a timed-out submit can never complete later and buy an unrecorded job.
 
 ## File Map
 
@@ -3839,7 +3839,7 @@ import type { Stage, StageContext } from "./types.js";
 
 const shaAll = (ctx: StageContext, rels: string[]) => Promise.all(rels.map((r) => fileSha256(abs(ctx, r))));
 
-/** chain.png: first and last frame of every raw clip, one row per scene. */
+/** chain.png: first frame of every raw clip and last frame of every fitted clip, one row per scene. */
 async function writeChainSheet(ctx: StageContext): Promise<void> {
   const rows = [];
   for (const scene of ctx.manifest.scenes) {
@@ -4572,7 +4572,7 @@ Mode 1 = Kling image-to-video, each clip continuing from the previous clip's las
 Mode 2 = Flux still + Ken Burns camera move (no video API cost).
 
 Each run lives in `runs/<runId>/`: `manifest.json` (state, cache keys, cost ledger), `final.mp4`,
-`chain.png` (first/last frame of every clip — use it to judge continuity drift), plus intermediates.
+`chain.png` (raw first frame and fitted last frame of every clip — use it to judge the seams), plus intermediates.
 
 ## Costs
 

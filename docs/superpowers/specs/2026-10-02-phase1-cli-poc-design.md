@@ -318,9 +318,14 @@ sets them individually (length must equal `--scenes`). The LLM never chooses mod
   LLM 60 s, TTS 60 s). Clearly non-retryable errors are not retried: HTTP 400/401/403/404/422 and
   errors marked non-retryable (the original error is kept as `cause`). After the last attempt the stage
   writes a `failed` record and the run stops; the next `resume` continues from there.
-- **Paid fal jobs (keyframes, clips) use the queue API explicitly, never `subscribe`:** `fal.queue.submit`
-  is called exactly once (never retried); its request id is stored in `scenes[i].jobs[stage]` together
-  with the inputHash it was bought for, and the manifest is saved **before** waiting. Waiting polls
+- **Paid fal jobs (keyframes, clips) use the queue API explicitly, never `subscribe`:** first the free
+  preparation runs (the seam frame render and the input image upload; retried, 180 s deadline), then
+  `fal.queue.submit` is called exactly once by flowchain, under a 60 s deadline that **aborts** the HTTP
+  request (`abortSignal`) instead of abandoning it, so a slow submit can never complete later and buy a job
+  nobody records. (The fal client itself may resend a submit after a 429/5xx/network error before
+  responding; a lost response in that window can very rarely buy a job twice — accepted risk.) The request
+  id is stored in `scenes[i].jobs[stage]` together with the inputHash it was bought for, and the manifest
+  is saved **before** waiting. Waiting polls
   `fal.queue.status` until `COMPLETED` (deadline: image 120 s, video 600 s), then fetches
   `fal.queue.result`; polling may be retried because it never buys anything. A timeout, error or Ctrl-C
   while waiting fails the stage with the request id kept, and the next attempt for the same inputHash
@@ -338,7 +343,8 @@ sets them individually (length must equal `--scenes`). The LLM never chooses mod
   `charge` and fal submit).
 - **Exclusive run lock:** `run`/`resume`/`reroll` create `<runDir>/.lock` with flag `wx` before
   executing and remove it in `finally`; if it already exists the command fails with "run is already in
-  progress" (after a hard kill the file stays behind and is deleted by hand).
+  progress". SIGINT/SIGTERM (Ctrl-C) remove the lock before the process ends; only a hard kill (SIGKILL,
+  power loss) leaves it behind, to be deleted by hand.
 - **Downloads:** every remote output is downloaded immediately (120 s timeout via
   `AbortSignal.timeout`, covering the body too); `sourceUrl` is
   informational, while `jobs[stage].result.url` is what a resume re-downloads from.
@@ -373,14 +379,15 @@ Supabase; `media/assemble.ts` is replaced by Remotion.
 interface LlmProvider   { generateScript(req: ScriptRequest): Promise<Script> }
 interface TtsProvider   { speak(req: { text: string; previousText?: string; nextText?: string; voiceId: string })
                             : Promise<{ audio: Buffer; words: WordTiming[] }> }
-interface QueuedProvider<Req, Out> {            // fal queue: submit buys one job, wait only polls it
-  submit(req: Req): Promise<string>              // request id; never waits
+interface QueuedProvider<Req, Out> {            // fal queue: prepare is free, submit buys one job, wait polls
+  prepare(req: Req): Promise<PreparedJob>         // builds the request body, doing uploads; safe to repeat
+  submit(job: PreparedJob, opts: { signal: AbortSignal }): Promise<string>  // request id; abortable
   wait(requestId: string, opts: { timeoutMs: number }): Promise<Out>
 }
 type ImageProvider = QueuedProvider<{ prompt: string; width: number; height: number; seed?: number },
                                     { url: string; seed: number }>
 type VideoProvider = QueuedProvider<{ imagePath: string; prompt: string; durationSec: 5 | 10 },
-                                    { url: string }>   // submit uploads imagePath via fal.storage.upload;
+                                    { url: string }>   // prepare uploads imagePath via fal.storage.upload;
                                                        // Kling v2.1 takes aspect from the input image
 
 interface Stage {
