@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { rmSync } from "node:fs";
 import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Manifest, type Mode, type Models, type RunRequest } from "./schema.js";
@@ -8,8 +9,9 @@ export const LOCK_FILE = ".lock";
 
 /**
  * Runs `fn` while holding `<runDir>/.lock` (created exclusively with flag "wx"), so two flowchain processes
- * can never execute the same run at once (and buy the same work twice). The lock is removed in finally;
- * after a hard kill it stays behind and must be deleted by hand.
+ * can never execute the same run at once (and buy the same work twice). The lock is removed in finally,
+ * and on SIGINT/SIGTERM (Ctrl-C) before the process is terminated by that signal as usual. Only a hard kill
+ * (SIGKILL, power loss) leaves it behind; then it must be deleted by hand.
  */
 export async function withRunLock<T>(dir: string, fn: () => Promise<T>): Promise<T> {
   const path = join(dir, LOCK_FILE);
@@ -24,11 +26,22 @@ export async function withRunLock<T>(dir: string, fn: () => Promise<T>): Promise
         "(e.g. after a crash), delete that file and try again.",
     );
   }
+  // Removes the lock synchronously, then re-raises the signal so the process still ends the default way.
+  const onSignal = (signal: NodeJS.Signals) => {
+    rmSync(path, { force: true });
+    process.off("SIGINT", onSignal);
+    process.off("SIGTERM", onSignal);
+    process.kill(process.pid, signal);
+  };
+  process.on("SIGINT", onSignal);
+  process.on("SIGTERM", onSignal);
   try {
     await handle.writeFile(`${process.pid}\n`);
     await handle.close();
     return await fn();
   } finally {
+    process.off("SIGINT", onSignal);
+    process.off("SIGTERM", onSignal);
     await rm(path, { force: true });
   }
 }
