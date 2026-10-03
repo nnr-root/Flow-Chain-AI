@@ -1,4 +1,6 @@
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -71,6 +73,21 @@ describe("withRetry", () => {
 });
 
 describe("download", () => {
+  it("gives up on a server that never answers", async () => {
+    const server = createServer(() => {}); // accepts the request, never responds
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+    const dir = await mkdtemp(join(tmpdir(), "fc-"));
+    try {
+      await expect(download(`http://127.0.0.1:${port}/x.mp4`, join(dir, "x.mp4"), { timeoutMs: 100 })).rejects.toThrow(
+        /download of http:\/\/127\.0\.0\.1:\d+\/x\.mp4 failed: .*timed out after 100 ms/,
+      );
+    } finally {
+      server.closeAllConnections();
+      server.close();
+    }
+  });
+
   it("copies file:// URLs into nested directories", async () => {
     const dir = await mkdtemp(join(tmpdir(), "fc-"));
     const src = join(dir, "src.bin");

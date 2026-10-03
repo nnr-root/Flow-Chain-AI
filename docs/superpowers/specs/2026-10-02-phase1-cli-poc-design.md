@@ -172,7 +172,8 @@ Oversample to avoid zoompan jitter: scale the keyframe to 4× output width first
 - Style: bundled OFL font (Montserrat ExtraBold) from `assets/fonts/`, bold, outline 6, shadow 0,
   alignment 2 (bottom-center), `MarginV` = 30 % of height (9:16) / 12 % (16:9). Font size 7.5 % of
   width (9:16) / 5.5 % of height (16:9). `PlayResX/PlayResY` = output size.
-- Burned in with `ass=captions.ass:fontsdir=assets/fonts`.
+- Burned in with `ass=captions.ass:fontsdir=assets/fonts` (both paths single-quoted; a path containing
+  `'` or `:` is rejected up front, since ffmpeg 8 cannot parse either inside the quoted filter argument).
 
 ### 4.10 Assemble (stage 8)
 
@@ -311,6 +312,8 @@ sets them individually (length must equal `--scenes`). The LLM never chooses mod
 - **Reroll:** `flowchain reroll <runId> --scene N --stage keyframes|clips|tts` (CLI scene numbers
   are 1-based; manifest `idx` is 0-based) bumps `scenes[N-1].nonces[stage]`; the pipeline then re-runs, and hashing decides everything downstream.
   Before executing, the CLI lists which (scene, stage) pairs will run and their estimated cost.
+  `--stage clips` is rejected for a Mode 2 scene (its clip is a deterministic Ken Burns render of the
+  keyframe, so a new nonce would only re-render the same frames); the message points to `--stage keyframes`.
 - **Failure:** LLM and TTS calls are retried (3 attempts, exponential backoff, per-call timeout
   LLM 60 s, TTS 60 s). Clearly non-retryable errors are not retried: HTTP 400/401/403/404/422 and
   errors marked non-retryable (the original error is kept as `cause`). After the last attempt the stage
@@ -331,8 +334,13 @@ sets them individually (length must equal `--scenes`). The LLM never chooses mod
   saves its result URL, so a failed download or post-processing step is retried on resume by
   re-downloading, without calling or paying the provider again. A stage record's `costUsd` is the total
   charged for its inputHash across attempts. Nothing paid is regenerated without a hash change.
-- **Persistence:** manifest saved via write-to-temp + `rename` after every scene-stage.
-- **Downloads:** every remote output is downloaded immediately; `sourceUrl` is
+- **Persistence:** manifest saved via write-to-temp + `rename` after every scene-stage (and on every
+  `charge` and fal submit).
+- **Exclusive run lock:** `run`/`resume`/`reroll` create `<runDir>/.lock` with flag `wx` before
+  executing and remove it in `finally`; if it already exists the command fails with "run is already in
+  progress" (after a hard kill the file stays behind and is deleted by hand).
+- **Downloads:** every remote output is downloaded immediately (120 s timeout via
+  `AbortSignal.timeout`, covering the body too); `sourceUrl` is
   informational, while `jobs[stage].result.url` is what a resume re-downloads from.
 
 ## 7. Module Layout
@@ -395,7 +403,8 @@ Keyframe sizes (Flux requires multiples of 16): 9:16 → 1088×1920 (fit crops t
 
 ## 8. Cost Estimates & Budget
 
-Price table (USD) in `config.ts`, overridable via `prices.json`:
+Price table (USD) in `config.ts`, overridable via `prices.json` (strict: an unknown key, e.g. a typo, is
+an error; parse and validation errors name the file):
 
 | Item | Default |
 |---|---|

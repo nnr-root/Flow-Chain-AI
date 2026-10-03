@@ -16,6 +16,12 @@ export function bumpNonce(m: Manifest, sceneNumber: number, stage: string): void
     throw new Error(`--scene must be between 1 and ${m.scenes.length}`);
   }
   const idx = sceneNumber - 1;
+  if (stage === "clips" && m.scenes[idx].mode === 2) {
+    throw new Error(
+      `scene ${sceneNumber} is Mode 2: its clip is a deterministic Ken Burns render of the keyframe, so rerolling ` +
+        `it would change nothing; use --stage keyframes for a new image`,
+    );
+  }
   if (stage === "keyframes" && !needsKeyframe(m, idx)) {
     throw new Error(`scene ${sceneNumber} continues from the previous clip and has no keyframe; reroll its clips instead`);
   }

@@ -1,9 +1,37 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Manifest, type Mode, type Models, type RunRequest } from "./schema.js";
 
 export const MANIFEST_FILE = "manifest.json";
+export const LOCK_FILE = ".lock";
+
+/**
+ * Runs `fn` while holding `<runDir>/.lock` (created exclusively with flag "wx"), so two flowchain processes
+ * can never execute the same run at once (and buy the same work twice). The lock is removed in finally;
+ * after a hard kill it stays behind and must be deleted by hand.
+ */
+export async function withRunLock<T>(dir: string, fn: () => Promise<T>): Promise<T> {
+  const path = join(dir, LOCK_FILE);
+  await mkdir(dir, { recursive: true });
+  let handle;
+  try {
+    handle = await open(path, "wx");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+    throw new Error(
+      `run is already in progress: ${path} exists. If no other flowchain process is working on this run ` +
+        "(e.g. after a crash), delete that file and try again.",
+    );
+  }
+  try {
+    await handle.writeFile(`${process.pid}\n`);
+    await handle.close();
+    return await fn();
+  } finally {
+    await rm(path, { force: true });
+  }
+}
 
 export function newRunId(now: Date = new Date()): string {
   const p = (n: number) => String(n).padStart(2, "0");

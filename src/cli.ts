@@ -5,7 +5,7 @@ import { Command, Option } from "commander";
 import { type Env, FPS, keyframeSize, loadEnv, loadPrices, outputSize } from "./config.js";
 import { formatChecks, runDoctor } from "./doctor.js";
 import { type Manifest, type Models, RunRequest, StageName } from "./manifest/schema.js";
-import { createManifest, loadManifest, newRunId, resolveModes, saveManifest } from "./manifest/store.js";
+import { createManifest, loadManifest, newRunId, resolveModes, saveManifest, withRunLock } from "./manifest/store.js";
 import { type Plan, RunAborted, runPipeline } from "./pipeline.js";
 import { ElevenLabsTts } from "./providers/elevenlabs.js";
 import { createFal, FalImage, FalVideo } from "./providers/fal.js";
@@ -165,7 +165,7 @@ program
     const manifest = createManifest(runId, request, models);
     await saveManifest(dir, manifest);
     console.log(`Run ${runId} → ${dir}`);
-    await execute(env, dir, manifest, { budgetUsd: budget(o.budget, env), yes: o.yes });
+    await withRunLock(dir, () => execute(env, dir, manifest, { budgetUsd: budget(o.budget, env), yes: o.yes }));
   });
 
 program
@@ -177,9 +177,12 @@ program
   .action(async (runId: string, o: { from?: StageName; budget?: string; yes?: boolean }) => {
     const env = loadEnv();
     const dir = runDir(runId);
-    const manifest = await loadManifest(dir);
-    await requireDoctor(env, manifest.models, manifest.request.voiceId);
-    await execute(env, dir, manifest, { budgetUsd: budget(o.budget, env), yes: o.yes, from: o.from });
+    await loadManifest(dir); // a clear error for an unknown run id, before any lock file is created
+    await withRunLock(dir, async () => {
+      const manifest = await loadManifest(dir);
+      await requireDoctor(env, manifest.models, manifest.request.voiceId);
+      await execute(env, dir, manifest, { budgetUsd: budget(o.budget, env), yes: o.yes, from: o.from });
+    });
   });
 
 program
@@ -191,10 +194,13 @@ program
   .action(async (runId: string, o: { scene: string; stage: string; yes?: boolean }) => {
     const env = loadEnv();
     const dir = runDir(runId);
-    const manifest = await loadManifest(dir);
-    bumpNonce(manifest, Number(o.scene), o.stage);
-    await requireDoctor(env, manifest.models, manifest.request.voiceId);
-    await execute(env, dir, manifest, { budgetUsd: budget(undefined, env), yes: o.yes, reroll: true });
+    await loadManifest(dir); // a clear error for an unknown run id, before any lock file is created
+    await withRunLock(dir, async () => {
+      const manifest = await loadManifest(dir);
+      bumpNonce(manifest, Number(o.scene), o.stage);
+      await requireDoctor(env, manifest.models, manifest.request.voiceId);
+      await execute(env, dir, manifest, { budgetUsd: budget(undefined, env), yes: o.yes, reroll: true });
+    });
   });
 
 program

@@ -40,7 +40,7 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
   return result.data;
 }
 
-export const Prices = z.object({
+export const Prices = z.strictObject({
   fluxPerMegapixel: z.number().default(0.025),
   klingBase5s: z.number().default(0.25),
   klingPerExtraSec: z.number().default(0.05),
@@ -51,6 +51,17 @@ export const Prices = z.object({
 export type Prices = z.infer<typeof Prices>;
 
 export function loadPrices(path = "prices.json"): Prices {
-  const raw: unknown = existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) : {};
-  return Prices.parse(raw);
+  if (!existsSync(path)) return Prices.parse({});
+  let raw: unknown;
+  try {
+    raw = JSON.parse(readFileSync(path, "utf8"));
+  } catch (err) {
+    throw new Error(`${path} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`, { cause: err });
+  }
+  const result = Prices.safeParse(raw);
+  if (!result.success) {
+    const problems = result.error.issues.map((i) => `  - ${i.path.join(".") || "(root)"}: ${i.message}`).join("\n");
+    throw new Error(`invalid price table in ${path}:\n${problems}`);
+  }
+  return result.data;
 }

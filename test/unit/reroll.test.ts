@@ -27,6 +27,14 @@ describe("bumpNonce", () => {
     expect(() => bumpNonce(manifest(), 4, "tts")).toThrow(/between 1 and 3/);
   });
 
+  it("refuses to reroll the deterministic clip of a Mode 2 scene and points to its keyframe", () => {
+    const m = manifest();
+    m.scenes[1].mode = 2;
+    expect(() => bumpNonce(m, 2, "clips")).toThrow(/scene 2 is Mode 2.*--stage keyframes/);
+    expect(m.scenes[1].nonces.clips).toBeUndefined();
+    expect(() => bumpNonce(m, 2, "keyframes")).not.toThrow();
+  });
+
   it("refuses to reroll a keyframe the scene does not use", () => {
     expect(() => bumpNonce(manifest(), 2, "keyframes")).toThrow(/reroll its clips instead/);
     expect(() => bumpNonce(manifest(), 3, "keyframes")).not.toThrow();

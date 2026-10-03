@@ -21,8 +21,10 @@ export async function concatAudio(inputs: string[], out: string): Promise<void> 
   await ffmpeg([...args, "-filter_complex", filter, "-map", "[a]", "-ar", "48000", "-ac", "1", "-c:a", "pcm_s16le", out]);
 }
 
+/** ffmpeg 8 cannot use a path containing a single quote or a colon inside a quoted filter argument. */
 export function quoteFilterPath(p: string): string {
   if (p.includes("'")) throw new Error(`path cannot be used in an ffmpeg filter because it contains a quote: ${p}`);
+  if (p.includes(":")) throw new Error(`path cannot be used in an ffmpeg filter because it contains a colon: ${p}`);
   return `'${p}'`;
 }
 

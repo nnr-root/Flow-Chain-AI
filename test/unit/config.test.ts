@@ -1,3 +1,6 @@
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { keyframeSize, loadEnv, loadPrices, outputSize } from "../../src/config.js";
 
@@ -42,6 +45,27 @@ describe("sizes", () => {
 });
 
 describe("loadPrices", () => {
+  it("rejects unknown keys and names the file", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "fc-prices-"));
+    const path = join(dir, "prices.json");
+    await writeFile(path, JSON.stringify({ klingBase5s: 0.3, fluxPerMegaPixel: 0.02 }));
+    expect(() => loadPrices(path)).toThrow(new RegExp(`${path}[\\s\\S]*fluxPerMegaPixel`));
+  });
+
+  it("names the file when it is not valid JSON", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "fc-prices-"));
+    const path = join(dir, "prices.json");
+    await writeFile(path, "{ nope");
+    expect(() => loadPrices(path)).toThrow(path);
+  });
+
+  it("applies overrides from the file", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "fc-prices-"));
+    const path = join(dir, "prices.json");
+    await writeFile(path, JSON.stringify({ klingBase5s: 0.3 }));
+    expect(loadPrices(path).klingBase5s).toBe(0.3);
+  });
+
   it("returns defaults when the file does not exist", () => {
     const p = loadPrices("/nonexistent/prices.json");
     expect(p).toEqual({

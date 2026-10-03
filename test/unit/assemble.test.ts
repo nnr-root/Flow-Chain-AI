@@ -25,4 +25,8 @@ describe("quoteFilterPath", () => {
     expect(quoteFilterPath("/a b/c.ass")).toBe("'/a b/c.ass'");
     expect(() => quoteFilterPath("/it's/c.ass")).toThrow(/quote/);
   });
+
+  it("rejects colons, which ffmpeg 8 cannot parse inside a quoted ass path", () => {
+    expect(() => quoteFilterPath("/runs/10:30/captions.ass")).toThrow(/colon/);
+  });
 });
