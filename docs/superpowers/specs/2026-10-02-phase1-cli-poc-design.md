@@ -356,6 +356,7 @@ src/
   media/     ffmpeg.ts  silence.ts  frames.ts  kenburns.ts  fit.ts  timeline.ts  captions.ts
              assemble.ts  contact-sheet.ts
   stages/    script.ts  tts.ts  silence.ts  keyframes.ts  clips.ts  fit.ts  captions.ts  assemble.ts
+             job.ts (runProviderJob: submit once, persist request id, poll, charge once)
 assets/fonts/            Montserrat-ExtraBold.ttf + OFL.txt
 test/
   unit/  media/  pipeline/  fakes/  helpers/
