@@ -493,3 +493,26 @@ RUNS_DIR=./runs
 3. Resume-after-failure and `reroll` behave as specified (pipeline tests green).
 4. Every run writes `chain.png` for drift inspection.
 5. `npm test` (unit + media + pipeline) passes offline; `flowchain doctor` passes with real keys.
+
+## 13. Smoke Test Findings (2026-10-03)
+
+Two live runs with real APIs (`gemini-flash-latest`, `eleven_multilingual_v2`, `fal-ai/flux/dev`,
+`fal-ai/kling-video/v2.1/standard/image-to-video`), 9:16, 3 scenes, all Mode 1.
+
+| Run | Shots | Keyframes | Length | Ledger (price table) |
+|---|---|---|---|---|
+| `20261003-193143-4773a6` | LLM chose `cut, cut, cut` | 3 | 14.73 s | $1.25 / 10 paid calls |
+| `20261003-221653-abda6f` | `--shots cut,continue,continue` | 1 | 15.97 s | $1.40 / 8 paid calls |
+
+- **Run 1 did not test continuity**: the LLM marked every scene a cut, so no seam frame was made. This
+  motivated the `--shots` testing override; `npm run smoke` now always uses `cut,continue,continue`.
+- **Continuity chain verified (run 2)**: two seams (`frames/seam_01.png`, `seam_02.png`). Mean absolute
+  luma difference (0–255) between the last fitted frame of scene N and the first fitted frame of scene N+1:
+  **1.69** and **1.87**, versus **0.87** between two consecutive frames inside one clip — the cut reads as
+  the same shot continuing. Kling's first frame reproduces the seam image closely (1.60 / 1.84; H.264
+  re-encode). `chain.png` confirms visually: each continuing row's first frame matches the previous row's
+  last fitted frame; character identity (face, glasses, clothing) holds across all three scenes.
+- Kling v2.1 standard returned 24 fps clips (one at 1084×1912, cropped by fit); 5 s and 10 s buckets were
+  both used (121 and 241 source frames).
+- **Open:** the ledger is computed from the price table, not invoices. Compare it against the fal and
+  ElevenLabs dashboards (Flux per-megapixel rounding is the least certain price).
