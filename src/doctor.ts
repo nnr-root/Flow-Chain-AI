@@ -45,9 +45,10 @@ async function attempt(name: string, fn: () => Promise<string>): Promise<Check> 
 }
 
 /** `models` lets resume/reroll check the models frozen in the manifest instead of today's env. */
-export async function runDoctor(env: Env, fontsDir: string, models?: Models): Promise<Check[]> {
+export async function runDoctor(env: Env, fontsDir: string, models?: Models, voiceId?: string): Promise<Check[]> {
   const llmModel = models?.llm ?? env.GEMINI_MODEL;
   const ttsModel = models?.tts ?? env.ELEVENLABS_MODEL;
+  const voice = voiceId ?? env.ELEVENLABS_VOICE_ID;
   const font = join(fontsDir, "Montserrat-ExtraBold.ttf");
   return [
     ...(await checkFfmpeg()),
@@ -60,8 +61,8 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models): Pr
       await checkFal(createFal(env.FAL_KEY));
       return "storage upload works";
     }),
-    await attempt(`ElevenLabs voice ${env.ELEVENLABS_VOICE_ID}`, async () => {
-      await new ElevenLabsTts(env.ELEVENLABS_API_KEY, ttsModel).checkVoice(env.ELEVENLABS_VOICE_ID);
+    await attempt(`ElevenLabs voice ${voice}`, async () => {
+      await new ElevenLabsTts(env.ELEVENLABS_API_KEY, ttsModel).checkVoice(voice);
       return "available";
     }),
   ];

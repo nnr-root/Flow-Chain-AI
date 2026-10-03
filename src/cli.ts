@@ -47,8 +47,8 @@ async function askConfirm(_plan: Plan, reason: string): Promise<boolean> {
   }
 }
 
-async function requireDoctor(env: Env, models: Models): Promise<void> {
-  const checks = await runDoctor(env, FONTS_DIR, models);
+async function requireDoctor(env: Env, models: Models, voiceId?: string): Promise<void> {
+  const checks = await runDoctor(env, FONTS_DIR, models, voiceId);
   if (checks.every((c) => c.ok)) return;
   console.error(formatChecks(checks));
   throw new Error("flowchain doctor failed: fix the items marked ✗ above");
@@ -159,7 +159,7 @@ program
       image: env.FAL_IMAGE_MODEL,
       video: env.FAL_VIDEO_MODEL,
     };
-    await requireDoctor(env, models);
+    await requireDoctor(env, models, request.voiceId);
     const runId = newRunId();
     const dir = runDir(runId);
     const manifest = createManifest(runId, request, models);
@@ -178,7 +178,7 @@ program
     const env = loadEnv();
     const dir = runDir(runId);
     const manifest = await loadManifest(dir);
-    await requireDoctor(env, manifest.models);
+    await requireDoctor(env, manifest.models, manifest.request.voiceId);
     await execute(env, dir, manifest, { budgetUsd: budget(o.budget, env), yes: o.yes, from: o.from });
   });
 
@@ -193,7 +193,7 @@ program
     const dir = runDir(runId);
     const manifest = await loadManifest(dir);
     bumpNonce(manifest, Number(o.scene), o.stage);
-    await requireDoctor(env, manifest.models);
+    await requireDoctor(env, manifest.models, manifest.request.voiceId);
     await execute(env, dir, manifest, { budgetUsd: budget(undefined, env), yes: o.yes, reroll: true });
   });
 
