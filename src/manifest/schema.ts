@@ -87,7 +87,6 @@ export const SceneState = z.object({
       requestedSec: z.union([z.literal(5), z.literal(10)]).optional(),
     })
     .optional(),
-  lastFrame: z.object({ path: z.string(), sha256: z.string() }).optional(),
   fitted: z.object({ path: z.string(), frames: z.number().int(), plan: FitPlan }).optional(),
 });
 export type SceneState = z.infer<typeof SceneState>;

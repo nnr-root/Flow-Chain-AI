@@ -118,11 +118,14 @@ export class FakeImage extends FakeQueue<ImageRequest, ImageOutput> implements I
   }
 }
 
-/** Every job renders a differently tinted clip, so hashes change on regeneration (like a real API). */
+/**
+ * Every job renders a different clip, so hashes change on regeneration (like a real API). Frames are flat
+ * grey levels that change every frame: x264 keeps them exact, so seam frames can be compared with frameDiff 0.
+ */
 export class FakeVideo extends FakeQueue<VideoRequest, VideoOutput> implements VideoProvider {
   protected async render(req: VideoRequest, n: number, path: (name: string) => string) {
     const file = path(`vid_${n}.mp4`);
-    await makeVideo(file, { seconds: req.durationSec, fps: 24, width: 180, height: 320, hue: (n * 47) % 360 });
+    await makeVideo(file, { seconds: req.durationSec, fps: 24, width: 180, height: 320, flat: (n * 53) % 200 });
     return { out: { url: pathToFileURL(file).href }, file };
   }
 }

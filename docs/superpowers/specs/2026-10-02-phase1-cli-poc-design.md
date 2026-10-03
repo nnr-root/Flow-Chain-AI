@@ -9,7 +9,8 @@
 A TypeScript CLI, `flowchain`, that turns a topic into a finished short-form video and proves the
 risky parts of the product before any web/queue infrastructure exists:
 
-1. The **Chain of Continuity** (Mode 1): Img2Vid clip N's last frame seeds clip N+1.
+1. The **Chain of Continuity** (Mode 1): the last frame viewers see of clip N (its *seam frame*, §4.7)
+   seeds clip N+1.
 2. **Cinematic Static FX** (Mode 2) as a cheap Ken Burns fallback, mixable per scene (hybrid).
 3. **Auto-silence removal** without audio/video drift.
 4. **Word-by-word captions** synced to the voiceover.
@@ -54,7 +55,8 @@ runs/<runId>/manifest.json   ← single source of truth, atomically rewritten af
 3 silence    silencedetect → keep segments → audio/scene_N.wav (48 kHz mono) + remapped words + duration
 4 keyframes  Flux → images/keyframe_N.png for scenes that need a fresh keyframe (§4.1)
 5 clips      Mode 1: Kling i2v(chain image, motion prompt, 5|10 s) → clips/clip_N.mp4
-                      → frames/last_N.png (chain image for N+1)
+                      chain image = keyframe, or frames/seam_{N-1}.png (the last frame fitted
+                      clip N-1 shows, written by clip N's own run, §4.7)
              Mode 2: zoompan Ken Burns on keyframe → clips/clip_N.mp4 at exact frame count
 6 fit        every clip → fitted/scene_N.mp4: exact frame count, output size, 30 fps, no audio
 7 captions   global word timeline → captions.ass
@@ -71,8 +73,8 @@ Scene `i` gets a fresh Flux keyframe iff **any** of:
 - `script.scenes[i].shot == "cut"`
 - `mode[i-1] == 2`
 
-Otherwise (Mode 1, `shot == "continue"`, previous scene Mode 1) its chain image is
-`frames/last_{i-1}.png`. A "chain segment" is a maximal run of scenes starting at a keyframe scene.
+Otherwise (Mode 1, `shot == "continue"`, previous scene Mode 1) its chain image is the seam frame of
+clip `i-1`, `frames/seam_{i-1}.png` (§4.7). A "chain segment" is a maximal run of scenes starting at a keyframe scene.
 
 ### 4.2 Prompt composition
 
@@ -129,12 +131,30 @@ Mode 2 clips are generated at exactly `frames_i` and always resolve to `trim` (a
 5. `remapTimings(words, keepSegments)` moves word timings onto the trimmed timeline (§5.2).
 6. `duration` = `ffprobe` of the output WAV (authoritative), `removedSec` = original − trimmed.
 
-### 4.7 Last-frame extraction
+### 4.7 Seam frame (the chain image of a continuing scene)
 
-Primary: `ffmpeg -sseof -1 -i clip.mp4 -update 1 -q:v 1 last.png` (decodes the last second and keeps
-overwriting, leaving the final decodable frame). If the output is missing or empty, fall back to
-`ffprobe -count_frames` then `select=eq(n\,N-1)`. PNG (lossless) is required — the chain image must
-not accumulate JPEG artifacts. `lastFrame.sha256` is stored for cache keys.
+Fit (§4.5) trims a clip longer than its audio to `frames_i`, so the raw clip's last frame is often
+never shown (5.3 s of audio → 10 s clip → ~4.7 s of motion cut). A continuing scene must start from
+what viewers last saw, so its chain image is the **seam frame** of clip `i-1`: the last frame that the
+fitted clip `i-1` shows.
+
+- Plan: `planFit(clipDur_{i-1}, frames_{i-1}/fps)`. For `trim` the seam is the source frame shown at
+  output time `(frames_{i-1}−1)/fps`; for `slow` / `slow+freeze` the whole clip is used, so it is the raw
+  last frame.
+- Extraction (`media/frames.ts extractSeamFrame`, no manifest knowledge): run the **identical** fit
+  filter chain (`fitFilter(plan, size, fps)`) on the raw clip and keep only output frame `frames_{i-1}−1`
+  (`trim=start_frame=frames−1`, `-frames:v 1`), written as a lossless PNG at output size. This matches
+  `applyFit`'s frame choice exactly for every plan without encoding the fitted clip. (An output-side
+  `-ss (frames−1)/fps` seek on the raw clip was measured one source frame off for 2 of 4 consecutive
+  frame counts at 24→30 fps, because the fps conversion duplicates frames.) PNG is required: the chain
+  image must not accumulate JPEG artifacts.
+- It is computed consumer-side in clip `i`'s `run()` (free, deterministic), right before the clip is
+  submitted, to `frames/seam_{i-1}.png` (1-based file names). Clip `i-1`'s own run no longer produces a
+  chain image, and the manifest stores no last-frame record.
+- Media test: the seam frame is pixel-identical (frameDiff 0, flat-colour frames that x264 keeps exact)
+  to the last frame of `applyFit`'s output for trim, slow and slow+freeze plans.
+- `extractLastFrame` (`-sseof -1 -i clip -update 1 last.png`, falling back to `ffprobe -count_frames` +
+  `select=eq(n\,N-1)`) is still used for the fitted-clip column of `chain.png`.
 
 ### 4.8 Ken Burns (Mode 2)
 
@@ -165,9 +185,10 @@ Oversample to avoid zoompan jitter: scale the keyframe to 4× output width first
 5. Burn captions, encode `libx264 -crf 18 -preset medium -pix_fmt yuv420p`, `aac 192k`,
    `-movflags +faststart`. Length is pinned explicitly: `-frames:v totalFrames` for video and
    `apad,atrim=end=totalFrames/fps` for audio (no reliance on `-shortest`).
-6. `chain.png`: for every clip, first and last frame scaled to 360 px height, laid out with
-   `xstack` (rows = scenes in order, columns = first/last of the raw clip; Mode 2 rows included). This
-   is the drift-inspection artifact.
+6. `chain.png`: for every scene, two frames scaled to 360 px height, laid out with `xstack` (rows =
+   scenes in order; Mode 2 rows included): the **first frame of the raw clip** and the **last frame of
+   the fitted clip** — what is actually seen on each side of every seam. Row N's right cell vs row N+1's
+   left cell is the drift-inspection view for a continuing scene.
 
 ## 5. Data Model
 
@@ -247,7 +268,6 @@ const SceneState = z.object({
   keyframe:  z.object({ path: z.string(), seed: z.number(), sourceUrl: z.string() }).optional(),
   clip:      z.object({ path: z.string(), sourceUrl: z.string().optional(), duration: z.number(),
                         requestedSec: z.union([z.literal(5), z.literal(10)]).optional() }).optional(),
-  lastFrame: z.object({ path: z.string(), sha256: z.string() }).optional(),
   fitted:    z.object({ path: z.string(), frames: z.number(), plan: FitPlan }).optional(),
 });
 
@@ -277,11 +297,16 @@ sets them individually (length must equal `--scenes`). The LLM never chooses mod
   stage-defined and **includes the sha256 of every upstream file the stage consumes**.
 - **Skip rule:** a stage (or scene-stage) is skipped iff its record is `done`, the stored
   `inputHash` equals the freshly computed one, and its output files exist.
-- **Chain cascade:** for Mode 1 scene N continuing from N−1, `inputs` contains
-  `lastFrame[N−1].sha256`. Re-generating clip N−1 changes that hash and invalidates N, and so on until
-  the next keyframe scene. No explicit dependency graph is needed.
+- **Chain cascade:** the seam file does not exist yet when clip N is hashed, so for Mode 1 scene N
+  continuing from N−1 `inputs` contains what determines the seam frame instead: `sha256(clip N−1 file)`,
+  `frames_{N−1}`, output size and fps (plus model, prompt, `requestedSec`). Re-generating clip N−1
+  changes that hash and invalidates N, and so on until the next keyframe scene. `deps()` of a continuing
+  clip are `clips(N−1)` and `silence(0..N−1)` (frames_{N−1} depends on every earlier duration), so the
+  planner prices the cascade before it runs. Consequence: a re-voice that changes `frames_{N−1}` by even
+  one frame (cumulative rounding, §4.4) moves the seam frame and regenerates clip N (paid).
 - **Mode 1 clip inputs** contain `requestedSec`, not the audio hash — re-voicing a scene only
-  regenerates its clip if the 5/10 s bucket changes. Free stages (fit/captions/assemble) depend on
+  regenerates its own clip if the 5/10 s bucket changes (continuing clips after it also follow the
+  seam rule above). Free stages (fit/captions/assemble) depend on
   audio hashes and always re-run when audio changes.
 - **Reroll:** `flowchain reroll <runId> --scene N --stage keyframes|clips|tts` (CLI scene numbers
   are 1-based; manifest `idx` is 0-based) bumps `scenes[N-1].nonces[stage]`; the pipeline then re-runs, and hashing decides everything downstream.
@@ -428,13 +453,18 @@ RUNS_DIR=./runs
    cost estimation.
 2. **Media** (real ffmpeg, fixtures generated at test time with `lavfi`; no binaries in git):
    silence removal duration ±20 ms; `extractLastFrame` equals the true last frame (frame-numbered
-   `testsrc2` + pixel compare); `applyFit` ±1 frame for each plan; Ken Burns exact frame count;
+   `testsrc2` + pixel compare); `extractSeamFrame` equals the last frame of `applyFit`'s output
+   (frameDiff 0) for every plan; `applyFit` ±1 frame for each plan; Ken Burns exact frame count;
    assemble A/V duration within 1 frame; contact sheet dimensions.
 3. **Pipeline** (fake providers that emit generated media and count calls): full Mode 1 / Mode 2 /
    hybrid runs; resume after injected failure at scene 3 clips makes zero repeat calls for completed
    work; cascade with shots `[cut, continue, continue, cut]` (all Mode 1) — `reroll --scene 2
    --stage clips` regenerates clips 2 and 3 only (scene 4 is a cut); checkpoint-2 estimate equals the
-   ledger sum of the media stages for a fresh run.
+   ledger sum of the media stages for a fresh run; in an all-Mode-1 continue run the image sent to the
+   video provider for scene 2 equals the last frame of fitted scene 1 (frameDiff 0); a video wait failure
+   followed by resume submits no second job and charges once; a post-processing failure after a
+   successful job is charged once and resume does not call the provider again; an unusable (NSFW) result
+   is charged once and not retried.
 4. **Live smoke** (`npm run smoke`, manual, ~$1–2): 3 scenes, real APIs. Never in CI.
 
 ## 12. Definition of Done

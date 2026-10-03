@@ -11,8 +11,12 @@ export const paths = {
   audio: (i: number) => `audio/scene_${n(i)}.wav`,
   keyframe: (i: number) => `images/keyframe_${n(i)}.png`,
   clip: (i: number) => `clips/clip_${n(i)}.mp4`,
+  /** chain.png: first frame of scene i's raw clip. */
   firstFrame: (i: number) => `frames/first_${n(i)}.png`,
+  /** chain.png: last frame of scene i's fitted clip (what viewers see last). */
   lastFrame: (i: number) => `frames/last_${n(i)}.png`,
+  /** The last frame fitted clip i shows; the chain image of a continuing scene i+1. */
+  seam: (i: number) => `frames/seam_${n(i)}.png`,
   fitted: (i: number) => `fitted/scene_${n(i)}.mp4`,
   captions: "captions.ass",
   video: "video.mp4",

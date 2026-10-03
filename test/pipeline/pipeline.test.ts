@@ -2,12 +2,14 @@ import { basename } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { loadManifest } from "../../src/manifest/store.js";
 import { cellSize } from "../../src/media/contact-sheet.js";
+import { extractLastFrame } from "../../src/media/frames.js";
 import { countFrames, probeVideo, streamDuration } from "../../src/media/ffmpeg.js";
 import { type Plan, planRun, type RunOptions, runPipeline } from "../../src/pipeline.js";
 import { bumpNonce } from "../../src/reroll.js";
 import { STAGES } from "../../src/stages/index.js";
 import { abs, paths } from "../../src/stages/paths.js";
 import { makeTestContext } from "../helpers/context.js";
+import { frameDiff } from "../helpers/media.js";
 
 const auto: RunOptions = { budgetUsd: 100, confirm: async () => true };
 
@@ -62,9 +64,27 @@ describe("end-to-end with fakes", () => {
     const confirm = vi.fn(async () => true);
     await runPipeline(ctx, STAGES, { budgetUsd: 100, confirm, reroll: true });
     expect(confirm).toHaveBeenCalledTimes(1);
-    expect(fakes.video.submits.slice(4).map((c) => basename(c.imagePath))).toEqual(["last_01.png", "last_02.png"]);
+    expect(fakes.video.submits.slice(4).map((c) => basename(c.imagePath))).toEqual(["seam_01.png", "seam_02.png"]);
     expect(fakes.image.submits).toHaveLength(2);
     expect(fakes.tts.calls).toHaveLength(4);
+  });
+
+  it("starts a continuing clip from exactly the last frame viewers see of the previous fitted clip", async () => {
+    const { ctx, fakes } = await makeTestContext({ modes: [1, 1], shots: ["cut", "continue"] });
+    await runPipeline(ctx, STAGES, auto);
+    expect(ctx.manifest.scenes[0].fitted?.plan.kind).toBe("trim"); // 5 s clip cut to ~2.6 s of audio
+
+    const sent = fakes.video.submits[1].imagePath;
+    expect(sent).toBe(abs(ctx, paths.seam(0)));
+    const shown = abs(ctx, "shown.png");
+    await extractLastFrame(abs(ctx, paths.fitted(0)), shown);
+    expect(await frameDiff(sent, shown)).toBe(0);
+    // the raw clip's last frame, which viewers never see, is not what scene 2 starts from
+    const rawLast = abs(ctx, "raw_last.png");
+    await extractLastFrame(abs(ctx, paths.clip(0)), rawLast);
+    expect(await frameDiff(rawLast, shown)).toBeGreaterThan(0);
+    // chain.png's right column is the fitted last frame too
+    expect(await frameDiff(abs(ctx, paths.lastFrame(0)), shown)).toBe(0);
   });
 
   it("the media checkpoint estimate equals what the ledger records", async () => {

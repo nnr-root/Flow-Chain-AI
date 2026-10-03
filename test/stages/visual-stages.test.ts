@@ -1,11 +1,11 @@
 import { basename } from "node:path";
 import { describe, expect, it } from "vitest";
 import { imageCost } from "../../src/cost.js";
-import { fileSha256 } from "../../src/manifest/hash.js";
+import { rm } from "node:fs/promises";
 import { createManifest } from "../../src/manifest/store.js";
 import type { Mode } from "../../src/manifest/schema.js";
 import { countFrames } from "../../src/media/ffmpeg.js";
-import { runPipeline, type RunOptions } from "../../src/pipeline.js";
+import { computeHash, runPipeline, type RunOptions } from "../../src/pipeline.js";
 import { clipsStage } from "../../src/stages/clips.js";
 import { keyframesStage } from "../../src/stages/keyframes.js";
 import { abs, paths } from "../../src/stages/paths.js";
@@ -59,21 +59,37 @@ describe("keyframes and clips stages", () => {
     expect(fakes.image.submits[0]).toMatchObject({ width: 192, height: 336, prompt: imagePrompt(ctx.manifest.script!, 0) });
     expect(fakes.video.submits.map((c) => basename(c.imagePath))).toEqual([
       "keyframe_01.png",
-      "last_01.png",
+      "seam_01.png",
       "keyframe_04.png",
     ]);
     expect(fakes.video.submits.map((c) => c.durationSec)).toEqual([5, 5, 5]);
     expect(fakes.video.submits[1].prompt).toBe(motionPrompt(ctx.manifest.script!, 1));
 
     expect(await countFrames(abs(ctx, paths.clip(2)))).toBe(sceneFrames(ctx.manifest, 30)[2]);
-    for (const i of [0, 1, 3]) {
-      const last = ctx.manifest.scenes[i].lastFrame!;
-      expect(last.sha256).toBe(await fileSha256(abs(ctx, last.path)));
-    }
-    expect(ctx.manifest.scenes[2].lastFrame).toBeUndefined();
 
     const paid = (stage: string) => ctx.manifest.ledger.filter((e) => e.stage === stage).map((e) => e.usd);
     expect(paid("keyframes")).toEqual([0, 2, 3].map(() => imageCost(ctx.prices, ctx.keyframeSize)));
     expect(paid("clips")).toEqual([0.25, 0.25, 0.25]);
+  });
+
+  it("keys a continuing clip on the previous clip and its frame count, never on the seam file", async () => {
+    const { ctx } = await makeTestContext({ modes: [1, 1], shots: ["cut", "continue"] });
+    await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
+    const hash = await computeHash(ctx, clipsStage, 1);
+    expect(hash).toBe(ctx.manifest.scenes[1].stages.clips?.inputHash);
+
+    await rm(abs(ctx, paths.seam(0)));
+    expect(await computeHash(ctx, clipsStage, 1)).toBe(hash);
+
+    ctx.manifest.scenes[0].audio!.duration += 1 / 30; // frames_0 grows by one, so the seam frame moves
+    expect(await computeHash(ctx, clipsStage, 1)).not.toBe(hash);
+
+    expect(clipsStage.deps(ctx.manifest, 1)).toEqual(
+      expect.arrayContaining([
+        { stage: "clips", scene: 0 },
+        { stage: "silence", scene: 0 },
+        { stage: "silence", scene: 1 },
+      ]),
+    );
   });
 });

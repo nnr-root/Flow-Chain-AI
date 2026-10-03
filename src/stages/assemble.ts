@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { fileSha256 } from "../manifest/hash.js";
 import { concatAudio, concatVideos, finalize } from "../media/assemble.js";
 import { cellSize, contactSheet } from "../media/contact-sheet.js";
@@ -9,15 +8,18 @@ import type { Stage, StageContext } from "./types.js";
 
 const shaAll = (ctx: StageContext, rels: string[]) => Promise.all(rels.map((r) => fileSha256(abs(ctx, r))));
 
-/** chain.png: first and last frame of every raw clip, one row per scene. */
+/**
+ * chain.png: one row per scene, [first frame of the raw clip | last frame of the fitted clip]. The right
+ * column is what viewers see at each seam, so row N's right cell vs row N+1's left cell shows the drift
+ * of a continuing scene.
+ */
 async function writeChainSheet(ctx: StageContext): Promise<void> {
   const rows = [];
   for (const scene of ctx.manifest.scenes) {
-    const clip = abs(ctx, requireClip(scene).path);
     const first = await outPath(ctx, paths.firstFrame(scene.idx));
-    const last = abs(ctx, paths.lastFrame(scene.idx));
-    await extractFrame(clip, 0, first);
-    if (scene.mode === 2 || !existsSync(last)) await extractLastFrame(clip, await outPath(ctx, paths.lastFrame(scene.idx)));
+    const last = await outPath(ctx, paths.lastFrame(scene.idx));
+    await extractFrame(abs(ctx, requireClip(scene).path), 0, first);
+    await extractLastFrame(abs(ctx, requireFitted(scene).path), last);
     rows.push({ first, last });
   }
   await contactSheet(rows, abs(ctx, paths.chain), cellSize(ctx.size));

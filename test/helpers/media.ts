@@ -29,6 +29,11 @@ export type VideoOptions = {
   height?: number;
   /** Rotates hues so different calls produce visibly different (and differently hashed) videos. */
   hue?: number;
+  /**
+   * Instead of testsrc2: every frame is one flat grey level that changes from frame to frame, shifted by
+   * this offset. Flat frames survive x264 exactly, so "is this the same frame?" can be checked with frameDiff 0.
+   */
+  flat?: number;
 };
 
 export async function makeVideo(path: string, o: VideoOptions = {}): Promise<void> {
@@ -37,8 +42,12 @@ export async function makeVideo(path: string, o: VideoOptions = {}): Promise<voi
   const height = o.height ?? 240;
   const frames = o.frames ?? Math.round((o.seconds ?? 1) * fps);
   const vf = o.hue === undefined ? "format=yuv420p" : `hue=h=${o.hue},format=yuv420p`;
+  const source =
+    o.flat === undefined
+      ? `testsrc2=s=${width}x${height}:r=${fps}`
+      : `color=black:s=${width}x${height}:r=${fps},geq=lum='16+mod(N*37+${o.flat}\\,200)':cb=128:cr=128`;
   await ffmpeg([
-    "-f", "lavfi", "-i", `testsrc2=s=${width}x${height}:r=${fps}`,
+    "-f", "lavfi", "-i", source,
     "-vf", vf, "-frames:v", String(frames),
     "-c:v", "libx264", "-preset", "ultrafast", path,
   ]);

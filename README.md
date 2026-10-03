@@ -22,11 +22,13 @@ npm run flowchain -- resume <runId> [--from clips]
 npm run flowchain -- reroll <runId> --scene 2 --stage clips    # later chained clips follow
 ```
 
-Mode 1 = Kling image-to-video, each clip continuing from the previous clip's last frame.
+Mode 1 = Kling image-to-video, each continuing clip starting from the last frame viewers see of the
+previous (fitted) clip.
 Mode 2 = Flux still + Ken Burns camera move (no video API cost).
 
 Each run lives in `runs/<runId>/`: `manifest.json` (state, cache keys, cost ledger), `final.mp4`,
-`chain.png` (first/last frame of every clip — use it to judge continuity drift), plus intermediates.
+`chain.png` (per scene: first frame of the raw clip and last frame of the fitted clip — use it to judge
+continuity drift at each seam), plus intermediates.
 
 ## Costs
 
