@@ -21,7 +21,11 @@ function toyStages(toy: Toy): Stage[] {
       inputsFor: async (ctx) => ({ topic: ctx.manifest.request.topic }),
       outputsFor: () => ["script.txt"],
       estimateCostUsd: () => 0.01,
-      run: async (ctx) => (toy.log.push("script"), await write(ctx, "script.txt"), 0.01),
+      run: async (ctx) => {
+        toy.log.push("script");
+        await write(ctx, "script.txt");
+        await ctx.charge(0.01);
+      },
     },
     {
       name: "tts", perScene: true, paid: true,
@@ -29,7 +33,11 @@ function toyStages(toy: Toy): Stage[] {
       inputsFor: async (ctx) => ({ script: await fileSha256(join(ctx.dir, "script.txt")) }),
       outputsFor: (_m, i) => [`tts_${i}.txt`],
       estimateCostUsd: () => 0.1,
-      run: async (ctx, i) => (toy.log.push(`tts${i}`), await write(ctx, `tts_${i}.txt`), 0.1),
+      run: async (ctx, i) => {
+        toy.log.push(`tts${i}`);
+        await write(ctx, `tts_${i}.txt`);
+        await ctx.charge(0.1);
+      },
     },
     {
       name: "keyframes", perScene: true, paid: true,
@@ -39,9 +47,9 @@ function toyStages(toy: Toy): Stage[] {
       estimateCostUsd: () => 1,
       run: async (ctx, i) => {
         toy.log.push(`kf${i}`);
+        await ctx.charge(1);
         if (toy.failKeyframe === i) throw new Error("kf boom");
         await write(ctx, `kf_${i}.txt`);
-        return 1;
       },
     },
   ];
@@ -110,6 +118,21 @@ describe("runPipeline", () => {
     toy.failKeyframe = undefined;
     await runPipeline(ctx, toyStages(toy), auto);
     expect(toy.log.slice(-2)).toEqual(["kf1", "kf2"]);
+  });
+
+  it("ctx.charge records spend immediately, even when the stage then fails", async () => {
+    const toy: Toy = { log: [], failKeyframe: 1 };
+    const ctx = await toyContext();
+    await expect(runPipeline(ctx, toyStages(toy), auto)).rejects.toThrow("kf boom");
+    const saved = await loadManifest(ctx.dir);
+    expect(saved.scenes[1].stages.keyframes).toMatchObject({ status: "failed", costUsd: 1 });
+    expect(saved.ledger.filter((e) => e.stage === "keyframes").map((e) => e.scene)).toEqual([0, 1]);
+
+    toy.failKeyframe = undefined;
+    await runPipeline(ctx, toyStages(toy), auto);
+    // the record carries the total charged for this inputHash across attempts
+    expect(ctx.manifest.scenes[1].stages.keyframes).toMatchObject({ status: "done", costUsd: 2 });
+    expect(ctx.manifest.scenes[2].stages.keyframes).toMatchObject({ status: "done", costUsd: 1 });
   });
 
   it("asks before exceeding the budget and runs nothing when declined", async () => {

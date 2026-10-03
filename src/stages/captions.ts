@@ -23,6 +23,5 @@ export const captionsStage: Stage = {
   estimateCostUsd: () => 0,
   async run(ctx) {
     await writeFile(await outPath(ctx, paths.captions), wordsToAss(globalWords(ctx.manifest), ctx.size));
-    return 0;
   },
 };

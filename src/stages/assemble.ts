@@ -59,6 +59,5 @@ export const assembleStage: Stage = {
     });
     await writeChainSheet(ctx);
     m.final = { path: paths.final, duration: totalFrames / ctx.fps, captions: paths.captions, chain: paths.chain };
-    return 0;
   },
 };

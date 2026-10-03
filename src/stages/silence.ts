@@ -27,6 +27,5 @@ export const silenceStage: Stage = {
       words: remapTimings(tts.words, result.keep),
       removedSec: result.removedSec,
     };
-    return 0;
   },
 };

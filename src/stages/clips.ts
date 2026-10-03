@@ -5,7 +5,8 @@ import { extractLastFrame } from "../media/frames.js";
 import { renderKenBurns } from "../media/kenburns.js";
 import { requestedSec } from "../media/timeline.js";
 import { download } from "../providers/download.js";
-import { TIMEOUTS, withRetry } from "../providers/retry.js";
+import { TIMEOUTS } from "../providers/retry.js";
+import { runProviderJob } from "./job.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireAudio, requireScript } from "./require.js";
 import type { Dep, Stage } from "./types.js";
@@ -66,20 +67,22 @@ export const clipsStage: Stage = {
       await renderKenBurns(chainImage, out, script.scenes[i].camera, frames, ctx.size, ctx.fps);
       state.clip = { path: paths.clip(i), duration: frames / ctx.fps };
       state.lastFrame = undefined;
-      return 0;
+      return;
     }
 
     const seconds = requestedSec(requireAudio(state).duration);
-    const result = await withRetry(
-      `clip scene ${i + 1}`,
-      () => ctx.providers.video.imageToVideo({ imagePath: chainImage, prompt: motionPrompt(script, i), durationSec: seconds }),
-      { timeoutMs: TIMEOUTS.video, baseDelayMs: ctx.retryDelayMs },
-    );
+    const result = await runProviderJob(ctx, i, "clips", {
+      label: `clip scene ${i + 1}`,
+      costUsd: videoCost(ctx.prices, seconds),
+      submit: () =>
+        ctx.providers.video.submit({ imagePath: chainImage, prompt: motionPrompt(script, i), durationSec: seconds }),
+      wait: (id) => ctx.providers.video.wait(id, { timeoutMs: TIMEOUTS.video }),
+      waitMs: TIMEOUTS.video,
+    });
     await download(result.url, out);
     const last = await outPath(ctx, paths.lastFrame(i));
     await extractLastFrame(out, last);
     state.clip = { path: paths.clip(i), sourceUrl: result.url, duration: await probeDuration(out), requestedSec: seconds };
     state.lastFrame = { path: paths.lastFrame(i), sha256: await fileSha256(last) };
-    return videoCost(ctx.prices, seconds);
   },
 };

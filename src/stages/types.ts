@@ -17,6 +17,17 @@ export type StageContext = {
   log: (message: string) => void;
 };
 
+/** What the pipeline hands to one execution of `run()`. */
+export type RunContext = StageContext & {
+  /** The inputHash this execution produces a result for (keys persisted provider jobs). */
+  inputHash: string;
+  /**
+   * Records spend the moment a provider call has succeeded: appends a ledger entry and saves the manifest,
+   * so money already spent stays recorded even if a later download or post-processing step fails.
+   */
+  charge(usd: number): Promise<void>;
+};
+
 export type Dep = { stage: StageName; scene?: number };
 
 export interface Stage {
@@ -33,6 +44,6 @@ export interface Stage {
   outputsFor(m: Manifest, scene?: number): string[];
   /** Must not throw when upstream data is missing; fall back to conservative assumptions. */
   estimateCostUsd(ctx: StageContext, scene?: number): number;
-  /** Does the work, updates ctx.manifest and returns the USD to record in the ledger. */
-  run(ctx: StageContext, scene?: number): Promise<number>;
+  /** Does the work and updates ctx.manifest. Paid stages record spend with ctx.charge() right after each provider success. */
+  run(ctx: RunContext, scene?: number): Promise<void>;
 }

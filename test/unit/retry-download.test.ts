@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { download } from "../../src/providers/download.js";
-import { withRetry } from "../../src/providers/retry.js";
+import { HttpError, NonRetryableError, withRetry } from "../../src/providers/retry.js";
 
 const noSleep = async () => {};
 
@@ -28,6 +28,39 @@ describe("withRetry", () => {
     await expect(
       withRetry("tts scene 1", async () => Promise.reject(new Error("nope")), { timeoutMs: 1000, sleep: noSleep }),
     ).rejects.toThrow("tts scene 1 failed after 3 attempts: nope");
+  });
+
+  it("does not retry client errors or errors marked non-retryable, and keeps the cause", async () => {
+    for (const status of [400, 401, 403, 404, 422]) {
+      let n = 0;
+      const original = new HttpError(`HTTP ${status}`, status);
+      const err = await withRetry("tts scene 1", async () => {
+        n++;
+        throw original;
+      }, { timeoutMs: 1000, sleep: noSleep }).catch((e: unknown) => e);
+      expect(n).toBe(1);
+      expect((err as Error).message).toBe(`tts scene 1 failed after 1 attempt: HTTP ${status}`);
+      expect((err as Error).cause).toBe(original);
+    }
+    let n = 0;
+    await expect(
+      withRetry("x", async () => {
+        n++;
+        throw new NonRetryableError("flagged");
+      }, { timeoutMs: 1000, sleep: noSleep }),
+    ).rejects.toThrow("x failed after 1 attempt: flagged");
+    expect(n).toBe(1);
+  });
+
+  it("retries server errors", async () => {
+    let n = 0;
+    await expect(
+      withRetry("x", async () => {
+        n++;
+        throw new HttpError("HTTP 503", 503);
+      }, { timeoutMs: 1000, sleep: noSleep }),
+    ).rejects.toThrow("x failed after 3 attempts: HTTP 503");
+    expect(n).toBe(3);
   });
 
   it("times out calls that never settle", async () => {

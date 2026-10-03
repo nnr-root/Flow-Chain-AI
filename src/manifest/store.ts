@@ -24,7 +24,7 @@ export function createManifest(runId: string, request: RunRequest, models: Model
     request,
     models,
     runStages: {},
-    scenes: request.modes.map((mode, idx) => ({ idx, mode, nonces: {}, stages: {} })),
+    scenes: request.modes.map((mode, idx) => ({ idx, mode, nonces: {}, stages: {}, jobs: {} })),
     ledger: [],
   };
 }

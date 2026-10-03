@@ -1,4 +1,5 @@
 import type { WordTiming } from "../manifest/schema.js";
+import { HttpError } from "./retry.js";
 import type { SpeakRequest, TtsProvider } from "./types.js";
 
 const API = "https://api.elevenlabs.io";
@@ -47,7 +48,7 @@ export class ElevenLabsTts implements TtsProvider {
         next_text: req.nextText,
       }),
     });
-    if (!res.ok) throw new Error(`ElevenLabs TTS HTTP ${res.status}: ${await res.text()}`);
+    if (!res.ok) throw new HttpError(`ElevenLabs TTS HTTP ${res.status}: ${await res.text()}`, res.status);
     const body = (await res.json()) as {
       audio_base64: string;
       alignment: Alignment | null;

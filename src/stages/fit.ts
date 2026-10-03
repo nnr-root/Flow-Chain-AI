@@ -31,6 +31,5 @@ export const fitStage: Stage = {
     await applyFit(abs(ctx, clip.path), await outPath(ctx, paths.fitted(i)), plan, frames, ctx.size, ctx.fps);
     state.fitted = { path: paths.fitted(i), frames, plan };
     if (plan.kind !== "trim") ctx.log(`scene ${i + 1}: clip shorter than its audio, fit plan ${JSON.stringify(plan)}`);
-    return 0;
   },
 };

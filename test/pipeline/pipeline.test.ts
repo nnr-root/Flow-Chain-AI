@@ -25,29 +25,32 @@ describe("end-to-end with fakes", () => {
     expect(sheet.height).toBe(cell.height * 4);
   });
 
-  it("resumes after a failed clip without repeating any completed paid call", async () => {
+  it("resumes after a rejected clip submission without repeating any completed paid call", async () => {
     const { ctx, fakes } = await makeTestContext({ modes: [1, 1, 1, 1] });
-    fakes.video.failWhen = (req) => basename(req.imagePath) === "last_02.png"; // scene 3's chain image
-    await expect(runPipeline(ctx, STAGES, auto)).rejects.toThrow(/clip scene 3 failed after 3 attempts/);
-    expect(fakes.video.calls).toHaveLength(5); // scenes 1, 2, then 3 attempts at scene 3
+    fakes.video.failSubmit = (req) => req.prompt.startsWith("motion 3");
+    await expect(runPipeline(ctx, STAGES, auto)).rejects.toThrow(/clip scene 3 \(submit\) failed after 1 attempt/);
+    expect(fakes.video.submits).toHaveLength(2); // a submit is never retried
 
     const saved = await loadManifest(ctx.dir);
     expect(saved.scenes[2].stages.clips?.status).toBe("failed");
+    expect(saved.scenes[2].jobs.clips).toBeUndefined();
 
-    fakes.video.failWhen = undefined;
+    fakes.video.failSubmit = undefined;
     await runPipeline({ ...ctx, manifest: saved }, STAGES, auto);
     expect(fakes.llm.calls).toHaveLength(1);
     expect(fakes.tts.calls).toHaveLength(4);
-    expect(fakes.image.calls).toHaveLength(1);
-    expect(fakes.video.calls).toHaveLength(7); // + scenes 3 and 4
-    expect((await loadManifest(ctx.dir)).final).toBeDefined();
+    expect(fakes.image.submits).toHaveLength(1);
+    expect(fakes.video.submits).toHaveLength(4); // + scenes 3 and 4
+    const final = await loadManifest(ctx.dir);
+    expect(final.final).toBeDefined();
+    expect(final.ledger.filter((e) => e.stage === "clips")).toHaveLength(4);
   });
 
   it("a clip reroll cascades down the chain and stops at the next cut", async () => {
     const { ctx, fakes } = await makeTestContext({ modes: [1, 1, 1, 1], shots: ["cut", "continue", "continue", "cut"] });
     await runPipeline(ctx, STAGES, auto);
-    expect(fakes.image.calls).toHaveLength(2);
-    expect(fakes.video.calls).toHaveLength(4);
+    expect(fakes.image.submits).toHaveLength(2);
+    expect(fakes.video.submits).toHaveLength(4);
 
     bumpNonce(ctx.manifest, 2, "clips");
     const plan = await planRun(ctx, STAGES);
@@ -59,8 +62,8 @@ describe("end-to-end with fakes", () => {
     const confirm = vi.fn(async () => true);
     await runPipeline(ctx, STAGES, { budgetUsd: 100, confirm, reroll: true });
     expect(confirm).toHaveBeenCalledTimes(1);
-    expect(fakes.video.calls.slice(4).map((c) => basename(c.imagePath))).toEqual(["last_01.png", "last_02.png"]);
-    expect(fakes.image.calls).toHaveLength(2);
+    expect(fakes.video.submits.slice(4).map((c) => basename(c.imagePath))).toEqual(["last_01.png", "last_02.png"]);
+    expect(fakes.image.submits).toHaveLength(2);
     expect(fakes.tts.calls).toHaveLength(4);
   });
 

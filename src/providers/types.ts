@@ -13,14 +13,25 @@ export interface TtsProvider {
   speak(req: SpeakRequest): Promise<{ audio: Buffer; words: WordTiming[] }>;
 }
 
-export type ImageRequest = { prompt: string; width: number; height: number; seed?: number };
-export interface ImageProvider {
-  generate(req: ImageRequest): Promise<{ url: string; seed: number }>;
+export type WaitOptions = { timeoutMs: number };
+
+/**
+ * A paid provider that works through a job queue. `submit` buys exactly one job and returns its request
+ * id without waiting. `wait` polls that id (safe to repeat, never buys anything) until the job completes,
+ * then returns its output. It throws UnusableResultError when the job completed (so it was billed) but its
+ * output cannot be used, and NonRetryableError when the job is still not finished after `timeoutMs`.
+ */
+export interface QueuedProvider<Req, Out> {
+  submit(req: Req): Promise<string>;
+  wait(requestId: string, opts: WaitOptions): Promise<Out>;
 }
 
+export type ImageRequest = { prompt: string; width: number; height: number; seed?: number };
+export type ImageOutput = { url: string; seed: number };
+export type ImageProvider = QueuedProvider<ImageRequest, ImageOutput>;
+
 export type VideoRequest = { imagePath: string; prompt: string; durationSec: 5 | 10 };
-export interface VideoProvider {
-  imageToVideo(req: VideoRequest): Promise<{ url: string }>;
-}
+export type VideoOutput = { url: string };
+export type VideoProvider = QueuedProvider<VideoRequest, VideoOutput>;
 
 export type Providers = { llm: LlmProvider; tts: TtsProvider; image: ImageProvider; video: VideoProvider };

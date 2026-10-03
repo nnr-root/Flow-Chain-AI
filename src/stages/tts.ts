@@ -32,8 +32,8 @@ export const ttsStage: Stage = {
       timeoutMs: TIMEOUTS.tts,
       baseDelayMs: ctx.retryDelayMs,
     });
+    await ctx.charge(ttsCost(ctx.prices, req.text.length));
     await writeFile(await outPath(ctx, paths.rawAudio(i)), result.audio);
     ctx.manifest.scenes[i].tts = { raw: paths.rawAudio(i), words: result.words };
-    return ttsCost(ctx.prices, req.text.length);
   },
 };

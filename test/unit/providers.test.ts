@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { ElevenLabsTts, wordsFromAlignment } from "../../src/providers/elevenlabs.js";
 import { FalImage, type FalLike, FalVideo } from "../../src/providers/fal.js";
+import { HttpError, isRetryable, NonRetryableError, UnusableResultError } from "../../src/providers/retry.js";
 import { buildScriptPrompt, scriptJsonSchema } from "../../src/providers/gemini.js";
 
 describe("gemini prompt and schema", () => {
@@ -62,51 +63,97 @@ describe("elevenlabs", () => {
     expect(r.words).toHaveLength(2);
   });
 
-  it("surfaces HTTP errors", async () => {
+  it("surfaces HTTP errors with their status", async () => {
     const fakeFetch = (async () => new Response("bad key", { status: 401 })) as typeof fetch;
-    await expect(new ElevenLabsTts("k", "m", fakeFetch).speak({ text: "x", voiceId: "v" })).rejects.toThrow(
-      "ElevenLabs TTS HTTP 401: bad key",
-    );
+    const err = await new ElevenLabsTts("k", "m", fakeFetch).speak({ text: "x", voiceId: "v" }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(HttpError);
+    expect((err as HttpError).status).toBe(401);
+    expect((err as Error).message).toBe("ElevenLabs TTS HTTP 401: bad key");
   });
 });
 
 describe("fal adapters", () => {
-  function fakeFal() {
-    const calls: Array<{ id: string; input: Record<string, unknown> }> = [];
+  type Status = "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED";
+  function fakeFal(data: unknown, statuses: Status[] = ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]) {
+    const submits: Array<{ id: string; input: Record<string, unknown> }> = [];
+    const polls: string[] = [];
+    const results: string[] = [];
     const uploads: Blob[] = [];
+    let poll = 0;
     const fal = {
-      subscribe: async (id: string, opts: { input: Record<string, unknown> }) => {
-        calls.push({ id, input: opts.input });
-        const data = id.includes("flux")
-          ? { images: [{ url: "https://fal.media/k.png" }], seed: 77 }
-          : { video: { url: "https://fal.media/c.mp4" } };
-        return { requestId: "r1", data };
+      queue: {
+        submit: async (id: string, opts: { input: Record<string, unknown> }) => {
+          submits.push({ id, input: opts.input });
+          return { status: "IN_QUEUE", request_id: "req-1" };
+        },
+        status: async (_id: string, opts: { requestId: string }) => {
+          polls.push(opts.requestId);
+          return { status: statuses[Math.min(poll++, statuses.length - 1)], request_id: opts.requestId };
+        },
+        result: async (_id: string, opts: { requestId: string }) => {
+          results.push(opts.requestId);
+          return { requestId: opts.requestId, data };
+        },
       },
       storage: { upload: async (b: Blob) => (uploads.push(b), "https://fal.media/up.png") },
     } as unknown as FalLike;
-    return { fal, calls, uploads };
+    return { fal, submits, polls, results, uploads };
   }
+  const fast = { pollMs: 0, sleep: async () => {} };
 
-  it("generates a Flux image at an explicit size", async () => {
-    const { fal, calls } = fakeFal();
-    const r = await new FalImage(fal, "fal-ai/flux/dev").generate({ prompt: "p", width: 1088, height: 1920 });
-    expect(r).toEqual({ url: "https://fal.media/k.png", seed: 77 });
-    expect(calls[0].input).toMatchObject({ prompt: "p", image_size: { width: 1088, height: 1920 }, num_images: 1 });
-    expect(calls[0].input).not.toHaveProperty("seed");
+  it("submits a Flux image at an explicit size and waits for it through the queue", async () => {
+    const { fal, submits, polls, results } = fakeFal({ images: [{ url: "https://fal.media/k.png" }], seed: 77 });
+    const image = new FalImage(fal, "fal-ai/flux/dev", fast);
+    const id = await image.submit({ prompt: "p", width: 1088, height: 1920 });
+    expect(id).toBe("req-1");
+    expect(submits[0].input).toMatchObject({ prompt: "p", image_size: { width: 1088, height: 1920 }, num_images: 1 });
+    expect(submits[0].input).not.toHaveProperty("seed");
+    expect(await image.wait(id, { timeoutMs: 1000 })).toEqual({ url: "https://fal.media/k.png", seed: 77 });
+    expect(polls).toEqual(["req-1", "req-1", "req-1"]);
+    expect(results).toEqual(["req-1"]);
+    expect(submits).toHaveLength(1);
   });
 
-  it("uploads the chain image and requests the clip length as a string", async () => {
-    const { fal, calls, uploads } = fakeFal();
+  it("rejects NSFW-flagged or missing images as unusable (not retryable)", async () => {
+    const nsfw = fakeFal({ images: [{ url: "https://fal.media/k.png" }], seed: 1, has_nsfw_concepts: [true] });
+    const err = await new FalImage(nsfw.fal, "m", fast).wait("req-1", { timeoutMs: 1000 }).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UnusableResultError);
+    expect((err as Error).message).toMatch(/req-1 was flagged NSFW/);
+    expect(isRetryable(err)).toBe(false);
+
+    const empty = fakeFal({ images: [], seed: 1 });
+    await expect(new FalImage(empty.fal, "m", fast).wait("req-1", { timeoutMs: 1000 })).rejects.toThrow(
+      /completed without an image/,
+    );
+  });
+
+  it("stops waiting at its deadline without resubmitting", async () => {
+    const { fal, submits, polls } = fakeFal({}, ["IN_PROGRESS"]);
+    let t = 0;
+    const video = new FalVideo(fal, "kling", { pollMs: 1000, sleep: async (ms) => void (t += ms), now: () => t });
+    const err = await video.wait("req-9", { timeoutMs: 5000 }).catch((e: unknown) => e);
+    expect((err as Error).message).toBe("fal request req-9 is still IN_PROGRESS after 5 s");
+    expect(err).toBeInstanceOf(NonRetryableError);
+    expect(polls.length).toBe(6);
+    expect(submits).toHaveLength(0);
+  });
+
+  it("uploads the chain image, requests the clip length as a string and returns the video URL", async () => {
+    const { fal, submits, uploads } = fakeFal({ video: { url: "https://fal.media/c.mp4" } });
     const dir = await mkdtemp(join(tmpdir(), "fc-"));
     const img = join(dir, "last.png");
     await writeFile(img, "png-bytes");
-    const r = await new FalVideo(fal, "fal-ai/kling-video/v2.1/standard/image-to-video").imageToVideo({
-      imagePath: img,
-      prompt: "move",
-      durationSec: 10,
-    });
-    expect(r).toEqual({ url: "https://fal.media/c.mp4" });
+    const video = new FalVideo(fal, "fal-ai/kling-video/v2.1/standard/image-to-video", fast);
+    const id = await video.submit({ imagePath: img, prompt: "move", durationSec: 10 });
     expect(uploads).toHaveLength(1);
-    expect(calls[0].input).toMatchObject({ image_url: "https://fal.media/up.png", prompt: "move", duration: "10" });
+    expect(submits[0].input).toMatchObject({ image_url: "https://fal.media/up.png", prompt: "move", duration: "10" });
+    expect(await video.wait(id, { timeoutMs: 1000 })).toEqual({ url: "https://fal.media/c.mp4" });
+  });
+
+  it("rejects a completed video job without a video URL as unusable", async () => {
+    const { fal } = fakeFal({ video: null });
+    await expect(new FalVideo(fal, "m", fast).wait("req-1", { timeoutMs: 1000 })).rejects.toBeInstanceOf(
+      UnusableResultError,
+    );
   });
 });

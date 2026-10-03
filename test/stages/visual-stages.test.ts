@@ -55,15 +55,15 @@ describe("keyframes and clips stages", () => {
     });
     await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
 
-    expect(fakes.image.calls).toHaveLength(3);
-    expect(fakes.image.calls[0]).toMatchObject({ width: 192, height: 336, prompt: imagePrompt(ctx.manifest.script!, 0) });
-    expect(fakes.video.calls.map((c) => basename(c.imagePath))).toEqual([
+    expect(fakes.image.submits).toHaveLength(3);
+    expect(fakes.image.submits[0]).toMatchObject({ width: 192, height: 336, prompt: imagePrompt(ctx.manifest.script!, 0) });
+    expect(fakes.video.submits.map((c) => basename(c.imagePath))).toEqual([
       "keyframe_01.png",
       "last_01.png",
       "keyframe_04.png",
     ]);
-    expect(fakes.video.calls.map((c) => c.durationSec)).toEqual([5, 5, 5]);
-    expect(fakes.video.calls[1].prompt).toBe(motionPrompt(ctx.manifest.script!, 1));
+    expect(fakes.video.submits.map((c) => c.durationSec)).toEqual([5, 5, 5]);
+    expect(fakes.video.submits[1].prompt).toBe(motionPrompt(ctx.manifest.script!, 1));
 
     expect(await countFrames(abs(ctx, paths.clip(2)))).toBe(sceneFrames(ctx.manifest, 30)[2]);
     for (const i of [0, 1, 3]) {

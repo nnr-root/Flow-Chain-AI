@@ -51,7 +51,9 @@ describe("script stage", () => {
     await runPipeline(ctx, [scriptStage], auto);
     expect(fakes.llm.calls).toHaveLength(2);
     expect(fakes.llm.calls[1].feedback).toContain("expected exactly 2 scenes, got 1");
-    expect(ctx.manifest.ledger[0].usd).toBeCloseTo(2 * scriptCost(ctx.prices), 6);
+    // each answer is charged the moment it arrives, valid or not
+    expect(ctx.manifest.ledger.map((e) => e.usd)).toEqual([scriptCost(ctx.prices), scriptCost(ctx.prices)]);
+    expect(ctx.manifest.runStages.script?.costUsd).toBeCloseTo(2 * scriptCost(ctx.prices), 6);
   });
 
   it("fails after two invalid answers", async () => {

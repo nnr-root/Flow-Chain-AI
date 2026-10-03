@@ -47,11 +47,12 @@ export const scriptStage: Stage = {
         () => ctx.providers.llm.generateScript({ topic, sceneCount, aspect, feedback }),
         { timeoutMs: TIMEOUTS.llm, baseDelayMs: ctx.retryDelayMs },
       );
+      await ctx.charge(scriptCost(ctx.prices)); // every answer is paid for, valid or not
       const result = validateScript(raw, sceneCount);
       if (result.ok) {
         ctx.manifest.script = result.script;
         await writeFile(await outPath(ctx, paths.script), `${JSON.stringify(result.script, null, 2)}\n`);
-        return scriptCost(ctx.prices) * attempt;
+        return;
       }
       feedback = result.problems.join("\n");
       ctx.log(`script rejected:\n${feedback}`);

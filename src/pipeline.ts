@@ -4,7 +4,7 @@ import { round4 } from "./cost.js";
 import { inputHash } from "./manifest/hash.js";
 import type { Manifest, StageName, StageRecord } from "./manifest/schema.js";
 import { saveManifest } from "./manifest/store.js";
-import type { Stage, StageContext } from "./stages/types.js";
+import type { RunContext, Stage, StageContext } from "./stages/types.js";
 
 export type WorkItem = { stage: StageName; scene?: number; costUsd: number };
 export type Plan = { items: WorkItem[]; totalUsd: number };
@@ -100,20 +100,33 @@ export function formatPlan(plan: Plan, label: string): string {
 async function execute(ctx: StageContext, stage: Stage, scene?: number): Promise<void> {
   const hash = await computeHash(ctx, stage, scene);
   ctx.log(`▶ ${stage.name}${scene === undefined ? "" : ` scene ${scene + 1}`}`);
-  let cost: number;
+  // A failed attempt for the same inputs may already have spent money (e.g. a charged job whose download
+  // failed); the record's costUsd is the total charged for this result.
+  const prior = getRecord(ctx.manifest, stage.name, scene);
+  let charged = prior?.status === "failed" && prior.inputHash === hash ? prior.costUsd : 0;
+  const runCtx: RunContext = {
+    ...ctx,
+    inputHash: hash,
+    charge: async (usd) => {
+      if (!(usd > 0)) return;
+      charged = round4(charged + usd);
+      ctx.manifest.ledger.push({ stage: stage.name, scene, usd, at: new Date().toISOString() });
+      await saveManifest(ctx.dir, ctx.manifest);
+    },
+  };
   try {
-    cost = await stage.run(ctx, scene);
+    await stage.run(runCtx, scene);
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     setRecord(ctx.manifest, stage.name, scene, {
-      status: "failed", inputHash: hash, costUsd: 0, finishedAt: new Date().toISOString(), error,
+      status: "failed", inputHash: hash, costUsd: charged, finishedAt: new Date().toISOString(), error,
     });
     await saveManifest(ctx.dir, ctx.manifest);
     throw err;
   }
-  const at = new Date().toISOString();
-  setRecord(ctx.manifest, stage.name, scene, { status: "done", inputHash: hash, costUsd: cost, finishedAt: at });
-  if (cost > 0) ctx.manifest.ledger.push({ stage: stage.name, scene, usd: cost, at });
+  setRecord(ctx.manifest, stage.name, scene, {
+    status: "done", inputHash: hash, costUsd: charged, finishedAt: new Date().toISOString(),
+  });
   await saveManifest(ctx.dir, ctx.manifest);
 }
 

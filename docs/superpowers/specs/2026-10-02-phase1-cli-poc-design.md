@@ -227,11 +227,20 @@ const FitPlan = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("slow+freeze"), factor: z.literal(1.25), freezeSec: z.number() }),
 ]);
 
+const ProviderJob = z.object({            // saved BEFORE waiting on the fal queue (§6 Failure)
+  requestId:   z.string(),
+  inputHash:   z.string(),                 // the inputs this job was bought for
+  submittedAt: z.string(),
+  chargedUsd:  z.number().default(0),      // > 0 once the completed job is in the ledger
+  result:      z.object({ url: z.string(), seed: z.number().optional() }).optional(),  // set when charged
+});
+
 const SceneState = z.object({
   idx:       z.number(),
   mode:      z.union([z.literal(1), z.literal(2)]),
   nonces:    z.partialRecord(StageName, z.number()).default({}),   // bumped by reroll
   stages:    z.partialRecord(StageName, StageRecord).default({}),
+  jobs:      z.partialRecord(StageName, ProviderJob).default({}),          // paid fal jobs (keyframes, clips)
   tts:       z.object({ raw: z.string(), words: z.array(WordTiming) }).optional(),   // untrimmed TTS output
   audio:     z.object({ path: z.string(), duration: z.number(),                        // after silence removal
                         words: z.array(WordTiming), removedSec: z.number() }).optional(),
@@ -277,12 +286,29 @@ sets them individually (length must equal `--scenes`). The LLM never chooses mod
 - **Reroll:** `flowchain reroll <runId> --scene N --stage keyframes|clips|tts` (CLI scene numbers
   are 1-based; manifest `idx` is 0-based) bumps `scenes[N-1].nonces[stage]`; the pipeline then re-runs, and hashing decides everything downstream.
   Before executing, the CLI lists which (scene, stage) pairs will run and their estimated cost.
-- **Failure:** provider errors are retried (3 attempts, exponential backoff, per-call timeout:
-  LLM 60 s, TTS 60 s, image 120 s, video 600 s). After the last attempt the stage writes a `failed`
-  record and the run stops; the next `resume` continues from there. Nothing paid is regenerated
-  without a hash change.
+- **Failure:** LLM and TTS calls are retried (3 attempts, exponential backoff, per-call timeout
+  LLM 60 s, TTS 60 s). Clearly non-retryable errors are not retried: HTTP 400/401/403/404/422 and
+  errors marked non-retryable (the original error is kept as `cause`). After the last attempt the stage
+  writes a `failed` record and the run stops; the next `resume` continues from there.
+- **Paid fal jobs (keyframes, clips) use the queue API explicitly, never `subscribe`:** `fal.queue.submit`
+  is called exactly once (never retried); its request id is stored in `scenes[i].jobs[stage]` together
+  with the inputHash it was bought for, and the manifest is saved **before** waiting. Waiting polls
+  `fal.queue.status` until `COMPLETED` (deadline: image 120 s, video 600 s), then fetches
+  `fal.queue.result`; polling may be retried because it never buys anything. A timeout, error or Ctrl-C
+  while waiting fails the stage with the request id kept, and the next attempt for the same inputHash
+  polls that id again. A new job is submitted only when there is no job for the current inputHash
+  (e.g. after a reroll nonce bump). A result without `images[0].url` / `video.url`, or with
+  `has_nsfw_concepts[0] === true`, is a non-retryable error (charged, since fal completed the job);
+  resuming re-polls the same request and fails the same way, so the way forward is a reroll.
+- **Charge at provider success:** a paid stage records spend through `ctx.charge(usd)` the moment the
+  provider returns (each LLM answer, each TTS response, each completed fal job), before any download or
+  post-processing; `charge` appends the ledger entry and saves the manifest. A completed fal job also
+  saves its result URL, so a failed download or post-processing step is retried on resume by
+  re-downloading, without calling or paying the provider again. A stage record's `costUsd` is the total
+  charged for its inputHash across attempts. Nothing paid is regenerated without a hash change.
 - **Persistence:** manifest saved via write-to-temp + `rename` after every scene-stage.
-- **Downloads:** every remote output is downloaded immediately; `sourceUrl` is informational.
+- **Downloads:** every remote output is downloaded immediately; `sourceUrl` is
+  informational, while `jobs[stage].result.url` is what a resume re-downloads from.
 
 ## 7. Module Layout
 
@@ -313,11 +339,15 @@ Supabase; `media/assemble.ts` is replaced by Remotion.
 interface LlmProvider   { generateScript(req: ScriptRequest): Promise<Script> }
 interface TtsProvider   { speak(req: { text: string; previousText?: string; nextText?: string; voiceId: string })
                             : Promise<{ audio: Buffer; words: WordTiming[] }> }
-interface ImageProvider { generate(req: { prompt: string; width: number; height: number; seed?: number })
-                            : Promise<{ url: string; seed: number }> }
-interface VideoProvider { imageToVideo(req: { imagePath: string; prompt: string; durationSec: 5 | 10 })
-                            : Promise<{ url: string }> }   // adapter uploads imagePath via fal.storage.upload;
-                                                           // Kling v2.1 takes aspect from the input image
+interface QueuedProvider<Req, Out> {            // fal queue: submit buys one job, wait only polls it
+  submit(req: Req): Promise<string>              // request id; never waits
+  wait(requestId: string, opts: { timeoutMs: number }): Promise<Out>
+}
+type ImageProvider = QueuedProvider<{ prompt: string; width: number; height: number; seed?: number },
+                                    { url: string; seed: number }>
+type VideoProvider = QueuedProvider<{ imagePath: string; prompt: string; durationSec: 5 | 10 },
+                                    { url: string }>   // submit uploads imagePath via fal.storage.upload;
+                                                       // Kling v2.1 takes aspect from the input image
 
 interface Stage {
   name: StageName
@@ -328,8 +358,9 @@ interface Stage {
   inputsFor(ctx: StageContext, scene?: number): Promise<unknown> // async: hashes upstream files
   outputsFor(m: Manifest, scene?: number): string[]             // must exist for a cache hit
   estimateCostUsd(ctx: StageContext, scene?: number): number    // never throws; uses fallbacks
-  run(ctx: StageContext, scene?: number): Promise<number>       // returns USD for the ledger
+  run(ctx: RunContext, scene?: number): Promise<void>           // records spend via ctx.charge(usd)
 }
+// RunContext = StageContext + { inputHash (keys persisted jobs), charge(usd) (ledger entry + save, immediately) }
 ```
 
 `clips` is the one stage that must execute scenes in order (Mode 1 chain). All other per-scene
@@ -358,7 +389,8 @@ Price table (USD) in `config.ts`, overridable via `prices.json`:
   pairs) to propagate "will run" downstream, so a reroll's cascade is priced before it happens.
   Execution itself still decides purely by input hash.
 - Ledger entries are **computed** from the price table and actual request parameters, not provider
-  invoices; `status` labels them as estimated actuals.
+  invoices; `status` labels them as estimated actuals. They are written the moment a provider call
+  succeeds (§6 "Charge at provider success"), so a later failure never hides money already spent.
 - Typical 4-scene 9:16: Mode 1 ≈ $1.20; Mode 2 only ≈ $0.30.
 
 ## 9. `flowchain doctor`

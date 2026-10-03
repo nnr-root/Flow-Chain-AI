@@ -54,11 +54,26 @@ export const FitPlan = z.discriminatedUnion("kind", [
 ]);
 export type FitPlan = z.infer<typeof FitPlan>;
 
+/**
+ * A paid fal job (keyframes, clips) submitted for one inputHash. Saved before waiting, so a timeout, crash or
+ * Ctrl-C resumes polling the same request instead of buying a new one. `result` is saved once the job
+ * completes and is charged, so a failed download or post-processing step re-downloads instead of re-paying.
+ */
+export const ProviderJob = z.object({
+  requestId: z.string(),
+  inputHash: z.string(),
+  submittedAt: z.string(),
+  chargedUsd: z.number().default(0),
+  result: z.object({ url: z.string(), seed: z.number().optional() }).optional(),
+});
+export type ProviderJob = z.infer<typeof ProviderJob>;
+
 export const SceneState = z.object({
   idx: z.number().int(),
   mode: Mode,
   nonces: z.partialRecord(StageName, z.number().int()).default({}),
   stages: z.partialRecord(StageName, StageRecord).default({}),
+  jobs: z.partialRecord(StageName, ProviderJob).default({}),
   tts: z.object({ raw: z.string(), words: z.array(WordTiming) }).optional(),
   audio: z
     .object({ path: z.string(), duration: z.number(), words: z.array(WordTiming), removedSec: z.number() })
