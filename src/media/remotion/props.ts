@@ -1,0 +1,100 @@
+import { z } from "zod";
+
+/** The one composition the bundle registers. */
+export const COMPOSITION_ID = "FlowchainVideo";
+
+/*
+ * The render contract: the only input of the Remotion composition. Shared by Node (validation) and the
+ * browser bundle, so it imports nothing but zod and knows nothing about the manifest.
+ */
+
+export const CameraMove = z.enum(["zoom_in", "zoom_out", "pan_left", "pan_right", "pan_up", "pan_down"]);
+export type CameraMove = z.infer<typeof CameraMove>;
+
+export const Transition = z.enum(["cut", "fade", "dissolve", "blur", "zoom", "glitch"]);
+export type Transition = z.infer<typeof Transition>;
+
+export const CaptionStyleName = z.enum(["hormozi", "mrbeast", "minimalist"]);
+export type CaptionStyleName = z.infer<typeof CaptionStyleName>;
+
+export const CaptionStyle = z.object({
+  /** `file` is a font file name under assets/fonts (staged next to the media). */
+  font: z.object({ family: z.string(), file: z.string(), weight: z.number().int() }),
+  textCase: z.enum(["upper", "none"]),
+  /** Font size as a percentage of the frame's short side (1080 px for both 9:16 and 16:9). */
+  sizePctOfShortSide: z.number().positive(),
+  color: z.string(),
+  activeColor: z.string(),
+  /** 1 = every word fully opaque; below 1 dims the words that are not being spoken. */
+  inactiveOpacity: z.number().min(0).max(1),
+  /** Painted beneath the fill (paint-order: stroke fill), so about half of it shows outside the glyphs. */
+  stroke: z.object({ color: z.string(), pctOfSize: z.number().positive() }).nullable(),
+  shadow: z.string().nullable(),
+  maxWordsPerPage: z.number().int().positive(),
+  activeAnim: z.enum(["none", "pop", "fade"]),
+});
+export type CaptionStyle = z.infer<typeof CaptionStyle>;
+
+export const CaptionToken = z.object({ text: z.string(), fromMs: z.number(), toMs: z.number() });
+export type CaptionToken = z.infer<typeof CaptionToken>;
+
+export const CaptionPage = z.object({
+  text: z.string(),
+  startMs: z.number(),
+  durationMs: z.number(),
+  tokens: z.array(CaptionToken),
+});
+export type CaptionPage = z.infer<typeof CaptionPage>;
+
+export const SceneProps = z.discriminatedUnion("kind", [
+  /** Mode 1: a fitted clip that is exactly `frames` frames long, played 1:1. */
+  z.object({ kind: z.literal("video"), src: z.string(), from: z.number().int(), frames: z.number().int().positive() }),
+  /** Mode 2: a keyframe animated with a Ken Burns camera move. */
+  z.object({
+    kind: z.literal("still"),
+    src: z.string(),
+    camera: CameraMove,
+    from: z.number().int(),
+    frames: z.number().int().positive(),
+  }),
+]);
+export type SceneProps = z.infer<typeof SceneProps>;
+
+export const Boundary = z.object({
+  /** First frame of the incoming scene. */
+  frame: z.number().int(),
+  kind: z.enum(["seam", "cut"]),
+  transition: Transition,
+  /** The transition window is [frame - halfWindow, frame + halfWindow); 0 = hard cut. */
+  halfWindow: z.number().int().min(0),
+});
+export type Boundary = z.infer<typeof Boundary>;
+
+export const FrameRange = z.object({ from: z.number().int(), to: z.number().int() });
+export type FrameRange = z.infer<typeof FrameRange>;
+
+export const BgmProps = z.object({
+  src: z.string(),
+  gain: z.number().min(0).max(1),
+  duckTo: z.number().min(0).max(1),
+  rampFrames: z.number().int().positive(),
+  fadeOutFrames: z.number().int().positive(),
+});
+export type BgmProps = z.infer<typeof BgmProps>;
+
+export const RenderProps = z.object({
+  fps: z.number().int().positive(),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  totalFrames: z.number().int().positive(),
+  scenes: z.array(SceneProps),
+  boundaries: z.array(Boundary),
+  captions: z.object({ style: CaptionStyle, bottomPct: z.number(), pages: z.array(CaptionPage) }),
+  audio: z.object({
+    narration: z.string(),
+    bgm: BgmProps.nullable(),
+    /** Frames where narration is speaking (merged and padded): the BGM ducks inside them. */
+    speech: z.array(FrameRange),
+  }),
+});
+export type RenderProps = z.infer<typeof RenderProps>;
