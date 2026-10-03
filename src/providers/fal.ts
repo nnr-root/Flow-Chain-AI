@@ -2,7 +2,8 @@ import { readFile } from "node:fs/promises";
 import { createFalClient, type FalClient } from "@fal-ai/client";
 import { NonRetryableError, UnusableResultError } from "./retry.js";
 import type {
-  ImageOutput, ImageProvider, ImageRequest, VideoOutput, VideoProvider, VideoRequest, WaitOptions,
+  ImageOutput, ImageProvider, ImageRequest, PreparedJob, SubmitOptions, VideoOutput, VideoProvider, VideoRequest,
+  WaitOptions,
 } from "./types.js";
 
 export type FalLike = Pick<FalClient, "queue" | "storage">;
@@ -33,8 +34,14 @@ abstract class FalQueued<Req, Out> {
   protected abstract input(req: Req): Promise<Record<string, unknown>>;
   protected abstract output(requestId: string, data: unknown): Out;
 
-  async submit(req: Req): Promise<string> {
-    const queued = await this.fal.queue.submit(this.model, { input: await this.input(req) });
+  /** Builds the request body, doing any uploads. Free and safe to repeat. */
+  async prepare(req: Req): Promise<PreparedJob> {
+    return { input: await this.input(req) };
+  }
+
+  /** Buys one job. The client does not retry an aborted request, so aborting abandons the submit. */
+  async submit(job: PreparedJob, opts: SubmitOptions): Promise<string> {
+    const queued = await this.fal.queue.submit(this.model, { input: job.input, abortSignal: opts.signal });
     return queued.request_id;
   }
 

@@ -4,8 +4,8 @@ import { pathToFileURL } from "node:url";
 import type { Camera } from "../../src/manifest/schema.js";
 import { UnusableResultError } from "../../src/providers/retry.js";
 import type {
-  ImageOutput, ImageProvider, ImageRequest, LlmProvider, ScriptRequest, SpeakRequest, TtsProvider, VideoOutput,
-  VideoProvider, VideoRequest,
+  ImageOutput, ImageProvider, ImageRequest, LlmProvider, PreparedJob, ScriptRequest, SpeakRequest, SubmitOptions,
+  TtsProvider, VideoOutput, VideoProvider, VideoRequest,
 } from "../../src/providers/types.js";
 import { makeAudio, makeImage, makeVideo } from "../helpers/media.js";
 
@@ -56,10 +56,12 @@ export class FakeTts implements TtsProvider {
 const COLORS = ["0x3366aa", "0xaa6633", "0x33aa66", "0xaa3366", "0x6633aa"];
 
 /**
- * Models fal's queue: `submit` buys one job (counted in `submits`), `wait` polls it (counted in `waits`).
+ * Models fal's queue: `prepare` builds the request (free, counted in `prepares`), `submit` buys one job
+ * (counted in `submits`; an already aborted signal rejects without buying), `wait` polls it (counted in `waits`).
  * Each job renders its output once, on its first successful wait, and later waits return the same URL.
  */
 abstract class FakeQueue<Req, Out> {
+  prepares: Req[] = [];
   submits: Req[] = [];
   waits: string[] = [];
   /** Throw from submit (nothing is queued). */
@@ -77,7 +79,14 @@ abstract class FakeQueue<Req, Out> {
 
   protected abstract render(req: Req, n: number, path: (name: string) => string): Promise<{ out: Out; file: string }>;
 
-  async submit(req: Req): Promise<string> {
+  async prepare(req: Req): Promise<PreparedJob> {
+    this.prepares.push(req);
+    return { input: { req } };
+  }
+
+  async submit(job: PreparedJob, opts: SubmitOptions): Promise<string> {
+    const req = job.input.req as Req;
+    if (opts.signal.aborted) throw opts.signal.reason;
     if (this.failSubmit?.(req)) throw new Error("fake submit failure");
     const n = this.submits.push(req);
     return `req-${n}`;

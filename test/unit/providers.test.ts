@@ -75,15 +75,15 @@ describe("elevenlabs", () => {
 describe("fal adapters", () => {
   type Status = "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED";
   function fakeFal(data: unknown, statuses: Status[] = ["IN_QUEUE", "IN_PROGRESS", "COMPLETED"]) {
-    const submits: Array<{ id: string; input: Record<string, unknown> }> = [];
+    const submits: Array<{ id: string; input: Record<string, unknown>; abortSignal?: AbortSignal }> = [];
     const polls: string[] = [];
     const results: string[] = [];
     const uploads: Blob[] = [];
     let poll = 0;
     const fal = {
       queue: {
-        submit: async (id: string, opts: { input: Record<string, unknown> }) => {
-          submits.push({ id, input: opts.input });
+        submit: async (id: string, opts: { input: Record<string, unknown>; abortSignal?: AbortSignal }) => {
+          submits.push({ id, input: opts.input, abortSignal: opts.abortSignal });
           return { status: "IN_QUEUE", request_id: "req-1" };
         },
         status: async (_id: string, opts: { requestId: string }) => {
@@ -104,8 +104,10 @@ describe("fal adapters", () => {
   it("submits a Flux image at an explicit size and waits for it through the queue", async () => {
     const { fal, submits, polls, results } = fakeFal({ images: [{ url: "https://fal.media/k.png" }], seed: 77 });
     const image = new FalImage(fal, "fal-ai/flux/dev", fast);
-    const id = await image.submit({ prompt: "p", width: 1088, height: 1920 });
+    const signal = new AbortController().signal;
+    const id = await image.submit(await image.prepare({ prompt: "p", width: 1088, height: 1920 }), { signal });
     expect(id).toBe("req-1");
+    expect(submits[0].abortSignal).toBe(signal);
     expect(submits[0].input).toMatchObject({ prompt: "p", image_size: { width: 1088, height: 1920 }, num_images: 1 });
     expect(submits[0].input).not.toHaveProperty("seed");
     expect(await image.wait(id, { timeoutMs: 1000 })).toEqual({ url: "https://fal.media/k.png", seed: 77 });
@@ -144,8 +146,13 @@ describe("fal adapters", () => {
     const img = join(dir, "last.png");
     await writeFile(img, "png-bytes");
     const video = new FalVideo(fal, "fal-ai/kling-video/v2.1/standard/image-to-video", fast);
-    const id = await video.submit({ imagePath: img, prompt: "move", durationSec: 10 });
-    expect(uploads).toHaveLength(1);
+    const prepared = await video.prepare({ imagePath: img, prompt: "move", durationSec: 10 });
+    expect(uploads).toHaveLength(1); // the upload happens while preparing, before anything is bought
+    expect(submits).toHaveLength(0);
+    const signal = new AbortController().signal;
+    const id = await video.submit(prepared, { signal });
+    expect(uploads).toHaveLength(1); // submitting does not upload again
+    expect(submits[0].abortSignal).toBe(signal);
     expect(submits[0].input).toMatchObject({ image_url: "https://fal.media/up.png", prompt: "move", duration: "10" });
     expect(await video.wait(id, { timeoutMs: 1000 })).toEqual({ url: "https://fal.media/c.mp4" });
   });

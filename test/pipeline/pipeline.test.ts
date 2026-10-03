@@ -30,7 +30,7 @@ describe("end-to-end with fakes", () => {
   it("resumes after a rejected clip submission without repeating any completed paid call", async () => {
     const { ctx, fakes } = await makeTestContext({ modes: [1, 1, 1, 1] });
     fakes.video.failSubmit = (req) => req.prompt.startsWith("motion 3");
-    await expect(runPipeline(ctx, STAGES, auto)).rejects.toThrow(/clip scene 3 \(submit\) failed after 1 attempt/);
+    await expect(runPipeline(ctx, STAGES, auto)).rejects.toThrow(/clip scene 3: submit failed \(not retried, nothing recorded as bought\)/);
     expect(fakes.video.submits).toHaveLength(2); // a submit is never retried
 
     const saved = await loadManifest(ctx.dir);

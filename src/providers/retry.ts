@@ -1,5 +1,11 @@
-/** Per-call timeouts. For queued fal jobs, image/video bound the wait for one submitted request. */
-export const TIMEOUTS = { llm: 60_000, tts: 60_000, submit: 60_000, image: 120_000, video: 600_000 } as const;
+/**
+ * Per-call timeouts. For queued fal jobs: `prepare` bounds the free preparation (seam render + upload),
+ * `submit` bounds the paid submit request alone (it is cancelled, not abandoned, when it runs out), and
+ * image/video bound the wait for one submitted request.
+ */
+export const TIMEOUTS = {
+  llm: 60_000, tts: 60_000, prepare: 180_000, submit: 60_000, image: 120_000, video: 600_000,
+} as const;
 
 /** Retrying the same call cannot fix this error. */
 export class NonRetryableError extends Error {}

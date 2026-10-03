@@ -26,7 +26,8 @@ export const keyframesStage: Stage = {
     const result = await runProviderJob(ctx, i, "keyframes", {
       label: `keyframe scene ${i + 1}`,
       costUsd: imageCost(ctx.prices, ctx.keyframeSize),
-      submit: () => ctx.providers.image.submit({ prompt, ...ctx.keyframeSize }),
+      prepare: () => ctx.providers.image.prepare({ prompt, ...ctx.keyframeSize }),
+      submit: (job, signal) => ctx.providers.image.submit(job, { signal }),
       wait: (id) => ctx.providers.image.wait(id, { timeoutMs: TIMEOUTS.image }),
       waitMs: TIMEOUTS.image,
     });

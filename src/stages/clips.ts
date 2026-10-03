@@ -98,11 +98,12 @@ export const clipsStage: Stage = {
     const result = await runProviderJob(ctx, i, "clips", {
       label: `clip scene ${i + 1}`,
       costUsd: videoCost(ctx.prices, seconds),
-      submit: async () => {
+      prepare: async () => {
         // the chain image: the scene's own keyframe, or the seam frame of the previous clip
         const imagePath = needsKeyframe(m, i) ? abs(ctx, paths.keyframe(i)) : await writeSeam(ctx, i);
-        return ctx.providers.video.submit({ imagePath, prompt: motionPrompt(script, i), durationSec: seconds });
+        return ctx.providers.video.prepare({ imagePath, prompt: motionPrompt(script, i), durationSec: seconds });
       },
+      submit: (job, signal) => ctx.providers.video.submit(job, { signal }),
       wait: (id) => ctx.providers.video.wait(id, { timeoutMs: TIMEOUTS.video }),
       waitMs: TIMEOUTS.video,
     });

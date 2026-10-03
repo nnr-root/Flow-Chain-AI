@@ -14,15 +14,23 @@ export interface TtsProvider {
 }
 
 export type WaitOptions = { timeoutMs: number };
+export type SubmitOptions = { signal: AbortSignal };
+
+/** The provider's request body, built by `prepare` (any uploads already done). */
+export type PreparedJob = { readonly input: Record<string, unknown> };
 
 /**
- * A paid provider that works through a job queue. `submit` buys exactly one job and returns its request
- * id without waiting. `wait` polls that id (safe to repeat, never buys anything) until the job completes,
- * then returns its output. It throws UnusableResultError when the job completed (so it was billed) but its
- * output cannot be used, and NonRetryableError when the job is still not finished after `timeoutMs`.
+ * A paid provider that works through a job queue.
+ * - `prepare` does the free work (e.g. uploading the input image) and is safe to repeat.
+ * - `submit` buys exactly one job and returns its request id without waiting. Aborting `signal` cancels the
+ *   HTTP request so a slow submit can be abandoned without completing (and billing) later.
+ * - `wait` polls that id (safe to repeat, never buys anything) until the job completes, then returns its
+ *   output. It throws UnusableResultError when the job completed (so it was billed) but its output cannot be
+ *   used, and NonRetryableError when the job is still not finished after `timeoutMs`.
  */
 export interface QueuedProvider<Req, Out> {
-  submit(req: Req): Promise<string>;
+  prepare(req: Req): Promise<PreparedJob>;
+  submit(job: PreparedJob, opts: SubmitOptions): Promise<string>;
   wait(requestId: string, opts: WaitOptions): Promise<Out>;
 }
 

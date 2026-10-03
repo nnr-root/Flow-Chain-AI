@@ -1,6 +1,7 @@
 import type { ProviderJob, StageName } from "../manifest/schema.js";
 import { saveManifest } from "../manifest/store.js";
 import { TIMEOUTS, UnusableResultError, withRetry } from "../providers/retry.js";
+import type { PreparedJob } from "../providers/types.js";
 import type { RunContext } from "./types.js";
 
 export type JobSpec<Out extends { url: string; seed?: number }> = {
@@ -8,8 +9,12 @@ export type JobSpec<Out extends { url: string; seed?: number }> = {
   label: string;
   /** What one completed job costs (charged exactly once per job). */
   costUsd: number;
-  /** Buys one job and returns its request id. Called at most once per inputHash. */
-  submit: () => Promise<string>;
+  /** Free work before buying (seam render, input upload). Safe to repeat; runs before the submit deadline. */
+  prepare: () => Promise<PreparedJob>;
+  /** Buys one job and returns its request id. Must stop (reject) when `signal` aborts. */
+  submit: (job: PreparedJob, signal: AbortSignal) => Promise<string>;
+  /** Deadline for the submit request alone (default TIMEOUTS.submit). */
+  submitTimeoutMs?: number;
   /** Polls a submitted request until it completes. Safe to repeat. */
   wait: (requestId: string) => Promise<Out>;
   /** How long one wait may take (the provider enforces it). */
@@ -18,6 +23,28 @@ export type JobSpec<Out extends { url: string; seed?: number }> = {
 
 /** Extra time for the outer race in withRetry, so the provider's own deadline normally fires first. */
 const WAIT_SLACK_MS = 30_000;
+
+/**
+ * Submits exactly once with a real deadline: when it runs out the request is aborted (cancelled), never
+ * left running in the background where it could still complete and buy a job nobody records.
+ */
+async function submitWithDeadline(label: string, submit: () => Promise<string>, controller: AbortController, ms: number) {
+  const timer = setTimeout(() => controller.abort(new Error(`${label}: submit timed out after ${ms} ms`)), ms);
+  try {
+    return await submit();
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error(`${label}: submit timed out after ${ms} ms and was cancelled; nothing was recorded as bought`, {
+        cause: err,
+      });
+    }
+    throw new Error(`${label}: submit failed (not retried, nothing recorded as bought): ${(err as Error).message}`, {
+      cause: err,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 async function chargeOnce(ctx: RunContext, job: ProviderJob, usd: number): Promise<void> {
   if (job.chargedUsd > 0) {
@@ -32,7 +59,8 @@ async function chargeOnce(ctx: RunContext, job: ProviderJob, usd: number): Promi
  * Runs one paid queued provider job for (scene, stage) at ctx.inputHash, and never pays twice for it:
  * - a completed, charged result for this inputHash is reused (only post-processing is repeated);
  * - a pending request id for this inputHash is polled again instead of resubmitting;
- * - otherwise exactly one job is submitted and its id saved to the manifest BEFORE waiting.
+ * - otherwise the free preparation runs first (retried, off the submit clock), then exactly one job is
+ *   submitted under a cancelling deadline, and its id is saved to the manifest BEFORE waiting.
  * A timeout or error while waiting fails the stage with the request id kept. Spend is recorded the moment
  * the job completes, before any download. A new inputHash (e.g. a reroll nonce bump) submits a new job.
  */
@@ -51,11 +79,18 @@ export async function runProviderJob<Out extends { url: string; seed?: number }>
   }
 
   if (!job) {
-    // Submitted once, never retried: a lost response to a retried submit could buy the same job twice.
-    const requestId = await withRetry(`${spec.label} (submit)`, spec.submit, {
-      attempts: 1,
-      timeoutMs: TIMEOUTS.submit,
+    const prepared = await withRetry(`${spec.label} (prepare)`, spec.prepare, {
+      timeoutMs: TIMEOUTS.prepare,
+      baseDelayMs: ctx.retryDelayMs,
     });
+    // Submitted once, never retried: a lost response to a retried submit could buy the same job twice.
+    const controller = new AbortController();
+    const requestId = await submitWithDeadline(
+      spec.label,
+      () => spec.submit(prepared, controller.signal),
+      controller,
+      spec.submitTimeoutMs ?? TIMEOUTS.submit,
+    );
     job = { requestId, inputHash: ctx.inputHash, submittedAt: new Date().toISOString(), chargedUsd: 0 };
     state.jobs[stage] = job;
     await saveManifest(ctx.dir, ctx.manifest);
