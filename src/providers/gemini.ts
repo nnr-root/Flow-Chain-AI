@@ -28,6 +28,12 @@ export function buildScriptPrompt(req: ScriptRequest): string {
     "- motionPrompt: camera movement plus subject motion during the scene in one or two sentences, physically plausible for a 5-10 second clip.",
     '- shot: "continue" if the scene happens in the same place and moment as the previous scene and should flow on from its last frame; "cut" for a new location, time or framing. Scene 1 must be "cut".',
     "- camera: the programmatic camera move used if this scene is rendered from a still image.",
+    ...(req.shots
+      ? [
+          `- Use exactly these shot values, in order: ${req.shots.map((s, i) => `scene ${i + 1} "${s}"`).join(", ")}. ` +
+            'Write every "continue" scene (its imagePrompt and motionPrompt) as the same place and moment carrying on.',
+        ]
+      : []),
     ...(req.feedback ? ["", "Your previous answer was rejected for these reasons. Fix them:", req.feedback] : []),
   ].join("\n");
 }

@@ -17,6 +17,12 @@ describe("gemini prompt and schema", () => {
     expect(p).not.toContain("rejected");
   });
 
+  it("pins the shot values when the run fixes them", () => {
+    const p = buildScriptPrompt({ topic: "t", sceneCount: 3, aspect: "9:16", shots: ["cut", "continue", "continue"] });
+    expect(p).toContain('Use exactly these shot values, in order: scene 1 "cut", scene 2 "continue", scene 3 "continue"');
+    expect(buildScriptPrompt({ topic: "t", sceneCount: 3, aspect: "9:16" })).not.toContain("Use exactly these shot values");
+  });
+
   it("appends validation feedback on retry", () => {
     const p = buildScriptPrompt({ topic: "t", sceneCount: 2, aspect: "16:9", feedback: "scene 2 narration has 30 words" });
     expect(p).toContain("rejected");

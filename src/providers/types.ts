@@ -1,7 +1,7 @@
 import type { Aspect } from "../config.js";
-import type { WordTiming } from "../manifest/schema.js";
+import type { Shot, WordTiming } from "../manifest/schema.js";
 
-export type ScriptRequest = { topic: string; sceneCount: number; aspect: Aspect; feedback?: string };
+export type ScriptRequest = { topic: string; sceneCount: number; aspect: Aspect; shots?: Shot[]; feedback?: string };
 export interface LlmProvider {
   /** Returns parsed JSON; the script stage validates it against the Script schema. */
   generateScript(req: ScriptRequest): Promise<unknown>;

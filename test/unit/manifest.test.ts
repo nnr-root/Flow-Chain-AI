@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { fileSha256, inputHash, sha256, stableStringify } from "../../src/manifest/hash.js";
-import { createManifest, loadManifest, newRunId, resolveModes, saveManifest } from "../../src/manifest/store.js";
+import { createManifest, loadManifest, newRunId, resolveModes, resolveShots, saveManifest } from "../../src/manifest/store.js";
 
 const request = { topic: "foxes", aspect: "9:16" as const, sceneCount: 2, modes: [1, 2] as (1 | 2)[], voiceId: "v1" };
 const models = { llm: "l", tts: "t", image: "i", video: "v" };
@@ -78,5 +78,21 @@ describe("resolveModes", () => {
     expect(() => resolveModes("auto", "1,3", 2)).toThrowError(/invalid mode "3"/);
     expect(() => resolveModes("auto", "1,2", 3)).toThrowError(/2 entries but --scenes is 3/);
     expect(() => resolveModes("fast", undefined, 3)).toThrowError(/invalid --mode/);
+  });
+});
+
+describe("resolveShots", () => {
+  it("is undefined when --shots is not given (the LLM decides)", () => {
+    expect(resolveShots(undefined, 3)).toBeUndefined();
+  });
+
+  it("parses one continue/cut value per scene", () => {
+    expect(resolveShots("cut, continue,continue", 3)).toEqual(["cut", "continue", "continue"]);
+  });
+
+  it("validates values, length and scene 1", () => {
+    expect(() => resolveShots("cut,jump", 2)).toThrowError(/invalid shot "jump" in --shots \(use continue or cut\)/);
+    expect(() => resolveShots("cut,continue", 3)).toThrowError(/--shots has 2 entries but --scenes is 3/);
+    expect(() => resolveShots("continue,cut", 2)).toThrowError(/scene 1 must be "cut"/);
   });
 });

@@ -5,7 +5,9 @@ import { Command, Option } from "commander";
 import { type Env, FPS, keyframeSize, loadEnv, loadPrices, outputSize } from "./config.js";
 import { formatChecks, runDoctor } from "./doctor.js";
 import { type Manifest, type Models, RunRequest, StageName } from "./manifest/schema.js";
-import { createManifest, loadManifest, newRunId, resolveModes, saveManifest, withRunLock } from "./manifest/store.js";
+import {
+  createManifest, loadManifest, newRunId, resolveModes, resolveShots, saveManifest, withRunLock,
+} from "./manifest/store.js";
 import { type Plan, RunAborted, runPipeline } from "./pipeline.js";
 import { ElevenLabsTts } from "./providers/elevenlabs.js";
 import { createFal, FalImage, FalVideo } from "./providers/fal.js";
@@ -108,6 +110,7 @@ type RunFlags = {
   scenes: string;
   mode: string;
   modes?: string;
+  shots?: string;
   voice?: string;
   bgm?: string;
   budget?: string;
@@ -136,6 +139,7 @@ program
   .option("--scenes <n>", "number of scenes (1-12)", "4")
   .addOption(new Option("--mode <mode>", "mode for every scene (auto = 1)").choices(["auto", "1", "2"]).default("auto"))
   .option("--modes <list>", "per-scene modes, e.g. 1,2,1,1 (overrides --mode)")
+  .option("--shots <list>", "testing override: per-scene continue|cut, e.g. cut,continue,continue (default: LLM decides)")
   .option("--voice <id>", "ElevenLabs voice id (default: ELEVENLABS_VOICE_ID)")
   .option("--bgm <file>", "background music, ducked under the narration")
   .option("--budget <usd>", "ask before spending more than this (default: FLOWCHAIN_BUDGET_USD)")
@@ -144,12 +148,14 @@ program
     const env = loadEnv();
     const sceneCount = Number(o.scenes);
     const modes = resolveModes(o.mode, o.modes, sceneCount);
+    const shots = resolveShots(o.shots, sceneCount);
     if (o.bgm && !existsSync(o.bgm)) throw new Error(`--bgm file not found: ${o.bgm}`);
     const request = RunRequest.parse({
       topic: o.topic,
       aspect: o.aspect,
       sceneCount,
       modes,
+      shots,
       voiceId: o.voice ?? env.ELEVENLABS_VOICE_ID,
       bgm: o.bgm ? resolve(o.bgm) : undefined,
     });

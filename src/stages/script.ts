@@ -33,23 +33,25 @@ export const scriptStage: Stage = {
   paid: true,
   deps: () => [],
   inputsFor: async (ctx) => {
-    const { topic, sceneCount, aspect } = ctx.manifest.request;
-    return { model: ctx.manifest.models.llm, topic, sceneCount, aspect };
+    const { topic, sceneCount, aspect, shots } = ctx.manifest.request;
+    return { model: ctx.manifest.models.llm, topic, sceneCount, aspect, shots };
   },
   outputsFor: () => [paths.script],
   estimateCostUsd: (ctx) => scriptCost(ctx.prices),
   async run(ctx) {
-    const { topic, sceneCount, aspect } = ctx.manifest.request;
+    const { topic, sceneCount, aspect, shots } = ctx.manifest.request;
     let feedback: string | undefined;
     for (let attempt = 1; attempt <= 2; attempt++) {
       const raw = await withRetry(
         "script generation",
-        () => ctx.providers.llm.generateScript({ topic, sceneCount, aspect, feedback }),
+        () => ctx.providers.llm.generateScript({ topic, sceneCount, aspect, shots, feedback }),
         { timeoutMs: TIMEOUTS.llm, baseDelayMs: ctx.retryDelayMs },
       );
       await ctx.charge(scriptCost(ctx.prices)); // every answer is paid for, valid or not
       const result = validateScript(raw, sceneCount);
       if (result.ok) {
+        // --shots is enforced even if the LLM ignored the instruction
+        if (shots) result.script.scenes.forEach((s, i) => (s.shot = shots[i]));
         ctx.manifest.script = result.script;
         await writeFile(await outPath(ctx, paths.script), `${JSON.stringify(result.script, null, 2)}\n`);
         return;

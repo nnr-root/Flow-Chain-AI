@@ -36,6 +36,16 @@ describe("validateScript", () => {
 });
 
 describe("script stage", () => {
+  it("pins the run's --shots: asks the LLM for them and enforces them on its answer", async () => {
+    const { ctx, fakes } = await makeTestContext({ modes: [1, 1, 1], shots: ["cut", "cut", "cut"] }); // LLM says cut
+    const before = await scriptStage.inputsFor(ctx);
+    ctx.manifest.request.shots = ["cut", "continue", "continue"];
+    expect(await scriptStage.inputsFor(ctx)).not.toEqual(before); // part of the cache key
+    await runPipeline(ctx, [scriptStage], auto);
+    expect(fakes.llm.calls[0].shots).toEqual(["cut", "continue", "continue"]);
+    expect(ctx.manifest.script?.scenes.map((s) => s.shot)).toEqual(["cut", "continue", "continue"]);
+  });
+
   it("stores a validated script and records its cost", async () => {
     const { ctx } = await makeTestContext();
     await runPipeline(ctx, [scriptStage], auto);

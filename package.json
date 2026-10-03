@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:unit": "vitest run test/unit",
     "typecheck": "tsc --noEmit",
-    "smoke": "tsx src/cli.ts run --topic \"A lighthouse keeper discovers the light is alive\" --scenes 3 --modes 1,1,1"
+    "smoke": "tsx src/cli.ts run --topic \"A lighthouse keeper discovers the light is alive\" --scenes 3 --modes 1,1,1 --shots cut,continue,continue"
   },
   "dependencies": {
     "@fal-ai/client": "^1.10.1",

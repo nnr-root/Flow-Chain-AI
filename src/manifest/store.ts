@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { rmSync } from "node:fs";
 import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { Manifest, type Mode, type Models, type RunRequest } from "./schema.js";
+import { Manifest, type Mode, type Models, type RunRequest, type Shot } from "./schema.js";
 
 export const MANIFEST_FILE = "manifest.json";
 export const LOCK_FILE = ".lock";
@@ -98,4 +98,17 @@ export function resolveModes(mode: string, modes: string | undefined, sceneCount
   if (mode === "auto" || mode === "1") return Array.from({ length: sceneCount }, (): Mode => 1);
   if (mode === "2") return Array.from({ length: sceneCount }, (): Mode => 2);
   throw new Error(`invalid --mode "${mode}" (use auto, 1 or 2)`);
+}
+
+/** Parses --shots (a testing override, one continue|cut per scene); undefined lets the LLM decide. */
+export function resolveShots(shots: string | undefined, sceneCount: number): Shot[] | undefined {
+  if (shots === undefined) return undefined;
+  const parsed = shots.split(",").map((raw): Shot => {
+    const s = raw.trim();
+    if (s !== "continue" && s !== "cut") throw new Error(`invalid shot "${s}" in --shots (use continue or cut)`);
+    return s;
+  });
+  if (parsed.length !== sceneCount) throw new Error(`--shots has ${parsed.length} entries but --scenes is ${sceneCount}`);
+  if (parsed[0] !== "cut") throw new Error('--shots: scene 1 must be "cut" (there is no earlier clip to continue from)');
+  return parsed;
 }

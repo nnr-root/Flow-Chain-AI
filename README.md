@@ -35,7 +35,8 @@ continuity drift at each seam), plus intermediates.
 Estimates come from the price table in `src/config.ts` (override with `prices.json`). A run asks for
 confirmation when the estimate exceeds `FLOWCHAIN_BUDGET_USD` (default $3); rerolls always ask; `--yes`
 skips. A typical 4-scene Mode 1 run is about $1.20. `npm run smoke` runs a real 3-scene all-Mode-1 video
-(≈ $0.90–1.80, depending on 5/10 s clip buckets and how many scenes are cuts).
+with `--shots cut,continue,continue`, so two real continuity seams are always exercised (≈ $0.90–1.65,
+depending on the 5/10 s clip buckets). `--shots` is a testing override; without it the LLM decides.
 
 ## Tests
 

@@ -13,13 +13,15 @@ export type Mode = z.infer<typeof Mode>;
 export const Camera = z.enum(["zoom_in", "zoom_out", "pan_left", "pan_right", "pan_up", "pan_down"]);
 export type Camera = z.infer<typeof Camera>;
 
+/** continue = same place and moment as the previous scene (its clip starts from the seam); cut = fresh keyframe. */
+export const Shot = z.enum(["continue", "cut"]);
+export type Shot = z.infer<typeof Shot>;
+
 export const SceneSpec = z.object({
   narration: z.string().describe(`Voiceover for this scene, at most ${MAX_NARRATION_WORDS} words`),
   imagePrompt: z.string().describe("What one still frame of this scene shows"),
   motionPrompt: z.string().describe("Camera movement and subject motion during this scene"),
-  shot: z
-    .enum(["continue", "cut"])
-    .describe("continue = same place and moment as the previous scene; cut = new location, time or framing"),
+  shot: Shot.describe("continue = same place and moment as the previous scene; cut = new location, time or framing"),
   camera: Camera.describe("Camera move used if this scene is rendered from a still image"),
 });
 export type SceneSpec = z.infer<typeof SceneSpec>;
@@ -96,6 +98,8 @@ export const RunRequest = z.object({
   aspect: Aspect,
   sceneCount: z.number().int().min(1).max(MAX_SCENES),
   modes: z.array(Mode),
+  /** Fixed shot per scene (testing override from --shots); when absent the LLM decides. */
+  shots: z.array(Shot).optional(),
   voiceId: z.string().min(1),
   bgm: z.string().optional(),
 });
