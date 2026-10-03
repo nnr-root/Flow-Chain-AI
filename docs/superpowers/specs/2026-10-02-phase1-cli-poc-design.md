@@ -465,7 +465,8 @@ RUNS_DIR=./runs
    followed by resume submits no second job and charges once; a post-processing failure after a
    successful job is charged once and resume does not call the provider again; an unusable (NSFW) result
    is charged once and not retried.
-4. **Live smoke** (`npm run smoke`, manual, ~$1–2): 3 scenes, real APIs. Never in CI.
+4. **Live smoke** (`npm run smoke`, manual, ≈ $0.90–1.80): 3 scenes, all Mode 1 (`--modes 1,1,1`) so
+   at least one continue seam is exercised (re-run if the LLM chose only cuts), real APIs. Never in CI.
 
 ## 12. Definition of Done
 

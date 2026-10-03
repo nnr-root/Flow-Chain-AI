@@ -110,7 +110,7 @@ test/
     "test": "vitest run",
     "test:unit": "vitest run test/unit",
     "typecheck": "tsc --noEmit",
-    "smoke": "tsx src/cli.ts run --topic \"A lighthouse keeper discovers the light is alive\" --scenes 3 --modes 1,2,1"
+    "smoke": "tsx src/cli.ts run --topic \"A lighthouse keeper discovers the light is alive\" --scenes 3 --modes 1,1,1"
   }
 }
 ```
@@ -4578,7 +4578,8 @@ Each run lives in `runs/<runId>/`: `manifest.json` (state, cache keys, cost ledg
 
 Estimates come from the price table in `src/config.ts` (override with `prices.json`). A run asks for
 confirmation when the estimate exceeds `FLOWCHAIN_BUDGET_USD` (default $3); rerolls always ask; `--yes`
-skips. A typical 4-scene Mode 1 run is about $1.20. `npm run smoke` runs a real 3-scene hybrid video.
+skips. A typical 4-scene Mode 1 run is about $1.20. `npm run smoke` runs a real 3-scene all-Mode-1 video
+(≈ $0.90–1.80, depending on 5/10 s clip buckets and how many scenes are cuts).
 
 ## Tests
 
@@ -4599,14 +4600,14 @@ git commit -m "feat: add flowchain CLI with doctor, run, resume, reroll and stat
 
 ---
 
-### Task 17: Live smoke test (manual, real APIs, ~$1–2)
+### Task 17: Live smoke test (manual, real APIs, ≈ $0.90–1.80)
 
 Requires the user's real keys in `.env`. Do not run in CI. Ask the user before spending money.
 
 - [ ] **Step 1:** `npm run flowchain -- doctor` → every line ✓. If the Gemini line fails with a model error, set `GEMINI_MODEL` to a currently listed Flash model and re-run.
-- [ ] **Step 2:** `npm run smoke` → 3-scene hybrid (`1,2,1`) run. Confirm the printed estimate is close to $0.70 (2 keyframes + 2 Kling 5 s clips + TTS).
+- [ ] **Step 2:** `npm run smoke` → 3-scene all-Mode-1 (`1,1,1`) run, so the continuity chain is exercised. Confirm the printed media-plan estimate is ≈ $0.90–1.80 depending on the 5/10 s buckets and the cuts the LLM chose: 1–3 Flux keyframes (≈ $0.05 each; one per `cut` scene plus scene 1), three Kling clips ($0.25 per 5 s clip, $0.50 per 10 s clip) and ≈ $0.12 TTS.
 - [ ] **Step 3:** Open `runs/<runId>/final.mp4`: captions track the voice word by word; no audible gaps > 200 ms; no black frames or freezes at scene boundaries.
-- [ ] **Step 4:** Open `runs/<runId>/chain.png`: row 1's last frame and row 2's first frame should be near-identical only when scene 2 is Mode 1 `continue`; note the drift you see for the Phase 2 decision.
+- [ ] **Step 4:** Open `runs/<runId>/script.json` and check that at least one scene after scene 1 has `"shot": "continue"`. If the LLM chose `cut` for every scene, no seam was tested: start a new `npm run smoke` run (another ≈ $1) until one has a `continue` scene. Then judge every continue seam in `final.mp4` (the cut into the continuing scene should look like the same shot carrying on, with no jump back or forward in motion) and in `chain.png`, whose columns are the first frame of the raw clip and the last frame of the fitted clip: for a continuing scene N, row N−1's right cell (what viewers last saw) and row N's left cell should be near-identical. Note the drift you see for the Phase 2 decision.
 - [ ] **Step 5:** `npm run flowchain -- reroll <runId> --scene 3 --stage clips` → confirm prompt shows only scene 3's clip as paid work; after it finishes, `status` shows the ledger grew by one clip.
 - [ ] **Step 6:** Record findings (cost actuals vs. ledger, drift, timing) in `docs/superpowers/specs/2026-10-02-phase1-cli-poc-design.md` under a new "## 13. Smoke Test Findings" section and commit:
 
