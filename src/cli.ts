@@ -10,6 +10,7 @@ import {
 } from "./manifest/store.js";
 import { CaptionStyleName, Transition } from "./media/remotion/props.js";
 import { type Plan, planRun, RunAborted, runPipeline } from "./pipeline.js";
+import { PresetName } from "./presets.js";
 import { ElevenLabsTts } from "./providers/elevenlabs.js";
 import { createFal, FalImage, FalVideo } from "./providers/fal.js";
 import { GeminiLlm } from "./providers/gemini.js";
@@ -72,6 +73,9 @@ function renderConcurrency(raw: string | undefined): number | null {
   return value;
 }
 
+const CAPTION_CHOICES = ["preset", ...CaptionStyleName.options];
+const TRANSITION_CHOICES = ["auto", ...Transition.options];
+
 const runsDir = () => process.env.RUNS_DIR ?? "./runs";
 const runDir = (runId: string) => resolve(runsDir(), runId);
 
@@ -123,6 +127,7 @@ type RunFlags = {
   mode: string;
   modes?: string;
   shots?: string;
+  style?: string;
   voice?: string;
   bgm?: string;
   captionStyle?: string;
@@ -153,13 +158,20 @@ program
   .requiredOption("--topic <text>", "what the video is about")
   .addOption(new Option("--aspect <ratio>", "output aspect ratio").choices(["9:16", "16:9"]).default("9:16"))
   .option("--scenes <n>", "number of scenes (1-12)", "4")
-  .addOption(new Option("--mode <mode>", "mode for every scene (auto = 1)").choices(["auto", "1", "2"]).default("auto"))
+  .addOption(
+    new Option("--mode <mode>", "auto = per scene from its action level and the budget; 1 or 2 = every scene")
+      .choices(["auto", "1", "2"])
+      .default("auto"),
+  )
   .option("--modes <list>", "per-scene modes, e.g. 1,2,1,1 (overrides --mode)")
   .option("--shots <list>", "testing override: per-scene continue|cut, e.g. cut,continue,continue (default: LLM decides)")
+  .addOption(new Option("--style <preset>", "style preset (default: Gemini picks one)").choices(PresetName.options))
   .option("--voice <id>", "ElevenLabs voice id (default: ELEVENLABS_VOICE_ID)")
   .option("--bgm <file>", "background music, ducked under the narration")
-  .addOption(new Option("--caption-style <style>", "caption look (default: hormozi)").choices(CaptionStyleName.options))
-  .addOption(new Option("--transition <kind>", "transition at every cut (default: fade)").choices(Transition.options))
+  .addOption(new Option("--caption-style <style>", "caption look (default: the preset's)").choices(CAPTION_CHOICES))
+  .addOption(
+    new Option("--transition <kind>", "transition at every cut (default: auto = Gemini's per cut)").choices(TRANSITION_CHOICES),
+  )
   .option("--bgm-gain <0-1>", "background music level outside speech (default: 0.35)")
   .option("--render-concurrency <n>", "Remotion render concurrency (default: Remotion's choice)")
   .option("--budget <usd>", "ask before spending more than this (default: FLOWCHAIN_BUDGET_USD)")
@@ -169,13 +181,17 @@ program
     const sceneCount = Number(o.scenes);
     const modes = resolveModes(o.mode, o.modes, sceneCount);
     const shots = resolveShots(o.shots, sceneCount);
+    const budgetUsd = budget(o.budget, env);
     if (o.bgm && !existsSync(o.bgm)) throw new Error(`--bgm file not found: ${o.bgm}`);
     const request = RunRequest.parse({
       topic: o.topic,
       aspect: o.aspect,
       sceneCount,
       modes,
+      // auto runs freeze the budget their mode rules use; a later --budget only changes when to ask
+      modeBudgetUsd: modes ? undefined : budgetUsd,
       shots,
+      style: o.style,
       voiceId: o.voice ?? env.ELEVENLABS_VOICE_ID,
       bgm: o.bgm ? resolve(o.bgm) : undefined,
       render: {
@@ -198,7 +214,7 @@ program
     await saveManifest(dir, manifest);
     console.log(`Run ${runId} → ${dir}`);
     const ctx = contextFor(dir, manifest, providersFor(env, models), concurrency);
-    await withRunLock(dir, () => execute(ctx, { budgetUsd: budget(o.budget, env), yes: o.yes }));
+    await withRunLock(dir, () => execute(ctx, { budgetUsd, yes: o.yes }));
   });
 
 program
@@ -243,8 +259,8 @@ program
 program
   .command("rerender <runId>")
   .description("re-render a finished run with another look (caption style, transition, BGM level) — free")
-  .addOption(new Option("--caption-style <style>", "caption look").choices(CaptionStyleName.options))
-  .addOption(new Option("--transition <kind>", "transition at every cut").choices(Transition.options))
+  .addOption(new Option("--caption-style <style>", "caption look (preset = the run's style preset)").choices(CAPTION_CHOICES))
+  .addOption(new Option("--transition <kind>", "transition at every cut (auto = Gemini's per cut)").choices(TRANSITION_CHOICES))
   .option("--bgm-gain <0-1>", "background music level outside speech")
   .option("--render-concurrency <n>", "Remotion render concurrency")
   .action(
