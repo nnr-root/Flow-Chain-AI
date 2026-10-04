@@ -23,8 +23,12 @@ export class HttpError extends Error {
   }
 }
 
-/** Client errors that fail the same way every time (bad request, auth, unknown voice, validation). */
-const NON_RETRYABLE_STATUS = new Set([400, 401, 403, 404, 422]);
+/**
+ * Client errors that fail the same way every time (bad request, auth, unknown voice, validation), and 429:
+ * a quota or rate limit (e.g. Gemini's free tier: 20 requests/day/model, retry in hours) is never lifted by
+ * an immediate retry, and each retry spends quota.
+ */
+const NON_RETRYABLE_STATUS = new Set([400, 401, 403, 404, 422, 429]);
 
 export function isRetryable(err: unknown): boolean {
   if (err instanceof NonRetryableError) return false;

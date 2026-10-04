@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
+import { ApiError } from "@google/genai";
 import { describe, expect, it } from "vitest";
 import { download } from "../../src/providers/download.js";
 import { HttpError, NonRetryableError, withRetry } from "../../src/providers/retry.js";
@@ -51,6 +52,25 @@ describe("withRetry", () => {
         throw new NonRetryableError("flagged");
       }, { timeoutMs: 1000, sleep: noSleep }),
     ).rejects.toThrow("x failed after 1 attempt: flagged");
+    expect(n).toBe(1);
+  });
+
+  it("does not retry quota or rate-limit errors (429), including Gemini's own ApiError", async () => {
+    let n = 0;
+    const quota = new ApiError({ message: '{"error":{"code":429,"status":"RESOURCE_EXHAUSTED"}}', status: 429 });
+    const err = await withRetry("script generation", async () => {
+      n++;
+      throw quota;
+    }, { timeoutMs: 1000, sleep: noSleep }).catch((e: unknown) => e);
+    expect(n).toBe(1); // one request, so a daily quota is not burned three times per attempt
+    expect((err as Error).message).toMatch(/^script generation failed after 1 attempt: /);
+    expect((err as Error).cause).toBe(quota);
+
+    n = 0;
+    await withRetry("tts scene 1", async () => {
+      n++;
+      throw new HttpError("HTTP 429", 429);
+    }, { timeoutMs: 1000, sleep: noSleep }).catch(() => {});
     expect(n).toBe(1);
   });
 

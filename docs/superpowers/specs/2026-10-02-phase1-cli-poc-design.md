@@ -315,7 +315,7 @@ sets them individually (length must equal `--scenes`). The LLM never chooses mod
   `--stage clips` is rejected for a Mode 2 scene (its clip is a deterministic Ken Burns render of the
   keyframe, so a new nonce would only re-render the same frames); the message points to `--stage keyframes`.
 - **Failure:** LLM and TTS calls are retried (3 attempts, exponential backoff, per-call timeout
-  LLM 60 s, TTS 60 s). Clearly non-retryable errors are not retried: HTTP 400/401/403/404/422 and
+  LLM 60 s, TTS 60 s). Clearly non-retryable errors are not retried: HTTP 400/401/403/404/422, 429 (quota/rate limit: an immediate retry only spends quota) and
   errors marked non-retryable (the original error is kept as `cause`). After the last attempt the stage
   writes a `failed` record and the run stops; the next `resume` continues from there.
 - **Paid fal jobs (keyframes, clips) use the queue API explicitly, never `subscribe`:** first the free
