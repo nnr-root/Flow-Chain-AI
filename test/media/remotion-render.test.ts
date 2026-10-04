@@ -2,10 +2,11 @@ import { join, resolve } from "node:path";
 import { execa } from "execa";
 import { describe, expect, it } from "vitest";
 import { countFrames, ffmpeg, probeVideo } from "../../src/media/ffmpeg.js";
-import { CaptionStyleName, type RenderProps, Transition } from "../../src/media/remotion/props.js";
+import { type CaptionStyle, CaptionStyleName, type RenderProps, Transition } from "../../src/media/remotion/props.js";
 import { captionPages, wordsToCaptions } from "../../src/media/remotion/caption-pages.js";
 import { renderVideo } from "../../src/media/remotion/render.js";
 import { CAPTION_STYLES } from "../../src/media/remotion/styles.js";
+import { PRESETS } from "../../src/presets.js";
 import { makeAudio, makeImage, tempDir } from "../helpers/media.js";
 
 const FONT = resolve("assets/fonts/Montserrat-ExtraBold.ttf");
@@ -179,31 +180,60 @@ describe("Remotion composition (real Chrome)", () => {
     expect(b70).toBeLessThan(25);
   });
 
-  it("renders every caption style", async () => {
+
+  /** Renders "hello world" in `style` on a black frame; returns the brightness of the caption band at frame 5. */
+  async function captionBand(dir: string, name: string, style: CaptionStyle): Promise<number> {
+    const pages = captionPages(wordsToCaptions([{ text: "hello", start: 0, end: 0.5 }, { text: "world", start: 0.5, end: 1 }], 3));
+    const out = join(dir, `${name}.mp4`);
+    await renderVideo({
+      props: baseProps({
+        totalFrames: 30,
+        scenes: [{ kind: "still", src: "black.png", camera: "zoom_in", from: 0, frames: 30 }],
+        captions: { style, bottomPct: 30, pages },
+      }),
+      files: {
+        "black.png": join(dir, "black.png"),
+        "narration.wav": join(dir, "narration.wav"),
+        [style.font.file]: resolve("assets/fonts", style.font.file),
+      },
+      workDir: join(dir, `render-${name}`),
+      out,
+    });
+    // the caption band (bottom edge 30 % above the bottom of the frame) on an otherwise black frame
+    const [r, g, b] = await avgRgb(out, 5, "iw:ih*0.12:0:ih*0.6");
+    return r + g + b;
+  }
+
+  async function blackScene(): Promise<string> {
     const dir = await tempDir();
     await makeImage(join(dir, "black.png"), { width: 192, height: 336, color: "black" });
     await makeAudio(join(dir, "narration.wav"), [{ silence: 1 }]);
-    const pages = captionPages(wordsToCaptions([{ text: "hello", start: 0, end: 0.5 }, { text: "world", start: 0.5, end: 1 }], 3));
-    for (const name of CaptionStyleName.options) {
-      const style = CAPTION_STYLES[name];
-      const out = join(dir, `${name}.mp4`);
-      await renderVideo({
-        props: baseProps({
-          totalFrames: 30,
-          scenes: [{ kind: "still", src: "black.png", camera: "zoom_in", from: 0, frames: 30 }],
-          captions: { style, bottomPct: 30, pages },
-        }),
-        files: {
-          "black.png": join(dir, "black.png"),
-          "narration.wav": join(dir, "narration.wav"),
-          [style.font.file]: resolve("assets/fonts", style.font.file),
-        },
-        workDir: join(dir, `render-${name}`),
-        out,
+    return dir;
+  }
+
+  it("renders every caption style and every preset's caption look", async () => {
+    const dir = await blackScene();
+    const looks: Array<[string, CaptionStyle]> = [
+      ...CaptionStyleName.options.map((n): [string, CaptionStyle] => [n, CAPTION_STYLES[n]]),
+      ...Object.values(PRESETS).map((p): [string, CaptionStyle] => [`preset-${p.name}`, p.caption]),
+    ];
+    for (const [name, style] of looks) {
+      expect(await captionBand(dir, name, style), name).toBeGreaterThan(10); // pure black sums to 0
+    }
+  });
+
+  it("renders the variable fonts at the requested weight", async () => {
+    const dir = await blackScene();
+    for (const font of [PRESETS.cinematic_history.caption.font, PRESETS.cyberpunk.caption.font]) {
+      const plain = (weight: number): CaptionStyle => ({
+        ...CAPTION_STYLES.minimalist,
+        font: { ...font, weight },
+        inactiveOpacity: 1,
+        shadow: null,
       });
-      // the caption band (bottom edge 30 % above the bottom of the frame) on an otherwise black frame
-      const [r, g, b] = await avgRgb(out, 5, "iw:ih*0.12:0:ih*0.6");
-      expect(r + g + b).toBeGreaterThan(10); // pure black sums to 0
+      const regular = await captionBand(dir, `${font.family}-400`, plain(400));
+      const bold = await captionBand(dir, `${font.family}-700`, plain(700));
+      expect(bold, font.family).toBeGreaterThan(regular * 1.15); // thicker strokes light more of the band
     }
   });
 });

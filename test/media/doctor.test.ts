@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { checkFfmpeg, checkRemotionBrowser, formatChecks, parseFfmpegMajor, REQUIRED_FILTERS } from "../../src/doctor.js";
+import { existsSync } from "node:fs";
+import {
+  captionFontFiles, checkFfmpeg, checkRemotionBrowser, formatChecks, parseFfmpegMajor, REQUIRED_FILTERS,
+} from "../../src/doctor.js";
 
 describe("doctor", () => {
   it("parses ffmpeg major versions", () => {
@@ -19,6 +22,19 @@ describe("doctor", () => {
 
   it("finds Remotion's browser (downloads it once if missing)", async () => {
     expect(await checkRemotionBrowser()).toMatch(/^ready \(/);
+  });
+
+  it("checks the font of every caption style and every style preset, each once", () => {
+    const fonts = captionFontFiles("assets/fonts");
+    expect(fonts.map((f) => f.replace("assets/fonts/", "")).sort()).toEqual([
+      "Bangers-Regular.ttf",
+      "Cinzel-Variable.ttf",
+      "Inter-SemiBold.ttf",
+      "LuckiestGuy-Regular.ttf",
+      "Montserrat-ExtraBold.ttf",
+      "Orbitron-Variable.ttf",
+    ]);
+    expect(fonts.every((f) => existsSync(f))).toBe(true);
   });
 
   it("formats checks one per line", () => {

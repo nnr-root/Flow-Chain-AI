@@ -5,6 +5,7 @@ import { execa } from "execa";
 import type { Env } from "./config.js";
 import type { Models } from "./manifest/schema.js";
 import { CAPTION_STYLES } from "./media/remotion/styles.js";
+import { PRESETS } from "./presets.js";
 import { ElevenLabsTts } from "./providers/elevenlabs.js";
 import { checkFal, createFal } from "./providers/fal.js";
 import { GeminiLlm } from "./providers/gemini.js";
@@ -53,12 +54,18 @@ async function attempt(name: string, fn: () => Promise<string>): Promise<Check> 
   }
 }
 
+/** Every font a caption can use: the named caption styles' and every style preset's. */
+export function captionFontFiles(fontsDir: string): string[] {
+  const styles = [...Object.values(CAPTION_STYLES), ...Object.values(PRESETS).map((p) => p.caption)];
+  return [...new Set(styles.map((s) => join(fontsDir, s.font.file)))];
+}
+
 /** `models` lets resume/reroll check the models frozen in the manifest instead of today's env. */
 export async function runDoctor(env: Env, fontsDir: string, models?: Models, voiceId?: string): Promise<Check[]> {
   const llmModel = models?.llm ?? env.GEMINI_MODEL;
   const ttsModel = models?.tts ?? env.ELEVENLABS_MODEL;
   const voice = voiceId ?? env.ELEVENLABS_VOICE_ID;
-  const fonts = Object.values(CAPTION_STYLES).map((s) => join(fontsDir, s.font.file));
+  const fonts = captionFontFiles(fontsDir);
   const missingFonts = fonts.filter((f) => !existsSync(f));
   return [
     ...(await checkFfmpeg()),
