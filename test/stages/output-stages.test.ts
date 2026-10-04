@@ -28,7 +28,7 @@ describe("globalWords", () => {
 });
 
 describe("full pipeline with fakes", () => {
-  it("produces a frame-exact final.mp4, captions and chain.png", async () => {
+  it("produces a frame-exact final.mp4, captions.json and chain.png through Remotion", async () => {
     const { ctx } = await makeTestContext({ modes: [1, 2] });
     await runPipeline(ctx, STAGES, auto);
 
@@ -41,8 +41,9 @@ describe("full pipeline with fakes", () => {
     expect(drift).toBeLessThanOrEqual(1 / 30);
     expect(ctx.manifest.final?.duration).toBeCloseTo(frames / 30, 6);
 
-    const ass = await readFile(abs(ctx, paths.captions), "utf8");
-    expect(ass.split("\n").filter((l) => l.startsWith("Dialogue:"))).toHaveLength(18);
+    const captions = JSON.parse(await readFile(abs(ctx, paths.captions), "utf8")) as Array<{ text: string }>;
+    expect(captions).toHaveLength(18); // two scenes of 9 fake words
+    expect(captions[1].text.startsWith(" ")).toBe(true);
 
     const cell = cellSize(ctx.size);
     const sheet = await probeVideo(abs(ctx, paths.chain));

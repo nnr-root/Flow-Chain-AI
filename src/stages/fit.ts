@@ -1,6 +1,7 @@
 import { fileSha256 } from "../manifest/hash.js";
 import { applyFit, planFit } from "../media/fit.js";
 import { abs, outPath, paths } from "./paths.js";
+import { isMode1 } from "./clips.js";
 import { requireClip } from "./require.js";
 import type { Stage } from "./types.js";
 import { sceneFrames } from "./visual.js";
@@ -9,6 +10,7 @@ export const fitStage: Stage = {
   name: "fit",
   perScene: true,
   paid: false,
+  appliesTo: isMode1,
   // frames_i depends on the durations of every scene up to and including i
   deps: (m, scene) => [
     { stage: "clips", scene },

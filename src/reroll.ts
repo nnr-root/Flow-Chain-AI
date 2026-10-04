@@ -6,7 +6,7 @@ export type RerollStage = (typeof REROLLABLE)[number];
 
 /**
  * Marks one scene-stage for regeneration by bumping its nonce. Downstream work (later chained clips,
- * fit, captions, assemble) re-runs automatically because its input hashes change.
+ * fit, captions, render) re-runs automatically because its input hashes change.
  */
 export function bumpNonce(m: Manifest, sceneNumber: number, stage: string): void {
   if (!(REROLLABLE as readonly string[]).includes(stage)) {

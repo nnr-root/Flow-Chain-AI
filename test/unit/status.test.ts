@@ -19,10 +19,12 @@ describe("formatStatus", () => {
     ];
     const text = formatStatus(m);
     expect(text).toContain("Run 20261002-140509-abcdef — 9:16, 2 scenes, modes 1,2");
-    expect(text).toContain("Run stages: script ✓  captions ·  assemble ·");
+    expect(text).toContain("Run stages: script ✓  captions ·  render ·");
     expect(text).toContain("Scene 1 [mode 1]: tts ✓  silence ·  keyframes ·  clips ✗  fit ·");
     expect(text).toContain("  error in clips: boom");
-    expect(text).toContain("Scene 2 [mode 2]: tts ·  silence ·  keyframes ·  clips ·  fit ·");
+    // Mode 2 has no clip or fit: it is animated from its keyframe at render time
+    expect(text).toContain("Scene 2 [mode 2]: tts ·  silence ·  keyframes ·");
+    expect(text).not.toMatch(/Scene 2 .*clips/);
     expect(text).toContain("Spend (estimated from the price table, not invoices): $0.26 across 2 paid call(s)");
     expect(text).not.toContain("Final:");
   });

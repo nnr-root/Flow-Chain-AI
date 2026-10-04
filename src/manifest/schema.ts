@@ -5,7 +5,7 @@ import { CaptionStyleName, Transition } from "../media/remotion/props.js";
 export const MAX_NARRATION_WORDS = 22;
 export const MAX_SCENES = 12;
 
-export const StageName = z.enum(["script", "tts", "silence", "keyframes", "clips", "fit", "captions", "assemble"]);
+export const StageName = z.enum(["script", "tts", "silence", "keyframes", "clips", "fit", "captions", "render"]);
 export type StageName = z.infer<typeof StageName>;
 
 export const Mode = z.union([z.literal(1), z.literal(2)]);
@@ -137,7 +137,7 @@ export const Manifest = z.object({
   script: Script.optional(),
   runStages: z.partialRecord(StageName, StageRecord).default({}),
   scenes: z.array(SceneState),
-  final: z.object({ path: z.string(), duration: z.number(), captions: z.string(), chain: z.string() }).optional(),
+  final: z.object({ path: z.string(), duration: z.number(), chain: z.string() }).optional(),
   ledger: z.array(LedgerEntry).default([]),
 });
 export type Manifest = z.infer<typeof Manifest>;

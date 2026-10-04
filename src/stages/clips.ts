@@ -1,9 +1,9 @@
 import { videoCost } from "../cost.js";
 import { fileSha256 } from "../manifest/hash.js";
+import type { Manifest } from "../manifest/schema.js";
 import { probeDuration } from "../media/ffmpeg.js";
 import { planFit } from "../media/fit.js";
 import { extractSeamFrame } from "../media/frames.js";
-import { renderKenBurns } from "../media/kenburns.js";
 import { requestedSec } from "../media/timeline.js";
 import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
@@ -26,36 +26,28 @@ async function writeSeam(ctx: StageContext, i: number): Promise<string> {
   return seam;
 }
 
+/** Clips exist for Mode 1 only; Mode 2 scenes are animated from their keyframe at render time. */
+export const isMode1 = (m: Manifest, i: number): boolean => m.scenes[i].mode === 1;
+
 export const clipsStage: Stage = {
   name: "clips",
   perScene: true,
   paid: true,
+  appliesTo: isMode1,
   deps: (m, scene) => {
     const i = scene!;
     const deps: Dep[] = [{ stage: "script" }, { stage: "silence", scene: i }];
     if (needsKeyframe(m, i)) deps.push({ stage: "keyframes", scene: i });
     // A continuing clip starts from clip i-1's seam frame, which depends on frames_{i-1} (durations 0..i-1).
     else deps.push({ stage: "clips", scene: i - 1 });
-    // A Mode 2 clip is rendered at frames_i, and a seam frame at frames_{i-1}: both depend on earlier durations.
-    if (m.scenes[i].mode === 2 || !needsKeyframe(m, i)) {
-      for (let k = 0; k < i; k++) deps.push({ stage: "silence", scene: k });
-    }
+    // A seam frame is rendered at frames_{i-1}, which depends on every earlier duration.
+    if (!needsKeyframe(m, i)) for (let k = 0; k < i; k++) deps.push({ stage: "silence", scene: k });
     return deps;
   },
   async inputsFor(ctx, scene) {
     const i = scene!;
     const m = ctx.manifest;
     const script = requireScript(m);
-    if (m.scenes[i].mode === 2) {
-      return {
-        mode: 2,
-        camera: script.scenes[i].camera,
-        frames: sceneFrames(m, ctx.fps)[i],
-        size: ctx.size,
-        fps: ctx.fps,
-        imageSha: await fileSha256(abs(ctx, paths.keyframe(i))),
-      };
-    }
     const base = {
       mode: 1,
       model: m.models.video,
@@ -77,7 +69,6 @@ export const clipsStage: Stage = {
   outputsFor: (_m, scene) => [paths.clip(scene!)],
   estimateCostUsd(ctx, scene) {
     const s = ctx.manifest.scenes[scene!];
-    if (s.mode === 2) return 0;
     return videoCost(ctx.prices, s.audio ? requestedSec(s.audio.duration) : 10);
   },
   async run(ctx, scene) {
@@ -86,13 +77,6 @@ export const clipsStage: Stage = {
     const state = m.scenes[i];
     const script = requireScript(m);
     const out = await outPath(ctx, paths.clip(i));
-
-    if (state.mode === 2) {
-      const frames = sceneFrames(m, ctx.fps)[i];
-      await renderKenBurns(abs(ctx, paths.keyframe(i)), out, script.scenes[i].camera, frames, ctx.size, ctx.fps);
-      state.clip = { path: paths.clip(i), duration: frames / ctx.fps };
-      return;
-    }
 
     const seconds = requestedSec(requireAudio(state).duration);
     const result = await runProviderJob(ctx, i, "clips", {

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { basename } from "node:path";
 import { describe, expect, it } from "vitest";
 import { imageCost } from "../../src/cost.js";
@@ -48,7 +49,7 @@ describe("prompts", () => {
 });
 
 describe("keyframes and clips stages", () => {
-  it("chains Mode 1 clips through last frames and renders Mode 2 locally", async () => {
+  it("chains Mode 1 clips through seam frames and buys no clip for a Mode 2 scene", async () => {
     const { ctx, fakes } = await makeTestContext({
       modes: [1, 1, 2, 1],
       shots: ["cut", "continue", "continue", "continue"],
@@ -65,7 +66,8 @@ describe("keyframes and clips stages", () => {
     expect(fakes.video.submits.map((c) => c.durationSec)).toEqual([5, 5, 5]);
     expect(fakes.video.submits[1].prompt).toBe(motionPrompt(ctx.manifest.script!, 1));
 
-    expect(await countFrames(abs(ctx, paths.clip(2)))).toBe(sceneFrames(ctx.manifest, 30)[2]);
+    expect(ctx.manifest.scenes[2].clip).toBeUndefined(); // Mode 2 is animated from its keyframe at render time
+    expect(existsSync(abs(ctx, paths.clip(2)))).toBe(false);
 
     const paid = (stage: string) => ctx.manifest.ledger.filter((e) => e.stage === stage).map((e) => e.usd);
     expect(paid("keyframes")).toEqual([0, 2, 3].map(() => imageCost(ctx.prices, ctx.keyframeSize)));

@@ -13,12 +13,14 @@ export const paths = {
   clip: (i: number) => `clips/clip_${n(i)}.mp4`,
   /** chain.png: first frame of scene i's raw clip. */
   firstFrame: (i: number) => `frames/first_${n(i)}.png`,
-  /** chain.png: last frame of scene i's fitted clip (what viewers see last). */
+  /** chain.png: last frame of scene i's fitted clip (what viewers see last); Mode 2 rows use the keyframe. */
   lastFrame: (i: number) => `frames/last_${n(i)}.png`,
   /** The last frame fitted clip i shows; the chain image of a continuing scene i+1. */
   seam: (i: number) => `frames/seam_${n(i)}.png`,
   fitted: (i: number) => `fitted/scene_${n(i)}.mp4`,
-  captions: "captions.ass",
+  captions: "captions.json",
+  /** Render working folder: staged public files and the Remotion bundle (recreated per render). */
+  renderDir: "render",
   video: "video.mp4",
   narration: "narration.wav",
   final: "final.mp4",

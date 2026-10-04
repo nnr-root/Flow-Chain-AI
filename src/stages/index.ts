@@ -1,8 +1,8 @@
-import { assembleStage } from "./assemble.js";
 import { captionsStage } from "./captions.js";
 import { clipsStage } from "./clips.js";
 import { fitStage } from "./fit.js";
 import { keyframesStage } from "./keyframes.js";
+import { renderStage } from "./render.js";
 import { scriptStage } from "./script.js";
 import { silenceStage } from "./silence.js";
 import type { Stage } from "./types.js";
@@ -17,5 +17,5 @@ export const STAGES: Stage[] = [
   clipsStage,
   fitStage,
   captionsStage,
-  assembleStage,
+  renderStage,
 ];

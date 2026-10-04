@@ -2,7 +2,7 @@ import type { Manifest, StageName, StageRecord } from "./manifest/schema.js";
 import { needsKeyframe } from "./stages/visual.js";
 
 const mark = (r?: StageRecord) => (r === undefined ? "·" : r.status === "done" ? "✓" : "✗");
-const RUN_STAGES: StageName[] = ["script", "captions", "assemble"];
+const RUN_STAGES: StageName[] = ["script", "captions", "render"];
 const SCENE_STAGES: StageName[] = ["tts", "silence", "keyframes", "clips", "fit"];
 
 export function formatStatus(m: Manifest): string {
@@ -18,7 +18,10 @@ export function formatStatus(m: Manifest): string {
     if (rec?.status === "failed") lines.push(`  error in ${st}: ${rec.error}`);
   }
   for (const scene of m.scenes) {
-    const shown = SCENE_STAGES.filter((s) => s !== "keyframes" || needsKeyframe(m, scene.idx));
+    // keyframes only where the scene has one; clips and fit only for Mode 1 (Mode 2 is animated at render time)
+    const shown = SCENE_STAGES.filter(
+      (s) => (s !== "keyframes" || needsKeyframe(m, scene.idx)) && ((s !== "clips" && s !== "fit") || scene.mode === 1),
+    );
     lines.push(`Scene ${scene.idx + 1} [mode ${scene.mode}]: ${shown.map((s) => `${s} ${mark(scene.stages[s])}`).join("  ")}`);
     for (const st of SCENE_STAGES) {
       const rec = scene.stages[st];

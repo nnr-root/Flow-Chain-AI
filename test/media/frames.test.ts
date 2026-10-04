@@ -1,10 +1,8 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { cellSize, contactSheet } from "../../src/media/contact-sheet.js";
-import { countFrames, probeVideo } from "../../src/media/ffmpeg.js";
+import { probeVideo } from "../../src/media/ffmpeg.js";
 import { extractFrame, extractLastFrame } from "../../src/media/frames.js";
-import { Camera } from "../../src/manifest/schema.js";
-import { renderKenBurns } from "../../src/media/kenburns.js";
 import { frameDiff, makeImage, makeVideo, tempDir } from "../helpers/media.js";
 
 describe("extractLastFrame", () => {
@@ -27,20 +25,6 @@ describe("extractLastFrame", () => {
     await extractFrame(v, 11, join(dir, "ref.png"));
     expect(await frameDiff(join(dir, "last.png"), join(dir, "ref.png"))).toBe(0);
   });
-});
-
-describe("renderKenBurns", () => {
-  for (const camera of Camera.options) {
-    it(`renders ${camera} at the exact frame count`, async () => {
-      const dir = await tempDir();
-      const img = join(dir, "kf.png");
-      await makeImage(img, { width: 192, height: 336 });
-      const out = join(dir, "kb.mp4");
-      await renderKenBurns(img, out, camera, 15, { width: 180, height: 320 }, 30);
-      expect(await countFrames(out)).toBe(15);
-      expect(await probeVideo(out)).toEqual({ width: 180, height: 320, fps: 30 });
-    });
-  }
 });
 
 describe("contactSheet", () => {

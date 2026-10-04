@@ -14,6 +14,8 @@ export type StageContext = {
   fontsDir: string;
   /** Base backoff for provider retries (tests use 0). */
   retryDelayMs: number;
+  /** Remotion render concurrency (null/undefined = Remotion's default). Speed only, not part of any cache key. */
+  renderConcurrency?: number | null;
   log: (message: string) => void;
 };
 
