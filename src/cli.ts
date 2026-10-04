@@ -8,11 +8,13 @@ import { type Manifest, type Models, RunRequest, StageName } from "./manifest/sc
 import {
   createManifest, loadManifest, newRunId, resolveModes, resolveShots, saveManifest, withRunLock,
 } from "./manifest/store.js";
-import { type Plan, RunAborted, runPipeline } from "./pipeline.js";
+import { CaptionStyleName, Transition } from "./media/remotion/props.js";
+import { type Plan, planRun, RunAborted, runPipeline } from "./pipeline.js";
 import { ElevenLabsTts } from "./providers/elevenlabs.js";
 import { createFal, FalImage, FalVideo } from "./providers/fal.js";
 import { GeminiLlm } from "./providers/gemini.js";
 import type { Providers } from "./providers/types.js";
+import { applyRenderOptions, assertRenderOnly, noPaidProviders } from "./rerender.js";
 import { bumpNonce, REROLLABLE } from "./reroll.js";
 import { STAGES } from "./stages/index.js";
 import type { StageContext } from "./stages/types.js";
@@ -63,27 +65,37 @@ function budget(raw: string | undefined, env: Env): number {
   return value;
 }
 
+function renderConcurrency(raw: string | undefined): number | null {
+  if (raw === undefined) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1) throw new Error(`--render-concurrency must be a positive integer, got "${raw}"`);
+  return value;
+}
+
 const runsDir = () => process.env.RUNS_DIR ?? "./runs";
 const runDir = (runId: string) => resolve(runsDir(), runId);
 
-async function execute(
-  env: Env,
-  dir: string,
-  manifest: Manifest,
-  opts: { budgetUsd: number; yes?: boolean; reroll?: boolean; from?: StageName },
-): Promise<void> {
-  const ctx: StageContext = {
+function contextFor(dir: string, manifest: Manifest, providers: Providers, concurrency: number | null): StageContext {
+  return {
     dir,
     manifest,
-    providers: providersFor(env, manifest.models),
+    providers,
     prices: loadPrices(),
     size: outputSize(manifest.request.aspect),
     keyframeSize: keyframeSize(manifest.request.aspect),
     fps: FPS,
     fontsDir: FONTS_DIR,
     retryDelayMs: 2000,
+    renderConcurrency: concurrency,
     log: (message) => console.log(message),
   };
+}
+
+async function execute(
+  ctx: StageContext,
+  opts: { budgetUsd: number; yes?: boolean; reroll?: boolean; from?: StageName },
+): Promise<void> {
+  const { dir, manifest } = ctx;
   try {
     await runPipeline(ctx, STAGES, { ...opts, confirm: askConfirm });
   } catch (err) {
@@ -113,13 +125,17 @@ type RunFlags = {
   shots?: string;
   voice?: string;
   bgm?: string;
+  captionStyle?: string;
+  transition?: string;
+  bgmGain?: string;
+  renderConcurrency?: string;
   budget?: string;
   yes?: boolean;
 };
 
 const program = new Command()
   .name("flowchain")
-  .description("Flow-Chain-AI Phase 1: topic → captioned short video with a continuity chain");
+  .description("Flow-Chain-AI: topic → captioned short video with a continuity chain, rendered with Remotion");
 
 program
   .command("doctor")
@@ -142,6 +158,10 @@ program
   .option("--shots <list>", "testing override: per-scene continue|cut, e.g. cut,continue,continue (default: LLM decides)")
   .option("--voice <id>", "ElevenLabs voice id (default: ELEVENLABS_VOICE_ID)")
   .option("--bgm <file>", "background music, ducked under the narration")
+  .addOption(new Option("--caption-style <style>", "caption look (default: hormozi)").choices(CaptionStyleName.options))
+  .addOption(new Option("--transition <kind>", "transition at every cut (default: fade)").choices(Transition.options))
+  .option("--bgm-gain <0-1>", "background music level outside speech (default: 0.35)")
+  .option("--render-concurrency <n>", "Remotion render concurrency (default: Remotion's choice)")
   .option("--budget <usd>", "ask before spending more than this (default: FLOWCHAIN_BUDGET_USD)")
   .option("--yes", "never ask for confirmation")
   .action(async (o: RunFlags) => {
@@ -158,7 +178,13 @@ program
       shots,
       voiceId: o.voice ?? env.ELEVENLABS_VOICE_ID,
       bgm: o.bgm ? resolve(o.bgm) : undefined,
+      render: {
+        captionStyle: o.captionStyle,
+        transition: o.transition,
+        bgmGain: o.bgmGain === undefined ? undefined : Number(o.bgmGain),
+      },
     });
+    const concurrency = renderConcurrency(o.renderConcurrency);
     const models: Models = {
       llm: env.GEMINI_MODEL,
       tts: env.ELEVENLABS_MODEL,
@@ -171,7 +197,8 @@ program
     const manifest = createManifest(runId, request, models);
     await saveManifest(dir, manifest);
     console.log(`Run ${runId} → ${dir}`);
-    await withRunLock(dir, () => execute(env, dir, manifest, { budgetUsd: budget(o.budget, env), yes: o.yes }));
+    const ctx = contextFor(dir, manifest, providersFor(env, models), concurrency);
+    await withRunLock(dir, () => execute(ctx, { budgetUsd: budget(o.budget, env), yes: o.yes }));
   });
 
 program
@@ -179,15 +206,17 @@ program
   .description("continue a run after a failure or interruption")
   .addOption(new Option("--from <stage>", "re-run this stage and every later one").choices(StageName.options))
   .option("--budget <usd>", "ask before spending more than this")
+  .option("--render-concurrency <n>", "Remotion render concurrency")
   .option("--yes", "never ask for confirmation")
-  .action(async (runId: string, o: { from?: StageName; budget?: string; yes?: boolean }) => {
+  .action(async (runId: string, o: { from?: StageName; budget?: string; renderConcurrency?: string; yes?: boolean }) => {
     const env = loadEnv();
     const dir = runDir(runId);
     await loadManifest(dir); // a clear error for an unknown run id, before any lock file is created
     await withRunLock(dir, async () => {
       const manifest = await loadManifest(dir);
       await requireDoctor(env, manifest.models, manifest.request.voiceId);
-      await execute(env, dir, manifest, { budgetUsd: budget(o.budget, env), yes: o.yes, from: o.from });
+      const ctx = contextFor(dir, manifest, providersFor(env, manifest.models), renderConcurrency(o.renderConcurrency));
+      await execute(ctx, { budgetUsd: budget(o.budget, env), yes: o.yes, from: o.from });
     });
   });
 
@@ -196,8 +225,9 @@ program
   .description("regenerate one scene's voiceover, keyframe or clip; later chained clips follow automatically")
   .requiredOption("--scene <n>", "scene number, starting at 1")
   .addOption(new Option("--stage <stage>", "what to regenerate").choices([...REROLLABLE]).makeOptionMandatory())
+  .option("--render-concurrency <n>", "Remotion render concurrency")
   .option("--yes", "never ask for confirmation")
-  .action(async (runId: string, o: { scene: string; stage: string; yes?: boolean }) => {
+  .action(async (runId: string, o: { scene: string; stage: string; renderConcurrency?: string; yes?: boolean }) => {
     const env = loadEnv();
     const dir = runDir(runId);
     await loadManifest(dir); // a clear error for an unknown run id, before any lock file is created
@@ -205,9 +235,35 @@ program
       const manifest = await loadManifest(dir);
       bumpNonce(manifest, Number(o.scene), o.stage);
       await requireDoctor(env, manifest.models, manifest.request.voiceId);
-      await execute(env, dir, manifest, { budgetUsd: budget(undefined, env), yes: o.yes, reroll: true });
+      const ctx = contextFor(dir, manifest, providersFor(env, manifest.models), renderConcurrency(o.renderConcurrency));
+      await execute(ctx, { budgetUsd: budget(undefined, env), yes: o.yes, reroll: true });
     });
   });
+
+program
+  .command("rerender <runId>")
+  .description("re-render a finished run with another look (caption style, transition, BGM level) — free")
+  .addOption(new Option("--caption-style <style>", "caption look").choices(CaptionStyleName.options))
+  .addOption(new Option("--transition <kind>", "transition at every cut").choices(Transition.options))
+  .option("--bgm-gain <0-1>", "background music level outside speech")
+  .option("--render-concurrency <n>", "Remotion render concurrency")
+  .action(
+    async (
+      runId: string,
+      o: { captionStyle?: string; transition?: string; bgmGain?: string; renderConcurrency?: string },
+    ) => {
+      const dir = runDir(runId);
+      await loadManifest(dir); // a clear error for an unknown run id, before any lock file is created
+      await withRunLock(dir, async () => {
+        const manifest = await loadManifest(dir);
+        applyRenderOptions(manifest, o);
+        const ctx = contextFor(dir, manifest, noPaidProviders(), renderConcurrency(o.renderConcurrency));
+        assertRenderOnly(await planRun(ctx, STAGES), runId);
+        await saveManifest(dir, manifest);
+        await execute(ctx, { budgetUsd: 0, yes: true });
+      });
+    },
+  );
 
 program
   .command("status <runId>")

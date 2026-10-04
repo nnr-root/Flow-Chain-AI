@@ -1,9 +1,11 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { fileSha256 } from "../../src/manifest/hash.js";
 import { cellSize } from "../../src/media/contact-sheet.js";
 import { countFrames, ffmpeg, probeVideo, streamDuration } from "../../src/media/ffmpeg.js";
 import { extractFrame, extractLastFrame } from "../../src/media/frames.js";
-import { type RunOptions, runPipeline } from "../../src/pipeline.js";
+import { planRun, type RunOptions, runPipeline } from "../../src/pipeline.js";
+import { applyRenderOptions, assertRenderOnly, noPaidProviders } from "../../src/rerender.js";
 import { STAGES } from "../../src/stages/index.js";
 import { abs, paths } from "../../src/stages/paths.js";
 import { sceneFrames } from "../../src/stages/visual.js";
@@ -53,4 +55,26 @@ describe("render stage (real Chrome)", () => {
     expect({ width: sheet.width, height: sheet.height }).toEqual({ width: cell.width * 2, height: cell.height * 4 });
   });
 
+  it("rerender switches the look of a finished run for free", async () => {
+    const { ctx } = await makeTestContext({ modes: [1, 2] });
+    await runPipeline(ctx, STAGES, auto);
+    const before = {
+      final: await fileSha256(abs(ctx, paths.final)),
+      ledger: structuredClone(ctx.manifest.ledger),
+      clips: ctx.manifest.scenes[0].stages.clips,
+      render: ctx.manifest.runStages.render?.finishedAt,
+    };
+
+    applyRenderOptions(ctx.manifest, { captionStyle: "mrbeast", transition: "zoom" });
+    const rerender = { ...ctx, providers: noPaidProviders() };
+    const plan = await planRun(rerender, STAGES);
+    assertRenderOnly(plan, ctx.manifest.runId);
+    expect(plan.items.map((i) => i.stage)).toEqual(["captions", "render"]); // mrbeast pages hold 2 words, not 3
+    await runPipeline(rerender, STAGES, { budgetUsd: 0, confirm: async () => false });
+
+    expect(await fileSha256(abs(ctx, paths.final))).not.toBe(before.final);
+    expect(ctx.manifest.ledger).toEqual(before.ledger);
+    expect(ctx.manifest.scenes[0].stages.clips).toEqual(before.clips);
+    expect(ctx.manifest.runStages.render?.finishedAt).not.toBe(before.render);
+  });
 });
