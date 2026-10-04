@@ -1,17 +1,18 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { ensureBrowser } from "@remotion/renderer";
 import { execa } from "execa";
 import type { Env } from "./config.js";
 import type { Models } from "./manifest/schema.js";
+import { CAPTION_STYLES } from "./media/remotion/styles.js";
 import { ElevenLabsTts } from "./providers/elevenlabs.js";
 import { checkFal, createFal } from "./providers/fal.js";
 import { GeminiLlm } from "./providers/gemini.js";
 
 export type Check = { name: string; ok: boolean; detail: string };
 
-export const REQUIRED_FILTERS = [
-  "silencedetect", "atrim", "concat", "zoompan", "ass", "tpad", "xstack", "sidechaincompress", "loudnorm",
-];
+/** ffmpeg still does silence removal, Mode 1 fitting, seam frames, chain.png and the loudness pass. */
+export const REQUIRED_FILTERS = ["silencedetect", "atrim", "concat", "tpad", "trim", "xstack", "loudnorm"];
 
 export function parseFfmpegMajor(versionLine: string): number | null {
   const m = /ffmpeg version n?(\d+)\./.exec(versionLine);
@@ -29,11 +30,19 @@ export async function checkFfmpeg(): Promise<Check[]> {
   const probe = await execa("ffprobe", ["-version"], { reject: false });
   return [
     { name: "ffmpeg version", ok: major === null || major >= 6, detail: firstLine },
-    { name: "libass", ok: out.includes("--enable-libass"), detail: "burns captions" },
     { name: "libx264", ok: out.includes("--enable-libx264"), detail: "encodes H.264" },
     { name: "filters", ok: missing.length === 0, detail: missing.length ? `missing: ${missing.join(", ")}` : "all present" },
     { name: "ffprobe", ok: probe.exitCode === 0, detail: probe.exitCode === 0 ? "found" : "not found on PATH" },
   ];
+}
+
+/** Downloads Chrome Headless Shell once (≈ 100 MB) so a paid run never stalls on it at render time. */
+export async function checkRemotionBrowser(): Promise<string> {
+  const status = await ensureBrowser();
+  if (status.type === "no-browser" || status.type === "version-mismatch") {
+    throw new Error(`Remotion has no usable browser (${status.type})`);
+  }
+  return `ready (${status.path})`;
 }
 
 async function attempt(name: string, fn: () => Promise<string>): Promise<Check> {
@@ -49,10 +58,16 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models, voi
   const llmModel = models?.llm ?? env.GEMINI_MODEL;
   const ttsModel = models?.tts ?? env.ELEVENLABS_MODEL;
   const voice = voiceId ?? env.ELEVENLABS_VOICE_ID;
-  const font = join(fontsDir, "Montserrat-ExtraBold.ttf");
+  const fonts = Object.values(CAPTION_STYLES).map((s) => join(fontsDir, s.font.file));
+  const missingFonts = fonts.filter((f) => !existsSync(f));
   return [
     ...(await checkFfmpeg()),
-    { name: "caption font", ok: existsSync(font), detail: font },
+    {
+      name: "caption fonts",
+      ok: missingFonts.length === 0,
+      detail: missingFonts.length ? `missing: ${missingFonts.join(", ")}` : `${fonts.length} bundled`,
+    },
+    await attempt("Remotion browser", checkRemotionBrowser),
     await attempt(`Gemini model ${llmModel}`, async () => {
       await new GeminiLlm(env.GEMINI_API_KEY, llmModel).checkModel();
       return "available";
