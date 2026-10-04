@@ -8,10 +8,11 @@ import { requestedSec } from "../media/timeline.js";
 import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
 import { runProviderJob } from "./job.js";
+import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireAudio, requireClip, requireScript } from "./require.js";
 import type { Dep, Stage, StageContext } from "./types.js";
-import { motionPrompt, needsKeyframe, sceneFrames } from "./visual.js";
+import { autoModeDeps, motionPrompt, needsKeyframe, sceneFrames } from "./visual.js";
 
 /**
  * Writes the seam frame of clip i-1 (the last frame its fitted version shows, spec §4.7) and returns its
@@ -36,7 +37,7 @@ export const clipsStage: Stage = {
   appliesTo: isMode1,
   deps: (m, scene) => {
     const i = scene!;
-    const deps: Dep[] = [{ stage: "script" }, { stage: "silence", scene: i }];
+    const deps: Dep[] = [{ stage: "script" }, { stage: "silence", scene: i }, ...autoModeDeps(m)];
     if (needsKeyframe(m, i)) deps.push({ stage: "keyframes", scene: i });
     // A continuing clip starts from clip i-1's seam frame, which depends on frames_{i-1} (durations 0..i-1).
     else deps.push({ stage: "clips", scene: i - 1 });
@@ -51,7 +52,7 @@ export const clipsStage: Stage = {
     const base = {
       mode: 1,
       model: m.models.video,
-      prompt: motionPrompt(script, i),
+      prompt: motionPrompt(script, i, effectivePreset(m)),
       requestedSec: requestedSec(requireAudio(m.scenes[i]).duration),
     };
     if (needsKeyframe(m, i)) return { ...base, imageSha: await fileSha256(abs(ctx, paths.keyframe(i))) };
@@ -85,7 +86,7 @@ export const clipsStage: Stage = {
       prepare: async () => {
         // the chain image: the scene's own keyframe, or the seam frame of the previous clip
         const imagePath = needsKeyframe(m, i) ? abs(ctx, paths.keyframe(i)) : await writeSeam(ctx, i);
-        return ctx.providers.video.prepare({ imagePath, prompt: motionPrompt(script, i), durationSec: seconds });
+        return ctx.providers.video.prepare({ imagePath, prompt: motionPrompt(script, i, effectivePreset(m)), durationSec: seconds });
       },
       submit: (job, signal) => ctx.providers.video.submit(job, { signal }),
       wait: (id) => ctx.providers.video.wait(id, { timeoutMs: TIMEOUTS.video }),

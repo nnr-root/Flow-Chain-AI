@@ -7,6 +7,7 @@ import { createManifest } from "../../src/manifest/store.js";
 import type { Mode } from "../../src/manifest/schema.js";
 import { countFrames } from "../../src/media/ffmpeg.js";
 import { computeHash, runPipeline, type RunOptions } from "../../src/pipeline.js";
+import { PRESETS } from "../../src/presets.js";
 import { clipsStage } from "../../src/stages/clips.js";
 import { keyframesStage } from "../../src/stages/keyframes.js";
 import { abs, paths } from "../../src/stages/paths.js";
@@ -40,11 +41,21 @@ describe("needsKeyframe", () => {
 
 describe("prompts", () => {
   const script = fakeScript(1);
-  it("prefixes the image prompt with the style bible", () => {
-    expect(imagePrompt(script, 0)).toBe("flat test pattern. a red fox. Palette: teal, orange. image 1");
+  it("keeps the Phase 1 wording without a preset (runs scripted before 2.2)", () => {
+    expect(imagePrompt(script, 0, null)).toBe("flat test pattern. a red fox. Palette: teal, orange. image 1");
+    expect(motionPrompt(script, 0, null)).toBe("motion 1. Keep style consistent: flat test pattern. a red fox.");
   });
-  it("suffixes the motion prompt with the style bible", () => {
-    expect(motionPrompt(script, 0)).toBe("motion 1. Keep style consistent: flat test pattern. a red fox.");
+  it("wraps the image prompt in the preset's prefix and suffix", () => {
+    const p = PRESETS.cyberpunk;
+    expect(imagePrompt(script, 0, p)).toBe(
+      `${p.imagePrefix}. a red fox. Palette: teal, orange. image 1. ${p.imageSuffix}`,
+    );
+  });
+  it("adds the preset's motion keywords to the motion prompt", () => {
+    const p = PRESETS.anime;
+    expect(motionPrompt(script, 0, p)).toBe(
+      `motion 1. ${p.motionKeywords}. Keep style consistent: flat test pattern. a red fox.`,
+    );
   });
 });
 
@@ -57,14 +68,14 @@ describe("keyframes and clips stages", () => {
     await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
 
     expect(fakes.image.submits).toHaveLength(3);
-    expect(fakes.image.submits[0]).toMatchObject({ width: 192, height: 336, prompt: imagePrompt(ctx.manifest.script!, 0) });
+    expect(fakes.image.submits[0]).toMatchObject({ width: 192, height: 336, prompt: imagePrompt(ctx.manifest.script!, 0, PRESETS.cinematic_history) });
     expect(fakes.video.submits.map((c) => basename(c.imagePath))).toEqual([
       "keyframe_01.png",
       "seam_01.png",
       "keyframe_04.png",
     ]);
     expect(fakes.video.submits.map((c) => c.durationSec)).toEqual([5, 5, 5]);
-    expect(fakes.video.submits[1].prompt).toBe(motionPrompt(ctx.manifest.script!, 1));
+    expect(fakes.video.submits[1].prompt).toBe(motionPrompt(ctx.manifest.script!, 1, PRESETS.cinematic_history));
 
     expect(ctx.manifest.scenes[2].clip).toBeUndefined(); // Mode 2 is animated from its keyframe at render time
     expect(existsSync(abs(ctx, paths.clip(2)))).toBe(false);

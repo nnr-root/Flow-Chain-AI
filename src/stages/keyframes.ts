@@ -2,27 +2,28 @@ import { imageCost } from "../cost.js";
 import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
 import { runProviderJob } from "./job.js";
+import { effectivePreset } from "./look.js";
 import { outPath, paths } from "./paths.js";
 import { requireScript } from "./require.js";
 import type { Stage } from "./types.js";
-import { imagePrompt, needsKeyframe } from "./visual.js";
+import { autoModeDeps, imagePrompt, needsKeyframe } from "./visual.js";
 
 export const keyframesStage: Stage = {
   name: "keyframes",
   perScene: true,
   paid: true,
   appliesTo: needsKeyframe,
-  deps: () => [{ stage: "script" }],
+  deps: (m) => [{ stage: "script" }, ...autoModeDeps(m)],
   inputsFor: async (ctx, scene) => ({
     model: ctx.manifest.models.image,
-    prompt: imagePrompt(requireScript(ctx.manifest), scene!),
+    prompt: imagePrompt(requireScript(ctx.manifest), scene!, effectivePreset(ctx.manifest)),
     size: ctx.keyframeSize,
   }),
   outputsFor: (_m, scene) => [paths.keyframe(scene!)],
   estimateCostUsd: (ctx) => imageCost(ctx.prices, ctx.keyframeSize),
   async run(ctx, scene) {
     const i = scene!;
-    const prompt = imagePrompt(requireScript(ctx.manifest), i);
+    const prompt = imagePrompt(requireScript(ctx.manifest), i, effectivePreset(ctx.manifest));
     const result = await runProviderJob(ctx, i, "keyframes", {
       label: `keyframe scene ${i + 1}`,
       costUsd: imageCost(ctx.prices, ctx.keyframeSize),

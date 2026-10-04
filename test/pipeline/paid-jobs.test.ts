@@ -63,7 +63,7 @@ describe("paid provider jobs are bought once", () => {
 
   it("an unusable (NSFW) keyframe is charged once, not retried, and only a reroll submits a new job", async () => {
     const { ctx, fakes } = await makeTestContext({ modes: [1, 1], shots: ["cut", "cut"] });
-    fakes.image.unusable = (req) => req.prompt.endsWith("image 2");
+    fakes.image.unusable = (req) => req.prompt.includes("image 2.");
     const failure = /keyframe scene 2 failed after 1 attempt: fake request req-2 flagged NSFW/;
     await expect(runPipeline(ctx, VISUAL, auto)).rejects.toThrow(failure);
     expect(fakes.image.waits).toEqual(["req-1", "req-2"]);

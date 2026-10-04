@@ -2,6 +2,7 @@ import { captionsStage } from "./captions.js";
 import { clipsStage } from "./clips.js";
 import { fitStage } from "./fit.js";
 import { keyframesStage } from "./keyframes.js";
+import { modesStage } from "./modes.js";
 import { renderStage } from "./render.js";
 import { scriptStage } from "./script.js";
 import { silenceStage } from "./silence.js";
@@ -13,6 +14,7 @@ export const STAGES: Stage[] = [
   scriptStage,
   ttsStage,
   silenceStage,
+  modesStage,
   keyframesStage,
   clipsStage,
   fitStage,

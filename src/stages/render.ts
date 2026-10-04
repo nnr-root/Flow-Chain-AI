@@ -10,6 +10,7 @@ import { buildRenderProps, type RenderInputs } from "./build-render-props.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireAudio, requireClip, requireFitted } from "./require.js";
 import type { Dep, Stage, StageContext } from "./types.js";
+import { autoModeDeps } from "./visual.js";
 
 async function renderInputs(ctx: StageContext): Promise<RenderInputs> {
   const captions = JSON.parse(await readFile(abs(ctx, paths.captions), "utf8")) as Caption[];
@@ -43,6 +44,7 @@ export const renderStage: Stage = {
   paid: false,
   deps: (m) => [
     { stage: "captions" },
+    ...autoModeDeps(m),
     ...m.scenes.map((s): Dep => ({ stage: "silence", scene: s.idx })),
     ...m.scenes.map((s): Dep => (s.mode === 1 ? { stage: "fit", scene: s.idx } : { stage: "keyframes", scene: s.idx })),
   ],
