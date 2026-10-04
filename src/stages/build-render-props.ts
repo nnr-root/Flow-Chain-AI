@@ -4,9 +4,10 @@ import type { Size } from "../config.js";
 import type { Manifest } from "../manifest/schema.js";
 import { captionPages } from "../media/remotion/caption-pages.js";
 import type { Boundary, RenderProps, SceneProps } from "../media/remotion/props.js";
-import { CAPTION_STYLES, captionBottomPct } from "../media/remotion/styles.js";
+import { captionBottomPct } from "../media/remotion/styles.js";
 import { halfWindowFor, speechRanges } from "../media/remotion/timeline.js";
 import { globalWords } from "./captions.js";
+import { captionStyleFor, transitionInto } from "./look.js";
 import { paths } from "./paths.js";
 import { requireFitted, requireScript } from "./require.js";
 import { needsKeyframe, sceneFrames } from "./visual.js";
@@ -58,7 +59,7 @@ export function buildRenderProps(
   const boundaries: Boundary[] = scenes.slice(1).map((scene, j) => {
     const k = j + 1;
     const seam = m.scenes[k].mode === 1 && !needsKeyframe(m, k);
-    const transition = seam ? "cut" : m.request.render.transition;
+    const transition = seam ? "cut" : transitionInto(m, k);
     return {
       frame: scene.from,
       kind: seam ? "seam" : "cut",
@@ -67,7 +68,7 @@ export function buildRenderProps(
     };
   });
 
-  const style = CAPTION_STYLES[m.request.render.captionStyle];
+  const style = captionStyleFor(m);
   publish(style.font.file, join(opts.fontsDir, style.font.file));
   const bgm = m.request.bgm
     ? { src: publish(`bgm${extname(m.request.bgm)}`, m.request.bgm), gain: m.request.render.bgmGain, ...BGM_MIX }

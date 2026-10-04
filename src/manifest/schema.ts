@@ -1,11 +1,12 @@
 import { z } from "zod";
 import { Aspect } from "../config.js";
 import { CaptionStyleName, Transition } from "../media/remotion/props.js";
+import { PresetName } from "../presets.js";
 
 export const MAX_NARRATION_WORDS = 22;
 export const MAX_SCENES = 12;
 
-export const StageName = z.enum(["script", "tts", "silence", "keyframes", "clips", "fit", "captions", "render"]);
+export const StageName = z.enum(["script", "tts", "silence", "modes", "keyframes", "clips", "fit", "captions", "render"]);
 export type StageName = z.infer<typeof StageName>;
 
 export const Mode = z.union([z.literal(1), z.literal(2)]);
@@ -18,17 +19,37 @@ export type Camera = z.infer<typeof Camera>;
 export const Shot = z.enum(["continue", "cut"]);
 export type Shot = z.infer<typeof Shot>;
 
+/** How much on-screen motion a scene has: high is worth real video (Mode 1), low is a still (Mode 2). */
+export const ActionLevel = z.enum(["high", "medium", "low"]);
+export type ActionLevel = z.infer<typeof ActionLevel>;
+
+/** How the cut into a scene should feel (Gemini's vocabulary; `zoom_transition` renders as `zoom`). */
+export const SuggestedTransition = z.enum(["cut", "fade", "dissolve", "zoom_transition"]);
+export type SuggestedTransition = z.infer<typeof SuggestedTransition>;
+
+const actionLevel = ActionLevel.describe(
+  "high = fast or complex motion worth real video; medium = some motion; low = still, contemplative or text-like",
+);
+const suggestedTransition = SuggestedTransition.describe(
+  "How the cut into this scene should feel: cut = punchy, fade/dissolve = time passing or mood shift, zoom_transition = energetic jump",
+);
+
 export const SceneSpec = z.object({
   narration: z.string().describe(`Voiceover for this scene, at most ${MAX_NARRATION_WORDS} words`),
   imagePrompt: z.string().describe("What one still frame of this scene shows"),
   motionPrompt: z.string().describe("Camera movement and subject motion during this scene"),
   shot: Shot.describe("continue = same place and moment as the previous scene; cut = new location, time or framing"),
   camera: Camera.describe("Camera move used if this scene is rendered from a still image"),
+  /** Optional when stored, so scripts written before 2.2 still load; Gemini must always send it (LlmSceneSpec). */
+  actionLevel: actionLevel.optional(),
+  suggestedTransition: suggestedTransition.optional(),
 });
 export type SceneSpec = z.infer<typeof SceneSpec>;
 
 export const Script = z.object({
   title: z.string(),
+  /** Before styleBible, so Gemini (which answers in schema order) settles the look before writing any prompt. */
+  stylePreset: PresetName.optional(),
   styleBible: z.object({
     artStyle: z.string(),
     characters: z.string(),
@@ -37,6 +58,14 @@ export const Script = z.object({
   scenes: z.array(SceneSpec).min(1).max(MAX_SCENES),
 });
 export type Script = z.infer<typeof Script>;
+
+/** Gemini's answer (sent as the response schema): the 2.2 fields are required. */
+export const LlmSceneSpec = SceneSpec.extend({ actionLevel, suggestedTransition });
+export const LlmScript = Script.extend({
+  stylePreset: PresetName.describe("The style preset that best fits the topic"),
+  scenes: z.array(LlmSceneSpec).min(1).max(MAX_SCENES),
+});
+export type LlmScript = z.infer<typeof LlmScript>;
 
 export const WordTiming = z.object({ text: z.string(), start: z.number(), end: z.number() });
 export type WordTiming = z.infer<typeof WordTiming>;
@@ -74,6 +103,8 @@ export type ProviderJob = z.infer<typeof ProviderJob>;
 export const SceneState = z.object({
   idx: z.number().int(),
   mode: Mode,
+  /** Why the scene has its mode (written by the modes stage, shown by status). */
+  modeReason: z.string().optional(),
   nonces: z.partialRecord(StageName, z.number().int()).default({}),
   stages: z.partialRecord(StageName, StageRecord).default({}),
   jobs: z.partialRecord(StageName, ProviderJob).default({}),
@@ -96,8 +127,10 @@ export type SceneState = z.infer<typeof SceneState>;
 
 /** How the final video looks; frozen per run and changed only by `rerender` (never paid work). */
 export const RenderOptions = z.object({
-  captionStyle: CaptionStyleName.default("hormozi"),
-  transition: Transition.default("fade"),
+  /** "preset" = the effective style preset's caption look (hormozi when there is none). */
+  captionStyle: z.union([CaptionStyleName, z.literal("preset")]).default("preset"),
+  /** "auto" = each cut uses the incoming scene's suggestedTransition (fade when it has none). */
+  transition: z.union([Transition, z.literal("auto")]).default("auto"),
   bgmGain: z.number().min(0).max(1).default(0.35),
 });
 export type RenderOptions = z.infer<typeof RenderOptions>;
@@ -106,12 +139,17 @@ export const RunRequest = z.object({
   topic: z.string().min(1),
   aspect: Aspect,
   sceneCount: z.number().int().min(1).max(MAX_SCENES),
-  modes: z.array(Mode),
+  /** Absent = auto: the modes stage picks each scene's mode from its action level and modeBudgetUsd. */
+  modes: z.array(Mode).optional(),
+  /** Frozen budget for the auto mode rules (required when modes is absent). */
+  modeBudgetUsd: z.number().min(0).optional(),
+  /** Forced style preset (--style); absent = Gemini picks one. */
+  style: PresetName.optional(),
   /** Fixed shot per scene (testing override from --shots); when absent the LLM decides. */
   shots: z.array(Shot).optional(),
   voiceId: z.string().min(1),
   bgm: z.string().optional(),
-  render: RenderOptions.default({ captionStyle: "hormozi", transition: "fade", bgmGain: 0.35 }),
+  render: RenderOptions.default({ captionStyle: "preset", transition: "auto", bgmGain: 0.35 }),
 });
 export type RunRequest = z.infer<typeof RunRequest>;
 

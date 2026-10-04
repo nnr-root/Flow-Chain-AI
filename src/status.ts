@@ -1,15 +1,24 @@
 import type { Manifest, StageName, StageRecord } from "./manifest/schema.js";
+import { effectivePreset } from "./stages/look.js";
 import { needsKeyframe } from "./stages/visual.js";
 
 const mark = (r?: StageRecord) => (r === undefined ? "·" : r.status === "done" ? "✓" : "✗");
-const RUN_STAGES: StageName[] = ["script", "captions", "render"];
+const RUN_STAGES: StageName[] = ["script", "modes", "captions", "render"];
 const SCENE_STAGES: StageName[] = ["tts", "silence", "keyframes", "clips", "fit"];
+
+/** The effective preset and where it came from (spec §7). */
+function styleLine(m: Manifest): string {
+  const preset = effectivePreset(m);
+  if (!preset) return m.script ? "none (scripted before style presets)" : "chosen by Gemini when the script is written";
+  return `${preset.name} (${m.request.style ? "--style" : "by Gemini"})`;
+}
 
 export function formatStatus(m: Manifest): string {
   const { request: r, models } = m;
   const lines = [
-    `Run ${m.runId} — ${r.aspect}, ${r.sceneCount} scenes, modes ${r.modes.join(",")}`,
+    `Run ${m.runId} — ${r.aspect}, ${r.sceneCount} scenes, modes ${r.modes ? r.modes.join(",") : "auto"}`,
     `Topic: ${r.topic}`,
+    `Style: ${styleLine(m)}`,
     `Models: llm ${models.llm} · tts ${models.tts} · image ${models.image} · video ${models.video}`,
     `Run stages: ${RUN_STAGES.map((s) => `${s} ${mark(m.runStages[s])}`).join("  ")}`,
   ];
@@ -22,7 +31,8 @@ export function formatStatus(m: Manifest): string {
     const shown = SCENE_STAGES.filter(
       (s) => (s !== "keyframes" || needsKeyframe(m, scene.idx)) && ((s !== "clips" && s !== "fit") || scene.mode === 1),
     );
-    lines.push(`Scene ${scene.idx + 1} [mode ${scene.mode}]: ${shown.map((s) => `${s} ${mark(scene.stages[s])}`).join("  ")}`);
+    const mode = scene.modeReason ? `mode ${scene.mode} · ${scene.modeReason}` : `mode ${scene.mode}`;
+    lines.push(`Scene ${scene.idx + 1} [${mode}]: ${shown.map((s) => `${s} ${mark(scene.stages[s])}`).join("  ")}`);
     for (const st of SCENE_STAGES) {
       const rec = scene.stages[st];
       if (rec?.status === "failed") lines.push(`  error in ${st}: ${rec.error}`);

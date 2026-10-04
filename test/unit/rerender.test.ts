@@ -12,11 +12,13 @@ const manifest = () =>
 describe("applyRenderOptions", () => {
   it("starts from the defaults and changes only what is given", () => {
     const m = manifest();
-    expect(m.request.render).toEqual({ captionStyle: "hormozi", transition: "fade", bgmGain: 0.35 });
+    expect(m.request.render).toEqual({ captionStyle: "preset", transition: "auto", bgmGain: 0.35 });
     applyRenderOptions(m, { captionStyle: "mrbeast" });
-    expect(m.request.render).toEqual({ captionStyle: "mrbeast", transition: "fade", bgmGain: 0.35 });
+    expect(m.request.render).toEqual({ captionStyle: "mrbeast", transition: "auto", bgmGain: 0.35 });
     applyRenderOptions(m, { transition: "glitch", bgmGain: "0.2" });
     expect(m.request.render).toEqual({ captionStyle: "mrbeast", transition: "glitch", bgmGain: 0.2 });
+    applyRenderOptions(m, { captionStyle: "preset", transition: "auto" });
+    expect(m.request.render).toEqual({ captionStyle: "preset", transition: "auto", bgmGain: 0.2 });
   });
 
   it("rejects invalid values", () => {
@@ -26,13 +28,15 @@ describe("applyRenderOptions", () => {
 });
 
 describe("assertRenderOnly", () => {
-  it("allows a plan of free captions/render steps only", () => {
+  it("allows a plan of free modes/captions/render steps only", () => {
     expect(() =>
       assertRenderOnly(
         { items: [{ stage: "captions", costUsd: 0 }, { stage: "render", costUsd: 0 }], totalUsd: 0 },
         "run-1",
       ),
     ).not.toThrow();
+    // a run made before 2.2 has never run the (free) modes stage
+    expect(() => assertRenderOnly({ items: [{ stage: "modes", costUsd: 0 }], totalUsd: 0 }, "run-1")).not.toThrow();
   });
 
   it("refuses when paid or earlier work would run", () => {

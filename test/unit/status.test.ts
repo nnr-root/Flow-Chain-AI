@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createManifest } from "../../src/manifest/store.js";
 import { formatStatus } from "../../src/status.js";
+import { fakeScript } from "../fakes/providers.js";
 
 describe("formatStatus", () => {
   it("summarizes stages, errors, spend and output", () => {
@@ -19,7 +20,8 @@ describe("formatStatus", () => {
     ];
     const text = formatStatus(m);
     expect(text).toContain("Run 20261002-140509-abcdef — 9:16, 2 scenes, modes 1,2");
-    expect(text).toContain("Run stages: script ✓  captions ·  render ·");
+    expect(text).toContain("Style: chosen by Gemini when the script is written");
+    expect(text).toContain("Run stages: script ✓  modes ·  captions ·  render ·");
     expect(text).toContain("Scene 1 [mode 1]: tts ✓  silence ·  keyframes ·  clips ✗  fit ·");
     expect(text).toContain("  error in clips: boom");
     // Mode 2 has no clip or fit: it is animated from its keyframe at render time
@@ -27,5 +29,26 @@ describe("formatStatus", () => {
     expect(text).not.toMatch(/Scene 2 .*clips/);
     expect(text).toContain("Spend (estimated from the price table, not invoices): $0.26 across 2 paid call(s)");
     expect(text).not.toContain("Final:");
+  });
+
+  it("shows the preset with its source and each scene's mode reason", () => {
+    const m = createManifest(
+      "r",
+      { topic: "foxes", aspect: "9:16", sceneCount: 2, modeBudgetUsd: 1, voiceId: "v" },
+      { llm: "l", tts: "t", image: "i", video: "v" },
+    );
+    m.script = { ...fakeScript(2), stylePreset: "cyberpunk" };
+    m.scenes[0].modeReason = "auto: high action";
+    m.scenes[1].mode = 2;
+    m.scenes[1].modeReason = "auto: low action";
+    expect(formatStatus(m)).toContain("9:16, 2 scenes, modes auto");
+    expect(formatStatus(m)).toContain("Style: cyberpunk (by Gemini)");
+    expect(formatStatus(m)).toContain("Scene 1 [mode 1 · auto: high action]: ");
+    expect(formatStatus(m)).toContain("Scene 2 [mode 2 · auto: low action]: ");
+    m.request.style = "anime";
+    expect(formatStatus(m)).toContain("Style: anime (--style)");
+    m.request.style = undefined;
+    m.script.stylePreset = undefined;
+    expect(formatStatus(m)).toContain("Style: none (scripted before style presets)");
   });
 });

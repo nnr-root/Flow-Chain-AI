@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { fileSha256, inputHash, sha256, stableStringify } from "../../src/manifest/hash.js";
+import { Manifest } from "../../src/manifest/schema.js";
 import { createManifest, loadManifest, newRunId, resolveModes, resolveShots, saveManifest } from "../../src/manifest/store.js";
 
 const request = { topic: "foxes", aspect: "9:16" as const, sceneCount: 2, modes: [1, 2] as (1 | 2)[], voiceId: "v1" };
@@ -54,8 +55,28 @@ describe("store", () => {
   it("fills render defaults and validates the request", () => {
     const m = createManifest("run-1", request, models);
     expect(m.schemaVersion).toBe(2);
-    expect(m.request.render).toEqual({ captionStyle: "hormozi", transition: "fade", bgmGain: 0.35 });
+    expect(m.request.render).toEqual({ captionStyle: "preset", transition: "auto", bgmGain: 0.35 });
     expect(() => createManifest("r", { ...request, sceneCount: 13, modes: Array(13).fill(1) }, models)).toThrow();
+  });
+
+  it("starts an auto run as all Mode 1 until the modes stage runs, and needs a frozen budget", () => {
+    const auto = { ...request, sceneCount: 3, modes: undefined };
+    const m = createManifest("run-1", { ...auto, modeBudgetUsd: 2 }, models);
+    expect(m.scenes.map((s) => s.mode)).toEqual([1, 1, 1]);
+    expect(m.request.modes).toBeUndefined();
+    expect(() => createManifest("run-1", auto, models)).toThrow("auto modes need modeBudgetUsd");
+  });
+
+  it("loads a manifest written before 2.2 (no style, explicit render options, no 2.2 script fields)", () => {
+    const m = createManifest("run-1", { ...request, render: { captionStyle: "hormozi", transition: "fade" } }, models);
+    m.script = {
+      title: "t",
+      styleBible: { artStyle: "a", characters: "c", palette: "p" },
+      scenes: [{ narration: "n", imagePrompt: "i", motionPrompt: "m", shot: "cut", camera: "zoom_in" }],
+    };
+    const loaded = Manifest.parse(JSON.parse(JSON.stringify(m)));
+    expect(loaded.request.render).toEqual({ captionStyle: "hormozi", transition: "fade", bgmGain: 0.35 });
+    expect(loaded.script?.stylePreset).toBeUndefined();
   });
 
   it("rejects a manifest from an older flowchain with a clear message", async () => {
@@ -82,8 +103,8 @@ describe("store", () => {
 });
 
 describe("resolveModes", () => {
-  it("defaults auto and 1 to Mode 1, 2 to Mode 2", () => {
-    expect(resolveModes("auto", undefined, 3)).toEqual([1, 1, 1]);
+  it("leaves auto to the modes stage, and maps 1 and 2 to every scene", () => {
+    expect(resolveModes("auto", undefined, 3)).toBeUndefined();
     expect(resolveModes("1", undefined, 2)).toEqual([1, 1]);
     expect(resolveModes("2", undefined, 2)).toEqual([2, 2]);
   });

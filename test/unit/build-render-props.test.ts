@@ -3,6 +3,7 @@ import { createManifest } from "../../src/manifest/store.js";
 import { wordsToCaptions } from "../../src/media/remotion/caption-pages.js";
 import { RenderProps } from "../../src/media/remotion/props.js";
 import { CAPTION_STYLES } from "../../src/media/remotion/styles.js";
+import { PRESETS } from "../../src/presets.js";
 import { buildRenderProps } from "../../src/stages/build-render-props.js";
 import { globalWords } from "../../src/stages/captions.js";
 import { fakeScript } from "../fakes/providers.js";
@@ -90,5 +91,27 @@ describe("buildRenderProps", () => {
   it("uses the landscape caption position for 16:9", () => {
     const wide = buildRenderProps(m, { ...opts, size: { width: 1920, height: 1080 } }, []);
     expect(wide.props.captions.bottomPct).toBe(12);
+  });
+});
+
+describe("buildRenderProps with auto transitions and the preset's captions", () => {
+  const m = manifest();
+  m.request.render = { captionStyle: "preset", transition: "auto", bgmGain: 0.5 };
+  m.script = {
+    ...fakeScript(3, { shots: ["cut", "continue", "cut"], transitions: ["fade", "dissolve", "zoom_transition"] }),
+    stylePreset: "cyberpunk",
+  };
+  const { props, files } = buildRenderProps(m, opts, []);
+
+  it("uses the incoming scene's suggested transition at each cut, and keeps seams hard cuts", () => {
+    expect(props.boundaries).toEqual([
+      { frame: 45, kind: "seam", transition: "cut", halfWindow: 0 }, // Gemini suggested dissolve: ignored at a seam
+      { frame: 75, kind: "cut", transition: "zoom", halfWindow: 5 },
+    ]);
+  });
+
+  it("captions in the preset's look and publishes its font", () => {
+    expect(props.captions.style).toEqual(PRESETS.cyberpunk.caption);
+    expect(files["Orbitron-Variable.ttf"]).toBe("/fonts/Orbitron-Variable.ttf");
   });
 });

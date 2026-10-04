@@ -1,8 +1,8 @@
 import { writeFile } from "node:fs/promises";
 import type { Manifest } from "../manifest/schema.js";
 import { type TimedWord, wordsToCaptions } from "../media/remotion/caption-pages.js";
-import { CAPTION_STYLES } from "../media/remotion/styles.js";
 import { audioStarts } from "../media/timeline.js";
+import { captionStyleFor } from "./look.js";
 import { outPath, paths } from "./paths.js";
 import { requireAudio } from "./require.js";
 import type { Stage } from "./types.js";
@@ -15,7 +15,7 @@ export function globalWords(m: Manifest): TimedWord[] {
 }
 
 /** Words per caption page come from the run's caption style, so changing the style re-runs this (free) stage. */
-const maxWordsPerPage = (m: Manifest) => CAPTION_STYLES[m.request.render.captionStyle].maxWordsPerPage;
+const maxWordsPerPage = (m: Manifest) => captionStyleFor(m).maxWordsPerPage;
 
 export const captionsStage: Stage = {
   name: "captions",

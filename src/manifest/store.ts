@@ -63,9 +63,12 @@ export function createManifest(
   now: Date = new Date(),
 ): Manifest {
   const request = RunRequest.parse(input);
-  if (request.modes.length !== request.sceneCount) {
+  if (request.modes && request.modes.length !== request.sceneCount) {
     throw new Error(`modes has ${request.modes.length} entries but sceneCount is ${request.sceneCount}`);
   }
+  if (!request.modes && request.modeBudgetUsd === undefined) throw new Error("auto modes need modeBudgetUsd");
+  // auto runs start as all Mode 1 (the most expensive assumption) until the modes stage has run
+  const modes = request.modes ?? Array.from({ length: request.sceneCount }, (): Mode => 1);
   return {
     schemaVersion: SCHEMA_VERSION,
     runId,
@@ -73,7 +76,7 @@ export function createManifest(
     request,
     models,
     runStages: {},
-    scenes: request.modes.map((mode, idx) => ({ idx, mode, nonces: {}, stages: {}, jobs: {} })),
+    scenes: modes.map((mode, idx) => ({ idx, mode, nonces: {}, stages: {}, jobs: {} })),
     ledger: [],
   };
 }
@@ -98,7 +101,8 @@ export async function loadManifest(dir: string): Promise<Manifest> {
   return Manifest.parse(raw);
 }
 
-export function resolveModes(mode: string, modes: string | undefined, sceneCount: number): Mode[] {
+/** Explicit per-scene modes from --modes or --mode 1|2; undefined for --mode auto (the modes stage decides). */
+export function resolveModes(mode: string, modes: string | undefined, sceneCount: number): Mode[] | undefined {
   if (modes !== undefined) {
     const parsed = modes.split(",").map((raw): Mode => {
       const s = raw.trim();
@@ -110,7 +114,8 @@ export function resolveModes(mode: string, modes: string | undefined, sceneCount
     }
     return parsed;
   }
-  if (mode === "auto" || mode === "1") return Array.from({ length: sceneCount }, (): Mode => 1);
+  if (mode === "auto") return undefined;
+  if (mode === "1") return Array.from({ length: sceneCount }, (): Mode => 1);
   if (mode === "2") return Array.from({ length: sceneCount }, (): Mode => 2);
   throw new Error(`invalid --mode "${mode}" (use auto, 1 or 2)`);
 }

@@ -14,10 +14,10 @@ export function applyRenderOptions(m: Manifest, flags: RerenderFlags): void {
   });
 }
 
-const FREE_STAGES: StageName[] = ["captions", "render"];
+const FREE_STAGES: StageName[] = ["modes", "captions", "render"];
 
 /**
- * A rerender may only re-run the free captions/render stages. Anything else in the plan means paid work is
+ * A rerender may only re-run the free modes/captions/render stages. Anything else in the plan means paid work is
  * missing or stale, so the run must be finished with `resume` first; nothing is spent here.
  */
 export function assertRenderOnly(plan: Plan, runId: string): void {

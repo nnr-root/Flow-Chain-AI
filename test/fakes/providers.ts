@@ -1,7 +1,8 @@
 import { readFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-import type { Camera } from "../../src/manifest/schema.js";
+import type { ActionLevel, Camera, SuggestedTransition } from "../../src/manifest/schema.js";
+import type { PresetName } from "../../src/presets.js";
 import { UnusableResultError } from "../../src/providers/retry.js";
 import type {
   ImageOutput, ImageProvider, ImageRequest, LlmProvider, PreparedJob, ScriptRequest, SpeakRequest, SubmitOptions,
@@ -11,9 +12,18 @@ import { makeAudio, makeImage, makeVideo } from "../helpers/media.js";
 
 export type Shot = "continue" | "cut";
 
-export function fakeScript(sceneCount: number, opts: { shots?: Shot[]; cameras?: Camera[] } = {}) {
+export type FakeScriptOptions = {
+  shots?: Shot[];
+  cameras?: Camera[];
+  actionLevels?: ActionLevel[];
+  transitions?: SuggestedTransition[];
+  stylePreset?: PresetName;
+};
+
+export function fakeScript(sceneCount: number, opts: FakeScriptOptions = {}) {
   return {
     title: "Fake run",
+    stylePreset: opts.stylePreset ?? "cinematic_history",
     styleBible: { artStyle: "flat test pattern", characters: "a red fox", palette: "teal, orange" },
     scenes: Array.from({ length: sceneCount }, (_, i) => ({
       narration: `Scene ${i + 1} says hello. Then it pauses and continues.`,
@@ -21,6 +31,8 @@ export function fakeScript(sceneCount: number, opts: { shots?: Shot[]; cameras?:
       motionPrompt: `motion ${i + 1}`,
       shot: opts.shots?.[i] ?? (i === 0 ? "cut" : "continue"),
       camera: opts.cameras?.[i] ?? "zoom_in",
+      actionLevel: opts.actionLevels?.[i] ?? "high",
+      suggestedTransition: opts.transitions?.[i] ?? "fade",
     })),
   };
 }
