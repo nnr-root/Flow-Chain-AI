@@ -118,6 +118,39 @@ describe("Remotion composition (real Chrome)", () => {
     expect(open - ducked).toBeGreaterThan(10); // 0.18 ≈ -15 dB
   });
 
+  it("evaluates the BGM volume curve on the video's frames when the BGM file loops", async () => {
+    const dir = await tempDir();
+    await makeImage(join(dir, "still.png"), { width: 192, height: 336 });
+    await makeAudio(join(dir, "narration.wav"), [{ silence: 3 }]); // silent: only the BGM is measured
+    await makeAudio(join(dir, "bgm.wav"), [{ tone: 1, freq: 220 }]); // 1 s, looped three times under 3 s of video
+    const out = join(dir, "video.mp4");
+    await renderVideo({
+      props: baseProps({
+        scenes: [{ kind: "still", src: "still.png", camera: "zoom_in", from: 0, frames: 90 }],
+        audio: {
+          narration: "narration.wav",
+          bgm: { src: "bgm.wav", gain: 1, duckTo: 0.18, rampFrames: 6, fadeOutFrames: 30 },
+          speech: [{ from: 0, to: 30 }], // only the first second is speech
+        },
+      }),
+      files: {
+        "still.png": join(dir, "still.png"),
+        "narration.wav": join(dir, "narration.wav"),
+        "bgm.wav": join(dir, "bgm.wav"),
+        "Montserrat-ExtraBold.ttf": FONT,
+      },
+      workDir: join(dir, "render"),
+      out,
+    });
+
+    const ducked = await meanVolume(out, 0.2, 0.6); // inside the speech frames
+    const open = await meanVolume(out, 1.4, 0.5); // after speech, before the fade-out starts at 2 s
+    const tail = await meanVolume(out, 2.8, 0.2); // the fade-out has nearly reached silence
+    // without "extend" the curve restarts at frame 0 on every loop: every second is ducked and the fade never arrives
+    expect(open - ducked).toBeGreaterThan(10);
+    expect(open - tail).toBeGreaterThan(10);
+  });
+
   it("renders every transition, each only inside its own window", async () => {
     const dir = await tempDir();
     const colors = ["red", "lime", "blue", "yellow", "cyan", "magenta", "white"];
