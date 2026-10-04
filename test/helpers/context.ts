@@ -1,15 +1,23 @@
 import { mkdir } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { Prices } from "../../src/config.js";
-import type { Mode } from "../../src/manifest/schema.js";
+import type { ActionLevel, Mode, SuggestedTransition } from "../../src/manifest/schema.js";
 import { createManifest } from "../../src/manifest/store.js";
+import type { PresetName } from "../../src/presets.js";
 import type { StageContext } from "../../src/stages/types.js";
 import { FakeImage, FakeLlm, FakeTts, FakeVideo, fakeScript, type Shot } from "../fakes/providers.js";
 import { tempDir } from "./media.js";
 
 export type TestContextOptions = {
-  modes?: Mode[];
+  /** "auto" leaves the modes to the modes stage (sceneCount scenes, budgetUsd as the frozen budget). */
+  modes?: Mode[] | "auto";
+  sceneCount?: number;
+  budgetUsd?: number;
+  /** Forced style preset (--style). */
+  style?: PresetName;
   shots?: Shot[];
+  actionLevels?: ActionLevel[];
+  transitions?: SuggestedTransition[];
   /** Overrides the LLM answer; receives the 1-based call number. */
   script?: (callNo: number) => unknown;
   bgm?: string;
@@ -17,13 +25,16 @@ export type TestContextOptions = {
 
 /** A run in a temp dir with fake providers and small output sizes so media steps stay fast. */
 export async function makeTestContext(opts: TestContextOptions = {}) {
-  const modes = opts.modes ?? [1, 1];
+  const modes = opts.modes === "auto" ? undefined : (opts.modes ?? [1, 1]);
+  const sceneCount = modes?.length ?? opts.sceneCount ?? 3;
   const dir = await tempDir("flowchain-run-");
   const fakesDir = join(dir, "_fakes");
   await mkdir(fakesDir);
   const fakes = {
     llm: new FakeLlm((req, callNo) =>
-      opts.script ? opts.script(callNo) : fakeScript(req.sceneCount, { shots: opts.shots }),
+      opts.script
+        ? opts.script(callNo)
+        : fakeScript(req.sceneCount, { shots: opts.shots, actionLevels: opts.actionLevels, transitions: opts.transitions }),
     ),
     tts: new FakeTts(fakesDir),
     image: new FakeImage(fakesDir),
@@ -31,7 +42,16 @@ export async function makeTestContext(opts: TestContextOptions = {}) {
   };
   const manifest = createManifest(
     "test-run",
-    { topic: "foxes", aspect: "9:16", sceneCount: modes.length, modes, voiceId: "voice-1", bgm: opts.bgm },
+    {
+      topic: "foxes",
+      aspect: "9:16",
+      sceneCount,
+      modes,
+      modeBudgetUsd: modes ? undefined : (opts.budgetUsd ?? 3),
+      style: opts.style,
+      voiceId: "voice-1",
+      bgm: opts.bgm,
+    },
     { llm: "fake-llm", tts: "fake-tts", image: "fake-image", video: "fake-video" },
   );
   const logs: string[] = [];

@@ -6,6 +6,7 @@ import { ElevenLabsTts, wordsFromAlignment } from "../../src/providers/elevenlab
 import { FalImage, type FalLike, FalVideo } from "../../src/providers/fal.js";
 import { HttpError, isRetryable, NonRetryableError, UnusableResultError } from "../../src/providers/retry.js";
 import { buildScriptPrompt, scriptJsonSchema } from "../../src/providers/gemini.js";
+import { PRESETS } from "../../src/presets.js";
 
 describe("gemini prompt and schema", () => {
   it("asks for the exact scene count and word cap", () => {
@@ -23,6 +24,22 @@ describe("gemini prompt and schema", () => {
     expect(buildScriptPrompt({ topic: "t", sceneCount: 3, aspect: "9:16" })).not.toContain("Use exactly these shot values");
   });
 
+  it("lists the style presets and lets Gemini pick one, or pins --style", () => {
+    const p = buildScriptPrompt({ topic: "t", sceneCount: 2, aspect: "9:16" });
+    for (const preset of Object.values(PRESETS)) expect(p).toContain(`- ${preset.name}: ${preset.description}`);
+    expect(p).toContain("stylePreset: set it to the preset that best fits the topic");
+    const pinned = buildScriptPrompt({ topic: "t", sceneCount: 2, aspect: "9:16", style: "anime" });
+    expect(pinned).toContain('stylePreset: use exactly "anime"');
+    expect(pinned).not.toContain("best fits the topic");
+  });
+
+  it("explains actionLevel and suggestedTransition", () => {
+    const p = buildScriptPrompt({ topic: "t", sceneCount: 2, aspect: "9:16" });
+    expect(p).toContain('- actionLevel: "high" for fast or complex motion worth real video');
+    expect(p).toContain("- suggestedTransition: how the cut into this scene should feel");
+    expect(p).toContain("Do not describe the art style");
+  });
+
   it("appends validation feedback on retry", () => {
     const p = buildScriptPrompt({ topic: "t", sceneCount: 2, aspect: "16:9", feedback: "scene 2 narration has 30 words" });
     expect(p).toContain("rejected");
@@ -33,6 +50,15 @@ describe("gemini prompt and schema", () => {
     const s = scriptJsonSchema() as { $schema?: string; properties: { scenes: { maxItems: number } } };
     expect(s.$schema).toBeUndefined();
     expect(s.properties.scenes.maxItems).toBe(12);
+  });
+
+  it("requires the 2.2 fields in Gemini's answer", () => {
+    const s = scriptJsonSchema() as {
+      required: string[];
+      properties: { scenes: { items: { required: string[] } } };
+    };
+    expect(s.required).toContain("stylePreset");
+    expect(s.properties.scenes.items.required).toEqual(expect.arrayContaining(["actionLevel", "suggestedTransition"]));
   });
 });
 

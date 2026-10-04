@@ -1,7 +1,16 @@
 import type { Aspect } from "../config.js";
 import type { Shot, WordTiming } from "../manifest/schema.js";
+import type { PresetName } from "../presets.js";
 
-export type ScriptRequest = { topic: string; sceneCount: number; aspect: Aspect; shots?: Shot[]; feedback?: string };
+export type ScriptRequest = {
+  topic: string;
+  sceneCount: number;
+  aspect: Aspect;
+  shots?: Shot[];
+  /** Forced style preset; absent = the LLM picks one. */
+  style?: PresetName;
+  feedback?: string;
+};
 export interface LlmProvider {
   /** Returns parsed JSON; the script stage validates it against the Script schema. */
   generateScript(req: ScriptRequest): Promise<unknown>;

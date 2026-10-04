@@ -1,8 +1,10 @@
 import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { scriptCost, ttsCost } from "../../src/cost.js";
+import { Script } from "../../src/manifest/schema.js";
 import { probeDuration } from "../../src/media/ffmpeg.js";
 import { runPipeline, type RunOptions } from "../../src/pipeline.js";
+import { PRESETS } from "../../src/presets.js";
 import { abs, paths } from "../../src/stages/paths.js";
 import { scriptStage, validateScript } from "../../src/stages/script.js";
 import { silenceStage } from "../../src/stages/silence.js";
@@ -28,6 +30,19 @@ describe("validateScript", () => {
     }
   });
 
+  it("requires the 2.2 fields from Gemini, which the stored script keeps optional", () => {
+    const raw = fakeScript(1) as Record<string, unknown> & { scenes: Array<Record<string, unknown>> };
+    delete raw.stylePreset;
+    delete raw.scenes[0].actionLevel;
+    const v = validateScript(raw, 1);
+    expect(v.ok).toBe(false);
+    if (!v.ok) {
+      expect(v.problems.join("\n")).toMatch(/stylePreset/);
+      expect(v.problems.join("\n")).toMatch(/scenes\.0\.actionLevel/);
+    }
+    expect(Script.safeParse(raw).success).toBe(true);
+  });
+
   it("reports schema errors with their path", () => {
     const v = validateScript({ title: "x", styleBible: {}, scenes: [] }, 1);
     expect(v.ok).toBe(false);
@@ -44,6 +59,25 @@ describe("script stage", () => {
     await runPipeline(ctx, [scriptStage], auto);
     expect(fakes.llm.calls[0].shots).toEqual(["cut", "continue", "continue"]);
     expect(ctx.manifest.script?.scenes.map((s) => s.shot)).toEqual(["cut", "continue", "continue"]);
+  });
+
+  it("pins --style: asks the LLM for it, enforces it, and lets the preset lead the art style", async () => {
+    const { ctx, fakes } = await makeTestContext({ style: "dark_fantasy" }); // the fake LLM answers cinematic_history
+    const before = await scriptStage.inputsFor(ctx);
+    ctx.manifest.request.style = "anime";
+    expect(await scriptStage.inputsFor(ctx)).not.toEqual(before); // part of the cache key
+    await runPipeline(ctx, [scriptStage], auto);
+    expect(fakes.llm.calls[0].style).toBe("anime");
+    expect(ctx.manifest.script?.stylePreset).toBe("anime");
+    expect(ctx.manifest.script?.styleBible.artStyle).toBe(PRESETS.anime.artStyle);
+    expect(ctx.manifest.script?.styleBible.characters).toBe("a red fox"); // Gemini still writes the rest
+  });
+
+  it("keeps Gemini's preset when no --style is given", async () => {
+    const { ctx } = await makeTestContext();
+    await runPipeline(ctx, [scriptStage], auto);
+    expect(ctx.manifest.script?.stylePreset).toBe("cinematic_history");
+    expect(ctx.manifest.script?.styleBible.artStyle).toBe(PRESETS.cinematic_history.artStyle);
   });
 
   it("stores a validated script and records its cost", async () => {
