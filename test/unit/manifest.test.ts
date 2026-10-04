@@ -51,10 +51,25 @@ describe("store", () => {
     expect(JSON.parse(await readFile(join(dir, "manifest.json"), "utf8")).runId).toBe("run-1");
   });
 
+  it("fills render defaults and validates the request", () => {
+    const m = createManifest("run-1", request, models);
+    expect(m.schemaVersion).toBe(2);
+    expect(m.request.render).toEqual({ captionStyle: "hormozi", transition: "fade", bgmGain: 0.35 });
+    expect(() => createManifest("r", { ...request, sceneCount: 13, modes: Array(13).fill(1) }, models)).toThrow();
+  });
+
+  it("rejects a manifest from an older flowchain with a clear message", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "fc-"));
+    await writeFile(join(dir, "manifest.json"), JSON.stringify({ schemaVersion: 1, runId: "old-run" }));
+    await expect(loadManifest(dir)).rejects.toThrow(
+      "run old-run was created by an older flowchain (schema 1); start a new run",
+    );
+  });
+
   it("refuses to save an invalid manifest", async () => {
     const dir = await mkdtemp(join(tmpdir(), "fc-"));
     const m = createManifest("run-1", request, models);
-    (m as { schemaVersion: number }).schemaVersion = 2;
+    (m as { schemaVersion: number }).schemaVersion = 3;
     await expect(saveManifest(dir, m)).rejects.toThrow();
   });
 

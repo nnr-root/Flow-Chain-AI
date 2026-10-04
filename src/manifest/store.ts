@@ -2,7 +2,8 @@ import { randomBytes } from "node:crypto";
 import { rmSync } from "node:fs";
 import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { Manifest, type Mode, type Models, type RunRequest, type Shot } from "./schema.js";
+import type { z } from "zod";
+import { Manifest, type Mode, type Models, RunRequest, SCHEMA_VERSION, type Shot } from "./schema.js";
 
 export const MANIFEST_FILE = "manifest.json";
 export const LOCK_FILE = ".lock";
@@ -54,12 +55,19 @@ export function newRunId(now: Date = new Date()): string {
   return `${stamp}-${randomBytes(3).toString("hex")}`;
 }
 
-export function createManifest(runId: string, request: RunRequest, models: Models, now: Date = new Date()): Manifest {
+/** Validates the request (filling defaults such as `render`) and lays out one state per scene. */
+export function createManifest(
+  runId: string,
+  input: z.input<typeof RunRequest>,
+  models: Models,
+  now: Date = new Date(),
+): Manifest {
+  const request = RunRequest.parse(input);
   if (request.modes.length !== request.sceneCount) {
     throw new Error(`modes has ${request.modes.length} entries but sceneCount is ${request.sceneCount}`);
   }
   return {
-    schemaVersion: 1,
+    schemaVersion: SCHEMA_VERSION,
     runId,
     createdAt: now.toISOString(),
     request,
@@ -80,7 +88,14 @@ export async function saveManifest(dir: string, manifest: Manifest): Promise<voi
 }
 
 export async function loadManifest(dir: string): Promise<Manifest> {
-  return Manifest.parse(JSON.parse(await readFile(join(dir, MANIFEST_FILE), "utf8")));
+  const raw = JSON.parse(await readFile(join(dir, MANIFEST_FILE), "utf8")) as { runId?: string; schemaVersion?: number };
+  if (raw.schemaVersion !== SCHEMA_VERSION) {
+    throw new Error(
+      `run ${raw.runId ?? dir} was created by an older flowchain (schema ${raw.schemaVersion ?? "unknown"}); ` +
+        "start a new run",
+    );
+  }
+  return Manifest.parse(raw);
 }
 
 export function resolveModes(mode: string, modes: string | undefined, sceneCount: number): Mode[] {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Aspect } from "../config.js";
+import { CaptionStyleName, Transition } from "../media/remotion/props.js";
 
 export const MAX_NARRATION_WORDS = 22;
 export const MAX_SCENES = 12;
@@ -93,6 +94,14 @@ export const SceneState = z.object({
 });
 export type SceneState = z.infer<typeof SceneState>;
 
+/** How the final video looks; frozen per run and changed only by `rerender` (never paid work). */
+export const RenderOptions = z.object({
+  captionStyle: CaptionStyleName.default("hormozi"),
+  transition: Transition.default("fade"),
+  bgmGain: z.number().min(0).max(1).default(0.35),
+});
+export type RenderOptions = z.infer<typeof RenderOptions>;
+
 export const RunRequest = z.object({
   topic: z.string().min(1),
   aspect: Aspect,
@@ -102,6 +111,7 @@ export const RunRequest = z.object({
   shots: z.array(Shot).optional(),
   voiceId: z.string().min(1),
   bgm: z.string().optional(),
+  render: RenderOptions.default({ captionStyle: "hormozi", transition: "fade", bgmGain: 0.35 }),
 });
 export type RunRequest = z.infer<typeof RunRequest>;
 
@@ -116,8 +126,10 @@ export const LedgerEntry = z.object({
 });
 export type LedgerEntry = z.infer<typeof LedgerEntry>;
 
+export const SCHEMA_VERSION = 2;
+
 export const Manifest = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(SCHEMA_VERSION),
   runId: z.string(),
   createdAt: z.string(),
   request: RunRequest,
