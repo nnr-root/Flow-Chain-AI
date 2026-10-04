@@ -1,7 +1,8 @@
 import { readFile, rm } from "node:fs/promises";
 import type { Caption } from "@remotion/captions";
+import { VERSION } from "remotion";
 import { fileSha256 } from "../manifest/hash.js";
-import { concatAudio, loudnessPass } from "../media/audio.js";
+import { concatAudio, loudnessPass, loudnessPassArgs } from "../media/audio.js";
 import { cellSize, contactSheet } from "../media/contact-sheet.js";
 import { extractFrame, extractLastFrame } from "../media/frames.js";
 import { engineHash, renderVideo } from "../media/remotion/render.js";
@@ -57,6 +58,8 @@ export const renderStage: Stage = {
       files: published,
       audio: await Promise.all(ctx.manifest.scenes.map((s) => fileSha256(abs(ctx, requireAudio(s).path)))),
       engine: await engineHash(),
+      remotion: VERSION,
+      loudness: loudnessPassArgs(props.totalFrames / props.fps),
     };
   },
   outputsFor: () => [paths.final, paths.chain],
