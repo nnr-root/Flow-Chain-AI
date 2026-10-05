@@ -18,12 +18,14 @@ export type FakeScriptOptions = {
   actionLevels?: ActionLevel[];
   transitions?: SuggestedTransition[];
   stylePreset?: PresetName;
+  hook?: string;
 };
 
 export function fakeScript(sceneCount: number, opts: FakeScriptOptions = {}) {
   return {
     title: "Fake run",
     stylePreset: opts.stylePreset ?? "cinematic_history",
+    hook: opts.hook ?? "Foxes never sleep",
     styleBible: { artStyle: "flat test pattern", characters: "a red fox", palette: "teal, orange" },
     scenes: Array.from({ length: sceneCount }, (_, i) => ({
       narration: `Scene ${i + 1} says hello. Then it pauses and continues.`,

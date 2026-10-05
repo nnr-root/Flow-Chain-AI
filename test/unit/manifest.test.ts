@@ -56,7 +56,7 @@ describe("store", () => {
   it("fills render defaults and validates the request", () => {
     const m = createManifest("run-1", request, models);
     expect(m.schemaVersion).toBe(2);
-    expect(m.request.render).toEqual({ captionStyle: "preset", transition: "auto", bgmGain: 0.35, sfx: true, sfxGain: 0.6 });
+    expect(m.request.render).toEqual({ captionStyle: "preset", transition: "auto", bgmGain: 0.35, hook: true, sfx: true, sfxGain: 0.6 });
     expect(() => createManifest("r", { ...request, sceneCount: 13, modes: Array(13).fill(1) }, models)).toThrow();
   });
 
@@ -76,7 +76,7 @@ describe("store", () => {
       scenes: [{ narration: "n", imagePrompt: "i", motionPrompt: "m", shot: "cut", camera: "zoom_in" }],
     };
     const loaded = Manifest.parse(JSON.parse(JSON.stringify(m)));
-    expect(loaded.request.render).toEqual({ captionStyle: "hormozi", transition: "fade", bgmGain: 0.35, sfx: true, sfxGain: 0.6 });
+    expect(loaded.request.render).toEqual({ captionStyle: "hormozi", transition: "fade", bgmGain: 0.35, hook: true, sfx: true, sfxGain: 0.6 });
     expect(loaded.script?.stylePreset).toBeUndefined();
   });
 

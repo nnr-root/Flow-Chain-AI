@@ -82,6 +82,16 @@ export const BgmProps = z.object({
 });
 export type BgmProps = z.infer<typeof BgmProps>;
 
+/** The hook (first seconds): its title text and how long it shows, and the snap zoom at the start. */
+export const HookProps = z.object({
+  text: z.string().min(1),
+  /** The title shows on frames [0, endFrame). */
+  endFrame: z.number().int().positive(),
+  zoomFrom: z.number().min(1),
+  zoomFrames: z.number().int().positive(),
+});
+export type HookProps = z.infer<typeof HookProps>;
+
 /** One sound effect: `src` starts playing at `frame` at `gain` (relative to the narration). */
 export const SfxCue = z.object({ src: z.string(), frame: z.number().int().min(0), gain: z.number().min(0) });
 export type SfxCue = z.infer<typeof SfxCue>;
@@ -94,6 +104,8 @@ export const RenderProps = z.object({
   scenes: z.array(SceneProps),
   boundaries: z.array(Boundary),
   captions: z.object({ style: CaptionStyle, bottomPct: z.number(), pages: z.array(CaptionPage) }),
+  /** null = no hook (no zoom, no title, no impact sound). The title uses `captions.style`. */
+  hook: HookProps.nullable(),
   audio: z.object({
     narration: z.string(),
     bgm: BgmProps.nullable(),

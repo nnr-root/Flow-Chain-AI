@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { scriptCost } from "../cost.js";
-import { LlmScript, MAX_NARRATION_WORDS } from "../manifest/schema.js";
+import { LlmScript, MAX_HOOK_WORDS, MAX_NARRATION_WORDS } from "../manifest/schema.js";
 import { PRESETS } from "../presets.js";
 import { TIMEOUTS, withRetry } from "../providers/retry.js";
 import { outPath, paths } from "./paths.js";
@@ -26,6 +26,10 @@ export function validateScript(raw: unknown, sceneCount: number): ScriptValidati
       problems.push(`scene ${i + 1} narration has ${words} words (max ${MAX_NARRATION_WORDS})`);
     }
   });
+  const hookWords = countWords(parsed.data.hook);
+  if (hookWords === 0 || hookWords > MAX_HOOK_WORDS) {
+    problems.push(`hook has ${hookWords} words (1-${MAX_HOOK_WORDS})`);
+  }
   return problems.length > 0 ? { ok: false, problems } : { ok: true, script: parsed.data };
 }
 

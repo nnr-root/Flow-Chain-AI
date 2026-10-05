@@ -41,6 +41,7 @@ function baseProps(overrides: Partial<RenderProps>): RenderProps {
     scenes: [],
     boundaries: [],
     captions: { style: CAPTION_STYLES.hormozi, bottomPct: 30, pages: [] },
+    hook: null,
     audio: { narration: "narration.wav", bgm: null, speech: [], sfx: [] },
     ...overrides,
   };
@@ -180,6 +181,46 @@ describe("Remotion composition (real Chrome)", () => {
     const before = await meanVolume(out, 0.3, 0.6); // nothing plays yet
     const around = await meanVolume(out, 37 / 30 + 0.1, 0.3); // the whoosh's loud middle (peak 0.25 s after frame 37)
     expect(around - before).toBeGreaterThan(30);
+  });
+
+  it("shows the hook title until endFrame and snap-zooms the picture at the start", async () => {
+    const dir = await tempDir();
+    await ffmpeg(["-f", "lavfi", "-i", "testsrc2=s=192x336", "-frames:v", "1", join(dir, "pattern.png")]);
+    await makeImage(join(dir, "black.png"), { width: 192, height: 336, color: "black" });
+    await makeAudio(join(dir, "narration.wav"), [{ silence: 2 }]);
+    const render = async (name: string, src: string) => {
+      const out = join(dir, `${name}.mp4`);
+      await renderVideo({
+        props: baseProps({
+          totalFrames: 60,
+          scenes: [{ kind: "still", src, camera: "zoom_in", from: 0, frames: 60 }],
+          hook: { text: "Foxes never sleep", endFrame: 40, zoomFrom: 1.15, zoomFrames: 12 },
+        }),
+        files: {
+          [src]: join(dir, src),
+          "narration.wav": join(dir, "narration.wav"),
+          "Montserrat-ExtraBold.ttf": FONT,
+        },
+        workDir: join(dir, `render-${name}`),
+        out,
+      });
+      return out;
+    };
+
+    // the title band (centred 38 % from the top) on a black picture: lit while the hook shows, dark after it
+    const titled = await render("title", "black.png");
+    const band = "iw:ih*0.12:0:ih*0.32";
+    const [r15, g15, b15] = await avgRgb(titled, 15, band);
+    const [r50, g50, b50] = await avgRgb(titled, 50, band);
+    expect(r15 + g15 + b15).toBeGreaterThan(30);
+    expect(r50 + g50 + b50).toBe(0);
+
+    // the top-left corner of a test pattern changes between frame 0 (zoomed 1.15×) and frame 30 (not zoomed)
+    const zoomed = await render("zoom", "pattern.png");
+    const corner = "iw*0.15:ih*0.1:0:0";
+    const c0 = await avgRgb(zoomed, 0, corner);
+    const c30 = await avgRgb(zoomed, 30, corner);
+    expect(Math.abs(c0[0] - c30[0]) + Math.abs(c0[1] - c30[1]) + Math.abs(c0[2] - c30[2])).toBeGreaterThan(20);
   });
 
   it("renders every transition, each only inside its own window", async () => {

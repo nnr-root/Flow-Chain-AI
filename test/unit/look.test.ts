@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createManifest } from "../../src/manifest/store.js";
 import { CAPTION_STYLES } from "../../src/media/remotion/styles.js";
 import { PRESETS } from "../../src/presets.js";
-import { captionStyleFor, effectivePreset, transitionInto } from "../../src/stages/look.js";
+import { captionStyleFor, effectivePreset, hookTextFor, transitionInto } from "../../src/stages/look.js";
 import { fakeScript } from "../fakes/providers.js";
 
 function manifest() {
@@ -36,6 +36,23 @@ describe("captionStyleFor", () => {
     m.request.render.captionStyle = "preset";
     m.script!.stylePreset = undefined;
     expect(captionStyleFor(m)).toBe(CAPTION_STYLES.hormozi);
+  });
+});
+
+describe("hookTextFor", () => {
+  it("uses --hook text, else the script's hook; null when turned off, empty, or scripted before 2.3", () => {
+    const m = manifest();
+    expect(hookTextFor(m)).toBe("Foxes never sleep");
+    m.request.render.hookText = "Night shift";
+    expect(hookTextFor(m)).toBe("Night shift");
+    m.request.render.hook = false;
+    expect(hookTextFor(m)).toBeNull();
+    m.request.render.hook = true;
+    m.request.render.hookText = undefined;
+    m.script!.hook = "   ";
+    expect(hookTextFor(m)).toBeNull();
+    m.script!.hook = undefined;
+    expect(hookTextFor(m)).toBeNull();
   });
 });
 

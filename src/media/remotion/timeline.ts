@@ -7,6 +7,51 @@ import type { CameraMove, CaptionPage, FrameRange, Transition } from "./props.js
 
 export const MAX_ZOOM = 1.15;
 
+/** The hook in the first seconds (2.3 spec §4): snap zoom, then a title that pops in and fades out. */
+export const HOOK = {
+  seconds: 3,
+  zoomFrom: 1.15,
+  zoomFrames: 12,
+  popFrames: 6,
+  fadeFrames: 8,
+  sizePctOfShortSide: 12,
+  widthPct: 85,
+  centerTopPct: 38,
+} as const;
+
+/** Cubic ease-out on [0, 1]: fast start, gentle landing. */
+export const easeOutCubic = (p: number): number => 1 - (1 - Math.min(1, Math.max(0, p))) ** 3;
+
+/** Snap zoom: `zoomFrom` at frame 0 easing back to 1 over `zoomFrames` frames. */
+export function zoomAt(frame: number, zoomFrom: number, zoomFrames: number): number {
+  if (frame >= zoomFrames) return 1;
+  return 1 + (zoomFrom - 1) * (1 - easeOutCubic(frame / zoomFrames));
+}
+
+/**
+ * Splits the hook into one line or two balanced lines, whichever lets it be drawn bigger. `fit` returns the
+ * largest font size at which a line fits the width; the result is capped at `wanted`. Ties keep one line.
+ */
+export function hookLines(words: string[], fit: (line: string) => number, wanted: number): { lines: string[]; fontSize: number } {
+  let best = { lines: [words.join(" ")], fontSize: Math.min(wanted, fit(words.join(" "))) };
+  for (let k = 1; k < words.length; k++) {
+    const lines = [words.slice(0, k).join(" "), words.slice(k).join(" ")];
+    const fontSize = Math.min(wanted, ...lines.map(fit));
+    if (fontSize > best.fontSize) best = { lines, fontSize };
+  }
+  return best;
+}
+
+export type HookTitleLook = { visible: boolean; scale: number; opacity: number };
+
+/** The hook title at `frame`: pops in from 0.6× over `popFrames`, holds, fades out over the last `fadeFrames`. */
+export function hookTitleLook(frame: number, endFrame: number): HookTitleLook {
+  if (frame < 0 || frame >= endFrame) return { visible: false, scale: 1, opacity: 0 };
+  const scale = 0.6 + 0.4 * easeOutCubic(frame / HOOK.popFrames);
+  const opacity = Math.min(1, (endFrame - frame) / HOOK.fadeFrames);
+  return { visible: true, scale, opacity };
+}
+
 /** Sine ease-in-out on [0, 1]. */
 export const easeInOut = (p: number): number => 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, p)));
 

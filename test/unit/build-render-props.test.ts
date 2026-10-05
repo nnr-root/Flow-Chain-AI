@@ -19,7 +19,7 @@ function manifest() {
       modes: [1, 1, 2],
       voiceId: "v",
       bgm: "/music/song.mp3",
-      render: { captionStyle: "minimalist", transition: "dissolve", bgmGain: 0.5, sfx: true, sfxGain: 0.6 },
+      render: { captionStyle: "minimalist", transition: "dissolve", bgmGain: 0.5, hook: false, sfx: true, sfxGain: 0.6 },
     },
     { llm: "l", tts: "t", image: "i", video: "v" },
   );
@@ -69,7 +69,8 @@ describe("buildRenderProps", () => {
 
   it("ducks the BGM under speech and publishes every file it references", () => {
     expect(props.audio.bgm).toEqual({ src: "bgm.mp3", gain: 0.5, duckTo: 0.4, rampFrames: 10, fadeOutFrames: 30 });
-    expect(props.audio.sfx).toEqual([]); // a seam and a dissolve: both stay quiet
+    expect(props.audio.sfx).toEqual([]); // no hook, a seam and a dissolve: all quiet
+    expect(props.hook).toBeNull();
     expect(props.audio.speech).toEqual([
       { from: 0, to: 21 },
       { from: 45, to: 66 },
@@ -97,7 +98,7 @@ describe("buildRenderProps", () => {
 
 describe("buildRenderProps with auto transitions and the preset's captions", () => {
   const m = manifest();
-  m.request.render = { captionStyle: "preset", transition: "auto", bgmGain: 0.5, sfx: true, sfxGain: 0.5 };
+  m.request.render = { captionStyle: "preset", transition: "auto", bgmGain: 0.5, hook: true, sfx: true, sfxGain: 0.5 };
   m.script = {
     ...fakeScript(3, { shots: ["cut", "continue", "cut"], transitions: ["fade", "dissolve", "zoom_transition"] }),
     stylePreset: "cyberpunk",
@@ -111,9 +112,28 @@ describe("buildRenderProps with auto transitions and the preset's captions", () 
     ]);
   });
 
-  it("puts a whoosh on the zoom cut, peaking on the cut, and publishes it", () => {
-    expect(props.audio.sfx).toEqual([{ src: "sfx/whoosh.mp3", frame: 67, gain: 0.4 }]);
+  it("shows the script's hook over scene 1 (at most 3 s) with the snap zoom", () => {
+    expect(props.hook).toEqual({ text: "Foxes never sleep", endFrame: 45, zoomFrom: 1.15, zoomFrames: 12 });
+  });
+
+  it("plays an impact under the hook and a whoosh into the zoom cut (peaking on it), and publishes both", () => {
+    expect(props.audio.sfx).toEqual([
+      { src: "sfx/impact_boom.mp3", frame: 0, gain: 0.5 },
+      { src: "sfx/whoosh.mp3", frame: 67, gain: 0.4 },
+    ]);
+    expect(files["sfx/impact_boom.mp3"]).toBe("/sfx/impact_boom.mp3");
     expect(files["sfx/whoosh.mp3"]).toBe("/sfx/whoosh.mp3");
+  });
+
+  it("uses --hook text over the script's, and drops the hook and its impact when turned off", () => {
+    const own = structuredClone(m);
+    own.request.render.hookText = "Night shift";
+    expect(buildRenderProps(own, opts, []).props.hook?.text).toBe("Night shift");
+    const off = structuredClone(m);
+    off.request.render.hook = false;
+    const p = buildRenderProps(off, opts, []).props;
+    expect(p.hook).toBeNull();
+    expect(p.audio.sfx.map((c) => c.src)).toEqual(["sfx/whoosh.mp3"]);
   });
 
   it("drops every cue when sound effects are off", () => {

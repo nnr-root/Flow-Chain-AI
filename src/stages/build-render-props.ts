@@ -6,9 +6,9 @@ import { captionPages } from "../media/remotion/caption-pages.js";
 import { SFX, sfxCues } from "../media/sfx.js";
 import type { Boundary, RenderProps, SceneProps } from "../media/remotion/props.js";
 import { captionBottomPct } from "../media/remotion/styles.js";
-import { halfWindowFor, speechRanges } from "../media/remotion/timeline.js";
+import { HOOK, halfWindowFor, speechRanges } from "../media/remotion/timeline.js";
 import { globalWords } from "./captions.js";
-import { captionStyleFor, transitionInto } from "./look.js";
+import { captionStyleFor, hookTextFor, transitionInto } from "./look.js";
 import { paths } from "./paths.js";
 import { requireFitted, requireScript } from "./require.js";
 import { needsKeyframe, sceneFrames } from "./visual.js";
@@ -69,6 +69,16 @@ export function buildRenderProps(
     };
   });
 
+  const hookText = hookTextFor(m);
+  const hook = hookText
+    ? {
+        text: hookText,
+        endFrame: Math.min(Math.round(HOOK.seconds * fps), frames[0]),
+        zoomFrom: HOOK.zoomFrom,
+        zoomFrames: HOOK.zoomFrames,
+      }
+    : null;
+
   const style = captionStyleFor(m);
   publish(style.font.file, join(opts.fontsDir, style.font.file));
   const bgm = m.request.bgm
@@ -84,12 +94,13 @@ export function buildRenderProps(
       scenes,
       boundaries,
       captions: { style, bottomPct: captionBottomPct(size.width, size.height), pages: captionPages(captions) },
+      hook,
       audio: {
         narration: publish(paths.narration, join(opts.dir, paths.narration)),
         bgm,
         speech: speechRanges(globalWords(m), fps, totalFrames),
         sfx: m.request.render.sfx
-          ? sfxCues(boundaries, { hook: false, gain: m.request.render.sfxGain }).map((c) => ({
+          ? sfxCues(boundaries, { hook: hook !== null, gain: m.request.render.sfxGain }).map((c) => ({
               src: publish(`sfx/${SFX[c.sound].file}`, join(opts.sfxDir, SFX[c.sound].file)),
               frame: c.frame,
               gain: c.gain,

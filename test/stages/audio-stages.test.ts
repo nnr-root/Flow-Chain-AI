@@ -43,6 +43,16 @@ describe("validateScript", () => {
     expect(Script.safeParse(raw).success).toBe(true);
   });
 
+  it("requires a hook of 1 to 6 words from Gemini", () => {
+    const long = { ...fakeScript(1), hook: "one two three four five six seven" };
+    const v = validateScript(long, 1);
+    expect(v.ok).toBe(false);
+    if (!v.ok) expect(v.problems).toContain("hook has 7 words (1-6)");
+    const { hook: _omit, ...missing } = fakeScript(1);
+    expect(validateScript(missing, 1).ok).toBe(false);
+    expect(validateScript({ ...fakeScript(1), hook: "Midnight" }, 1).ok).toBe(true);
+  });
+
   it("reports schema errors with their path", () => {
     const v = validateScript({ title: "x", styleBible: {}, scenes: [] }, 1);
     expect(v.ok).toBe(false);

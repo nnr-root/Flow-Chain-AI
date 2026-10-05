@@ -5,13 +5,18 @@ import {
   activeTokenIndex,
   duckVolume,
   easeInOut,
+  easeOutCubic,
   fadeOutVolume,
   glitchLook,
+  HOOK,
   halfWindowFor,
+  hookLines,
+  hookTitleLook,
   kenBurnsTransform,
   MAX_ZOOM,
   speechRanges,
   transitionLook,
+  zoomAt,
 } from "../../src/media/remotion/timeline.js";
 
 describe("kenBurnsTransform", () => {
@@ -163,5 +168,40 @@ describe("BGM ducking", () => {
     expect(fadeOutVolume(69, 100, 30)).toBe(1);
     expect(fadeOutVolume(70, 100, 30)).toBe(1);
     expect(fadeOutVolume(99, 100, 30)).toBe(0);
+  });
+});
+
+describe("hook timing", () => {
+  it("snaps from 1.15× back to 1 over 12 frames", () => {
+    expect(zoomAt(0, 1.15, 12)).toBeCloseTo(1.15, 9);
+    expect(zoomAt(6, 1.15, 12)).toBeCloseTo(1 + 0.15 * (1 - easeOutCubic(0.5)), 9);
+    expect(zoomAt(12, 1.15, 12)).toBe(1);
+    expect(zoomAt(200, 1.15, 12)).toBe(1);
+  });
+
+  it("pops the title in from 0.6×, holds it, and fades it out before endFrame", () => {
+    expect(hookTitleLook(0, 90)).toEqual({ visible: true, scale: 0.6, opacity: 1 });
+    expect(hookTitleLook(HOOK.popFrames, 90)).toEqual({ visible: true, scale: 1, opacity: 1 });
+    expect(hookTitleLook(81, 90).opacity).toBe(1);
+    expect(hookTitleLook(86, 90).opacity).toBeCloseTo(4 / 8, 9);
+    expect(hookTitleLook(89, 90).opacity).toBeCloseTo(1 / 8, 9);
+    expect(hookTitleLook(90, 90).visible).toBe(false);
+  });
+});
+
+describe("hookLines", () => {
+  // a line fits at 1000 / (characters): longer lines must be drawn smaller
+  const fit = (line: string) => 1000 / line.length;
+
+  it("splits into the two balanced lines that allow the biggest font", () => {
+    expect(hookLines(["3", "minutes", "to", "midnight"], fit, 500)).toEqual({
+      lines: ["3 minutes", "to midnight"],
+      fontSize: 1000 / 11,
+    });
+  });
+
+  it("keeps one line when it already reaches the wanted size", () => {
+    expect(hookLines(["Run"], fit, 100)).toEqual({ lines: ["Run"], fontSize: 100 });
+    expect(hookLines(["Go", "now"], fit, 50)).toEqual({ lines: ["Go now"], fontSize: 50 });
   });
 });

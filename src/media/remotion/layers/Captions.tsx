@@ -13,7 +13,7 @@ import { activePageIndex, activeTokenIndex } from "../timeline.js";
  * released only after the re-render with the font has been committed, so no frame is captured without its
  * caption; a font that fails to load fails the render.
  */
-function useCaptionFont(style: CaptionStyle): boolean {
+export function useCaptionFont(style: CaptionStyle): boolean {
   const [handle] = useState(() => delayRender(`font ${style.font.family}`));
   const [loaded, setLoaded] = useState(false);
   useEffect(() => {

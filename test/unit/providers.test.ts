@@ -33,6 +33,12 @@ describe("gemini prompt and schema", () => {
     expect(pinned).not.toContain("best fits the topic");
   });
 
+  it("asks for a short teasing hook", () => {
+    expect(buildScriptPrompt({ topic: "t", sceneCount: 2, aspect: "9:16" })).toContain(
+      "- hook: 2-6 punchy words shown as a big title over the first 3 seconds",
+    );
+  });
+
   it("explains actionLevel and suggestedTransition", () => {
     const p = buildScriptPrompt({ topic: "t", sceneCount: 2, aspect: "9:16" });
     expect(p).toContain('- actionLevel: "high" for fast or complex motion worth real video');

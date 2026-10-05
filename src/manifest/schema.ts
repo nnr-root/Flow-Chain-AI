@@ -5,6 +5,7 @@ import { PresetName } from "../presets.js";
 
 export const MAX_NARRATION_WORDS = 22;
 export const MAX_SCENES = 12;
+export const MAX_HOOK_WORDS = 6;
 
 export const StageName = z.enum(["script", "tts", "silence", "modes", "keyframes", "clips", "fit", "captions", "render"]);
 export type StageName = z.infer<typeof StageName>;
@@ -56,6 +57,8 @@ export const Script = z.object({
     palette: z.string(),
   }),
   scenes: z.array(SceneSpec).min(1).max(MAX_SCENES),
+  /** The hook title (2.3); optional when stored, so scripts written before 2.3 still load. */
+  hook: z.string().optional(),
 });
 export type Script = z.infer<typeof Script>;
 
@@ -64,6 +67,9 @@ export const LlmSceneSpec = SceneSpec.extend({ actionLevel, suggestedTransition 
 export const LlmScript = Script.extend({
   stylePreset: PresetName.describe("The style preset that best fits the topic"),
   scenes: z.array(LlmSceneSpec).min(1).max(MAX_SCENES),
+  hook: z
+    .string()
+    .describe("2-6 punchy words shown as a big title in the first 3 seconds; tease the payoff without giving it away"),
 });
 export type LlmScript = z.infer<typeof LlmScript>;
 
@@ -132,6 +138,10 @@ export const RenderOptions = z.object({
   /** "auto" = each cut uses the incoming scene's suggestedTransition (fade when it has none). */
   transition: z.union([Transition, z.literal("auto")]).default("auto"),
   bgmGain: z.number().min(0).max(1).default(0.35),
+  /** Show the hook (title, snap zoom, impact) when there is hook text. */
+  hook: z.boolean().default(true),
+  /** Replaces the script's hook text. */
+  hookText: z.string().trim().min(1).max(60).optional(),
   /** Sound effects at the hook and at cuts. */
   sfx: z.boolean().default(true),
   /** Sound-effect level relative to the narration. */
@@ -155,7 +165,7 @@ export const RunRequest = z.object({
   shots: z.array(Shot).optional(),
   voiceId: z.string().min(1),
   bgm: z.string().optional(),
-  render: RenderOptions.default({ captionStyle: "preset", transition: "auto", bgmGain: 0.35, sfx: true, sfxGain: 0.6 }),
+  render: RenderOptions.default({ captionStyle: "preset", transition: "auto", bgmGain: 0.35, hook: true, sfx: true, sfxGain: 0.6 }),
 });
 export type RunRequest = z.infer<typeof RunRequest>;
 
