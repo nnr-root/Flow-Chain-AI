@@ -9,7 +9,7 @@ import { countFrames } from "../../src/media/ffmpeg.js";
 import { computeHash, runPipeline, type RunOptions } from "../../src/pipeline.js";
 import { PRESETS } from "../../src/presets.js";
 import { clipsStage } from "../../src/stages/clips.js";
-import { keyframesStage } from "../../src/stages/keyframes.js";
+import { keyframeSeed, keyframesStage } from "../../src/stages/keyframes.js";
 import { abs, paths } from "../../src/stages/paths.js";
 import { scriptStage } from "../../src/stages/script.js";
 import { silenceStage } from "../../src/stages/silence.js";
@@ -56,6 +56,28 @@ describe("prompts", () => {
     expect(motionPrompt(script, 0, p)).toBe(
       `motion 1. ${p.motionKeywords}. Keep style consistent: flat test pattern. a red fox.`,
     );
+  });
+});
+
+describe("shared keyframe seed", () => {
+  it("sends the run's seed with every keyframe and changes it for a rerolled scene", async () => {
+    const { ctx, fakes } = await makeTestContext({ modes: [1, 1], shots: ["cut", "cut"], seed: 41 });
+    await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage], auto);
+    expect(fakes.image.submits.map((r) => r.seed)).toEqual([41, 41]);
+    ctx.manifest.scenes[1].nonces.keyframes = 1; // what `reroll --scene 2 --stage keyframes` does
+    expect(keyframeSeed(ctx.manifest, 1)).toBe(42);
+    expect(keyframeSeed(ctx.manifest, 0)).toBe(41);
+  });
+
+  it("keys keyframes on the seed only when the run has one", async () => {
+    const { ctx } = await makeTestContext({ modes: [1, 1] });
+    await runPipeline(ctx, [scriptStage], auto);
+    expect(await keyframesStage.inputsFor(ctx, 0)).not.toHaveProperty("seed", expect.anything());
+    ctx.manifest.request.seed = 7;
+    expect(await keyframesStage.inputsFor(ctx, 0)).toMatchObject({ seed: 7 });
+    ctx.manifest.request.seed = 2 ** 32 - 1;
+    ctx.manifest.scenes[0].nonces.keyframes = 2;
+    expect(keyframeSeed(ctx.manifest, 0)).toBe(1); // wraps around 2^32
   });
 });
 

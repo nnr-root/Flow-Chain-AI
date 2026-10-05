@@ -9,6 +9,8 @@ export type ScriptRequest = {
   shots?: Shot[];
   /** Forced style preset; absent = the LLM picks one. */
   style?: PresetName;
+  /** Fixed character bible; absent = the LLM describes the characters. */
+  characters?: string;
   feedback?: string;
 };
 export interface LlmProvider {

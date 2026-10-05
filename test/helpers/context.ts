@@ -15,6 +15,8 @@ export type TestContextOptions = {
   budgetUsd?: number;
   /** Forced style preset (--style). */
   style?: PresetName;
+  characters?: string;
+  seed?: number;
   shots?: Shot[];
   actionLevels?: ActionLevel[];
   transitions?: SuggestedTransition[];
@@ -50,6 +52,8 @@ export async function makeTestContext(opts: TestContextOptions = {}) {
       modeBudgetUsd: modes ? undefined : (opts.budgetUsd ?? 3),
       modePrices: modes ? undefined : Prices.parse({}),
       style: opts.style,
+      characters: opts.characters,
+      seed: opts.seed,
       voiceId: "voice-1",
       bgm: opts.bgm,
     },

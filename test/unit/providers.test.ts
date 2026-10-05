@@ -33,6 +33,14 @@ describe("gemini prompt and schema", () => {
     expect(pinned).not.toContain("best fits the topic");
   });
 
+  it("pins the character bible when the run has one", () => {
+    const p = buildScriptPrompt({ topic: "t", sceneCount: 2, aspect: "9:16", characters: "Nova: silver bob" });
+    expect(p).toContain('- styleBible.characters: use exactly: "Nova: silver bob". Refer to these characters consistently');
+    expect(buildScriptPrompt({ topic: "t", sceneCount: 2, aspect: "9:16" })).toContain(
+      "- styleBible.characters: a precise, reusable description",
+    );
+  });
+
   it("asks for a short teasing hook", () => {
     expect(buildScriptPrompt({ topic: "t", sceneCount: 2, aspect: "9:16" })).toContain(
       "- hook: 2-6 punchy words shown as a big title over the first 3 seconds",

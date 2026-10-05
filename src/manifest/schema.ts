@@ -7,6 +7,7 @@ import { PresetName } from "../presets.js";
 export const MAX_NARRATION_WORDS = 22;
 export const MAX_SCENES = 12;
 export const MAX_HOOK_WORDS = 6;
+export const MAX_SEED = 2 ** 32 - 1;
 
 export const StageName = z.enum(["script", "tts", "silence", "modes", "keyframes", "clips", "fit", "captions", "render"]);
 export type StageName = z.infer<typeof StageName>;
@@ -164,6 +165,10 @@ export const RunRequest = z.object({
   modePrices: Prices.optional(),
   /** Forced style preset (--style); absent = Gemini picks one. */
   style: PresetName.optional(),
+  /** Character bible (--characters or the brand kit's), enforced into styleBible.characters; frozen. */
+  characters: z.string().trim().min(1).max(600).optional(),
+  /** Flux seed shared by every keyframe of the run (plus the scene's reroll count); frozen. */
+  seed: z.number().int().min(0).max(MAX_SEED).optional(),
   /** Fixed shot per scene (testing override from --shots); when absent the LLM decides. */
   shots: z.array(Shot).optional(),
   voiceId: z.string().min(1),

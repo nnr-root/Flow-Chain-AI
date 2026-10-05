@@ -30,7 +30,9 @@ export function buildScriptPrompt(req: ScriptRequest): string {
     "- All narrations together read as one continuous script with a strong hook in scene 1.",
     "- hook: 2-6 punchy words shown as a big title over the first 3 seconds; tease the payoff without giving it away; no emojis, hashtags or quotes.",
     "- styleBible.artStyle: one visual style used by every scene (medium, lighting, lens, mood), matching the style preset.",
-    '- styleBible.characters: a precise, reusable description of every recurring character (age, clothing, hair, colors), or "none".',
+    req.characters
+      ? `- styleBible.characters: use exactly: "${req.characters}". Refer to these characters consistently in every scene.`
+      : '- styleBible.characters: a precise, reusable description of every recurring character (age, clothing, hair, colors), or "none".',
     "- styleBible.palette: 3-5 dominant colors.",
     `- imagePrompt: what a single still frame of the scene shows, ${orientation}. Do not describe the art style or repeat the style bible; they are added automatically. Never ask for text, captions, logos or watermarks.`,
     "- motionPrompt: camera movement plus subject motion during the scene in one or two sentences, physically plausible for a 5-10 second clip.",

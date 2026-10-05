@@ -39,18 +39,18 @@ export const scriptStage: Stage = {
   paid: true,
   deps: () => [],
   inputsFor: async (ctx) => {
-    const { topic, sceneCount, aspect, shots, style } = ctx.manifest.request;
-    return { model: ctx.manifest.models.llm, topic, sceneCount, aspect, shots, style };
+    const { topic, sceneCount, aspect, shots, style, characters } = ctx.manifest.request;
+    return { model: ctx.manifest.models.llm, topic, sceneCount, aspect, shots, style, characters };
   },
   outputsFor: () => [paths.script],
   estimateCostUsd: (ctx) => scriptCost(ctx.prices),
   async run(ctx) {
-    const { topic, sceneCount, aspect, shots, style } = ctx.manifest.request;
+    const { topic, sceneCount, aspect, shots, style, characters } = ctx.manifest.request;
     let feedback: string | undefined;
     for (let attempt = 1; attempt <= 2; attempt++) {
       const raw = await withRetry(
         "script generation",
-        () => ctx.providers.llm.generateScript({ topic, sceneCount, aspect, shots, style, feedback }),
+        () => ctx.providers.llm.generateScript({ topic, sceneCount, aspect, shots, style, characters, feedback }),
         { timeoutMs: TIMEOUTS.llm, baseDelayMs: ctx.retryDelayMs },
       );
       await ctx.charge(scriptCost(ctx.prices)); // every answer is paid for, valid or not
@@ -61,6 +61,8 @@ export const scriptStage: Stage = {
         // --style is enforced the same way, and the preset leads the art style (spec §2)
         if (style) result.script.stylePreset = style;
         result.script.styleBible.artStyle = PRESETS[result.script.stylePreset].artStyle;
+        // the character bible is enforced too, so every image and motion prompt carries it verbatim
+        if (characters) result.script.styleBible.characters = characters;
         ctx.manifest.script = result.script;
         await writeFile(await outPath(ctx, paths.script), `${JSON.stringify(result.script, null, 2)}\n`);
         return;

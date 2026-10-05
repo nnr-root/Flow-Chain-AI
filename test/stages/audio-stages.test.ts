@@ -83,6 +83,16 @@ describe("script stage", () => {
     expect(ctx.manifest.script?.styleBible.characters).toBe("a red fox"); // Gemini still writes the rest
   });
 
+  it("pins the character bible: asks the LLM for it, enforces it, and keys the script on it", async () => {
+    const { ctx, fakes } = await makeTestContext({ characters: "Nova: silver bob, cyan visor" }); // the LLM says "a red fox"
+    const before = await scriptStage.inputsFor(ctx);
+    ctx.manifest.request.characters = "Rex: a green dinosaur";
+    expect(await scriptStage.inputsFor(ctx)).not.toEqual(before);
+    await runPipeline(ctx, [scriptStage], auto);
+    expect(fakes.llm.calls[0].characters).toBe("Rex: a green dinosaur");
+    expect(ctx.manifest.script?.styleBible.characters).toBe("Rex: a green dinosaur");
+  });
+
   it("keeps Gemini's preset when no --style is given", async () => {
     const { ctx } = await makeTestContext();
     await runPipeline(ctx, [scriptStage], auto);

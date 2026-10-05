@@ -5,8 +5,19 @@ import { runProviderJob } from "./job.js";
 import { effectivePreset } from "./look.js";
 import { outPath, paths } from "./paths.js";
 import { requireScript } from "./require.js";
+import type { Manifest } from "../manifest/schema.js";
 import type { Stage } from "./types.js";
 import { autoModeDeps, imagePrompt, needsKeyframe } from "./visual.js";
+
+/**
+ * The Flux seed for scene i: the run's shared seed plus that scene's keyframe reroll count, so scenes share a
+ * seed and a reroll still gets a new image. Undefined for runs without a seed (made before 2.3).
+ */
+export function keyframeSeed(m: Manifest, i: number): number | undefined {
+  const seed = m.request.seed;
+  if (seed === undefined) return undefined;
+  return (seed + (m.scenes[i].nonces.keyframes ?? 0)) % 2 ** 32;
+}
 
 export const keyframesStage: Stage = {
   name: "keyframes",
@@ -18,6 +29,7 @@ export const keyframesStage: Stage = {
     model: ctx.manifest.models.image,
     prompt: imagePrompt(requireScript(ctx.manifest), scene!, effectivePreset(ctx.manifest)),
     size: ctx.keyframeSize,
+    seed: keyframeSeed(ctx.manifest, scene!),
   }),
   outputsFor: (_m, scene) => [paths.keyframe(scene!)],
   estimateCostUsd: (ctx) => imageCost(ctx.prices, ctx.keyframeSize),
@@ -27,7 +39,7 @@ export const keyframesStage: Stage = {
     const result = await runProviderJob(ctx, i, "keyframes", {
       label: `keyframe scene ${i + 1}`,
       costUsd: imageCost(ctx.prices, ctx.keyframeSize),
-      prepare: () => ctx.providers.image.prepare({ prompt, ...ctx.keyframeSize }),
+      prepare: () => ctx.providers.image.prepare({ prompt, ...ctx.keyframeSize, seed: keyframeSeed(ctx.manifest, i) }),
       submit: (job, signal) => ctx.providers.image.submit(job, { signal }),
       wait: (id) => ctx.providers.image.wait(id, { timeoutMs: TIMEOUTS.image }),
       waitMs: TIMEOUTS.image,
