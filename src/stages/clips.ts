@@ -1,12 +1,11 @@
-import { videoCost } from "../cost.js";
 import { fileSha256 } from "../manifest/hash.js";
 import type { Manifest } from "../manifest/schema.js";
 import { probeDuration } from "../media/ffmpeg.js";
 import { planFit } from "../media/fit.js";
 import { extractSeamFrame } from "../media/frames.js";
-import { requestedSec } from "../media/timeline.js";
 import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
+import { videoProfileOf } from "../video-profiles.js";
 import { runProviderJob } from "./job.js";
 import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
@@ -53,7 +52,7 @@ export const clipsStage: Stage = {
       mode: 1,
       model: m.models.video,
       prompt: motionPrompt(script, i, effectivePreset(m)),
-      requestedSec: requestedSec(requireAudio(m.scenes[i]).duration),
+      requestedSec: videoProfileOf(m.request.videoProfile).clipSec(requireAudio(m.scenes[i]).duration),
     };
     if (needsKeyframe(m, i)) return { ...base, imageSha: await fileSha256(abs(ctx, paths.keyframe(i))) };
     // The seam file does not exist yet when this is hashed; key on everything that determines it instead.
@@ -70,7 +69,9 @@ export const clipsStage: Stage = {
   outputsFor: (_m, scene) => [paths.clip(scene!)],
   estimateCostUsd(ctx, scene) {
     const s = ctx.manifest.scenes[scene!];
-    return videoCost(ctx.prices, s.audio ? requestedSec(s.audio.duration) : 10);
+    const profile = videoProfileOf(ctx.manifest.request.videoProfile);
+    // before the audio exists, assume the longest clip the profile buys
+    return profile.costUsd(ctx.prices, profile.clipSec(s.audio ? s.audio.duration : Number.POSITIVE_INFINITY));
   },
   async run(ctx, scene) {
     const i = scene!;
@@ -79,10 +80,11 @@ export const clipsStage: Stage = {
     const script = requireScript(m);
     const out = await outPath(ctx, paths.clip(i));
 
-    const seconds = requestedSec(requireAudio(state).duration);
+    const profile = videoProfileOf(m.request.videoProfile);
+    const seconds = profile.clipSec(requireAudio(state).duration);
     const result = await runProviderJob(ctx, i, "clips", {
       label: `clip scene ${i + 1}`,
-      costUsd: videoCost(ctx.prices, seconds),
+      costUsd: profile.costUsd(ctx.prices, seconds),
       prepare: async () => {
         // the chain image: the scene's own keyframe, or the seam frame of the previous clip
         const imagePath = needsKeyframe(m, i) ? abs(ctx, paths.keyframe(i)) : await writeSeam(ctx, i);

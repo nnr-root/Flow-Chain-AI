@@ -49,7 +49,7 @@ export type ImageRequest = { prompt: string; width: number; height: number; seed
 export type ImageOutput = { url: string; seed: number };
 export type ImageProvider = QueuedProvider<ImageRequest, ImageOutput>;
 
-export type VideoRequest = { imagePath: string; prompt: string; durationSec: 5 | 10 };
+export type VideoRequest = { imagePath: string; prompt: string; durationSec: number };
 export type VideoOutput = { url: string };
 export type VideoProvider = QueuedProvider<VideoRequest, VideoOutput>;
 

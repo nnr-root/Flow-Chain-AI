@@ -128,3 +128,16 @@ describe("keyframes and clips stages", () => {
     );
   });
 });
+
+describe("clip lengths from the run's video profile", () => {
+  it("buys a 5 s clip for 5.5 s of narration on kling-v2, a 10 s one on kling-v1 (runs made before 2.3)", async () => {
+    const { ctx } = await makeTestContext({ modes: [1, 1], shots: ["cut", "cut"] });
+    await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage], auto);
+    ctx.manifest.scenes[0].audio!.duration = 5.5;
+    expect(await clipsStage.inputsFor(ctx, 0)).toMatchObject({ requestedSec: 10 });
+    expect(clipsStage.estimateCostUsd(ctx, 0)).toBe(0.5);
+    ctx.manifest.request.videoProfile = "kling-v2";
+    expect(await clipsStage.inputsFor(ctx, 0)).toMatchObject({ requestedSec: 5 });
+    expect(clipsStage.estimateCostUsd(ctx, 0)).toBe(0.25);
+  });
+});

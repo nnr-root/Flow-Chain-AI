@@ -21,12 +21,12 @@ describe("validateScript", () => {
 
   it("rejects the wrong scene count and over-long narration", () => {
     const raw = fakeScript(2);
-    raw.scenes[1].narration = Array.from({ length: 23 }, () => "word").join(" ");
+    raw.scenes[1].narration = Array.from({ length: 17 }, () => "word").join(" ");
     const v = validateScript(raw, 3);
     expect(v.ok).toBe(false);
     if (!v.ok) {
       expect(v.problems).toContain("expected exactly 3 scenes, got 2");
-      expect(v.problems).toContain("scene 2 narration has 23 words (max 22)");
+      expect(v.problems).toContain("scene 2 narration has 17 words (max 16)");
     }
   });
 

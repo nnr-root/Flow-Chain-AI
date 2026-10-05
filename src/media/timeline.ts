@@ -19,7 +19,3 @@ export function audioStarts(durations: number[]): number[] {
     return start;
   });
 }
-
-export function requestedSec(audioDuration: number): 5 | 10 {
-  return audioDuration <= 5 ? 5 : 10;
-}

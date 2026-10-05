@@ -1,5 +1,5 @@
-import { requestedSec } from "../media/timeline.js";
 import { planModes, type PlanModesInput } from "../modes.js";
+import { videoProfileOf } from "../video-profiles.js";
 import { requireAudio, requireScript } from "./require.js";
 import type { Dep, Stage, StageContext } from "./types.js";
 
@@ -16,18 +16,19 @@ function autoInputs(ctx: StageContext): PlanModesInput | null {
     scenes: m.scenes.map((s, i) => ({
       actionLevel: script.scenes[i].actionLevel ?? "high",
       shot: script.scenes[i].shot,
-      requestedSec: requestedSec(requireAudio(s).duration),
+      requestedSec: videoProfileOf(m.request.videoProfile).clipSec(requireAudio(s).duration),
       narrationChars: script.scenes[i].narration.length,
     })),
     prices,
     keyframeSize: ctx.keyframeSize,
     budgetUsd,
+    videoProfile: m.request.videoProfile,
   };
 }
 
 /**
- * Resolves every scene's mode (spec §4.1). Runs after silence, so each Kling bucket (5 s / 10 s) is exact,
- * and before keyframes, so the media checkpoint prices the final modes. Free and cached.
+ * Resolves every scene's mode (spec §4.1). Runs after silence, so each clip length (from the run's video profile)
+ * is exact, and before keyframes, so the media checkpoint prices the final modes. Free and cached.
  */
 export const modesStage: Stage = {
   name: "modes",

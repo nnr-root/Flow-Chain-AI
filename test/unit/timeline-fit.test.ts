@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { fitFilter, planFit } from "../../src/media/fit.js";
-import { audioStarts, requestedSec, sceneFrameCounts } from "../../src/media/timeline.js";
+import { audioStarts, sceneFrameCounts } from "../../src/media/timeline.js";
 
 describe("sceneFrameCounts", () => {
   it("uses cumulative rounding so the total never drifts", () => {
@@ -18,14 +18,6 @@ describe("sceneFrameCounts", () => {
 describe("audioStarts", () => {
   it("returns cumulative start times", () => {
     expect(audioStarts([1.5, 2, 0.5])).toEqual([0, 1.5, 3.5]);
-  });
-});
-
-describe("requestedSec", () => {
-  it("picks the shortest Kling length that covers the audio", () => {
-    expect(requestedSec(3)).toBe(5);
-    expect(requestedSec(5)).toBe(5);
-    expect(requestedSec(5.01)).toBe(10);
   });
 });
 

@@ -20,6 +20,6 @@ export function imageCost(p: Prices, size: Size): number {
   return round4((p.fluxPerMegapixel * size.width * size.height) / 1e6);
 }
 
-export function videoCost(p: Prices, seconds: 5 | 10): number {
+export function videoCost(p: Prices, seconds: number): number {
   return round4(p.klingBase5s + Math.max(0, seconds - 5) * p.klingPerExtraSec);
 }

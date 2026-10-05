@@ -3,8 +3,9 @@ import { BrandLook } from "../brand.js";
 import { Aspect, Prices } from "../config.js";
 import { CaptionStyleName, Transition } from "../media/remotion/props.js";
 import { PresetName } from "../presets.js";
+import { VideoProfileId } from "../video-profiles.js";
 
-export const MAX_NARRATION_WORDS = 22;
+export const MAX_NARRATION_WORDS = 16;
 export const MAX_SCENES = 12;
 export const MAX_HOOK_WORDS = 6;
 export const MAX_SEED = 2 ** 32 - 1;
@@ -126,7 +127,8 @@ export const SceneState = z.object({
       path: z.string(),
       sourceUrl: z.string().optional(),
       duration: z.number(),
-      requestedSec: z.union([z.literal(5), z.literal(10)]).optional(),
+      /** Seconds of video bought (from the run's video profile). */
+      requestedSec: z.number().positive().optional(),
     })
     .optional(),
   fitted: z.object({ path: z.string(), frames: z.number().int(), plan: FitPlan }).optional(),
@@ -169,6 +171,8 @@ export const RunRequest = z.object({
   characters: z.string().trim().min(1).max(600).optional(),
   /** Flux seed shared by every keyframe of the run (plus the scene's reroll count); frozen. */
   seed: z.number().int().min(0).max(MAX_SEED).optional(),
+  /** How clips are bought (clip length per narration, price); absent = kling-v1 (runs made before 2.3); frozen. */
+  videoProfile: VideoProfileId.optional(),
   /** Fixed shot per scene (testing override from --shots); when absent the LLM decides. */
   shots: z.array(Shot).optional(),
   voiceId: z.string().min(1),

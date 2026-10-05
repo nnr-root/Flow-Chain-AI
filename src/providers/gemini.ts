@@ -26,7 +26,7 @@ export function buildScriptPrompt(req: ScriptRequest): string {
       : "- stylePreset: set it to the preset that best fits the topic.",
     "",
     "Rules:",
-    `- narration: the spoken voiceover for the scene, at most ${MAX_NARRATION_WORDS} words, plain text, no stage directions, emojis or hashtags.`,
+    `- narration: the spoken voiceover for the scene, at most ${MAX_NARRATION_WORDS} words (ideally 12-15), plain text, no stage directions, emojis or hashtags.`,
     "- All narrations together read as one continuous script with a strong hook in scene 1.",
     "- hook: 2-6 punchy words shown as a big title over the first 3 seconds; tease the payoff without giving it away; no emojis, hashtags or quotes.",
     "- styleBible.artStyle: one visual style used by every scene (medium, lighting, lens, mood), matching the style preset.",

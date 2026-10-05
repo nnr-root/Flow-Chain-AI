@@ -1,9 +1,12 @@
 import type { Prices, Size } from "./config.js";
-import { imageCost, round4, scriptCost, ttsCost, videoCost } from "./cost.js";
+import { imageCost, round4, scriptCost, ttsCost } from "./cost.js";
 import type { ActionLevel, Mode, Shot } from "./manifest/schema.js";
+import { type VideoProfileId, videoProfileOf } from "./video-profiles.js";
 
 export type PlanModesInput = {
-  scenes: Array<{ actionLevel: ActionLevel; shot: Shot; requestedSec: 5 | 10; narrationChars: number }>;
+  scenes: Array<{ actionLevel: ActionLevel; shot: Shot; requestedSec: number; narrationChars: number }>;
+  /** Prices the clips; absent = kling-v1 (so runs made before 2.3 keep their modes cache key). */
+  videoProfile?: VideoProfileId;
   prices: Prices;
   keyframeSize: Size;
   budgetUsd: number;
@@ -19,7 +22,7 @@ function runCost(input: PlanModesInput, modes: Mode[]): number {
   scenes.forEach((s, i) => {
     usd += ttsCost(prices, s.narrationChars);
     if (i === 0 || modes[i] === 2 || modes[i - 1] === 2 || s.shot === "cut") usd += imageCost(prices, input.keyframeSize);
-    if (modes[i] === 1) usd += videoCost(prices, s.requestedSec);
+    if (modes[i] === 1) usd += videoProfileOf(input.videoProfile).costUsd(prices, s.requestedSec);
   });
   return round4(usd);
 }
