@@ -53,10 +53,11 @@ const PLAIN: LayerLook = { opacity: 1, blurPx: 0, scale: 1 };
 
 /**
  * The look of a transition window at `local` (0 … 2h−1). The cut is at local = h: A is drawn (and played)
- * before it, B after it; blending transitions draw both.
+ * before it, B after it; blending transitions draw both. The blend `q` steps evenly up to exactly 1 on the
+ * window's last frame, so the frame after the window continues it without a jump.
  */
 export function transitionLook(transition: Transition, local: number, h: number): TransitionLook {
-  const q = local / (2 * h);
+  const q = (local + 1) / (2 * h);
   const before = local < h;
   switch (transition) {
     case "cut":
@@ -153,15 +154,15 @@ export function speechRanges(
 }
 
 /**
- * BGM level factor at `frame`: `duckTo` inside speech, 1 well away from it, and a linear ramp over
- * `rampFrames` frames before each speech start and after each speech end.
+ * BGM level factor at `frame`: `duckTo` inside speech, 1 well away from it, and an S-curve (easeInOut) over
+ * `rampFrames` frames before each speech start and after each speech end, so the music never audibly pumps.
  */
 export function duckVolume(frame: number, speech: FrameRange[], duckTo: number, rampFrames: number): number {
   let level = 1;
   for (const r of speech) {
     if (frame >= r.from && frame < r.to) return duckTo;
     const distance = frame < r.from ? r.from - frame : frame - (r.to - 1);
-    if (distance <= rampFrames) level = Math.min(level, duckTo + ((1 - duckTo) * distance) / rampFrames);
+    if (distance <= rampFrames) level = Math.min(level, duckTo + (1 - duckTo) * easeInOut(distance / rampFrames));
   }
   return level;
 }

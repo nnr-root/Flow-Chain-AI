@@ -12,13 +12,13 @@ const manifest = () =>
 describe("applyRenderOptions", () => {
   it("starts from the defaults and changes only what is given", () => {
     const m = manifest();
-    expect(m.request.render).toEqual({ captionStyle: "preset", transition: "auto", bgmGain: 0.35 });
+    expect(m.request.render).toEqual({ captionStyle: "preset", transition: "auto", bgmGain: 0.35, sfx: true, sfxGain: 0.6 });
     applyRenderOptions(m, { captionStyle: "mrbeast" });
-    expect(m.request.render).toEqual({ captionStyle: "mrbeast", transition: "auto", bgmGain: 0.35 });
+    expect(m.request.render).toEqual({ captionStyle: "mrbeast", transition: "auto", bgmGain: 0.35, sfx: true, sfxGain: 0.6 });
     applyRenderOptions(m, { transition: "glitch", bgmGain: "0.2" });
-    expect(m.request.render).toEqual({ captionStyle: "mrbeast", transition: "glitch", bgmGain: 0.2 });
+    expect(m.request.render).toEqual({ captionStyle: "mrbeast", transition: "glitch", bgmGain: 0.2, sfx: true, sfxGain: 0.6 });
     applyRenderOptions(m, { captionStyle: "preset", transition: "auto" });
-    expect(m.request.render).toEqual({ captionStyle: "preset", transition: "auto", bgmGain: 0.2 });
+    expect(m.request.render).toEqual({ captionStyle: "preset", transition: "auto", bgmGain: 0.2, sfx: true, sfxGain: 0.6 });
   });
 
   it("rejects invalid values", () => {

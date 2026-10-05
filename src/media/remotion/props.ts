@@ -82,6 +82,10 @@ export const BgmProps = z.object({
 });
 export type BgmProps = z.infer<typeof BgmProps>;
 
+/** One sound effect: `src` starts playing at `frame` at `gain` (relative to the narration). */
+export const SfxCue = z.object({ src: z.string(), frame: z.number().int().min(0), gain: z.number().min(0) });
+export type SfxCue = z.infer<typeof SfxCue>;
+
 export const RenderProps = z.object({
   fps: z.number().int().positive(),
   width: z.number().int().positive(),
@@ -95,6 +99,7 @@ export const RenderProps = z.object({
     bgm: BgmProps.nullable(),
     /** Frames where narration is speaking (merged and padded): the BGM ducks inside them. */
     speech: z.array(FrameRange),
+    sfx: z.array(SfxCue),
   }),
 });
 export type RenderProps = z.infer<typeof RenderProps>;

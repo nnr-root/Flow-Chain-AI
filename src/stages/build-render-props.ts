@@ -3,6 +3,7 @@ import type { Caption } from "@remotion/captions";
 import type { Size } from "../config.js";
 import type { Manifest } from "../manifest/schema.js";
 import { captionPages } from "../media/remotion/caption-pages.js";
+import { SFX, sfxCues } from "../media/sfx.js";
 import type { Boundary, RenderProps, SceneProps } from "../media/remotion/props.js";
 import { captionBottomPct } from "../media/remotion/styles.js";
 import { halfWindowFor, speechRanges } from "../media/remotion/timeline.js";
@@ -12,8 +13,8 @@ import { paths } from "./paths.js";
 import { requireFitted, requireScript } from "./require.js";
 import { needsKeyframe, sceneFrames } from "./visual.js";
 
-/** BGM mix constants (spec §4.4): ducked to 18 % under speech with 6-frame ramps, 1 s fade-out. */
-export const BGM_MIX = { duckTo: 0.18, rampFrames: 6, fadeOutFrames: 30 } as const;
+/** BGM mix constants (2.3 spec §5.4): ducked to 40 % under speech with 10-frame S-curve ramps, 1 s fade-out. */
+export const BGM_MIX = { duckTo: 0.4, rampFrames: 10, fadeOutFrames: 30 } as const;
 
 export type RenderInputs = {
   props: RenderProps;
@@ -27,7 +28,7 @@ export type RenderInputs = {
  */
 export function buildRenderProps(
   m: Manifest,
-  opts: { dir: string; fontsDir: string; fps: number; size: Size },
+  opts: { dir: string; fontsDir: string; sfxDir: string; fps: number; size: Size },
   captions: Caption[],
 ): RenderInputs {
   const { fps, size } = opts;
@@ -87,6 +88,13 @@ export function buildRenderProps(
         narration: publish(paths.narration, join(opts.dir, paths.narration)),
         bgm,
         speech: speechRanges(globalWords(m), fps, totalFrames),
+        sfx: m.request.render.sfx
+          ? sfxCues(boundaries, { hook: false, gain: m.request.render.sfxGain }).map((c) => ({
+              src: publish(`sfx/${SFX[c.sound].file}`, join(opts.sfxDir, SFX[c.sound].file)),
+              frame: c.frame,
+              gain: c.gain,
+            }))
+          : [],
       },
     },
     files,

@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { Command, Option } from "commander";
-import { FONTS_DIR } from "./assets.js";
+import { FONTS_DIR, SFX_DIR } from "./assets.js";
 import { type Env, FPS, keyframeSize, loadEnv, loadPrices, outputSize } from "./config.js";
 import { formatChecks, runDoctor } from "./doctor.js";
 import { type Manifest, type Models, RunRequest, StageName } from "./manifest/schema.js";
@@ -89,6 +89,7 @@ function contextFor(dir: string, manifest: Manifest, providers: Providers, concu
     keyframeSize: keyframeSize(manifest.request.aspect),
     fps: FPS,
     fontsDir: FONTS_DIR,
+    sfxDir: SFX_DIR,
     retryDelayMs: 2000,
     renderConcurrency: concurrency,
     log: (message) => console.log(message),

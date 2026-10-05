@@ -19,7 +19,7 @@ function manifest() {
       modes: [1, 1, 2],
       voiceId: "v",
       bgm: "/music/song.mp3",
-      render: { captionStyle: "minimalist", transition: "dissolve", bgmGain: 0.5 },
+      render: { captionStyle: "minimalist", transition: "dissolve", bgmGain: 0.5, sfx: true, sfxGain: 0.6 },
     },
     { llm: "l", tts: "t", image: "i", video: "v" },
   );
@@ -38,7 +38,7 @@ function manifest() {
   return m;
 }
 
-const opts = { dir: "/run", fontsDir: "/fonts", fps: 30, size: { width: 1080, height: 1920 } };
+const opts = { dir: "/run", fontsDir: "/fonts", sfxDir: "/sfx", fps: 30, size: { width: 1080, height: 1920 } };
 
 describe("buildRenderProps", () => {
   const m = manifest();
@@ -68,7 +68,8 @@ describe("buildRenderProps", () => {
   });
 
   it("ducks the BGM under speech and publishes every file it references", () => {
-    expect(props.audio.bgm).toEqual({ src: "bgm.mp3", gain: 0.5, duckTo: 0.18, rampFrames: 6, fadeOutFrames: 30 });
+    expect(props.audio.bgm).toEqual({ src: "bgm.mp3", gain: 0.5, duckTo: 0.4, rampFrames: 10, fadeOutFrames: 30 });
+    expect(props.audio.sfx).toEqual([]); // a seam and a dissolve: both stay quiet
     expect(props.audio.speech).toEqual([
       { from: 0, to: 21 },
       { from: 45, to: 66 },
@@ -96,7 +97,7 @@ describe("buildRenderProps", () => {
 
 describe("buildRenderProps with auto transitions and the preset's captions", () => {
   const m = manifest();
-  m.request.render = { captionStyle: "preset", transition: "auto", bgmGain: 0.5 };
+  m.request.render = { captionStyle: "preset", transition: "auto", bgmGain: 0.5, sfx: true, sfxGain: 0.5 };
   m.script = {
     ...fakeScript(3, { shots: ["cut", "continue", "cut"], transitions: ["fade", "dissolve", "zoom_transition"] }),
     stylePreset: "cyberpunk",
@@ -108,6 +109,17 @@ describe("buildRenderProps with auto transitions and the preset's captions", () 
       { frame: 45, kind: "seam", transition: "cut", halfWindow: 0 }, // Gemini suggested dissolve: ignored at a seam
       { frame: 75, kind: "cut", transition: "zoom", halfWindow: 5 },
     ]);
+  });
+
+  it("puts a whoosh on the zoom cut, peaking on the cut, and publishes it", () => {
+    expect(props.audio.sfx).toEqual([{ src: "sfx/whoosh.mp3", frame: 67, gain: 0.4 }]);
+    expect(files["sfx/whoosh.mp3"]).toBe("/sfx/whoosh.mp3");
+  });
+
+  it("drops every cue when sound effects are off", () => {
+    const quiet = structuredClone(m);
+    quiet.request.render.sfx = false;
+    expect(buildRenderProps(quiet, opts, []).props.audio.sfx).toEqual([]);
   });
 
   it("captions in the preset's look and publishes its font", () => {

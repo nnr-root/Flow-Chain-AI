@@ -132,6 +132,10 @@ export const RenderOptions = z.object({
   /** "auto" = each cut uses the incoming scene's suggestedTransition (fade when it has none). */
   transition: z.union([Transition, z.literal("auto")]).default("auto"),
   bgmGain: z.number().min(0).max(1).default(0.35),
+  /** Sound effects at the hook and at cuts. */
+  sfx: z.boolean().default(true),
+  /** Sound-effect level relative to the narration. */
+  sfxGain: z.number().min(0).max(1).default(0.6),
 });
 export type RenderOptions = z.infer<typeof RenderOptions>;
 
@@ -151,7 +155,7 @@ export const RunRequest = z.object({
   shots: z.array(Shot).optional(),
   voiceId: z.string().min(1),
   bgm: z.string().optional(),
-  render: RenderOptions.default({ captionStyle: "preset", transition: "auto", bgmGain: 0.35 }),
+  render: RenderOptions.default({ captionStyle: "preset", transition: "auto", bgmGain: 0.35, sfx: true, sfxGain: 0.6 }),
 });
 export type RunRequest = z.infer<typeof RunRequest>;
 

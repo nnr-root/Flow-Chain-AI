@@ -65,7 +65,7 @@ async function toyContext(): Promise<StageContext> {
   return {
     dir, manifest, providers: {} as Providers, prices: Prices.parse({}),
     size: { width: 180, height: 320 }, keyframeSize: { width: 192, height: 336 },
-    fps: 30, fontsDir: "", retryDelayMs: 0, log: () => {},
+    fps: 30, fontsDir: "", sfxDir: "", retryDelayMs: 0, log: () => {},
   };
 }
 

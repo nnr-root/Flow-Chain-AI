@@ -13,7 +13,7 @@ const DEFAULT_PROPS: RenderProps = {
   scenes: [],
   boundaries: [],
   captions: { style: CAPTION_STYLES.hormozi, bottomPct: 30, pages: [] },
-  audio: { narration: "narration.wav", bgm: null, speech: [] },
+  audio: { narration: "narration.wav", bgm: null, speech: [], sfx: [] },
 };
 
 export const Root: React.FC = () => (

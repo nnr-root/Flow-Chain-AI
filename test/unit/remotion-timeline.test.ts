@@ -57,13 +57,14 @@ describe("transition windows", () => {
     expect(halfWindowFor("zoom", 100, 1)).toBe(0);
   });
 
-  it("fades B over a fully drawn A", () => {
+  it("fades B over a fully drawn A in even steps, reaching 100 % on the window's last frame", () => {
     expect(transitionLook("fade", 0, 5)).toEqual({
       a: { opacity: 1, blurPx: 0, scale: 1 },
-      b: { opacity: 0, blurPx: 0, scale: 1 },
+      b: { opacity: 0.1, blurPx: 0, scale: 1 },
       glitch: false,
     });
-    expect(transitionLook("fade", 5, 5).b?.opacity).toBe(0.5);
+    expect(transitionLook("fade", 5, 5).b?.opacity).toBeCloseTo(0.6, 9);
+    expect(transitionLook("fade", 9, 5).b?.opacity).toBe(1);
   });
 
   it("switches between A and B at the boundary for cut, blur and glitch", () => {
@@ -79,10 +80,19 @@ describe("transition windows", () => {
   });
 
   it("scales and cross-fades for zoom, blurs at the middle for dissolve", () => {
-    const z = transitionLook("zoom", 5, 5);
+    const z = transitionLook("zoom", 4, 5); // q = 0.5
     expect(z.a).toEqual({ opacity: 0.5, blurPx: 0, scale: 1.125 });
     expect(z.b).toEqual({ opacity: 0.5, blurPx: 0, scale: 1.125 });
-    expect(transitionLook("dissolve", 5, 5).a?.blurPx).toBeCloseTo(6, 6);
+    expect(transitionLook("dissolve", 4, 5).a?.blurPx).toBeCloseTo(6, 6);
+  });
+
+  it("ends zoom and dissolve fully on B, so the frame after the window continues without a jump", () => {
+    const z = transitionLook("zoom", 9, 5);
+    expect(z.a?.opacity).toBe(0);
+    expect(z.b).toEqual({ opacity: 1, blurPx: 0, scale: 1 });
+    const d = transitionLook("dissolve", 9, 5);
+    expect(d.b?.opacity).toBe(1);
+    expect(d.b?.blurPx).toBeCloseTo(0, 9);
   });
 
   it("covers every transition", () => {
@@ -138,8 +148,9 @@ describe("BGM ducking", () => {
     ]);
   });
 
-  it("ducks inside speech, ramps linearly over 6 frames, and is 1 well away", () => {
+  it("ducks inside speech, ramps with an S-curve over the ramp frames, and is 1 well away", () => {
     const speech = [{ from: 30, to: 60 }];
+    expect(duckVolume(29, speech, 0.18, 6)).toBeCloseTo(0.18 + 0.82 * easeInOut(1 / 6), 9); // 1 frame before
     expect(duckVolume(45, speech, 0.18, 6)).toBe(0.18);
     expect(duckVolume(0, speech, 0.18, 6)).toBe(1);
     expect(duckVolume(27, speech, 0.18, 6)).toBeCloseTo(0.18 + 0.82 * 0.5, 6); // 3 frames before speech

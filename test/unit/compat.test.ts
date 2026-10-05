@@ -55,6 +55,7 @@ async function oldRun(): Promise<StageContext> {
     keyframeSize: { width: 1088, height: 1920 },
     fps: 30,
     fontsDir: "assets/fonts",
+    sfxDir: "assets/sfx",
     retryDelayMs: 0,
     log: () => {},
   };

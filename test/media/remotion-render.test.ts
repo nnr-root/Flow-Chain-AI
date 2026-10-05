@@ -41,7 +41,7 @@ function baseProps(overrides: Partial<RenderProps>): RenderProps {
     scenes: [],
     boundaries: [],
     captions: { style: CAPTION_STYLES.hormozi, bottomPct: 30, pages: [] },
-    audio: { narration: "narration.wav", bgm: null, speech: [] },
+    audio: { narration: "narration.wav", bgm: null, speech: [], sfx: [] },
     ...overrides,
   };
 }
@@ -74,14 +74,17 @@ describe("Remotion composition (real Chrome)", () => {
     expect(await countFrames(out)).toBe(90);
     expect(await probeVideo(out)).toEqual({ width: 180, height: 320, fps: 30 });
     const [r39, , b39] = await avgRgb(out, 39); // before the window: pure red
-    const [r45, , b45] = await avgRgb(out, 45); // middle of the window: half and half
+    const [r45, , b45] = await avgRgb(out, 45); // the window's 6th of 10 frames: 60 % blue
+    const [r49, , b49] = await avgRgb(out, 49); // the window's last frame: fully blue, no jump after it
     const [r50, , b50] = await avgRgb(out, 50); // after the window: pure blue
     expect(r39).toBeGreaterThan(230);
     expect(b39).toBeLessThan(25);
-    expect(r45).toBeGreaterThan(100);
-    expect(r45).toBeLessThan(160);
-    expect(b45).toBeGreaterThan(100);
-    expect(b45).toBeLessThan(160);
+    expect(r45).toBeGreaterThan(75);
+    expect(r45).toBeLessThan(130);
+    expect(b45).toBeGreaterThan(125);
+    expect(b45).toBeLessThan(180);
+    expect(r49).toBeLessThan(25);
+    expect(b49).toBeGreaterThan(230);
     expect(r50).toBeLessThan(25);
     expect(b50).toBeGreaterThan(230);
   });
@@ -102,6 +105,7 @@ describe("Remotion composition (real Chrome)", () => {
             { from: 0, to: 30 },
             { from: 60, to: 90 },
           ],
+          sfx: [],
         },
       }),
       files: {
@@ -132,6 +136,7 @@ describe("Remotion composition (real Chrome)", () => {
           narration: "narration.wav",
           bgm: { src: "bgm.wav", gain: 1, duckTo: 0.18, rampFrames: 6, fadeOutFrames: 30 },
           speech: [{ from: 0, to: 30 }], // only the first second is speech
+          sfx: [],
         },
       }),
       files: {
@@ -150,6 +155,31 @@ describe("Remotion composition (real Chrome)", () => {
     // without "extend" the curve restarts at frame 0 on every loop: every second is ducked and the fade never arrives
     expect(open - ducked).toBeGreaterThan(10);
     expect(open - tail).toBeGreaterThan(10);
+  });
+
+  it("plays a sound-effect cue at its frame", async () => {
+    const dir = await tempDir();
+    await makeImage(join(dir, "still.png"), { width: 192, height: 336 });
+    await makeAudio(join(dir, "narration.wav"), [{ silence: 3 }]); // silent: only the sound effect is measured
+    const out = join(dir, "video.mp4");
+    await renderVideo({
+      props: baseProps({
+        scenes: [{ kind: "still", src: "still.png", camera: "zoom_in", from: 0, frames: 90 }],
+        audio: { narration: "narration.wav", bgm: null, speech: [], sfx: [{ src: "sfx/whoosh.mp3", frame: 37, gain: 0.8 }] },
+      }),
+      files: {
+        "still.png": join(dir, "still.png"),
+        "narration.wav": join(dir, "narration.wav"),
+        "sfx/whoosh.mp3": resolve("assets/sfx/whoosh.mp3"),
+        "Montserrat-ExtraBold.ttf": FONT,
+      },
+      workDir: join(dir, "render"),
+      out,
+    });
+
+    const before = await meanVolume(out, 0.3, 0.6); // nothing plays yet
+    const around = await meanVolume(out, 37 / 30 + 0.1, 0.3); // the whoosh's loud middle (peak 0.25 s after frame 37)
+    expect(around - before).toBeGreaterThan(30);
   });
 
   it("renders every transition, each only inside its own window", async () => {

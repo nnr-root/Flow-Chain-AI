@@ -65,6 +65,7 @@ export async function makeTestContext(opts: TestContextOptions = {}) {
     keyframeSize: { width: 192, height: 336 },
     fps: 30,
     fontsDir: resolve("assets/fonts"),
+    sfxDir: resolve("assets/sfx"),
     retryDelayMs: 0,
     log: (m) => logs.push(m),
   };

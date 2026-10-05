@@ -14,7 +14,11 @@ import { autoModeDeps } from "./visual.js";
 
 async function renderInputs(ctx: StageContext): Promise<RenderInputs> {
   const captions = JSON.parse(await readFile(abs(ctx, paths.captions), "utf8")) as Caption[];
-  return buildRenderProps(ctx.manifest, { dir: ctx.dir, fontsDir: ctx.fontsDir, fps: ctx.fps, size: ctx.size }, captions);
+  return buildRenderProps(
+    ctx.manifest,
+    { dir: ctx.dir, fontsDir: ctx.fontsDir, sfxDir: ctx.sfxDir, fps: ctx.fps, size: ctx.size },
+    captions,
+  );
 }
 
 /**
