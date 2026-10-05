@@ -2,9 +2,11 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { ensureBrowser } from "@remotion/renderer";
 import { execa } from "execa";
+import { SFX_DIR } from "./assets.js";
 import type { Env } from "./config.js";
 import type { Models } from "./manifest/schema.js";
 import { CAPTION_STYLES } from "./media/remotion/styles.js";
+import { sfxFiles } from "./media/sfx.js";
 import { PRESETS } from "./presets.js";
 import { ElevenLabsTts } from "./providers/elevenlabs.js";
 import { checkFal, createFal } from "./providers/fal.js";
@@ -67,12 +69,18 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models, voi
   const voice = voiceId ?? env.ELEVENLABS_VOICE_ID;
   const fonts = captionFontFiles(fontsDir);
   const missingFonts = fonts.filter((f) => !existsSync(f));
+  const missingSfx = sfxFiles(SFX_DIR).filter((f) => !existsSync(f));
   return [
     ...(await checkFfmpeg()),
     {
       name: "caption fonts",
       ok: missingFonts.length === 0,
       detail: missingFonts.length ? `missing: ${missingFonts.join(", ")}` : `${fonts.length} bundled`,
+    },
+    {
+      name: "sound effects",
+      ok: missingSfx.length === 0,
+      detail: missingSfx.length ? `missing: ${missingSfx.join(", ")} (run npm run make:sfx)` : "3 bundled",
     },
     await attempt("Remotion browser", checkRemotionBrowser),
     await attempt(`Gemini model ${llmModel}`, async () => {

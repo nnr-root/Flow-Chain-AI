@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { Command, Option } from "commander";
+import { FONTS_DIR } from "./assets.js";
 import { type Env, FPS, keyframeSize, loadEnv, loadPrices, outputSize } from "./config.js";
 import { formatChecks, runDoctor } from "./doctor.js";
 import { type Manifest, type Models, RunRequest, StageName } from "./manifest/schema.js";
@@ -21,7 +22,6 @@ import { STAGES } from "./stages/index.js";
 import type { StageContext } from "./stages/types.js";
 import { formatStatus } from "./status.js";
 
-const FONTS_DIR = resolve(import.meta.dirname, "../assets/fonts");
 
 try {
   process.loadEnvFile(".env");
