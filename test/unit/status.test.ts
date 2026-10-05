@@ -48,6 +48,24 @@ describe("formatStatus", () => {
     expect(formatStatus(m)).toContain("Scene 2 [mode 2 · auto: low action]: ");
     m.request.style = "anime";
     expect(formatStatus(m)).toContain("Style: anime (--style)");
+    expect(formatStatus(m)).toContain("Hook: Foxes never sleep · sound effects on (0.6)");
+    expect(formatStatus(m)).toContain("Brand: none · characters: by Gemini");
+    expect(formatStatus(m)).toContain("Seed: none · video profile: kling-v1");
+    m.request.render.hook = false;
+    m.request.render.sfx = false;
+    m.request.render.brand = {
+      name: "Acme",
+      logo: "brand/logo.svg",
+      watermark: { position: "top-right", widthPct: 14, opacity: 0.8, marginPct: 4 },
+    };
+    m.request.characters = "Nova: a woman in her 20s, short silver bob, cyan visor over the left eye, black techwear";
+    m.request.seed = 42;
+    m.request.videoProfile = "kling-v2";
+    expect(formatStatus(m)).toContain("Hook: off · sound effects off");
+    expect(formatStatus(m)).toContain(
+      "Brand: Acme · characters: Nova: a woman in her 20s, short silver bob, cyan visor over…",
+    );
+    expect(formatStatus(m)).toContain("Seed: 42 · video profile: kling-v2");
     m.request.style = undefined;
     m.script.stylePreset = undefined;
     expect(formatStatus(m)).toContain("Style: none (scripted before style presets)");

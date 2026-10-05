@@ -1,11 +1,13 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { randomInt } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { Command, Option } from "commander";
+import { type BrandKit, installBrand, loadBrandKit } from "./brand.js";
 import { FONTS_DIR, SFX_DIR } from "./assets.js";
 import { type Env, FPS, keyframeSize, loadEnv, loadPrices, outputSize } from "./config.js";
 import { formatChecks, runDoctor } from "./doctor.js";
-import { type Manifest, type Models, RunRequest, StageName } from "./manifest/schema.js";
+import { type Manifest, MAX_SEED, type Models, RunRequest, StageName } from "./manifest/schema.js";
 import {
   createManifest, loadManifest, newRunId, resolveModes, resolveShots, saveManifest, withRunLock,
 } from "./manifest/store.js";
@@ -19,6 +21,7 @@ import type { Providers } from "./providers/types.js";
 import { applyRenderOptions, assertRenderOnly, noPaidProviders } from "./rerender.js";
 import { bumpNonce, REROLLABLE } from "./reroll.js";
 import { STAGES } from "./stages/index.js";
+import { NEW_RUN_VIDEO_PROFILE } from "./video-profiles.js";
 import type { StageContext } from "./stages/types.js";
 import { formatStatus } from "./status.js";
 
@@ -63,6 +66,13 @@ function budget(raw: string | undefined, env: Env): number {
   if (raw === undefined) return env.FLOWCHAIN_BUDGET_USD;
   const value = Number(raw);
   if (!Number.isFinite(value) || value < 0) throw new Error(`--budget must be a non-negative number, got "${raw}"`);
+  return value;
+}
+
+function seed(raw: string | undefined): number {
+  if (raw === undefined) return randomInt(0, MAX_SEED + 1);
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0 || value > MAX_SEED) throw new Error(`--seed must be an integer 0-${MAX_SEED}, got "${raw}"`);
   return value;
 }
 
@@ -129,6 +139,12 @@ type RunFlags = {
   modes?: string;
   shots?: string;
   style?: string;
+  hook?: string | false;
+  sfx: boolean;
+  sfxGain?: string;
+  brand?: string;
+  characters?: string;
+  seed?: string;
   voice?: string;
   bgm?: string;
   captionStyle?: string;
@@ -167,6 +183,13 @@ program
   .option("--modes <list>", "per-scene modes, e.g. 1,2,1,1 (overrides --mode)")
   .option("--shots <list>", "testing override: per-scene continue|cut, e.g. cut,continue,continue (default: LLM decides)")
   .addOption(new Option("--style <preset>", "style preset (default: Gemini picks one)").choices(PresetName.options))
+  .option("--hook <text>", "hook title for the first seconds (default: Gemini writes one)")
+  .option("--no-hook", "no hook title, snap zoom or impact sound")
+  .option("--no-sfx", "no sound effects")
+  .option("--sfx-gain <0-1>", "sound-effect level relative to the narration (default: 0.6)")
+  .option("--brand <dir>", "brand kit folder (brand.json, logo, optional font): watermark, font, colours, characters")
+  .option("--characters <text>", "character bible used in every prompt (default: the brand kit's, else Gemini's)")
+  .option("--seed <n>", "Flux seed shared by every keyframe (default: random)")
   .option("--voice <id>", "ElevenLabs voice id (default: ELEVENLABS_VOICE_ID)")
   .option("--bgm <file>", "background music, ducked under the narration")
   .addOption(new Option("--caption-style <style>", "caption look (default: the preset's)").choices(CAPTION_CHOICES))
@@ -184,6 +207,7 @@ program
     const shots = resolveShots(o.shots, sceneCount);
     const budgetUsd = budget(o.budget, env);
     if (o.bgm && !existsSync(o.bgm)) throw new Error(`--bgm file not found: ${o.bgm}`);
+    const kit: BrandKit | undefined = o.brand ? await loadBrandKit(o.brand) : undefined;
     const request = RunRequest.parse({
       topic: o.topic,
       aspect: o.aspect,
@@ -194,12 +218,20 @@ program
       modePrices: modes ? undefined : loadPrices(),
       shots,
       style: o.style,
+      // frozen with the run: they change what is bought
+      characters: o.characters ?? kit?.characters,
+      seed: seed(o.seed),
+      videoProfile: NEW_RUN_VIDEO_PROFILE,
       voiceId: o.voice ?? env.ELEVENLABS_VOICE_ID,
       bgm: o.bgm ? resolve(o.bgm) : undefined,
       render: {
         captionStyle: o.captionStyle,
         transition: o.transition,
         bgmGain: o.bgmGain === undefined ? undefined : Number(o.bgmGain),
+        hook: o.hook !== false,
+        hookText: typeof o.hook === "string" ? o.hook : undefined,
+        sfx: o.sfx,
+        sfxGain: o.sfxGain === undefined ? undefined : Number(o.sfxGain),
       },
     });
     const concurrency = renderConcurrency(o.renderConcurrency);
@@ -212,6 +244,7 @@ program
     await requireDoctor(env, models, request.voiceId);
     const runId = newRunId();
     const dir = runDir(runId);
+    if (kit) request.render.brand = await installBrand(kit, o.brand!, dir);
     const manifest = createManifest(runId, request, models);
     await saveManifest(dir, manifest);
     console.log(`Run ${runId} → ${dir}`);
@@ -260,21 +293,41 @@ program
 
 program
   .command("rerender <runId>")
-  .description("re-render a finished run with another look (caption style, transition, BGM level) — free")
+  .description("re-render a finished run with another look (captions, transitions, hook, sound, brand) — free")
   .addOption(new Option("--caption-style <style>", "caption look (preset = the run's style preset)").choices(CAPTION_CHOICES))
   .addOption(new Option("--transition <kind>", "transition at every cut (auto = Gemini's per cut)").choices(TRANSITION_CHOICES))
   .option("--bgm-gain <0-1>", "background music level outside speech")
+  .option("--hook <text>", "show this hook title")
+  .option("--no-hook", "remove the hook")
+  .option("--hook-on", "show the hook again (the script's or the last --hook text)")
+  .option("--sfx", "turn sound effects on")
+  .option("--no-sfx", "turn sound effects off")
+  .option("--sfx-gain <0-1>", "sound-effect level relative to the narration")
+  .option("--brand <dir>", "apply this brand kit's look (watermark, font, colours)")
+  .option("--no-brand", "remove the brand look")
   .option("--render-concurrency <n>", "Remotion render concurrency")
   .action(
     async (
       runId: string,
-      o: { captionStyle?: string; transition?: string; bgmGain?: string; renderConcurrency?: string },
+      o: {
+        captionStyle?: string;
+        transition?: string;
+        bgmGain?: string;
+        hook?: string | false;
+        hookOn?: boolean;
+        sfx?: boolean;
+        sfxGain?: string;
+        brand?: string | false;
+        renderConcurrency?: string;
+      },
     ) => {
       const dir = runDir(runId);
       await loadManifest(dir); // a clear error for an unknown run id, before any lock file is created
+      const kit = typeof o.brand === "string" ? await loadBrandKit(o.brand) : undefined;
       await withRunLock(dir, async () => {
         const manifest = await loadManifest(dir);
-        applyRenderOptions(manifest, o);
+        const brand = kit ? await installBrand(kit, o.brand as string, dir) : o.brand === false ? null : undefined;
+        applyRenderOptions(manifest, { ...o, brand });
         const ctx = contextFor(dir, manifest, noPaidProviders(), renderConcurrency(o.renderConcurrency));
         assertRenderOnly(await planRun(ctx, STAGES), runId);
         await saveManifest(dir, manifest);

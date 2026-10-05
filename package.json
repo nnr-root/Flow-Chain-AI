@@ -14,7 +14,8 @@
     "make:sfx": "tsx scripts/make-sfx.ts",
     "smoke": "tsx src/cli.ts run --topic \"A lighthouse keeper discovers the light is alive\" --scenes 3 --modes 1,1,1 --shots cut,continue,continue",
     "smoke:full": "tsx src/cli.ts run --topic \"A lighthouse keeper discovers the light is alive\" --scenes 4 --modes 1,1,2,1 --shots cut,continue,cut,cut --transition fade --bgm assets/music/example-bed.mp3",
-    "smoke:auto": "tsx src/cli.ts run --topic \"A hacker races to stop a rogue AI before midnight\" --scenes 4 --mode auto --style cyberpunk --bgm assets/music/example-bed.mp3"
+    "smoke:auto": "tsx src/cli.ts run --topic \"A hacker races to stop a rogue AI before midnight\" --scenes 4 --mode auto --style cyberpunk --bgm assets/music/example-bed.mp3",
+    "smoke:brand": "tsx src/cli.ts run --topic \"A lost robot learns to paint\" --scenes 4 --mode auto --style anime --brand assets/brand/example --bgm assets/music/example-bed.mp3"
   },
   "dependencies": {
     "@fal-ai/client": "^1.10.1",

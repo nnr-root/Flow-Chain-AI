@@ -5,8 +5,9 @@ silence-trimmed first, then every visual is fitted to it frame-exactly. The fina
 Remotion (React): word-by-word captions, Ken Burns stills, transitions at cuts and ducked background music.
 
 Design: `docs/superpowers/specs/2026-10-02-phase1-cli-poc-design.md` (pipeline),
-`docs/superpowers/specs/2026-10-03-phase2.1-remotion-render-engine-design.md` (render engine) and
-`docs/superpowers/specs/2026-10-04-phase2.2-content-intelligence-design.md` (modes, transitions, style presets).
+`docs/superpowers/specs/2026-10-03-phase2.1-remotion-render-engine-design.md` (render engine),
+`docs/superpowers/specs/2026-10-04-phase2.2-content-intelligence-design.md` (modes, transitions, style presets) and
+`docs/superpowers/specs/2026-10-05-phase2.3-retention-brand-design.md` (hook, sound effects, brand kit, clip lengths).
 
 ## Setup
 
@@ -23,10 +24,13 @@ npm run flowchain -- run --topic "The last lighthouse keeper" --scenes 4        
 npm run flowchain -- run --topic "…" --style cyberpunk --budget 2                   # a fixed style preset and budget
 npm run flowchain -- run --topic "…" --modes 1,2,1,1 --aspect 16:9 --bgm music.mp3 # hybrid, modes fixed by hand
 npm run flowchain -- run --topic "…" --caption-style mrbeast --transition zoom      # override the preset's look
+npm run flowchain -- run --topic "…" --brand assets/brand/example                  # watermark, brand font and colours
+npm run flowchain -- run --topic "…" --hook "3 minutes to midnight" --seed 42      # own hook title, fixed seed
 npm run flowchain -- status <runId>
 npm run flowchain -- resume <runId> [--from clips]
 npm run flowchain -- reroll <runId> --scene 2 --stage clips    # later chained clips follow
 npm run flowchain -- rerender <runId> --caption-style minimalist --transition dissolve   # free
+npm run flowchain -- rerender <runId> --no-hook --sfx-gain 0.4 --no-brand                # free
 ```
 
 Mode 1 = Kling image-to-video, each continuing clip starting from the last frame viewers see of the
@@ -42,8 +46,17 @@ Style presets (`--style`, default: Gemini picks one for the topic): `cinematic_h
 caption look.
 
 Caption styles: `preset` (default: the style preset's look), `hormozi`, `mrbeast`, `minimalist`. Transitions at
-cuts: `auto` (default: the one Gemini suggests for each cut), `cut`, `fade`, `dissolve`, `blur`, `zoom`, `glitch`. `--bgm-gain` sets the music level outside speech (default 0.35); under
-speech it ducks to 18 % of that.
+cuts: `auto` (default: the one Gemini suggests for each cut), `cut`, `fade`, `dissolve`, `blur`, `zoom`, `glitch`.
+`--bgm-gain` sets the music level outside speech (default 0.35); under speech it ducks to 40 % of that.
+
+The first 3 s open with a hook: a snap zoom, a big title Gemini writes (or `--hook "…"`) and an impact sound
+(`--no-hook` turns it off). Cuts get sound effects: a whoosh into `zoom` and `blur`, a pop on `glitch` and hard
+cuts, nothing on `fade` and `dissolve` (`--no-sfx`, `--sfx-gain`). The sounds are bundled in `assets/sfx`
+(`npm run make:sfx` regenerates them).
+
+A brand kit is a folder with `brand.json` (see `assets/brand/example`): a logo watermarked at a corner, and an
+optional font, text and accent colours and character bible. `--brand <dir>` copies it into the run;
+`--characters "…"` sets the character bible directly. Every keyframe of a run shares one Flux seed (`--seed`).
 
 Each run lives in `runs/<runId>/`: `manifest.json` (state, cache keys, cost ledger), `final.mp4`,
 `chain.png` (per scene: first frame of the raw clip and last frame of the fitted clip, or the keyframe for
@@ -55,12 +68,13 @@ Estimates come from the price table in `src/config.ts` (override with `prices.js
 confirmation when the estimate exceeds `FLOWCHAIN_BUDGET_USD` (default $3); rerolls always ask; `--yes`
 skips. For `--mode auto` runs, `--budget` (or `FLOWCHAIN_BUDGET_USD`) and the price table are frozen with the run
 for the mode rules; a later `--budget` only changes when to ask. `resume --from <stage>` re-runs, and re-buys, that
-stage and every later one (so `--from modes` re-buys every keyframe and clip). A typical 4-scene Mode 1 run is
-about $1.20. `rerender` never calls a paid API. `npm run smoke` runs
-a real 3-scene all-Mode-1 video with `--shots cut,continue,continue`, so two real continuity seams are
-always exercised (≈ $0.90–1.65, depending on the 5/10 s clip buckets). `--shots` is a testing override;
-without it the LLM decides. `npm run smoke:auto` runs a real 4-scene `--mode auto --style cyberpunk` video with
-the example music bed.
+stage and every later one (so `--from modes` re-buys every keyframe and clip). Narration is capped at 16 words per
+scene, and a 5 s clip is bought whenever a scene's narration lasts at most 6 s (the fit step stretches it), so a
+typical 4-scene Mode 1 run is about $1.35. `rerender` never calls a paid API. `npm run smoke` runs a real
+3-scene all-Mode-1 video with `--shots cut,continue,continue`, so two real continuity seams are always exercised
+(≈ $0.90–1.65, depending on the 5/10 s clip lengths). `--shots` is a testing override; without it the LLM decides.
+`npm run smoke:auto` runs a real 4-scene `--mode auto --style cyberpunk` video with the example music bed, and
+`npm run smoke:brand` a 4-scene `--style anime` video with the example brand kit.
 
 Rendering a 16 s 1080×1920 video takes about 1.5 minutes on Apple Silicon (`--render-concurrency` tunes it).
 

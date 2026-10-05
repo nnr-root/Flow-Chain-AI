@@ -1,5 +1,6 @@
 import type { Manifest, StageName, StageRecord } from "./manifest/schema.js";
-import { effectivePreset } from "./stages/look.js";
+import { effectivePreset, hookTextFor } from "./stages/look.js";
+import { videoProfileOf } from "./video-profiles.js";
 import { needsKeyframe } from "./stages/visual.js";
 
 const mark = (r?: StageRecord) => (r === undefined ? "·" : r.status === "done" ? "✓" : "✗");
@@ -13,12 +14,20 @@ function styleLine(m: Manifest): string {
   return `${preset.name} (${m.request.style ? "--style" : "by Gemini"})`;
 }
 
+function charactersLine(characters: string | undefined): string {
+  if (!characters) return "by Gemini";
+  return characters.length > 60 ? `${characters.slice(0, 59)}…` : characters;
+}
+
 export function formatStatus(m: Manifest): string {
   const { request: r, models } = m;
   const lines = [
     `Run ${m.runId} — ${r.aspect}, ${r.sceneCount} scenes, modes ${r.modes ? r.modes.join(",") : "auto"}`,
     `Topic: ${r.topic}`,
     `Style: ${styleLine(m)}`,
+    `Hook: ${hookTextFor(m) ?? (r.render.hook ? "none" : "off")} · sound effects ${r.render.sfx ? `on (${r.render.sfxGain})` : "off"}`,
+    `Brand: ${r.render.brand?.name ?? "none"} · characters: ${charactersLine(r.characters)}`,
+    `Seed: ${r.seed ?? "none"} · video profile: ${videoProfileOf(r.videoProfile).id}`,
     `Models: llm ${models.llm} · tts ${models.tts} · image ${models.image} · video ${models.video}`,
     `Run stages: ${RUN_STAGES.map((s) => `${s} ${mark(m.runStages[s])}`).join("  ")}`,
   ];

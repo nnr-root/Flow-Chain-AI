@@ -1,16 +1,37 @@
+import type { BrandLook } from "./brand.js";
 import { type Manifest, RenderOptions, type StageName } from "./manifest/schema.js";
 import type { Plan } from "./pipeline.js";
 import type { Providers } from "./providers/types.js";
 
-export type RerenderFlags = { captionStyle?: string; transition?: string; bgmGain?: string };
+export type RerenderFlags = {
+  captionStyle?: string;
+  transition?: string;
+  bgmGain?: string;
+  /** Text = show this hook; false = no hook (--no-hook). */
+  hook?: string | false;
+  /** Turn the hook back on (with the script's or the stored text). */
+  hookOn?: boolean;
+  sfx?: boolean;
+  sfxGain?: string;
+  /** A look already installed into the run (--brand), or null to remove it (--no-brand). */
+  brand?: BrandLook | null;
+};
 
 /** Applies new render options to the run (validated); options that are not given keep their current value. */
 export function applyRenderOptions(m: Manifest, flags: RerenderFlags): void {
+  const { brand: _brand, ...current } = m.request.render;
+  const brand = flags.brand === undefined ? m.request.render.brand : (flags.brand ?? undefined);
   m.request.render = RenderOptions.parse({
-    ...m.request.render,
+    ...current,
     ...(flags.captionStyle === undefined ? {} : { captionStyle: flags.captionStyle }),
     ...(flags.transition === undefined ? {} : { transition: flags.transition }),
     ...(flags.bgmGain === undefined ? {} : { bgmGain: Number(flags.bgmGain) }),
+    ...(flags.hookOn ? { hook: true } : {}),
+    ...(flags.hook === false ? { hook: false } : {}),
+    ...(typeof flags.hook === "string" ? { hook: true, hookText: flags.hook } : {}),
+    ...(flags.sfx === undefined ? {} : { sfx: flags.sfx }),
+    ...(flags.sfxGain === undefined ? {} : { sfxGain: Number(flags.sfxGain) }),
+    ...(brand ? { brand } : {}),
   });
 }
 
