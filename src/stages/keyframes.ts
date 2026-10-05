@@ -5,7 +5,7 @@ import { runProviderJob } from "./job.js";
 import { effectivePreset } from "./look.js";
 import { outPath, paths } from "./paths.js";
 import { requireScript } from "./require.js";
-import type { Manifest } from "../manifest/schema.js";
+import { MAX_SEED, type Manifest } from "../manifest/schema.js";
 import type { Stage } from "./types.js";
 import { autoModeDeps, imagePrompt, needsKeyframe } from "./visual.js";
 
@@ -16,7 +16,7 @@ import { autoModeDeps, imagePrompt, needsKeyframe } from "./visual.js";
 export function keyframeSeed(m: Manifest, i: number): number | undefined {
   const seed = m.request.seed;
   if (seed === undefined) return undefined;
-  return (seed + (m.scenes[i].nonces.keyframes ?? 0)) % 2 ** 32;
+  return (seed + (m.scenes[i].nonces.keyframes ?? 0)) % (MAX_SEED + 1);
 }
 
 export const keyframesStage: Stage = {

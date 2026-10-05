@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { imageCost } from "../../src/cost.js";
 import { rm } from "node:fs/promises";
 import { createManifest } from "../../src/manifest/store.js";
-import type { Mode } from "../../src/manifest/schema.js";
+import { MAX_SEED, type Mode } from "../../src/manifest/schema.js";
 import { countFrames } from "../../src/media/ffmpeg.js";
 import { computeHash, runPipeline, type RunOptions } from "../../src/pipeline.js";
 import { PRESETS } from "../../src/presets.js";
@@ -75,9 +75,9 @@ describe("shared keyframe seed", () => {
     expect(await keyframesStage.inputsFor(ctx, 0)).not.toHaveProperty("seed", expect.anything());
     ctx.manifest.request.seed = 7;
     expect(await keyframesStage.inputsFor(ctx, 0)).toMatchObject({ seed: 7 });
-    ctx.manifest.request.seed = 2 ** 32 - 1;
+    ctx.manifest.request.seed = MAX_SEED;
     ctx.manifest.scenes[0].nonces.keyframes = 2;
-    expect(keyframeSeed(ctx.manifest, 0)).toBe(1); // wraps around 2^32
+    expect(keyframeSeed(ctx.manifest, 0)).toBe(1); // wraps around 2^31
   });
 });
 

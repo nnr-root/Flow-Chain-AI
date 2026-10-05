@@ -71,7 +71,7 @@ function budget(raw: string | undefined, env: Env): number {
 
 function seed(raw: string | undefined): number {
   if (raw === undefined) return randomInt(0, MAX_SEED + 1);
-  const value = Number(raw);
+  const value = raw.trim() === "" ? Number.NaN : Number(raw);
   if (!Number.isInteger(value) || value < 0 || value > MAX_SEED) throw new Error(`--seed must be an integer 0-${MAX_SEED}, got "${raw}"`);
   return value;
 }
