@@ -12,7 +12,7 @@ export type ScriptRequest = {
   feedback?: string;
 };
 export interface LlmProvider {
-  /** Returns parsed JSON; the script stage validates it against the Script schema. */
+  /** Returns parsed JSON; the script stage validates it against the LlmScript schema. */
   generateScript(req: ScriptRequest): Promise<unknown>;
 }
 

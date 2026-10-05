@@ -19,8 +19,6 @@ export function buildScriptPrompt(req: ScriptRequest): string {
     `You are writing a faceless short-form video about: "${req.topic}".`,
     `Return exactly ${req.sceneCount} scenes.`,
     "",
-    `- narration: the spoken voiceover for the scene, at most ${MAX_NARRATION_WORDS} words, plain text, no stage directions, emojis or hashtags.`,
-    "- All narrations together read as one continuous script with a strong hook in scene 1.",
     "Style presets (each sets the art style, image and motion wording, and the caption look):",
     ...Object.values(PRESETS).map((p) => `- ${p.name}: ${p.description}`),
     req.style
@@ -28,6 +26,8 @@ export function buildScriptPrompt(req: ScriptRequest): string {
       : "- stylePreset: set it to the preset that best fits the topic.",
     "",
     "Rules:",
+    `- narration: the spoken voiceover for the scene, at most ${MAX_NARRATION_WORDS} words, plain text, no stage directions, emojis or hashtags.`,
+    "- All narrations together read as one continuous script with a strong hook in scene 1.",
     "- styleBible.artStyle: one visual style used by every scene (medium, lighting, lens, mood), matching the style preset.",
     '- styleBible.characters: a precise, reusable description of every recurring character (age, clothing, hair, colors), or "none".',
     "- styleBible.palette: 3-5 dominant colors.",
