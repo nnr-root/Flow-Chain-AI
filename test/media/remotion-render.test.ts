@@ -188,13 +188,13 @@ describe("Remotion composition (real Chrome)", () => {
     await ffmpeg(["-f", "lavfi", "-i", "testsrc2=s=192x336", "-frames:v", "1", join(dir, "pattern.png")]);
     await makeImage(join(dir, "black.png"), { width: 192, height: 336, color: "black" });
     await makeAudio(join(dir, "narration.wav"), [{ silence: 2 }]);
-    const render = async (name: string, src: string) => {
+    const render = async (name: string, src: string, hook: typeof undefined | { text: string; endFrame: number; zoomFrom: number; zoomFrames: number } | null) => {
       const out = join(dir, `${name}.mp4`);
       await renderVideo({
         props: baseProps({
           totalFrames: 60,
           scenes: [{ kind: "still", src, camera: "zoom_in", from: 0, frames: 60 }],
-          hook: { text: "Foxes never sleep", endFrame: 40, zoomFrom: 1.15, zoomFrames: 12 },
+          hook,
         }),
         files: {
           [src]: join(dir, src),
@@ -208,19 +208,23 @@ describe("Remotion composition (real Chrome)", () => {
     };
 
     // the title band (centred 38 % from the top) on a black picture: lit while the hook shows, dark after it
-    const titled = await render("title", "black.png");
+    const titled = await render("title", "black.png", { text: "Foxes never sleep", endFrame: 40, zoomFrom: 1.15, zoomFrames: 12 });
     const band = "iw:ih*0.12:0:ih*0.32";
     const [r15, g15, b15] = await avgRgb(titled, 15, band);
     const [r50, g50, b50] = await avgRgb(titled, 50, band);
     expect(r15 + g15 + b15).toBeGreaterThan(30);
     expect(r50 + g50 + b50).toBe(0);
 
-    // the top-left corner of a test pattern changes between frame 0 (zoomed 1.15×) and frame 30 (not zoomed)
-    const zoomed = await render("zoom", "pattern.png");
+    // snap zoom differs at frame 0 (1.15×) but settles by frame 30; compare against a render without snap zoom
+    const zoomed = await render("zoom", "pattern.png", { text: "Foxes never sleep", endFrame: 40, zoomFrom: 1.15, zoomFrames: 12 });
+    const plain = await render("plain", "pattern.png", null);
     const corner = "iw*0.15:ih*0.1:0:0";
-    const c0 = await avgRgb(zoomed, 0, corner);
-    const c30 = await avgRgb(zoomed, 30, corner);
-    expect(Math.abs(c0[0] - c30[0]) + Math.abs(c0[1] - c30[1]) + Math.abs(c0[2] - c30[2])).toBeGreaterThan(20);
+    const z0 = await avgRgb(zoomed, 0, corner);
+    const p0 = await avgRgb(plain, 0, corner);
+    expect(Math.abs(z0[0] - p0[0]) + Math.abs(z0[1] - p0[1]) + Math.abs(z0[2] - p0[2])).toBeGreaterThan(20);
+    const z30 = await avgRgb(zoomed, 30, corner);
+    const p30 = await avgRgb(plain, 30, corner);
+    expect(Math.abs(z30[0] - p30[0]) + Math.abs(z30[1] - p30[1]) + Math.abs(z30[2] - p30[2])).toBeLessThan(3);
   });
 
   it("renders every transition, each only inside its own window", async () => {
