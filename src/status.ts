@@ -31,7 +31,8 @@ export function formatStatus(m: Manifest): string {
     const shown = SCENE_STAGES.filter(
       (s) => (s !== "keyframes" || needsKeyframe(m, scene.idx)) && ((s !== "clips" && s !== "fit") || scene.mode === 1),
     );
-    const mode = scene.modeReason ? `mode ${scene.mode} · ${scene.modeReason}` : `mode ${scene.mode}`;
+    const reason = scene.modeReason ?? (r.modes ? undefined : "auto: not resolved yet");
+    const mode = reason ? `mode ${scene.mode} · ${reason}` : `mode ${scene.mode}`;
     lines.push(`Scene ${scene.idx + 1} [${mode}]: ${shown.map((s) => `${s} ${mark(scene.stages[s])}`).join("  ")}`);
     for (const st of SCENE_STAGES) {
       const rec = scene.stages[st];

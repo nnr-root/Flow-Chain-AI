@@ -188,8 +188,9 @@ program
       aspect: o.aspect,
       sceneCount,
       modes,
-      // auto runs freeze the budget their mode rules use; a later --budget only changes when to ask
+      // auto runs freeze the budget and price table their mode rules use; a later --budget only changes when to ask
       modeBudgetUsd: modes ? undefined : budgetUsd,
+      modePrices: modes ? undefined : loadPrices(),
       shots,
       style: o.style,
       voiceId: o.voice ?? env.ELEVENLABS_VOICE_ID,

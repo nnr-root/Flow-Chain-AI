@@ -48,6 +48,7 @@ export async function makeTestContext(opts: TestContextOptions = {}) {
       sceneCount,
       modes,
       modeBudgetUsd: modes ? undefined : (opts.budgetUsd ?? 3),
+      modePrices: modes ? undefined : Prices.parse({}),
       style: opts.style,
       voiceId: "voice-1",
       bgm: opts.bgm,

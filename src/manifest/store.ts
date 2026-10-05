@@ -66,7 +66,9 @@ export function createManifest(
   if (request.modes && request.modes.length !== request.sceneCount) {
     throw new Error(`modes has ${request.modes.length} entries but sceneCount is ${request.sceneCount}`);
   }
-  if (!request.modes && request.modeBudgetUsd === undefined) throw new Error("auto modes need modeBudgetUsd");
+  if (!request.modes && (request.modeBudgetUsd === undefined || request.modePrices === undefined)) {
+    throw new Error("auto modes need modeBudgetUsd and modePrices");
+  }
   // auto runs start as all Mode 1 (the most expensive assumption) until the modes stage has run
   const modes = request.modes ?? Array.from({ length: request.sceneCount }, (): Mode => 1);
   return {

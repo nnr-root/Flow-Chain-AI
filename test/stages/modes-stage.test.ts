@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { type Plan, runPipeline, type RunOptions } from "../../src/pipeline.js";
+import { Prices } from "../../src/config.js";
+import { planRun, type Plan, runPipeline, type RunOptions } from "../../src/pipeline.js";
 import { PRESETS } from "../../src/presets.js";
 import { clipsStage } from "../../src/stages/clips.js";
 import { keyframesStage } from "../../src/stages/keyframes.js";
@@ -77,5 +78,39 @@ describe("modes stage", () => {
     for (const call of fakes.video.submits) {
       expect(call.prompt).toContain(`. ${p.motionKeywords}. Keep style consistent: ${p.artStyle}. a red fox.`);
     }
+  });
+
+  it("a finished auto run does not re-plan when the price table changes afterwards", async () => {
+    const { ctx } = await makeTestContext({ modes: "auto", actionLevels: ["high", "medium", "low"] });
+    await runPipeline(ctx, STAGES, capture().opts);
+    ctx.prices = Prices.parse({ ttsPer1kChars: 0.6 });
+    expect((await planRun(ctx, STAGES)).items).toEqual([]);
+  });
+
+  it("auto: once media is bought, a re-run keeps every scene's mode even if the budget shrank", async () => {
+    const { ctx, logs } = await makeTestContext({ modes: "auto", budgetUsd: 3, actionLevels: ["high", "medium", "low"] });
+    await runPipeline(ctx, STAGES, capture().opts);
+    const reasons = ctx.manifest.scenes.map((s) => s.modeReason);
+    ctx.manifest.request.modeBudgetUsd = 0.01;
+    await runPipeline(ctx, [modesStage], capture().opts);
+    expect(ctx.manifest.scenes.map((s) => s.mode)).toEqual([1, 1, 2]);
+    expect(ctx.manifest.scenes.map((s) => s.modeReason)).toEqual(reasons);
+    expect(logs).toContain("modes kept at 1,1,2: media was already bought for them");
+  });
+
+  it("control: with no media bought yet, the same shrunken budget does re-plan", async () => {
+    const { ctx } = await makeTestContext({ modes: "auto", budgetUsd: 3, actionLevels: ["high", "medium", "low"] });
+    await runPipeline(ctx, AUDIO, capture().opts);
+    ctx.manifest.request.modeBudgetUsd = 0.01;
+    await runPipeline(ctx, [modesStage], capture().opts);
+    expect(ctx.manifest.scenes.map((s) => s.mode)).toEqual([1, 2, 2]);
+  });
+
+  it("logs how many scenes had no actionLevel and were treated as high", async () => {
+    const { ctx, logs } = await makeTestContext({ modes: "auto" });
+    await runPipeline(ctx, [scriptStage, ttsStage, silenceStage], capture().opts);
+    for (const sc of ctx.manifest.script!.scenes) delete (sc as { actionLevel?: unknown }).actionLevel;
+    await runPipeline(ctx, [modesStage], capture().opts);
+    expect(logs).toContain("modes: 3 scene(s) have no actionLevel; treated as high");
   });
 });

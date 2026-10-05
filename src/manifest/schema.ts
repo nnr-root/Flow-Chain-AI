@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { Aspect } from "../config.js";
+import { Aspect, Prices } from "../config.js";
 import { CaptionStyleName, Transition } from "../media/remotion/props.js";
 import { PresetName } from "../presets.js";
 
@@ -143,6 +143,8 @@ export const RunRequest = z.object({
   modes: z.array(Mode).optional(),
   /** Frozen budget for the auto mode rules (required when modes is absent). */
   modeBudgetUsd: z.number().min(0).optional(),
+  /** Frozen price table for the auto mode rules (required when modes is absent). */
+  modePrices: Prices.optional(),
   /** Forced style preset (--style); absent = Gemini picks one. */
   style: PresetName.optional(),
   /** Fixed shot per scene (testing override from --shots); when absent the LLM decides. */

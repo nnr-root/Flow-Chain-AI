@@ -2,6 +2,7 @@ import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { Prices } from "../../src/config.js";
 import { fileSha256, inputHash, sha256, stableStringify } from "../../src/manifest/hash.js";
 import { Manifest } from "../../src/manifest/schema.js";
 import { createManifest, loadManifest, newRunId, resolveModes, resolveShots, saveManifest } from "../../src/manifest/store.js";
@@ -59,12 +60,12 @@ describe("store", () => {
     expect(() => createManifest("r", { ...request, sceneCount: 13, modes: Array(13).fill(1) }, models)).toThrow();
   });
 
-  it("starts an auto run as all Mode 1 until the modes stage runs, and needs a frozen budget", () => {
+  it("starts an auto run as all Mode 1 until the modes stage runs, and needs a frozen budget and price table", () => {
     const auto = { ...request, sceneCount: 3, modes: undefined };
-    const m = createManifest("run-1", { ...auto, modeBudgetUsd: 2 }, models);
+    const m = createManifest("run-1", { ...auto, modeBudgetUsd: 2, modePrices: Prices.parse({}) }, models);
     expect(m.scenes.map((s) => s.mode)).toEqual([1, 1, 1]);
     expect(m.request.modes).toBeUndefined();
-    expect(() => createManifest("run-1", auto, models)).toThrow("auto modes need modeBudgetUsd");
+    expect(() => createManifest("run-1", auto, models)).toThrow("auto modes need modeBudgetUsd and modePrices");
   });
 
   it("loads a manifest written before 2.2 (no style, explicit render options, no 2.2 script fields)", () => {

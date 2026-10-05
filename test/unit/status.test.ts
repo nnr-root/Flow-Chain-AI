@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Prices } from "../../src/config.js";
 import { createManifest } from "../../src/manifest/store.js";
 import { formatStatus } from "../../src/status.js";
 import { fakeScript } from "../fakes/providers.js";
@@ -34,7 +35,7 @@ describe("formatStatus", () => {
   it("shows the preset with its source and each scene's mode reason", () => {
     const m = createManifest(
       "r",
-      { topic: "foxes", aspect: "9:16", sceneCount: 2, modeBudgetUsd: 1, voiceId: "v" },
+      { topic: "foxes", aspect: "9:16", sceneCount: 2, modeBudgetUsd: 1, modePrices: Prices.parse({}), voiceId: "v" },
       { llm: "l", tts: "t", image: "i", video: "v" },
     );
     m.script = { ...fakeScript(2), stylePreset: "cyberpunk" };
@@ -50,5 +51,15 @@ describe("formatStatus", () => {
     m.request.style = undefined;
     m.script.stylePreset = undefined;
     expect(formatStatus(m)).toContain("Style: none (scripted before style presets)");
+  });
+
+  it("shows an unresolved auto run's scenes as not resolved yet", () => {
+    const m = createManifest(
+      "r",
+      { topic: "foxes", aspect: "9:16", sceneCount: 2, modeBudgetUsd: 1, modePrices: Prices.parse({}), voiceId: "v" },
+      { llm: "l", tts: "t", image: "i", video: "v" },
+    );
+    expect(formatStatus(m)).toContain("Scene 1 [mode 1 · auto: not resolved yet]: ");
+    expect(formatStatus(m)).toContain("Scene 2 [mode 1 · auto: not resolved yet]: ");
   });
 });
