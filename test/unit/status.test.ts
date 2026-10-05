@@ -22,6 +22,7 @@ describe("formatStatus", () => {
     const text = formatStatus(m);
     expect(text).toContain("Run 20261002-140509-abcdef — 9:16, 2 scenes, modes 1,2");
     expect(text).toContain("Style: chosen by Gemini when the script is written");
+    expect(text).toContain("Hook: by Gemini · sound effects on");
     expect(text).toContain("Run stages: script ✓  modes ·  captions ·  render ·");
     expect(text).toContain("Scene 1 [mode 1]: tts ✓  silence ·  keyframes ·  clips ✗  fit ·");
     expect(text).toContain("  error in clips: boom");

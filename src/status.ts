@@ -25,7 +25,7 @@ export function formatStatus(m: Manifest): string {
     `Run ${m.runId} — ${r.aspect}, ${r.sceneCount} scenes, modes ${r.modes ? r.modes.join(",") : "auto"}`,
     `Topic: ${r.topic}`,
     `Style: ${styleLine(m)}`,
-    `Hook: ${hookTextFor(m) ?? (r.render.hook ? "none" : "off")} · sound effects ${r.render.sfx ? `on (${r.render.sfxGain})` : "off"}`,
+    `Hook: ${hookTextFor(m) ?? (!r.render.hook ? "off" : m.script ? "none" : "by Gemini")} · sound effects ${r.render.sfx ? `on (${r.render.sfxGain})` : "off"}`,
     `Brand: ${r.render.brand?.name ?? "none"} · characters: ${charactersLine(r.characters)}`,
     `Seed: ${r.seed ?? "none"} · video profile: ${videoProfileOf(r.videoProfile).id}`,
     `Models: llm ${models.llm} · tts ${models.tts} · image ${models.image} · video ${models.video}`,

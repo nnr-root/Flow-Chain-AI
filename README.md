@@ -31,6 +31,7 @@ npm run flowchain -- resume <runId> [--from clips]
 npm run flowchain -- reroll <runId> --scene 2 --stage clips    # later chained clips follow
 npm run flowchain -- rerender <runId> --caption-style minimalist --transition dissolve   # free
 npm run flowchain -- rerender <runId> --no-hook --sfx-gain 0.4 --no-brand                # free
+npm run flowchain -- rerender <runId> --hook-on --sfx                                     # free
 ```
 
 Mode 1 = Kling image-to-video, each continuing clip starting from the last frame viewers see of the
@@ -50,9 +51,10 @@ cuts: `auto` (default: the one Gemini suggests for each cut), `cut`, `fade`, `di
 `--bgm-gain` sets the music level outside speech (default 0.35); under speech it ducks to 40 % of that.
 
 The first 3 s open with a hook: a snap zoom, a big title Gemini writes (or `--hook "…"`) and an impact sound
-(`--no-hook` turns it off). Cuts get sound effects: a whoosh into `zoom` and `blur`, a pop on `glitch` and hard
-cuts, nothing on `fade` and `dissolve` (`--no-sfx`, `--sfx-gain`). The sounds are bundled in `assets/sfx`
-(`npm run make:sfx` regenerates them).
+(`--no-hook` turns it off, and `rerender --hook-on` brings a removed hook back). Cuts get sound effects: a
+whoosh into `zoom` and `blur`, a pop on `glitch` and hard cuts, nothing on `fade` and `dissolve` (`--no-sfx`,
+`--sfx-gain`; `rerender --sfx` turns them back on). The sounds are bundled in `assets/sfx` (`npm run make:sfx`
+regenerates them).
 
 A brand kit is a folder with `brand.json` (see `assets/brand/example`): a logo watermarked at a corner, and an
 optional font, text and accent colours and character bible. `--brand <dir>` copies it into the run;
@@ -65,16 +67,18 @@ Mode 2 — use it to judge continuity at each seam), plus intermediates.
 ## Costs
 
 Estimates come from the price table in `src/config.ts` (override with `prices.json`). A run asks for
-confirmation when the estimate exceeds `FLOWCHAIN_BUDGET_USD` (default $3); rerolls always ask; `--yes`
-skips. For `--mode auto` runs, `--budget` (or `FLOWCHAIN_BUDGET_USD`) and the price table are frozen with the run
-for the mode rules; a later `--budget` only changes when to ask. `resume --from <stage>` re-runs, and re-buys, that
-stage and every later one (so `--from modes` re-buys every keyframe and clip). Narration is capped at 16 words per
-scene, and a 5 s clip is bought whenever a scene's narration lasts at most 6 s (the fit step stretches it), so a
-typical 4-scene Mode 1 run is about $1.35. `rerender` never calls a paid API. `npm run smoke` runs a real
-3-scene all-Mode-1 video with `--shots cut,continue,continue`, so two real continuity seams are always exercised
-(≈ $0.90–1.65, depending on the 5/10 s clip lengths). `--shots` is a testing override; without it the LLM decides.
-`npm run smoke:auto` runs a real 4-scene `--mode auto --style cyberpunk` video with the example music bed, and
-`npm run smoke:brand` a 4-scene `--style anime` video with the example brand kit.
+confirmation when the estimate exceeds `FLOWCHAIN_BUDGET_USD` (default $3); rerolls always ask; `--yes` skips.
+For `--mode auto` runs, `--budget` (or `FLOWCHAIN_BUDGET_USD`) and the price table are frozen with the run for
+the mode rules; a later `--budget` only changes when to ask. `resume --from <stage>` re-runs, and re-buys,
+that stage and every later one (so `--from modes` re-buys every keyframe and clip). On runs with a seed,
+`resume --from keyframes` (or an earlier stage) reproduces the same keyframes because the seed is fixed;
+`reroll --scene N --stage keyframes` gets new ones. Narration is capped at 16 words per scene, and a 5 s clip
+is bought whenever a scene's narration lasts at most 6 s (the fit step stretches it), so a typical 4-scene
+Mode 1 run is about $1.35. `rerender` never calls a paid API. `npm run smoke` runs a real 3-scene all-Mode-1
+video with `--shots cut,continue,continue`, so two real continuity seams are always exercised (≈ $0.90–1.65,
+depending on the 5/10 s clip lengths). `--shots` is a testing override; without it the LLM decides. `npm run
+smoke:auto` runs a real 4-scene `--mode auto --style cyberpunk` video with the example music bed, and `npm run
+smoke:brand` a 4-scene `--style anime` video with the example brand kit.
 
 Rendering a 16 s 1080×1920 video takes about 1.5 minutes on Apple Silicon (`--render-concurrency` tunes it).
 

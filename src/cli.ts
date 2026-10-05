@@ -326,10 +326,11 @@ program
       const kit = typeof o.brand === "string" ? await loadBrandKit(o.brand) : undefined;
       await withRunLock(dir, async () => {
         const manifest = await loadManifest(dir);
-        const brand = kit ? await installBrand(kit, o.brand as string, dir) : o.brand === false ? null : undefined;
-        applyRenderOptions(manifest, { ...o, brand });
         const ctx = contextFor(dir, manifest, noPaidProviders(), renderConcurrency(o.renderConcurrency));
+        // render options never make a paid stage stale, so refusing first is equivalent and leaves the brand files alone
         assertRenderOnly(await planRun(ctx, STAGES), runId);
+        applyRenderOptions(manifest, { ...o, brand: o.brand === false ? null : undefined });
+        if (kit) applyRenderOptions(manifest, { brand: await installBrand(kit, o.brand as string, dir) });
         await saveManifest(dir, manifest);
         await execute(ctx, { budgetUsd: 0, yes: true });
       });
