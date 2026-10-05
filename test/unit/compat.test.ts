@@ -7,6 +7,7 @@ import { computeHash } from "../../src/pipeline.js";
 import { captionsStage } from "../../src/stages/captions.js";
 import { clipsStage } from "../../src/stages/clips.js";
 import { keyframesStage } from "../../src/stages/keyframes.js";
+import { modesStage } from "../../src/stages/modes.js";
 import { scriptStage } from "../../src/stages/script.js";
 import type { StageContext } from "../../src/stages/types.js";
 import { tempDir } from "../helpers/media.js";
@@ -75,5 +76,62 @@ describe("runs made before 2.2", () => {
       clips: "c1a77b1729a9d8dc526ecb84a387167fc06899bc08364a737e12c105c0adb329",
       captions: "3f988fe9b865207dd8378d2da4cdc66cc75109d5bc8ad6a9ba2c56e28c58ad3b",
     });
+  });
+});
+
+/**
+ * A run made by 2.2 in auto mode (no `modes`, a frozen budget and price table, a script with style, action levels and
+ * suggested transitions but no hook). Scene 1's narration is 5.5 s, which kling-v1 (the profile of every pre-2.3 run)
+ * buys as a 10 s clip but kling-v2 as 5 s, so a key that silently followed the new default profile would change.
+ * The expected hash was computed by the pre-2.3 code (commit cd7ed64, exported to a scratch folder, whose
+ * StageContext has no sfxDir); if it changes, every 2.2 auto run would re-plan its modes on resume or rerender.
+ */
+describe("a 2.2 auto run", () => {
+  it("keeps the cache key of its modes stage", async () => {
+    const dir = await tempDir("flowchain-compat-auto-");
+    const manifest = createManifest(
+      "auto-22",
+      {
+        topic: "foxes",
+        aspect: "9:16",
+        sceneCount: 2,
+        modeBudgetUsd: 3,
+        modePrices: Prices.parse({}),
+        voiceId: "v",
+        render: { captionStyle: "preset", transition: "auto", bgmGain: 0.35 },
+      },
+      { llm: "l", tts: "t", image: "i", video: "v" },
+    );
+    manifest.script = {
+      title: "Auto run",
+      stylePreset: "anime",
+      styleBible: { artStyle: "oil painting", characters: "a red fox", palette: "teal, orange" },
+      scenes: [
+        { narration: "Scene 1 says hello.", imagePrompt: "image 1", motionPrompt: "motion 1", shot: "cut", camera: "zoom_in", actionLevel: "high", suggestedTransition: "fade" },
+        { narration: "Scene 2 says hello.", imagePrompt: "image 2", motionPrompt: "motion 2", shot: "continue", camera: "zoom_in", actionLevel: "low", suggestedTransition: "cut" },
+      ],
+    };
+    [5.5, 2].forEach((duration, i) => {
+      manifest.scenes[i].audio = {
+        path: `audio/scene_0${i + 1}.wav`,
+        duration,
+        removedSec: 0,
+        words: [{ text: "hello", start: 0.1, end: 0.5 }],
+      };
+    });
+    const ctx: StageContext = {
+      dir,
+      manifest,
+      providers: undefined as never,
+      prices: Prices.parse({}),
+      size: { width: 1080, height: 1920 },
+      keyframeSize: { width: 1088, height: 1920 },
+      fps: 30,
+      fontsDir: "assets/fonts",
+      sfxDir: "assets/sfx",
+      retryDelayMs: 0,
+      log: () => {},
+    };
+    expect(await computeHash(ctx, modesStage)).toBe("c2de8b40eec5167b53a40885e048b690b0e4a08c4b43846279c578f599f1654d");
   });
 });
