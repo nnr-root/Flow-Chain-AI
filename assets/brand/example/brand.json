@@ -1,0 +1,6 @@
+{
+  "name": "Flow-Chain Example",
+  "logo": "logo.svg",
+  "watermark": { "position": "top-right", "widthPct": 14, "opacity": 0.8, "marginPct": 4 },
+  "colors": { "accent": "#00E5FF" }
+}

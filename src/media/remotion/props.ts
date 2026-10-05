@@ -92,6 +92,21 @@ export const HookProps = z.object({
 });
 export type HookProps = z.infer<typeof HookProps>;
 
+export const Corner = z.enum(["top-left", "top-right", "bottom-left", "bottom-right"]);
+export type Corner = z.infer<typeof Corner>;
+
+/** The brand watermark: a logo at a corner, never zoomed. */
+export const BrandProps = z.object({
+  logo: z.string(),
+  position: Corner,
+  /** Logo width as a percentage of the frame width. */
+  widthPct: z.number().positive(),
+  opacity: z.number().min(0).max(1),
+  /** Distance from the edges as a percentage of the frame's short side. */
+  marginPct: z.number().min(0),
+});
+export type BrandProps = z.infer<typeof BrandProps>;
+
 /** One sound effect: `src` starts playing at `frame` at `gain` (relative to the narration). */
 export const SfxCue = z.object({ src: z.string(), frame: z.number().int().min(0), gain: z.number().min(0) });
 export type SfxCue = z.infer<typeof SfxCue>;
@@ -106,6 +121,7 @@ export const RenderProps = z.object({
   captions: z.object({ style: CaptionStyle, bottomPct: z.number(), pages: z.array(CaptionPage) }),
   /** null = no hook (no zoom, no title, no impact sound). The title uses `captions.style`. */
   hook: HookProps.nullable(),
+  brand: BrandProps.nullable(),
   audio: z.object({
     narration: z.string(),
     bgm: BgmProps.nullable(),

@@ -142,6 +142,22 @@ describe("buildRenderProps with auto transitions and the preset's captions", () 
     expect(buildRenderProps(quiet, opts, []).props.audio.sfx).toEqual([]);
   });
 
+  it("puts the brand's logo at its corner and publishes the logo and brand font from the run directory", () => {
+    const branded = structuredClone(m);
+    branded.request.render.brand = {
+      name: "Acme",
+      logo: "brand/logo.svg",
+      watermark: { position: "bottom-left", widthPct: 10, opacity: 0.5, marginPct: 3 },
+      font: { family: "Acme Sans", file: "brand/Acme.ttf", weight: 700 },
+    };
+    const b = buildRenderProps(branded, opts, []);
+    expect(b.props.brand).toEqual({ logo: "brand/logo.svg", position: "bottom-left", widthPct: 10, opacity: 0.5, marginPct: 3 });
+    expect(b.files["brand/logo.svg"]).toBe("/run/brand/logo.svg");
+    expect(b.files["brand/Acme.ttf"]).toBe("/run/brand/Acme.ttf");
+    expect(b.props.captions.style.font.family).toBe("Acme Sans");
+    expect(props.brand).toBeNull();
+  });
+
   it("captions in the preset's look and publishes its font", () => {
     expect(props.captions.style).toEqual(PRESETS.cyberpunk.caption);
     expect(files["Orbitron-Variable.ttf"]).toBe("/fonts/Orbitron-Variable.ttf");

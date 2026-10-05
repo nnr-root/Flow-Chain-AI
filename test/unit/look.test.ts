@@ -39,6 +39,34 @@ describe("captionStyleFor", () => {
   });
 });
 
+describe("captionStyleFor with a brand", () => {
+  const brand = {
+    name: "Acme",
+    logo: "brand/logo.svg",
+    watermark: { position: "top-right" as const, widthPct: 14, opacity: 0.8, marginPct: 4 },
+    font: { family: "Acme Sans", file: "brand/Acme.ttf", weight: 700 },
+    colors: { text: "#EEEEEE", accent: "#FF0066" },
+  };
+
+  it("replaces the font and colours of the preset's look, keeping the rest", () => {
+    const m = manifest();
+    m.request.render.brand = brand;
+    expect(captionStyleFor(m)).toEqual({
+      ...PRESETS.anime.caption,
+      font: brand.font,
+      color: "#EEEEEE",
+      activeColor: "#FF0066",
+    });
+  });
+
+  it("also overrides an explicit caption style, and changes only what the brand sets", () => {
+    const m = manifest();
+    m.request.render.captionStyle = "minimalist";
+    m.request.render.brand = { ...brand, font: undefined, colors: { accent: "#FF0066" } };
+    expect(captionStyleFor(m)).toEqual({ ...CAPTION_STYLES.minimalist, activeColor: "#FF0066" });
+  });
+});
+
 describe("hookTextFor", () => {
   it("uses --hook text, else the script's hook; null when turned off, empty, or scripted before 2.3", () => {
     const m = manifest();

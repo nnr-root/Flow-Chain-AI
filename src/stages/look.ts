@@ -9,11 +9,21 @@ export function effectivePreset(m: Manifest): StylePreset | null {
   return name ? PRESETS[name] : null;
 }
 
-/** An explicit caption style wins; "preset" is the preset's look (hormozi when there is no preset). */
+/**
+ * An explicit caption style wins; "preset" is the preset's look (hormozi when there is no preset). A brand
+ * then replaces the font, text colour and accent colour it sets; its font file is relative to the run directory.
+ */
 export function captionStyleFor(m: Manifest): CaptionStyle {
   const name = m.request.render.captionStyle;
-  if (name !== "preset") return CAPTION_STYLES[name];
-  return effectivePreset(m)?.caption ?? CAPTION_STYLES.hormozi;
+  const base = name !== "preset" ? CAPTION_STYLES[name] : (effectivePreset(m)?.caption ?? CAPTION_STYLES.hormozi);
+  const brand = m.request.render.brand;
+  if (!brand) return base;
+  return {
+    ...base,
+    ...(brand.font ? { font: brand.font } : {}),
+    ...(brand.colors?.text ? { color: brand.colors.text } : {}),
+    ...(brand.colors?.accent ? { activeColor: brand.colors.accent } : {}),
+  };
 }
 
 /** The hook title's text: `--hook` text, else the script's hook; null when turned off or empty (no hook at all). */

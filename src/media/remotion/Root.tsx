@@ -14,6 +14,7 @@ const DEFAULT_PROPS: RenderProps = {
   boundaries: [],
   captions: { style: CAPTION_STYLES.hormozi, bottomPct: 30, pages: [] },
   hook: null,
+  brand: null,
   audio: { narration: "narration.wav", bgm: null, speech: [], sfx: [] },
 };
 

@@ -42,6 +42,7 @@ function baseProps(overrides: Partial<RenderProps>): RenderProps {
     boundaries: [],
     captions: { style: CAPTION_STYLES.hormozi, bottomPct: 30, pages: [] },
     hook: null,
+    brand: null,
     audio: { narration: "narration.wav", bgm: null, speech: [], sfx: [] },
     ...overrides,
   };
@@ -225,6 +226,40 @@ describe("Remotion composition (real Chrome)", () => {
     const z30 = await avgRgb(zoomed, 30, corner);
     const p30 = await avgRgb(plain, 30, corner);
     expect(Math.abs(z30[0] - p30[0]) + Math.abs(z30[1] - p30[1]) + Math.abs(z30[2] - p30[2])).toBeLessThan(3);
+  });
+
+  it("draws the brand watermark at its corner and captions in the brand font", async () => {
+    const dir = await tempDir();
+    await makeImage(join(dir, "black.png"), { width: 192, height: 336, color: "black" });
+    await makeAudio(join(dir, "narration.wav"), [{ silence: 1 }]);
+    const out = join(dir, "video.mp4");
+    const style = { ...CAPTION_STYLES.hormozi, font: { family: "Acme Sans", file: "brand/Acme.ttf", weight: 400 } };
+    await renderVideo({
+      props: baseProps({
+        totalFrames: 30,
+        scenes: [{ kind: "still", src: "black.png", camera: "zoom_in", from: 0, frames: 30 }],
+        captions: {
+          style,
+          bottomPct: 30,
+          pages: captionPages(wordsToCaptions([{ text: "hello", start: 0, end: 1 }], 3)),
+        },
+        brand: { logo: "brand/logo.svg", position: "top-right", widthPct: 30, opacity: 1, marginPct: 4 },
+      }),
+      files: {
+        "black.png": join(dir, "black.png"),
+        "narration.wav": join(dir, "narration.wav"),
+        "brand/logo.svg": resolve("assets/brand/example/logo.svg"),
+        "brand/Acme.ttf": resolve("assets/fonts/Bangers-Regular.ttf"),
+      },
+      workDir: join(dir, "render"),
+      out,
+    });
+    const [tr, tg, tb] = await avgRgb(out, 5, "iw*0.4:ih*0.15:iw*0.6:0"); // top-right: the logo
+    const [br, bg, bb] = await avgRgb(out, 5, "iw*0.4:ih*0.15:0:ih*0.85"); // bottom-left: nothing
+    expect(tr + tg + tb).toBeGreaterThan(20);
+    expect(br + bg + bb).toBe(0);
+    const [cr, cg, cb] = await avgRgb(out, 5, "iw:ih*0.12:0:ih*0.6"); // the caption, in the brand font
+    expect(cr + cg + cb).toBeGreaterThan(10);
   });
 
   it("renders every transition, each only inside its own window", async () => {

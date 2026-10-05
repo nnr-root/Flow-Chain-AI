@@ -2,7 +2,8 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { ensureBrowser } from "@remotion/renderer";
 import { execa } from "execa";
-import { SFX_DIR } from "./assets.js";
+import { EXAMPLE_BRAND_DIR, SFX_DIR } from "./assets.js";
+import { loadBrandKit } from "./brand.js";
 import type { Env } from "./config.js";
 import type { Models } from "./manifest/schema.js";
 import { CAPTION_STYLES } from "./media/remotion/styles.js";
@@ -82,6 +83,7 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models, voi
       ok: missingSfx.length === 0,
       detail: missingSfx.length ? `missing: ${missingSfx.join(", ")} (run npm run make:sfx)` : "3 bundled",
     },
+    await attempt("example brand kit", async () => `${(await loadBrandKit(EXAMPLE_BRAND_DIR)).name} is valid`),
     await attempt("Remotion browser", checkRemotionBrowser),
     await attempt(`Gemini model ${llmModel}`, async () => {
       await new GeminiLlm(env.GEMINI_API_KEY, llmModel).checkModel();

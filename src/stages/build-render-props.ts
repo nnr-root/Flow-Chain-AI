@@ -80,7 +80,10 @@ export function buildRenderProps(
     : null;
 
   const style = captionStyleFor(m);
-  publish(style.font.file, join(opts.fontsDir, style.font.file));
+  // a brand font lives in the run directory; every other font is bundled
+  publish(style.font.file, join(m.request.render.brand?.font ? opts.dir : opts.fontsDir, style.font.file));
+  const look = m.request.render.brand;
+  const brand = look ? { logo: publish(look.logo, join(opts.dir, look.logo)), ...look.watermark } : null;
   const bgm = m.request.bgm
     ? { src: publish(`bgm${extname(m.request.bgm)}`, m.request.bgm), gain: m.request.render.bgmGain, ...BGM_MIX }
     : null;
@@ -95,6 +98,7 @@ export function buildRenderProps(
       boundaries,
       captions: { style, bottomPct: captionBottomPct(size.width, size.height), pages: captionPages(captions) },
       hook,
+      brand,
       audio: {
         narration: publish(paths.narration, join(opts.dir, paths.narration)),
         bgm,

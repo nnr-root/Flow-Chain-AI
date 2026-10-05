@@ -4,3 +4,4 @@ import { join, resolve } from "node:path";
 export const ASSETS_DIR = resolve(import.meta.dirname, "../assets");
 export const FONTS_DIR = join(ASSETS_DIR, "fonts");
 export const SFX_DIR = join(ASSETS_DIR, "sfx");
+export const EXAMPLE_BRAND_DIR = join(ASSETS_DIR, "brand", "example");

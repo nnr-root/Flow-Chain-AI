@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BrandLook } from "../brand.js";
 import { Aspect, Prices } from "../config.js";
 import { CaptionStyleName, Transition } from "../media/remotion/props.js";
 import { PresetName } from "../presets.js";
@@ -146,6 +147,8 @@ export const RenderOptions = z.object({
   sfx: z.boolean().default(true),
   /** Sound-effect level relative to the narration. */
   sfxGain: z.number().min(0).max(1).default(0.6),
+  /** The brand kit's look (watermark, font, colours), copied into the run; absent = no brand. */
+  brand: BrandLook.optional(),
 });
 export type RenderOptions = z.infer<typeof RenderOptions>;
 

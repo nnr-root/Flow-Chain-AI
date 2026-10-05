@@ -1,0 +1,68 @@
+import { existsSync } from "node:fs";
+import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+import { installBrand, loadBrandKit } from "../../src/brand.js";
+import { tempDir } from "../helpers/media.js";
+
+const EXAMPLE = resolve("assets/brand/example");
+
+/** A kit folder with a logo, a font and the given brand.json. */
+async function kit(json: unknown): Promise<string> {
+  const dir = await tempDir("flowchain-brand-");
+  await copyFile(join(EXAMPLE, "logo.svg"), join(dir, "logo.svg"));
+  await copyFile(resolve("assets/fonts/Bangers-Regular.ttf"), join(dir, "Brand.ttf"));
+  await writeFile(join(dir, "brand.json"), JSON.stringify(json));
+  return dir;
+}
+
+describe("loadBrandKit", () => {
+  it("accepts the bundled example kit and fills the watermark defaults", async () => {
+    expect(await loadBrandKit(EXAMPLE)).toEqual({
+      name: "Flow-Chain Example",
+      logo: "logo.svg",
+      watermark: { position: "top-right", widthPct: 14, opacity: 0.8, marginPct: 4 },
+      colors: { accent: "#00E5FF" },
+    });
+    expect((await loadBrandKit(await kit({ name: "n", logo: "logo.svg" }))).watermark).toEqual({
+      position: "top-right",
+      widthPct: 14,
+      opacity: 0.8,
+      marginPct: 4,
+    });
+  });
+
+  it("fails with one clear message before anything is bought", async () => {
+    await expect(loadBrandKit(await kit({ name: "n", logo: "logo.svg", colors: { accent: "cyan" } }))).rejects.toThrow(
+      /colors\.accent: must be a #RRGGBB colour/,
+    );
+    await expect(loadBrandKit(await kit({ name: "n", logo: "missing.png" }))).rejects.toThrow(/missing\.png not found/);
+    await expect(loadBrandKit(await kit({ name: "n", logo: "../logo.svg" }))).rejects.toThrow(/inside the kit folder/);
+    await expect(loadBrandKit(await kit({ name: "n", logo: "logo.svg", tagline: "x" }))).rejects.toThrow(/invalid/);
+    await expect(loadBrandKit(await tempDir())).rejects.toThrow(/brand\.json/);
+  });
+});
+
+describe("installBrand", () => {
+  it("copies the logo and font into the run and stores run-relative paths", async () => {
+    const dir = await kit({
+      name: "Acme",
+      logo: "logo.svg",
+      font: { family: "Acme Sans", file: "Brand.ttf", weight: 400 },
+      colors: { text: "#FFFFFF", accent: "#FF0066" },
+      characters: "a red fox",
+    });
+    const run = await tempDir("flowchain-run-");
+    await mkdir(run, { recursive: true });
+    const look = await installBrand(await loadBrandKit(dir), dir, run);
+    expect(look).toEqual({
+      name: "Acme",
+      logo: "brand/logo.svg",
+      watermark: { position: "top-right", widthPct: 14, opacity: 0.8, marginPct: 4 },
+      font: { family: "Acme Sans", file: "brand/Brand.ttf", weight: 400 },
+      colors: { text: "#FFFFFF", accent: "#FF0066" },
+    });
+    expect(existsSync(join(run, "brand/logo.svg"))).toBe(true);
+    expect(existsSync(join(run, "brand/Brand.ttf"))).toBe(true);
+  });
+});
