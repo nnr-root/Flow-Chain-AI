@@ -177,7 +177,9 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     templateId: template.id,
     gpuTypeIds: gpus,
     workersMin: 0,
-    workersMax: 2,
+    // one worker: a run's jobs are sequential, and a second worker loads the model weights again for itself
+    // (3.1 spec §16: clips alternated between two workers and each cost a cold start)
+    workersMax: 1,
     idleTimeout: 30, // seconds: keeps the worker warm between a run's sequential jobs
     executionTimeoutMs,
     flashboot: true,

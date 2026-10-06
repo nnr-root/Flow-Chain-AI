@@ -75,8 +75,8 @@ describe("runpod deploy", () => {
       env: { R2_ACCOUNT_ID: "acc", R2_BUCKET: "out", R2_ACCESS_KEY_ID: "{{ RUNPOD_SECRET_flowchain_r2_access_key_id }}" },
     });
     expect(store.endpoints.map((e) => [e.name, e.gpuTypeIds, e.executionTimeoutMs, e.workersMax, e.networkVolumeId])).toEqual([
-      [NAMES.keyframe, ["NVIDIA GeForce RTX 4090"], 120_000, 2, ids.volumeId],
-      [NAMES.clip, ["NVIDIA GeForce RTX 4090"], 600_000, 2, ids.volumeId],
+      [NAMES.keyframe, ["NVIDIA GeForce RTX 4090"], 120_000, 1, ids.volumeId],
+      [NAMES.clip, ["NVIDIA GeForce RTX 4090"], 600_000, 1, ids.volumeId],
     ]);
     expect([...secrets].sort()).toEqual(["flowchain_r2_access_key_id", "flowchain_r2_secret_access_key"]);
   });
