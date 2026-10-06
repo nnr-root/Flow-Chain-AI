@@ -1,9 +1,10 @@
-import { execFile, spawn } from "node:child_process";
+import { execFile, execFileSync, spawn } from "node:child_process";
 import { existsSync, openSync, closeSync, readdirSync, readFileSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { maxJobs, roots } from "./config";
+import { RUN_ID } from "@src/studio/commands";
 import { ApiError } from "./http";
 
 const run = promisify(execFile);
@@ -21,6 +22,8 @@ export type Job = {
   /** CLI arguments (no secrets: keys live in .env, which only the CLI reads). */
   args: string[];
   pid: number;
+  /** The process's start time (`ps -o lstart=`): a pid alone can be reused by an unrelated process after a crash or reboot. */
+  procStart?: string;
   startedAt: string;
   approvedUsd?: number;
   stoppedAt?: string;
@@ -41,6 +44,24 @@ function alive(pid: number): boolean {
   }
 }
 
+/** When a process started, as `ps` reports it; undefined if it cannot be told. */
+function procStartOf(pid: number): string | undefined {
+  try {
+    return execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The job's own process is alive: the pid exists and, when its start time was recorded, is still the same process. */
+function jobAlive(job: Job): boolean {
+  return alive(job.pid) && (job.procStart === undefined || procStartOf(job.pid) === job.procStart);
+}
+
+function assertRunId(runId: string): void {
+  if (!RUN_ID.test(runId)) throw new ApiError("not_found", `no run ${runId}`);
+}
+
 export function readJob(dir: string): JobView | null {
   let job: Job;
   try {
@@ -53,7 +74,7 @@ export function readJob(dir: string): JobView | null {
     const code = Number(readFileSync(exit, "utf8").trim());
     return { ...job, state: "ended", exitCode: Number.isInteger(code) ? code : 1 };
   }
-  if (alive(job.pid)) return { ...job, state: "running" };
+  if (jobAlive(job)) return { ...job, state: "running" };
   return { ...job, state: job.stoppedAt ? "stopped" : "interrupted" };
 }
 
@@ -72,6 +93,9 @@ export function cliCommand(args: string[]): { cmd: string; argv: string[] } {
     : { cmd: process.execPath, argv: ["--import", "tsx", join(repo, "src/cli.ts"), ...args] };
 }
 
+/** Runs whose start is in flight: job.json is written only after the spawn, so these count as active meanwhile. */
+const starting = new Set<string>();
+
 const childEnv = () => ({ ...process.env, RUNS_DIR: roots().runs });
 
 /**
@@ -79,37 +103,53 @@ const childEnv = () => ({ ...process.env, RUNS_DIR: roots().runs });
  * run's job.log and its exit code to job.exit. One job per run, and at most `STUDIO_MAX_JOBS` at once.
  */
 export async function startJob(runId: string, kind: JobKind, args: string[], approvedUsd?: number): Promise<JobView> {
+  assertRunId(runId);
   const dir = join(roots().runs, runId);
-  if (readJob(dir)?.state === "running" || existsSync(join(dir, LOCK_FILE))) {
+  // check and claim without an await in between: two requests for one run (a double click) must not both pass
+  if (starting.has(runId) || readJob(dir)?.state === "running" || existsSync(join(dir, LOCK_FILE))) {
     throw new ApiError("job_active", `run ${runId} is already working`, "wait for it to finish, or stop it first");
   }
-  if (liveJobs() >= maxJobs()) {
+  if (liveJobs() + starting.size >= maxJobs()) {
     throw new ApiError("busy", `${maxJobs()} jobs are already running`, "wait for one to finish (a render uses most of the machine)");
   }
-  await mkdir(dir, { recursive: true });
-  await rm(join(dir, JOB_EXIT), { force: true });
-  const { cmd, argv } = cliCommand(args);
-  const log = openSync(join(dir, JOB_LOG), "a");
+  starting.add(runId);
   try {
-    // the shell runs the CLI, then records how it ended; `"$@"` keeps every argument intact (no quoting to get wrong)
-    const child = spawn("/bin/sh", ["-c", '"$@"; echo $? > "$JOB_EXIT_FILE"', "flowchain-job", cmd, ...argv], {
-      cwd: roots().repo,
-      detached: true,
-      stdio: ["ignore", log, log],
-      env: { ...childEnv(), JOB_EXIT_FILE: join(dir, JOB_EXIT) },
-    });
-    if (child.pid === undefined) throw new Error("could not start the job process");
-    child.unref();
-    const job: Job = { id: `${Date.now().toString(36)}-${child.pid}`, kind, args, pid: child.pid, startedAt: new Date().toISOString(), approvedUsd };
-    await writeFile(join(dir, JOB_FILE), `${JSON.stringify(job, null, 2)}\n`);
-    return { ...job, state: "running" };
+    await mkdir(dir, { recursive: true });
+    await rm(join(dir, JOB_EXIT), { force: true });
+    const { cmd, argv } = cliCommand(args);
+    const log = openSync(join(dir, JOB_LOG), "a");
+    try {
+      // the shell runs the CLI, then records how it ended; `"$@"` keeps every argument intact (no quoting to get wrong)
+      const child = spawn("/bin/sh", ["-c", '"$@"; echo $? > "$JOB_EXIT_FILE"', "flowchain-job", cmd, ...argv], {
+        cwd: roots().repo,
+        detached: true,
+        stdio: ["ignore", log, log],
+        env: { ...childEnv(), JOB_EXIT_FILE: join(dir, JOB_EXIT) },
+      });
+      if (child.pid === undefined) throw new Error("could not start the job process");
+      child.unref();
+      const job: Job = {
+        id: `${Date.now().toString(36)}-${child.pid}`,
+        kind,
+        args,
+        pid: child.pid,
+        procStart: procStartOf(child.pid),
+        startedAt: new Date().toISOString(),
+        approvedUsd,
+      };
+      await writeFile(join(dir, JOB_FILE), `${JSON.stringify(job, null, 2)}\n`);
+      return { ...job, state: "running" };
+    } finally {
+      closeSync(log);
+    }
   } finally {
-    closeSync(log);
+    starting.delete(runId);
   }
 }
 
 /** Stops a run's live job: SIGTERM to its process group. The CLI removes its lock and stays resumable. */
 export async function stopJob(runId: string): Promise<JobView> {
+  assertRunId(runId);
   const dir = join(roots().runs, runId);
   const job = readJob(dir);
   if (!job || job.state !== "running") throw new ApiError("not_found", `run ${runId} has no running job`);
@@ -128,6 +168,7 @@ export async function stopJob(runId: string): Promise<JobView> {
  * the lock is gone: a live process's lock is what stops the same work being bought twice.
  */
 export async function clearStaleLock(runId: string): Promise<void> {
+  assertRunId(runId);
   const dir = join(roots().runs, runId);
   const lock = join(dir, LOCK_FILE);
   if (!existsSync(lock)) return;
@@ -157,6 +198,7 @@ export async function cliText(args: string[]): Promise<string> {
 
 /** The last lines of a run's job log, for a failure message or the progress panel. */
 export async function logTail(runId: string, lines = 40): Promise<string[]> {
+  assertRunId(runId);
   try {
     const text = await readFile(join(roots().runs, runId, JOB_LOG), "utf8");
     return text.trimEnd().split("\n").slice(-lines);

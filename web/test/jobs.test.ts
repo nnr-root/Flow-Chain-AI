@@ -112,4 +112,67 @@ describe("jobs", () => {
     process.env.FLOWCHAIN_CLI = join(studio.root, "missing.mjs");
     await expect(cliJson(["plan", "x", "--json"])).rejects.toMatchObject({ code: "validation" });
   });
+
+  it("two starts of one run fired together: one wins, the other is refused, and the CLI runs once", async () => {
+    await stub(studio, "_behave.json", { sleepMs: 3000 });
+    const id = nextRunId();
+    const results = await Promise.allSettled([startJob(id, "generate", ["resume", id]), startJob(id, "generate", ["resume", id])]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const refused = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect(refused.reason).toMatchObject({ code: "job_active" });
+    await until(async () => (await calls(studio)).length >= 1);
+    await new Promise((r) => setTimeout(r, 300)); // a second CLI would have logged its call by now
+    expect(await calls(studio)).toHaveLength(1);
+    await stopJob(id);
+  });
+
+  it("two different runs started together against a limit of one: one wins, the other is busy", async () => {
+    process.env.STUDIO_MAX_JOBS = "1";
+    await stub(studio, "_behave.json", { sleepMs: 3000 });
+    const a = nextRunId();
+    const b = nextRunId();
+    const results = await Promise.allSettled([startJob(a, "generate", ["resume", a]), startJob(b, "generate", ["resume", b])]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    const refused = results.find((r) => r.status === "rejected") as PromiseRejectedResult;
+    expect(refused.reason).toMatchObject({ code: "busy" });
+    await stopJob(results[0].status === "fulfilled" ? a : b);
+  });
+
+  it("a recorded pid that now belongs to another process is not the job: interrupted, and Stop leaves it alone", async () => {
+    const id = nextRunId();
+    const dir = join(studio.runs, id);
+    await mkdir(dir, { recursive: true });
+    const stored = { id: "j", kind: "generate", args: [], pid: process.pid, startedAt: "t" };
+    await writeFile(join(dir, JOB_FILE), JSON.stringify({ ...stored, procStart: "Thu Jan  1 00:00:00 1970" }));
+    expect(readJob(dir)).toMatchObject({ state: "interrupted" });
+    await expect(stopJob(id)).rejects.toMatchObject({ code: "not_found" });
+    expect(() => process.kill(process.pid, 0)).not.toThrow();
+    // without a recorded start time the pid alone decides (job files written by hand)
+    await writeFile(join(dir, JOB_FILE), JSON.stringify(stored));
+    expect(readJob(dir)).toMatchObject({ state: "running" });
+  });
+
+  it("a job records its process's start time, and is running while that still matches", async () => {
+    await stub(studio, "_behave.json", { sleepMs: 3000 });
+    const id = nextRunId();
+    const job = await startJob(id, "generate", ["resume", id]);
+    expect(job.procStart).toEqual(expect.any(String));
+    expect(JSON.parse(await readFile(join(studio.runs, id, JOB_FILE), "utf8")).procStart).toBe(job.procStart);
+    expect(readJob(join(studio.runs, id))).toMatchObject({ state: "running" });
+    await stopJob(id);
+  });
+
+  it("a run id that is not a run id is refused by every function that touches the runs folder", async () => {
+    const outside = join(studio.root, "x");
+    for (const call of [
+      () => startJob("../x", "generate", ["resume", "../x"]),
+      () => stopJob("../x"),
+      () => clearStaleLock("../x"),
+      () => logTail("../x"),
+    ]) {
+      await expect(call()).rejects.toMatchObject({ code: "not_found" });
+    }
+    expect(existsSync(outside)).toBe(false);
+    expect(await calls(studio)).toEqual([]);
+  });
 });
