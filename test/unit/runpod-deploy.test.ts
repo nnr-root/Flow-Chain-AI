@@ -27,7 +27,13 @@ function fakeRest() {
       return json(201, { name: body.name });
     }
     const [, , kind, id] = u.pathname.split("/");
-    if (init.method === "GET") return json(200, store[kind]);
+    if (init.method === "GET") {
+      // like RunPod: a template an endpoint is bound to is hidden unless asked for
+      if (kind === "templates" && u.searchParams.get("includeEndpointBoundTemplates") !== "true") {
+        return json(200, store.templates.filter((t) => !store.endpoints.some((e) => e.templateId === t.id)));
+      }
+      return json(200, store[kind]);
+    }
     if (init.method === "POST") {
       const r = { id: `${kind}-${++n}`, ...body };
       store[kind].push(r);
@@ -83,6 +89,24 @@ describe("runpod deploy", () => {
     expect(store.templates[0].imageName).toBe("ghcr.io/me/flowchain-worker:abc123");
     expect(logs).toContain("secret flowchain_r2_access_key_id already exists (kept; delete it on RunPod to change it)");
     expect((await planDeploy(rest)).every((s) => s.action === "update")).toBe(true);
+  });
+
+  it("treats an endpoint the API reports as '<name> -fb' as the same endpoint", async () => {
+    const { rest, store } = fakeRest();
+    await applyDeploy(rest, cfg, () => {});
+    store.endpoints[0].name = `${NAMES.keyframe} -fb`;
+    expect((await planDeploy(rest)).every((s) => s.action === "update")).toBe(true);
+    await applyDeploy(rest, cfg, () => {});
+    expect(store.endpoints.map((e) => e.name)).toEqual([`${NAMES.keyframe} -fb`, NAMES.clip]);
+  });
+
+  it("refuses to pick between two resources with the same name, before creating anything", async () => {
+    const { rest, store, calls } = fakeRest();
+    store.networkvolumes.push({ id: "v1", name: NAMES.volume }, { id: "v2", name: NAMES.volume });
+    await expect(planDeploy(rest)).rejects.toThrow(/networkvolumes.*flowchain-models/);
+    await expect(applyDeploy(rest, cfg, () => {})).rejects.toThrow(/networkvolumes.*flowchain-models/);
+    expect([store.templates.length, store.endpoints.length]).toEqual([0, 0]);
+    expect(calls.filter((c) => c.startsWith("POST") && !c.endsWith("/account/secrets"))).toEqual([]);
   });
 
   it("seeds an endpoint's weights with a job that may run longer than the endpoint's normal limit", async () => {

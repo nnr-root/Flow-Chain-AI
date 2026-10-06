@@ -56,7 +56,9 @@ export class RunpodRest {
   }
 
   async list(kind: Kind): Promise<Resource[]> {
-    return RunpodRest.json(`list ${kind}`, await this.call("GET", `${this.base}/${kind}`));
+    // templates bound to an endpoint (ours always are) are hidden from the list unless asked for
+    const query = kind === "templates" ? "?includeEndpointBoundTemplates=true" : "";
+    return RunpodRest.json(`list ${kind}`, await this.call("GET", `${this.base}/${kind}${query}`));
   }
 
   async create(kind: Kind, body: Record<string, unknown>): Promise<Resource> {
@@ -76,6 +78,15 @@ export class RunpodRest {
   }
 }
 
+/** The one match for a name; RunPod may show a FlashBoot endpoint as "<name> -fb". Throws when the name is ambiguous. */
+function findByName(list: Resource[], kind: Kind, name: string): Resource | undefined {
+  const matches = list.filter((r) => r.name.replace(/ -fb$/, "") === name);
+  if (matches.length > 1) {
+    throw new Error(`RunPod has ${matches.length} ${kind} named "${name}" (ids ${matches.map((r) => r.id).join(", ")}); delete the extras and re-run`);
+  }
+  return matches[0];
+}
+
 export type Step = { what: string; name: string; action: "create" | "update" };
 
 /** What a deploy will do, given what already exists (matched by name). */
@@ -85,20 +96,23 @@ export async function planDeploy(rest: RunpodRest): Promise<Step[]> {
     rest.list("templates"),
     rest.list("endpoints"),
   ]);
-  const has = (list: Resource[], name: string) => list.some((r) => r.name === name);
-  const step = (what: string, list: Resource[], name: string): Step => ({ what, name, action: has(list, name) ? "update" : "create" });
+  const step = (what: string, kind: Kind, list: Resource[], name: string): Step => ({
+    what,
+    name,
+    action: findByName(list, kind, name) ? "update" : "create",
+  });
   return [
-    step("network volume", volumes, NAMES.volume),
-    step("template", templates, NAMES.template),
-    step("endpoint", endpoints, NAMES.keyframe),
-    step("endpoint", endpoints, NAMES.clip),
+    step("network volume", "networkvolumes", volumes, NAMES.volume),
+    step("template", "templates", templates, NAMES.template),
+    step("endpoint", "endpoints", endpoints, NAMES.keyframe),
+    step("endpoint", "endpoints", endpoints, NAMES.clip),
   ];
 }
 
 export type Deployed = { volumeId: string; templateId: string; keyframeEndpointId: string; clipEndpointId: string };
 
 async function upsert(rest: RunpodRest, kind: Kind, name: string, body: Record<string, unknown>, update: Record<string, unknown>) {
-  const found = (await rest.list(kind)).find((r) => r.name === name);
+  const found = findByName(await rest.list(kind), kind, name);
   return found ? rest.update(kind, found.id, update) : rest.create(kind, { name, ...body });
 }
 
