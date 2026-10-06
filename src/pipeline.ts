@@ -64,7 +64,7 @@ export async function isFresh(ctx: StageContext, stage: Stage, scene?: number): 
   return stage.outputsFor(ctx.manifest, scene).every((p) => existsSync(join(ctx.dir, p)));
 }
 
-function forcedStages(stages: Stage[], from?: StageName): Set<StageName> {
+export function forcedStages(stages: Stage[], from?: StageName): Set<StageName> {
   if (!from) return new Set();
   const i = stages.findIndex((s) => s.name === from);
   if (i < 0) throw new Error(`unknown stage "${from}"`);
