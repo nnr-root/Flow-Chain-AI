@@ -1,0 +1,34 @@
+// A stand-in for the flowchain CLI in the studio's tests: it never reaches a provider. It records every call in
+// <RUNS_DIR>/_calls.jsonl and behaves just enough like the real commands for the server code around it.
+import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+const args = process.argv.slice(2);
+const runs = process.env.RUNS_DIR;
+const command = args[0];
+appendFileSync(join(runs, "_calls.jsonl"), `${JSON.stringify(args)}\n`);
+const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
+const readJson = (file, fallback) => (existsSync(join(runs, file)) ? JSON.parse(readFileSync(join(runs, file), "utf8")) : fallback);
+
+if (command === "plan") {
+  // _plan.json: what continuing costs; _plan-modes.json / _plan-reroll.json: what the tried-out variant costs
+  const file = args.includes("--reroll") ? "_plan-reroll.json" : args.includes("--modes") ? "_plan-modes.json" : "_plan.json";
+  console.log(JSON.stringify(readJson(file, readJson("_plan.json", { items: [], totalUsd: 0 }))));
+} else if (command === "draft-modes") {
+  console.log(JSON.stringify({ modes: [], reasons: [], estimatedUsd: 0 }));
+} else if (command === "run") {
+  // a draft: the fixture manifest becomes the new run's manifest
+  const id = flag("--run-id");
+  const manifest = readJson("_draft-manifest.json", null);
+  if (manifest) {
+    mkdirSync(join(runs, id), { recursive: true });
+    writeFileSync(join(runs, id, "manifest.json"), JSON.stringify({ ...manifest, runId: id }));
+  }
+  console.log(`Run ${id}`);
+} else {
+  // resume, reroll, rerender: wait if asked (so a test can observe "running"), then end as asked
+  console.log(`▶ ${command}`);
+  const behave = readJson("_behave.json", {});
+  if (behave.sleepMs) await new Promise((done) => setTimeout(done, behave.sleepMs));
+  process.exitCode = behave.exitCode ?? 0;
+}

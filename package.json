@@ -8,9 +8,12 @@
   },
   "scripts": {
     "flowchain": "tsx src/cli.ts",
+    "web": "npm run dev -w web",
+    "web:build": "npm run build -w web",
     "test": "vitest run",
     "test:unit": "vitest run test/unit",
-    "typecheck": "tsc --noEmit",
+    "test:e2e": "npm run test:e2e -w web",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p web",
     "make:sfx": "tsx scripts/make-sfx.ts",
     "runpod:deploy": "tsx scripts/runpod-deploy.ts",
     "setup:worker": "python3 -m venv workers/.venv && workers/.venv/bin/pip install -q -r workers/requirements-dev.txt",
@@ -44,5 +47,8 @@
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
-  }
+  },
+  "workspaces": [
+    "web"
+  ]
 }

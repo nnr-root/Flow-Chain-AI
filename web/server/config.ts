@@ -1,0 +1,63 @@
+import { existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { parseEnv } from "node:util";
+
+/**
+ * Where the studio finds the pipeline. Read on every call (never cached) so tests can point each case at its
+ * own folders. `npm run web` starts Next in `web/`, so the repository is the parent directory by default.
+ */
+export function roots() {
+  const repo = resolve(process.env.FLOWCHAIN_ROOT ?? join(process.cwd(), ".."));
+  return {
+    repo,
+    runs: resolve(repo, process.env.RUNS_DIR ?? "runs"),
+    fonts: join(repo, "assets/fonts"),
+    sfx: join(repo, "assets/sfx"),
+    music: join(repo, "assets/music"),
+    uploads: resolve(repo, process.env.STUDIO_UPLOADS_DIR ?? "uploads/music"),
+    brandKits: resolve(repo, process.env.BRAND_KITS_DIR ?? "brand-kits"),
+    /** A replacement for the CLI (tests use a stub script); undefined = `src/cli.ts` through tsx. */
+    cli: process.env.FLOWCHAIN_CLI,
+  };
+}
+
+export const maxJobs = (): number => Number(process.env.STUDIO_MAX_JOBS ?? 2);
+
+/**
+ * The pipeline's settings as the CLI will see them: the repository's `.env` under the real environment. Only
+ * names and non-secret defaults ever leave this module; key values are never returned to a caller.
+ */
+function pipelineEnv(): Record<string, string | undefined> {
+  const file = join(roots().repo, ".env");
+  const fromFile = existsSync(file) ? parseEnv(readFileSync(file, "utf8")) : {};
+  return { ...fromFile, ...process.env };
+}
+
+const NEEDS = {
+  always: ["GEMINI_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID"],
+  fal: ["FAL_KEY"],
+  runpod: [
+    "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT",
+    "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
+  ],
+} as const;
+
+export type Health = {
+  /** Variable names that are not set, per provider (and for every run). */
+  missing: { always: string[]; fal: string[]; runpod: string[] };
+  defaults: { provider: "fal" | "runpod"; budgetUsd: number };
+};
+
+/** Which providers a new run could use, checked without any network call. */
+export function health(): Health {
+  const env = pipelineEnv();
+  const unset = (names: readonly string[]) => names.filter((n) => !env[n]?.trim());
+  const budget = Number(env.FLOWCHAIN_BUDGET_USD);
+  return {
+    missing: { always: unset(NEEDS.always), fal: unset(NEEDS.fal), runpod: unset(NEEDS.runpod) },
+    defaults: {
+      provider: env.PROVIDER_MODE === "runpod" ? "runpod" : "fal",
+      budgetUsd: Number.isFinite(budget) && budget > 0 ? budget : 3,
+    },
+  };
+}
