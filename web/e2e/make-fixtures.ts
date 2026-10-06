@@ -2,7 +2,7 @@
 // Nothing here costs anything: the media is made with ffmpeg and the script is written by hand.
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, sep } from "node:path";
 import { Prices } from "../../src/config.js";
 import type { Manifest } from "../../src/manifest/schema.js";
 import { createManifest, saveManifest } from "../../src/manifest/store.js";
@@ -10,6 +10,10 @@ import { createManifest, saveManifest } from "../../src/manifest/store.js";
 export const DONE_ID = "20261006-120000-e2e001";
 export const DRAFT_ID = "20261006-120100-e2e002";
 const runs = resolve(process.argv[2] ?? ".e2e/runs");
+// this script deletes that folder with everything in it, so it only ever accepts the browser test's own
+if (!runs.endsWith(`${sep}.e2e${sep}runs`)) {
+  throw new Error(`make-fixtures deletes its target folder, so the target must end with .e2e/runs; got ${runs}`);
+}
 const done = { status: "done" as const, inputHash: "h", costUsd: 0, finishedAt: "2026-10-06T12:00:00.000Z" };
 const ffmpeg = (...args: string[]) => execFileSync("ffmpeg", ["-v", "error", "-y", ...args], { stdio: "inherit" });
 

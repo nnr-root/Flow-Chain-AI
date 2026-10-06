@@ -69,13 +69,14 @@ test("a draft previews with placeholders, shows the new price after a scene is p
   await page.getByTestId("scene-1").getByRole("radio", { name: "Still" }).click();
   await expect.poll(calls).toContainEqual(["draft-modes", DRAFT_ID, "--modes", "2,auto,auto", "--json"]);
 
-  // the button now shows the new price, and generating passes exactly that amount as the CLI's budget, without --yes
+  // the button now shows the new price, and generating passes exactly that amount to the CLI, as the budget it need
+  // not ask about and as the cap on what the job spends in total, without --yes
   const generate = page.getByTestId("generate");
   await expect(generate).toHaveText("Generate video — up to $0.12");
   const started = page.waitForResponse((r) => r.url().endsWith(`/api/runs/${DRAFT_ID}/generate`));
   await generate.click();
   expect((await started).status()).toBe(202);
-  await expect.poll(calls).toContainEqual(["resume", DRAFT_ID, "--budget", "0.12"]);
+  await expect.poll(calls).toContainEqual(["resume", DRAFT_ID, "--budget", "0.12", "--cap", "0.12"]);
   expect(calls().flat()).not.toContain("0.31");
   expect(calls().flat()).not.toContain("--yes");
 });
