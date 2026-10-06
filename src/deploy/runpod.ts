@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { chmod, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { HttpError } from "../providers/retry.js";
 import type { RunpodClient } from "../providers/runpod.js";
 
@@ -31,7 +31,7 @@ export const DEFAULTS = {
 };
 
 type Kind = "networkvolumes" | "templates" | "endpoints";
-type Resource = { id: string; name: string };
+type Resource = { id: string; name: string; size?: number; dataCenterId?: string };
 
 /** RunPod's REST API v1 (https://rest.runpod.io/v1) plus the v2 secrets endpoint. */
 export class RunpodRest {
@@ -89,35 +89,63 @@ function findByName(list: Resource[], kind: Kind, name: string): Resource | unde
 
 export type Step = { what: string; name: string; action: "create" | "update" };
 
-/** What a deploy will do, given what already exists (matched by name). */
-export async function planDeploy(rest: RunpodRest): Promise<Step[]> {
+type Existing = { volume?: Resource; template?: Resource; keyframe?: Resource; clip?: Resource };
+
+/** What RunPod already has for our four resources (matched by name); throws when a name is ambiguous. Read-only. */
+async function lookupExisting(rest: RunpodRest): Promise<Existing> {
   const [volumes, templates, endpoints] = await Promise.all([
     rest.list("networkvolumes"),
     rest.list("templates"),
     rest.list("endpoints"),
   ]);
-  const step = (what: string, kind: Kind, list: Resource[], name: string): Step => ({
+  return {
+    volume: findByName(volumes, "networkvolumes", NAMES.volume),
+    template: findByName(templates, "templates", NAMES.template),
+    keyframe: findByName(endpoints, "endpoints", NAMES.keyframe),
+    clip: findByName(endpoints, "endpoints", NAMES.clip),
+  };
+}
+
+/** What a deploy will do, given what already exists (matched by name). */
+export async function planDeploy(rest: RunpodRest): Promise<Step[]> {
+  const found = await lookupExisting(rest);
+  const step = (what: string, existing: Resource | undefined, name: string): Step => ({
     what,
     name,
-    action: findByName(list, kind, name) ? "update" : "create",
+    action: existing ? "update" : "create",
   });
   return [
-    step("network volume", "networkvolumes", volumes, NAMES.volume),
-    step("template", "templates", templates, NAMES.template),
-    step("endpoint", "endpoints", endpoints, NAMES.keyframe),
-    step("endpoint", "endpoints", endpoints, NAMES.clip),
+    step("network volume", found.volume, NAMES.volume),
+    step("template", found.template, NAMES.template),
+    step("endpoint", found.keyframe, NAMES.keyframe),
+    step("endpoint", found.clip, NAMES.clip),
   ];
 }
 
 export type Deployed = { volumeId: string; templateId: string; keyframeEndpointId: string; clipEndpointId: string };
 
-async function upsert(rest: RunpodRest, kind: Kind, name: string, body: Record<string, unknown>, update: Record<string, unknown>) {
-  const found = findByName(await rest.list(kind), kind, name);
+async function upsert(
+  rest: RunpodRest,
+  kind: Kind,
+  found: Resource | undefined,
+  name: string,
+  body: Record<string, unknown>,
+  update: Record<string, unknown>,
+) {
   return found ? rest.update(kind, found.id, update) : rest.create(kind, { name, ...body });
 }
 
 /** Creates or updates the volume, template and both endpoints; returns their ids. Safe to re-run. */
 export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: string) => void): Promise<Deployed> {
+  // every lookup and check comes before the first write, so an ambiguous or unusable setup changes nothing
+  const existing = await lookupExisting(rest);
+  const { volume: oldVolume } = existing;
+  if (oldVolume?.dataCenterId !== undefined && oldVolume.dataCenterId !== cfg.dataCenterId) {
+    throw new Error(
+      `network volume ${NAMES.volume} lives in ${oldVolume.dataCenterId}, not ${cfg.dataCenterId}; a volume cannot move ` +
+        `(set RUNPOD_DATACENTER=${oldVolume.dataCenterId}, or delete the volume on RunPod and re-run)`,
+    );
+  }
   for (const [key, value] of [
     [SECRET_NAMES.accessKeyId, cfg.r2.accessKeyId],
     [SECRET_NAMES.secretAccessKey, cfg.r2.secretAccessKey],
@@ -125,13 +153,17 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     if (!(await rest.createSecret(key, value))) log(`secret ${key} already exists (kept; delete it on RunPod to change it)`);
   }
   // a volume can grow but never shrink, and stays in its data centre
-  const volume = await upsert(
-    rest,
-    "networkvolumes",
-    NAMES.volume,
-    { size: cfg.volumeGb, dataCenterId: cfg.dataCenterId },
-    { size: cfg.volumeGb },
-  );
+  const volume =
+    oldVolume && (oldVolume.size ?? 0) >= cfg.volumeGb
+      ? oldVolume
+      : await upsert(
+          rest,
+          "networkvolumes",
+          oldVolume,
+          NAMES.volume,
+          { size: cfg.volumeGb, dataCenterId: cfg.dataCenterId },
+          { size: cfg.volumeGb },
+        );
   const env = {
     R2_ACCOUNT_ID: cfg.r2.accountId,
     R2_BUCKET: cfg.r2.bucket,
@@ -139,13 +171,13 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     R2_SECRET_ACCESS_KEY: `{{ RUNPOD_SECRET_${SECRET_NAMES.secretAccessKey} }}`,
   };
   const templateBody = { imageName: cfg.image, containerDiskInGb: 30, env };
-  const template = await upsert(rest, "templates", NAMES.template, { ...templateBody, isServerless: true }, templateBody);
+  const template = await upsert(rest, "templates", existing.template, NAMES.template, { ...templateBody, isServerless: true }, templateBody);
   const endpoint = (gpus: string[], executionTimeoutMs: number) => ({
     templateId: template.id,
     gpuTypeIds: gpus,
     workersMin: 0,
     workersMax: 2,
-    idleTimeout: 5,
+    idleTimeout: 30, // seconds: keeps the worker warm between a run's sequential jobs
     executionTimeoutMs,
     flashboot: true,
     networkVolumeId: volume.id,
@@ -153,14 +185,14 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
   });
   const keyframe = endpoint(cfg.keyframeGpus, 120_000);
   const clip = endpoint(cfg.clipGpus, 600_000);
-  const keyframeEndpoint = await upsert(rest, "endpoints", NAMES.keyframe, keyframe, keyframe);
-  const clipEndpoint = await upsert(rest, "endpoints", NAMES.clip, clip, clip);
+  const keyframeEndpoint = await upsert(rest, "endpoints", existing.keyframe, NAMES.keyframe, keyframe, keyframe);
+  const clipEndpoint = await upsert(rest, "endpoints", existing.clip, NAMES.clip, clip, clip);
   return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id };
 }
 
 /**
  * Runs the worker's `fetch-models` task on an endpoint and waits for it. Its own policy lets it run longer than
- * the endpoint's normal job limit (the first download is tens of GB).
+ * the endpoint's normal job limit (the first download is tens of GB; capped at 1 h so a stuck download cannot bill for hours).
  */
 export async function fetchModels(
   client: RunpodClient,
@@ -168,7 +200,7 @@ export async function fetchModels(
   only: "keyframe" | "clip",
   opts: { pollMs?: number; sleep?: (ms: number) => Promise<void>; timeoutMs?: number } = {},
 ): Promise<{ downloaded: string[]; skipped: string[] }> {
-  const { pollMs = 15_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), timeoutMs = 3 * 3_600_000 } = opts;
+  const { pollMs = 15_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), timeoutMs = 3_600_000 } = opts;
   const id = await client.run(endpointId, { task: "fetch-models", only }, { executionTimeout: timeoutMs, ttl: timeoutMs + 3_600_000 }, new AbortController().signal);
   for (let waited = 0; waited <= timeoutMs + 3_600_000; waited += pollMs) {
     const job = await client.status(endpointId, id);
@@ -195,5 +227,68 @@ export async function writeEnvValues(path: string, values: Record<string, string
     if (at >= 0) lines[at] = `${key}=${value}`;
     else lines.push(`${key}=${value}`);
   }
-  await writeFile(path, `${lines.join("\n")}\n`);
+  // temp file in the same directory, then rename: a crash can never leave a half-written .env
+  const temp = `${path}.${process.pid}.tmp`;
+  await writeFile(temp, `${lines.join("\n")}\n`);
+  try {
+    await chmod(temp, (await stat(path)).mode & 0o777);
+  } catch {
+    // no .env yet: keep the default mode
+  }
+  await rename(temp, path);
+}
+
+/** The immutable worker image tag for a tree hash of `workers/` (`git rev-parse HEAD:workers`); the workflow pushes the same tag. */
+export function workerImageTag(workersTreeHash: string): string {
+  return `w-${workersTreeHash.slice(0, 12)}`;
+}
+
+const MANIFEST_ACCEPT = [
+  "application/vnd.oci.image.index.v1+json",
+  "application/vnd.docker.distribution.manifest.v2+json",
+  "application/vnd.oci.image.manifest.v1+json",
+].join(", ");
+
+class ImageMissing extends Error {}
+
+/**
+ * Checks, anonymously, that a ghcr.io image exists and is public, so a deploy never points a template at an
+ * image RunPod cannot pull. Throws when GHCR says it is missing or private; a network failure only warns.
+ * Other registries are not checked.
+ */
+export async function assertImageInGhcr(
+  image: string,
+  warn: (m: string) => void,
+  fetchImpl: typeof fetch = fetch,
+): Promise<void> {
+  if (!image.startsWith("ghcr.io/")) return;
+  const rest = image.slice("ghcr.io/".length);
+  const at = rest.indexOf("@");
+  const colon = rest.lastIndexOf(":");
+  const [repo, reference] =
+    at >= 0
+      ? [rest.slice(0, at), rest.slice(at + 1)]
+      : colon > rest.lastIndexOf("/")
+        ? [rest.slice(0, colon), rest.slice(colon + 1)]
+        : [rest, "latest"];
+  const missing = () =>
+    new ImageMissing(
+      `image ${image} is not in GHCR or the package is not public: push \`main\`, wait for the worker-image Action, ` +
+        "make the package public",
+    );
+  try {
+    const tokenRes = await fetchImpl(`https://ghcr.io/token?scope=repository:${repo}:pull`);
+    if ([401, 403, 404].includes(tokenRes.status)) throw missing();
+    if (!tokenRes.ok) throw new Error(`token request answered HTTP ${tokenRes.status}`);
+    const { token } = (await tokenRes.json()) as { token?: string };
+    const res = await fetchImpl(`https://ghcr.io/v2/${repo}/manifests/${reference}`, {
+      method: "HEAD",
+      headers: { authorization: `Bearer ${token}`, accept: MANIFEST_ACCEPT },
+    });
+    if ([401, 403, 404].includes(res.status)) throw missing();
+    if (!res.ok) throw new Error(`manifest request answered HTTP ${res.status}`);
+  } catch (err) {
+    if (err instanceof ImageMissing) throw err;
+    warn(`could not check that ${image} exists in GHCR (${err instanceof Error ? err.message : String(err)}); continuing`);
+  }
 }

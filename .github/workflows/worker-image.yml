@@ -13,6 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # the deploy pulls an immutable tag derived from the content of workers/ (npm run runpod:deploy)
+      - id: tree
+        run: echo "tag=w-$(git rev-parse HEAD:workers | cut -c1-12)" >> "$GITHUB_OUTPUT"
       # the CUDA/PyTorch base image needs more disk than a hosted runner has free by default
       - uses: jlumbroso/free-disk-space@v1.3.1
         with:
@@ -32,3 +35,4 @@ jobs:
           tags: |
             ${{ steps.name.outputs.image }}:latest
             ${{ steps.name.outputs.image }}:${{ github.sha }}
+            ${{ steps.name.outputs.image }}:${{ steps.tree.outputs.tag }}

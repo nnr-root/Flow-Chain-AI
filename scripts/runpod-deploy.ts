@@ -4,12 +4,14 @@
  */
 import { createInterface } from "node:readline/promises";
 import { execa } from "execa";
-import { applyDeploy, DEFAULTS, fetchModels, planDeploy, RunpodRest, writeEnvValues } from "../src/deploy/runpod.js";
+import {
+  applyDeploy, assertImageInGhcr, DEFAULTS, fetchModels, planDeploy, RunpodRest, workerImageTag, writeEnvValues,
+} from "../src/deploy/runpod.js";
 import { RunpodClient } from "../src/providers/runpod.js";
 
 function need(name: string): string {
   const value = process.env[name];
-  if (!value) throw new Error(`${name} is not set (see README "RunPod setup")`);
+  if (!value) throw new Error(`${name} is not set (see README "RunPod (self-hosted keyframes and clips)")`);
   return value;
 }
 
@@ -17,7 +19,9 @@ async function defaultImage(): Promise<string> {
   const { stdout } = await execa("git", ["remote", "get-url", "origin"]);
   const owner = /github\.com[:/]([^/]+)\//.exec(stdout)?.[1];
   if (!owner) throw new Error("cannot tell the GitHub owner from the origin remote; set RUNPOD_WORKER_IMAGE");
-  return `ghcr.io/${owner.toLowerCase()}/flowchain-worker:latest`;
+  // the tag follows the content of workers/, so a template always points at the image built from this checkout
+  const tree = (await execa("git", ["rev-parse", "HEAD:workers"])).stdout.trim();
+  return `ghcr.io/${owner.toLowerCase()}/flowchain-worker:${workerImageTag(tree)}`;
 }
 
 async function main(): Promise<void> {
@@ -40,6 +44,7 @@ async function main(): Promise<void> {
       secretAccessKey: need("R2_SECRET_ACCESS_KEY"),
     },
   };
+  await assertImageInGhcr(cfg.image, console.warn); // before anything is created
   const rest = new RunpodRest(apiKey);
   const steps = await planDeploy(rest);
   console.log(`RunPod deploy (image ${cfg.image}, data centre ${cfg.dataCenterId}):`);
@@ -58,17 +63,18 @@ async function main(): Promise<void> {
   }
   const deployed = await applyDeploy(rest, cfg, console.log);
   console.log(`Endpoints: keyframe ${deployed.keyframeEndpointId}, clip ${deployed.clipEndpointId}`);
+  // saved before the long model downloads, so a failed download never loses the ids of what was just created
+  await writeEnvValues(".env", {
+    RUNPOD_KEYFRAME_ENDPOINT: deployed.keyframeEndpointId,
+    RUNPOD_CLIP_ENDPOINT: deployed.clipEndpointId,
+  });
+  console.log("Wrote RUNPOD_KEYFRAME_ENDPOINT and RUNPOD_CLIP_ENDPOINT to .env.");
   const client = new RunpodClient(apiKey);
   for (const [kind, id] of [["keyframe", deployed.keyframeEndpointId], ["clip", deployed.clipEndpointId]] as const) {
     console.log(`Fetching ${kind} model weights onto the volume (the first time takes a while)…`);
     const done = await fetchModels(client, id, kind);
     console.log(`  downloaded ${done.downloaded.length}, already present ${done.skipped.length}`);
   }
-  await writeEnvValues(".env", {
-    RUNPOD_KEYFRAME_ENDPOINT: deployed.keyframeEndpointId,
-    RUNPOD_CLIP_ENDPOINT: deployed.clipEndpointId,
-  });
-  console.log("Wrote RUNPOD_KEYFRAME_ENDPOINT and RUNPOD_CLIP_ENDPOINT to .env.");
   console.log("Next: PROVIDER_MODE=runpod npm run flowchain -- doctor, then npm run smoke:runpod (paid).");
 }
 
