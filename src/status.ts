@@ -1,13 +1,10 @@
 import { imageProfileOf } from "./image-profiles.js";
-import type { Manifest, StageName, StageRecord } from "./manifest/schema.js";
+import type { Manifest, StageRecord } from "./manifest/schema.js";
 import { effectivePreset, hookTextFor } from "./stages/look.js";
-import { referenceApplies } from "./stages/reference.js";
-import { needsKeyframe } from "./stages/visual.js";
+import { RUN_STAGES, SCENE_STAGES, sceneStagesShown } from "./studio/status.js";
 import { videoProfileOf } from "./video-profiles.js";
 
 const mark = (r?: StageRecord) => (r === undefined ? "·" : r.status === "done" ? "✓" : "✗");
-const RUN_STAGES: StageName[] = ["script", "modes", "captions", "render"];
-const SCENE_STAGES: StageName[] = ["reference", "tts", "silence", "keyframes", "clips", "fit"];
 
 /** The effective preset and where it came from (spec §7). */
 function styleLine(m: Manifest): string {
@@ -39,12 +36,7 @@ export function formatStatus(m: Manifest): string {
   }
   for (const scene of m.scenes) {
     // keyframes only where the scene has one; clips and fit only for Mode 1 (Mode 2 is animated at render time)
-    const shown = SCENE_STAGES.filter(
-      (s) =>
-        (s !== "reference" || referenceApplies(m, scene.idx)) &&
-        (s !== "keyframes" || needsKeyframe(m, scene.idx)) &&
-        ((s !== "clips" && s !== "fit") || scene.mode === 1),
-    );
+    const shown = sceneStagesShown(m, scene.idx);
     const reason = scene.modeReason ?? (r.modes ? undefined : "auto: not resolved yet");
     const mode = reason ? `mode ${scene.mode} · ${reason}` : `mode ${scene.mode}`;
     lines.push(`Scene ${scene.idx + 1} [${mode}]: ${shown.map((s) => `${s} ${mark(scene.stages[s])}`).join("  ")}`);
