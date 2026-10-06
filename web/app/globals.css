@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0b0d12;
+  --color-panel: #141821;
+  --color-line: #262c3a;
+  --color-dim: #8a93a8;
+  --color-accent: #4cc9f0;
+  --color-good: #4ade80;
+  --color-warn: #fbbf24;
+  --color-bad: #f87171;
+}
+
+html { color-scheme: dark; }
+body { background: var(--color-ink); color: #e8ecf4; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; }
+input, select, textarea { background: var(--color-ink); border: 1px solid var(--color-line); border-radius: 0.5rem; padding: 0.45rem 0.6rem; width: 100%; }
+input[type="range"], input[type="checkbox"], input[type="radio"], input[type="color"] { width: auto; padding: 0; }
+input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible, a:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
