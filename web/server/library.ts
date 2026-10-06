@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdir, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import { BrandKit, loadBrandKit } from "@src/brand";
 import { roots } from "./config";
@@ -108,19 +108,31 @@ export async function createKit(form: FormData): Promise<KitSummary> {
     throw new ApiError("validation", parsed.error.issues.map((i) => `${i.path.join(".") || "kit"}: ${i.message}`).join("; "));
   }
 
-  // built in a temp folder and renamed, so a half-written kit is never listed
-  const tmp = `${dir}.tmp-${process.pid}`;
+  // built in a temp folder of its own and renamed, so a half-written kit is never listed and two requests never share one
+  const exists = () => new ApiError("validation", `a kit called "${slug}" already exists`);
+  await mkdir(roots().brandKits, { recursive: true });
+  const tmp = await mkdtemp(`${dir}.tmp-`);
   try {
-    await mkdir(tmp, { recursive: true });
     await writeFile(join(tmp, json.logo), logo.bytes);
     if (font) await writeFile(join(tmp, `font${font.ext}`), font.bytes);
     if (portrait) await writeFile(join(tmp, `portrait${portrait.ext}`), portrait.bytes);
     await writeFile(join(tmp, "brand.json"), `${JSON.stringify(parsed.data, null, 2)}\n`);
-    await loadBrandKit(tmp);
-    await rename(tmp, dir);
+    try {
+      await loadBrandKit(tmp);
+    } catch (err) {
+      throw new ApiError("validation", err instanceof Error ? err.message : String(err));
+    }
+    // rename onto an existing empty folder succeeds, so a kit that appeared meanwhile is checked for first
+    if (existsSync(dir)) throw exists();
+    try {
+      await rename(tmp, dir);
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      throw code === "ENOTEMPTY" || code === "EEXIST" ? exists() : err;
+    }
   } catch (err) {
     await rm(tmp, { recursive: true, force: true });
-    throw err instanceof ApiError ? err : new ApiError("validation", err instanceof Error ? err.message : String(err));
+    throw err;
   }
   return { slug, name, logo: json.logo, hasFont: !!font, hasPortrait: !!portrait, hasCharacters: !!json.characters };
 }
@@ -151,7 +163,18 @@ export async function addMusic(form: FormData): Promise<Track> {
   const { uploads } = roots();
   await mkdir(uploads, { recursive: true });
   let name = `${base}.mp3`;
-  for (let n = 2; existsSync(join(uploads, name)); n++) name = `${base}-${n}.mp3`;
-  await writeFile(join(uploads, name), bytes);
+  for (let n = 2; ; n++) {
+    try {
+      await writeFile(join(uploads, name), bytes, { flag: "wx" });
+      break;
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "EEXIST") {
+        name = `${base}-${n}.mp3`;
+        continue;
+      }
+      await rm(join(uploads, name), { force: true }); // never leave a partial file listed as a track
+      throw err;
+    }
+  }
   return { id: `upload:${name}`, name: name.replace(/\.mp3$/, ""), source: "upload", bytes: bytes.length };
 }

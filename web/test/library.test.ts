@@ -64,6 +64,25 @@ describe("brand kits", () => {
     await expect(createKit(form({ name: "twice", logo: [PNG, "l.png"] }))).rejects.toThrow('a kit called "twice" already exists');
   });
 
+  it("lets exactly one of two concurrent creates of the same name win, and leaves no temp folder", async () => {
+    const PNG2 = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 7, 7, 7, 7]);
+    const results = await Promise.allSettled([
+      createKit(form({ name: "Racing", logo: [PNG, "a.png"], characters: "first" })),
+      createKit(form({ name: "Racing", logo: [PNG2, "b.png"], characters: "second" })),
+    ]);
+    const won = results.filter((r) => r.status === "fulfilled");
+    const lost = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+    expect(won).toHaveLength(1);
+    expect(lost).toHaveLength(1);
+    expect(lost[0].reason).toMatchObject({ code: "validation", message: 'a kit called "racing" already exists' });
+    const winner = results[0].status === "fulfilled" ? "first" : "second";
+    const dir = join(kits(), "racing");
+    expect((await readdir(dir)).sort()).toEqual(["brand.json", "logo.png"]);
+    expect(await loadBrandKit(dir)).toMatchObject({ name: "Racing", characters: winner });
+    expect(Buffer.from(await readFile(join(dir, "logo.png")))).toEqual(Buffer.from(winner === "first" ? PNG : PNG2));
+    expect((await readdir(kits())).sort()).toEqual(["racing"]);
+  });
+
   it("lists only folders that load as kits", async () => {
     await mkdir(join(kits(), "broken"), { recursive: true });
     await writeFile(join(kits(), "broken", "brand.json"), "{");
@@ -88,6 +107,19 @@ describe("music", () => {
     expect(second.id).toBe("upload:my-song-final-2.mp3");
     expect(Buffer.from(await readFile(join(studio.root, "uploads/music/my-song-final.mp3")))).toEqual(Buffer.from(MP3));
     expect((await listMusic()).map((t) => t.id)).toEqual(["bundled:example-bed.mp3", "upload:my-song-final-2.mp3", "upload:my-song-final.mp3"]);
+  });
+
+  it("gives two concurrent uploads of one title different names, each with its full content", async () => {
+    const MP3B = new Uint8Array([0x49, 0x44, 0x33, 4, 0, 0, 5, 5, 5]);
+    const [a, b] = await Promise.all([
+      addMusic(form({ name: "Same Title", file: [MP3, "a.mp3"] })),
+      addMusic(form({ name: "Same Title", file: [MP3B, "b.mp3"] })),
+    ]);
+    expect(a.id).not.toBe(b.id);
+    expect([a.id, b.id].sort()).toEqual(["upload:same-title-2.mp3", "upload:same-title.mp3"]);
+    const content = async (t: { id: string }) => Buffer.from(await readFile(join(studio.root, "uploads/music", t.id.slice("upload:".length))));
+    expect(await content(a)).toEqual(Buffer.from(MP3));
+    expect(await content(b)).toEqual(Buffer.from(MP3B));
   });
 
   it("refuses what is not an MP3", async () => {
