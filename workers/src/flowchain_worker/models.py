@@ -46,7 +46,12 @@ def plan(entries, root, only=None):
     return [(e, "skip" if is_present(root, e) else "download") for e in chosen]
 
 
-def download(entry, root, opener=urllib.request.urlopen, chunk=8 * 1024 * 1024):
+def open_url(url):
+    """The default opener: a stalled connection gives up after a minute instead of hanging until the job limit."""
+    return urllib.request.urlopen(url, timeout=60)
+
+
+def download(entry, root, opener=open_url, chunk=8 * 1024 * 1024):
     """Streams to a temporary file, verifies size and SHA-256, then renames; a bad download leaves nothing."""
     path = target(root, entry)
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -69,7 +74,7 @@ def download(entry, root, opener=urllib.request.urlopen, chunk=8 * 1024 * 1024):
         f.write(entry["sha256"])
 
 
-def fetch(entries, root, only=None, opener=urllib.request.urlopen):
+def fetch(entries, root, only=None, opener=open_url):
     done = {"downloaded": [], "skipped": []}
     for entry, action in plan(entries, root, only):
         if action == "download":

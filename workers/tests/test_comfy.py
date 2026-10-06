@@ -11,3 +11,27 @@ def test_lists_saved_outputs_in_node_and_file_order():
         "/comfyui/output/flowchain/j/out_00001_.png",
         "/comfyui/output/flowchain/j/out_00002_.png",
     ]
+
+
+def test_interrupt_posts_to_the_interrupt_endpoint(monkeypatch):
+    from flowchain_worker import comfy
+
+    seen = []
+
+    class Res:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def read(self):
+            return b""
+
+    def fake_urlopen(req, timeout):
+        seen.append((req.full_url, req.get_method()))
+        return Res()
+
+    monkeypatch.setattr(comfy.urllib.request, "urlopen", fake_urlopen)
+    comfy.interrupt()
+    assert seen == [("http://127.0.0.1:8188/interrupt", "POST")]

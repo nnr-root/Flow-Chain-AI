@@ -35,6 +35,13 @@ def queue(graph):
         raise RuntimeError(f"ComfyUI refused the graph: {err.read().decode(errors='replace')[:2000]}") from err
 
 
+def interrupt():
+    """Stops the prompt ComfyUI is running, so an abandoned job does not keep the GPU busy."""
+    req = urllib.request.Request(f"{COMFY}/interrupt", data=b"", method="POST")
+    with urllib.request.urlopen(req, timeout=10) as res:
+        res.read()
+
+
 def wait(prompt_id, timeout_s, poll_s=1.0):
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:

@@ -51,3 +51,18 @@ def test_refuses_an_incomplete_list(tmp_path):
     path.write_text(json.dumps([{"name": "x"}]))
     with pytest.raises(ValueError, match="lacks"):
         models.load(str(path))
+
+
+def test_every_weight_the_graphs_load_is_in_the_pinned_list():
+    import re
+
+    entries = models.load(os.path.join(HERE, "..", "models.json"))
+    listed = {e["name"] for e in entries}
+    baked_into_the_image = {"rife49.pth"}  # the Dockerfile downloads it, so it is not on the volume
+    src = os.path.join(HERE, "..", "src", "flowchain_worker")
+    used = set()
+    for module in ("workflows.py", "presets.py"):
+        text = open(os.path.join(src, module)).read()
+        used |= set(re.findall(r'"([^"/]+\.(?:safetensors|pth|ckpt|bin|gguf))"', text))
+    assert len(used) >= 10
+    assert used - baked_into_the_image <= listed, sorted(used - baked_into_the_image - listed)
