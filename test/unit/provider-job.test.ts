@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { UnusableResultError } from "../../src/providers/retry.js";
 import { runProviderJob, type JobSpec } from "../../src/stages/job.js";
 import type { RunContext } from "../../src/stages/types.js";
+import { loadManifest } from "../../src/manifest/store.js";
 import { makeTestContext } from "../helpers/context.js";
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -140,5 +141,22 @@ describe("runProviderJob charges", () => {
     });
     await expect(runProviderJob(run, 0, "clips", failed)).rejects.toThrow(/request req-1 is kept/);
     expect(charges).toEqual([0.0123]);
+  });
+
+  it("charges nothing for a failed job that never ran, still marks it unusable and saves the manifest", async () => {
+    const { run, charges } = await runContext();
+    let polls = 0;
+    const neverRan = spec({
+      wait: async () => {
+        polls++;
+        run.manifest.scenes[0].nonces.tts = 9; // in-memory change only a save can persist
+        throw new UnusableResultError("RunPod job job-1 failed", 0);
+      },
+    });
+    await expect(runProviderJob(run, 0, "clips", neverRan)).rejects.toThrow(/request req-1 is kept/);
+    expect(polls).toBe(1); // unusable results are not retried
+    expect(charges).toEqual([0]); // not the 0.25 estimate
+    expect(run.manifest.scenes[0].jobs.clips).toMatchObject({ requestId: "req-1", chargedUsd: 0 });
+    expect((await loadManifest(run.dir)).scenes[0].nonces.tts).toBe(9);
   });
 });

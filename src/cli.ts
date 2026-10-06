@@ -15,7 +15,7 @@ import { CaptionStyleName, Transition } from "./media/remotion/props.js";
 import { type Plan, planRun, RunAborted, runPipeline } from "./pipeline.js";
 import { PresetName } from "./presets.js";
 import { createProviders } from "./providers/factory.js";
-import { newRunProviders } from "./providers/new-run.js";
+import { frozenModePrices, newRunProviders } from "./providers/new-run.js";
 import type { Providers } from "./providers/types.js";
 import { applyRenderOptions, assertRenderOnly, noPaidProviders } from "./rerender.js";
 import { bumpNonce, REROLLABLE } from "./reroll.js";
@@ -202,7 +202,8 @@ program
     const budgetUsd = budget(o.budget, env);
     if (o.bgm && !existsSync(o.bgm)) throw new Error(`--bgm file not found: ${o.bgm}`);
     const kit: BrandKit | undefined = o.brand ? await loadBrandKit(o.brand) : undefined;
-    const providers = newRunProviders(env, o.provider ?? env.PROVIDER_MODE);
+    const providerMode = o.provider ?? env.PROVIDER_MODE;
+    const providers = newRunProviders(env, providerMode);
     const request = RunRequest.parse({
       topic: o.topic,
       aspect: o.aspect,
@@ -210,7 +211,7 @@ program
       modes,
       // auto runs freeze the budget and price table their mode rules use; a later --budget only changes when to ask
       modeBudgetUsd: modes ? undefined : budgetUsd,
-      modePrices: modes ? undefined : loadPrices(),
+      modePrices: modes ? undefined : frozenModePrices(loadPrices(), providerMode),
       shots,
       style: o.style,
       // frozen with the run: they change what is bought
@@ -272,7 +273,7 @@ program
 
 program
   .command("reroll <runId>")
-  .description("regenerate one scene's voiceover, keyframe or clip; later chained clips follow automatically")
+  .description("regenerate one scene's voiceover, keyframe or clip, or the run's reference portrait (scene 1); later chained clips follow automatically")
   .requiredOption("--scene <n>", "scene number, starting at 1")
   .addOption(new Option("--stage <stage>", "what to regenerate").choices([...REROLLABLE]).makeOptionMandatory())
   .option("--render-concurrency <n>", "Remotion render concurrency")

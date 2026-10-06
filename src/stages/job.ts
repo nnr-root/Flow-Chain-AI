@@ -52,7 +52,8 @@ async function chargeOnce(ctx: RunContext, job: ProviderJob, usd: number): Promi
     return;
   }
   job.chargedUsd = usd;
-  await ctx.charge(usd); // also saves the manifest, including the job record
+  await ctx.charge(usd); // a positive charge also saves the manifest, including the job record
+  if (!(usd > 0)) await saveManifest(ctx.dir, ctx.manifest); // a zero charge returns before saving
 }
 
 /**

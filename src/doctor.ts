@@ -66,7 +66,6 @@ export function captionFontFiles(fontsDir: string): string[] {
   return [...new Set(styles.map((s) => join(fontsDir, s.font.file)))];
 }
 
-/** `models` lets resume/reroll check the models frozen in the manifest instead of today's env. */
 /** Which image/video providers to check: a run's own (frozen) ones, else the one new runs would use. */
 export function providersInUse(env: Env, models?: Models): Set<"fal" | "runpod"> {
   if (!models) return new Set([env.PROVIDER_MODE]);
@@ -82,9 +81,13 @@ export async function checkRunpodEndpoints(client: RunpodClient, endpointIds: st
 /** A tiny object can be written, read back and deleted, so workers can upload and runs can recover outputs. */
 export async function checkR2RoundTrip(r2: R2): Promise<string> {
   const key = `flowchain/doctor-${Date.now()}.txt`;
-  await r2.put(key, "flowchain doctor");
-  const back = await r2.get(key);
-  await r2.delete(key);
+  let back: string;
+  try {
+    await r2.put(key, "flowchain doctor");
+    back = await r2.get(key);
+  } finally {
+    await r2.delete(key).catch(() => {}); // best effort: never leave the probe object behind
+  }
   if (back !== "flowchain doctor") throw new Error("R2 returned different content");
   return "put, get and delete work";
 }
@@ -100,6 +103,7 @@ function runpodEndpointIds(env: Env, models?: Models): string[] {
   return ids as string[];
 }
 
+/** `models` lets resume/reroll check the models frozen in the manifest instead of today's env. */
 export async function runDoctor(env: Env, fontsDir: string, models?: Models, voiceId?: string): Promise<Check[]> {
   const inUse = providersInUse(env, models);
   const llmModel = models?.llm ?? env.GEMINI_MODEL;

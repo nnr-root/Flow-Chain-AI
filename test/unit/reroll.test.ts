@@ -3,10 +3,10 @@ import { createManifest } from "../../src/manifest/store.js";
 import { bumpNonce } from "../../src/reroll.js";
 import { fakeScript } from "../fakes/providers.js";
 
-function manifest() {
+function manifest(extra: Record<string, unknown> = {}) {
   const m = createManifest(
     "r",
-    { topic: "t", aspect: "9:16", sceneCount: 3, modes: [1, 1, 1], voiceId: "v" },
+    { topic: "t", aspect: "9:16", sceneCount: 3, modes: [1, 1, 1], voiceId: "v", ...extra },
     { llm: "l", tts: "t", image: "i", video: "v" },
   );
   m.script = fakeScript(3, { shots: ["cut", "continue", "cut"] });
@@ -38,5 +38,20 @@ describe("bumpNonce", () => {
   it("refuses to reroll a keyframe the scene does not use", () => {
     expect(() => bumpNonce(manifest(), 2, "keyframes")).toThrow(/reroll its clips instead/);
     expect(() => bumpNonce(manifest(), 3, "keyframes")).not.toThrow();
+  });
+
+  it("rerolls the generated reference portrait of a RunPod run, from scene 1 only", () => {
+    const m = manifest({ imageProfile: "runpod-sdxl@1" });
+    bumpNonce(m, 1, "reference");
+    expect(m.scenes[0].nonces.reference).toBe(1);
+    expect(() => bumpNonce(m, 2, "reference")).toThrow(/reference portrait is made in scene 1/);
+    expect(m.scenes[1].nonces.reference).toBeUndefined();
+  });
+
+  it("refuses a reference reroll when the run has no generated portrait", () => {
+    expect(() => bumpNonce(manifest(), 1, "reference")).toThrow(/has no generated reference portrait/);
+    const brand = manifest({ imageProfile: "runpod-sdxl@1", referenceImage: "brand/reference.png" });
+    expect(() => bumpNonce(brand, 1, "reference")).toThrow(/has no generated reference portrait/);
+    expect(brand.scenes[0].nonces.reference).toBeUndefined();
   });
 });

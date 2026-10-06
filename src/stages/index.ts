@@ -10,7 +10,10 @@ import { silenceStage } from "./silence.js";
 import type { Stage } from "./types.js";
 import { ttsStage } from "./tts.js";
 
-/** Pipeline order. Audio stages come before any visual stage: audio drives timing (spec §3). */
+/**
+ * Pipeline order. Audio stages come before any visual stage: audio drives timing (spec §3). The one exception
+ * is the reference portrait (RunPod runs only): every keyframe is conditioned on it, so it must exist first.
+ */
 export const STAGES: Stage[] = [
   scriptStage,
   referenceStage,

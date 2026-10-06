@@ -4,6 +4,12 @@ import { fileURLToPath } from "node:url";
 
 export const DOWNLOAD_TIMEOUT_MS = 120_000;
 
+/** The URL without its query string: a presigned URL's signature must not reach logs or the manifest. */
+function withoutQuery(url: string): string {
+  const q = url.indexOf("?");
+  return q < 0 ? url : url.slice(0, q);
+}
+
 /** Downloads immediately: provider-hosted URLs expire, so the local copy is the source of truth. */
 export async function download(
   url: string,
@@ -25,7 +31,7 @@ export async function download(
   } catch (err) {
     const timedOut = err instanceof Error && err.name === "TimeoutError";
     const reason = timedOut ? `timed out after ${timeoutMs} ms` : err instanceof Error ? err.message : String(err);
-    throw new Error(`download of ${url} failed: ${reason}`, { cause: err });
+    throw new Error(`download of ${withoutQuery(url)} failed: ${reason}`, { cause: err });
   }
   await writeFile(dest, body);
 }

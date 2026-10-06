@@ -6,7 +6,7 @@ import type { PresetName } from "../../src/presets.js";
 import { UnusableResultError } from "../../src/providers/retry.js";
 import type {
   ImageOutput, ImageProvider, ImageRequest, LlmProvider, PreparedJob, ScriptRequest, SpeakRequest, SubmitOptions,
-  TtsProvider, VideoOutput, VideoProvider, VideoRequest,
+  TtsProvider, VideoOutput, VideoProvider, VideoRequest, WaitOptions,
 } from "../../src/providers/types.js";
 import { makeAudio, makeImage, makeVideo } from "../helpers/media.js";
 
@@ -78,6 +78,10 @@ abstract class FakeQueue<Req, Out> {
   prepares: Req[] = [];
   submits: Req[] = [];
   waits: string[] = [];
+  /** The `timeoutMs` each wait was asked for. */
+  waitTimeouts: Array<number | undefined> = [];
+  /** How long one wait may take, like RunPod's providers expose; absent = the stage's default. */
+  waitMs?: number;
   /** Throw from submit (nothing is queued). */
   failSubmit?: (req: Req) => boolean;
   /** Throw while waiting; the job stays queued, like a timeout or a network error. */
@@ -106,8 +110,9 @@ abstract class FakeQueue<Req, Out> {
     return `req-${n}`;
   }
 
-  async wait(requestId: string): Promise<Out> {
+  async wait(requestId: string, opts?: WaitOptions): Promise<Out> {
     this.waits.push(requestId);
+    this.waitTimeouts.push(opts?.timeoutMs);
     const n = Number(requestId.replace("req-", ""));
     const req = this.submits[n - 1];
     if (req === undefined) throw new Error(`unknown request ${requestId}`);

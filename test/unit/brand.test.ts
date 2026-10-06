@@ -77,6 +77,25 @@ describe("installReference", () => {
     expect(await installReference(await loadBrandKit(await kit({ name: "n", logo: "logo.svg" })), dir, run)).toBeUndefined();
   });
 
+  it("refuses a kit whose logo would be overwritten by the installed portrait", async () => {
+    const dir = await kit({ name: "n", logo: "Reference.png", reference: "face.png" });
+    await copyFile(join(EXAMPLE, "logo.svg"), join(dir, "Reference.png"));
+    await copyFile(join(EXAMPLE, "logo.svg"), join(dir, "face.png"));
+    const run = await tempDir("flowchain-run-");
+    await expect(installReference(await loadBrandKit(dir), dir, run)).rejects.toThrow(/logo Reference\.png would collide/);
+    expect(existsSync(join(run, "brand/reference.png"))).toBe(false);
+  });
+
+  it("refuses a portrait too big to travel as base64 in one RunPod request, before anything is installed", async () => {
+    const dir = await kit({ name: "n", logo: "logo.svg", reference: "big.jpg" });
+    await writeFile(join(dir, "big.jpg"), Buffer.alloc(7 * 1024 * 1024 + 1)); // 7 MiB + 1 B is just over 9 MiB as base64
+    const run = await tempDir("flowchain-run-");
+    await expect(installReference(await loadBrandKit(dir), dir, run)).rejects.toThrow(/portrait big\.jpg is 7\.0 MB.*shrink it/);
+    expect(existsSync(join(run, "brand/reference.jpg"))).toBe(false);
+    await writeFile(join(dir, "big.jpg"), Buffer.alloc(6 * 1024 * 1024));
+    expect(await installReference(await loadBrandKit(dir), dir, run)).toBe("brand/reference.jpg");
+  });
+
   it("accepts only a PNG or JPEG portrait inside the kit", async () => {
     await expect(loadBrandKit(await kit({ name: "n", logo: "logo.svg", reference: "face.gif" }))).rejects.toThrow(
       /reference: must be a .png or .jpg file/,

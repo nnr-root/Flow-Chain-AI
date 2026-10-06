@@ -129,6 +129,17 @@ describe("keyframes and clips stages", () => {
   });
 });
 
+describe("wait deadline", () => {
+  it("passes the provider's own waitMs, not the fal default, as the job timeout of keyframes and clips", async () => {
+    const { ctx, fakes } = await makeTestContext({ modes: [1], shots: ["cut"] });
+    fakes.image.waitMs = 777_000;
+    fakes.video.waitMs = 888_000;
+    await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
+    expect(fakes.image.waitTimeouts).toEqual([777_000]);
+    expect(fakes.video.waitTimeouts).toEqual([888_000]);
+  });
+});
+
 describe("clip lengths from the run's video profile", () => {
   it("buys a 5 s clip for 5.5 s of narration on kling-v2, a 10 s one on kling-v1 (runs made before 2.3)", async () => {
     const { ctx } = await makeTestContext({ modes: [1, 1], shots: ["cut", "cut"] });

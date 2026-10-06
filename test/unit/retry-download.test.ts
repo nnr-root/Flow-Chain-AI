@@ -108,6 +108,26 @@ describe("download", () => {
     }
   });
 
+  it("leaves a presigned URL's query string out of the error message", async () => {
+    const server = createServer((_req, res) => {
+      res.statusCode = 403;
+      res.end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+    const dir = await mkdtemp(join(tmpdir(), "fc-"));
+    try {
+      const err = await download(
+        `http://127.0.0.1:${port}/k.png?X-Amz-Signature=topsecret&X-Amz-Credential=AKIA`,
+        join(dir, "k.png"),
+      ).catch((e: unknown) => e);
+      expect((err as Error).message).toMatch(/download of http:\/\/127\.0\.0\.1:\d+\/k\.png failed: HTTP 403$/);
+      expect((err as Error).message).not.toMatch(/topsecret|AKIA/);
+    } finally {
+      server.close();
+    }
+  });
+
   it("copies file:// URLs into nested directories", async () => {
     const dir = await mkdtemp(join(tmpdir(), "fc-"));
     const src = join(dir, "src.bin");

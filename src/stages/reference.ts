@@ -1,5 +1,5 @@
 import { imageProfileOf } from "../image-profiles.js";
-import type { Manifest } from "../manifest/schema.js";
+import { MAX_SEED, type Manifest } from "../manifest/schema.js";
 import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
 import { runProviderJob } from "./job.js";
@@ -42,11 +42,18 @@ function portraitPrompt(m: Manifest): string {
   );
 }
 
+/** The portrait's seed: the run's seed plus the portrait's reroll count, wrapped like a keyframe's. Undefined without a run seed. */
+export function referenceSeed(m: Manifest): number | undefined {
+  const seed = m.request.seed;
+  if (seed === undefined) return undefined;
+  return (seed + (m.scenes[0].nonces.reference ?? 0)) % (MAX_SEED + 1);
+}
+
 const inputs = (ctx: StageContext) => ({
   model: ctx.manifest.models.image,
   prompt: portraitPrompt(ctx.manifest),
   size: REFERENCE_SIZE,
-  seed: ctx.manifest.request.seed,
+  seed: referenceSeed(ctx.manifest),
   preset: effectivePreset(ctx.manifest)?.name,
 });
 

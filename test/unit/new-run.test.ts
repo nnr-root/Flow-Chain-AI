@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { loadEnv } from "../../src/config.js";
+import { loadEnv, Prices } from "../../src/config.js";
 import { checkR2RoundTrip, checkRunpodEndpoints, providersInUse } from "../../src/doctor.js";
-import { newRunProviders } from "../../src/providers/new-run.js";
+import { frozenModePrices, newRunProviders } from "../../src/providers/new-run.js";
 import type { R2 } from "../../src/providers/r2.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
 import { FakeRunpodApi } from "../fakes/runpod.js";
@@ -37,6 +37,43 @@ describe("newRunProviders", () => {
     expect(() => newRunProviders(loadEnv(base), "runpod")).toThrow(
       "RUNPOD_KEYFRAME_ENDPOINT and RUNPOD_CLIP_ENDPOINT not set; run npm run runpod:deploy first",
     );
+  });
+});
+
+describe("checkR2RoundTrip cleanup", () => {
+  it("deletes its probe object even when reading it back throws", async () => {
+    const store = new Map<string, string>();
+    const r2 = {
+      put: async (k: string, v: string) => void store.set(k, v),
+      get: async () => {
+        throw new Error("get failed");
+      },
+      delete: async (k: string) => void store.delete(k),
+    } as unknown as R2;
+    await expect(checkR2RoundTrip(r2)).rejects.toThrow("get failed");
+    expect(store.size).toBe(0);
+  });
+});
+
+describe("frozenModePrices", () => {
+  it("leaves the table of a fal run exactly as loaded", () => {
+    const prices = Prices.parse({ klingBase5s: 0.3 });
+    expect(frozenModePrices(prices, "fal")).toEqual(prices);
+    expect(JSON.stringify(frozenModePrices(prices, "fal"))).toBe(JSON.stringify(prices));
+  });
+
+  it("freezes the materialised RunPod rates into a RunPod run's table, keeping overrides", () => {
+    const frozen = frozenModePrices(Prices.parse({ runpodClipUsdPerSec: 0.0009, klingBase5s: 0.3 }), "runpod");
+    expect(frozen).toMatchObject({
+      klingBase5s: 0.3,
+      runpodKeyframeUsdPerSec: 0.000306,
+      runpodClipUsdPerSec: 0.0009,
+      runpodKeyframeSec: 8,
+      runpodReferenceSec: 8,
+      runpodClipSecPerFrame: 1.5,
+      runpodColdStartSec: 90,
+    });
+    expect(Prices.parse(frozen)).toEqual(frozen);
   });
 });
 

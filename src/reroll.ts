@@ -1,7 +1,8 @@
 import type { Manifest } from "./manifest/schema.js";
+import { referenceApplies } from "./stages/reference.js";
 import { needsKeyframe } from "./stages/visual.js";
 
-export const REROLLABLE = ["tts", "keyframes", "clips"] as const;
+export const REROLLABLE = ["tts", "keyframes", "clips", "reference"] as const;
 export type RerollStage = (typeof REROLLABLE)[number];
 
 /**
@@ -24,6 +25,14 @@ export function bumpNonce(m: Manifest, sceneNumber: number, stage: string): void
   }
   if (stage === "keyframes" && !needsKeyframe(m, idx)) {
     throw new Error(`scene ${sceneNumber} continues from the previous clip and has no keyframe; reroll its clips instead`);
+  }
+  if (stage === "reference") {
+    if (idx !== 0) throw new Error("the reference portrait is made in scene 1; use --scene 1");
+    if (!referenceApplies(m, 0)) {
+      throw new Error(
+        "this run has no generated reference portrait (it needs a RunPod run with characters and no brand-kit portrait)",
+      );
+    }
   }
   const s = stage as RerollStage;
   const scene = m.scenes[idx];

@@ -88,6 +88,7 @@ describe("RunPod request shapes", () => {
   it("accepts only 4k+1 frames between 33 and 81", () => {
     expect(clipFrames(49 / 16)).toBe(49);
     expect(() => clipFrames(5)).toThrow(/4k\+1 frames/);
+    expect(() => clipFrames(5)).toThrow(NonRetryableError); // a deterministic failure is not retried
     expect(() => clipFrames(85 / 16)).toThrow(/4k\+1 frames/);
   });
 
@@ -129,8 +130,17 @@ describe("RunPod waiting and billing", () => {
     expect(await image.wait(id, { timeoutMs: 60_000 })).toEqual({
       url: "https://r2/k.png",
       seed: 41,
-      costUsd: Math.round(8 * rates.keyframeUsdPerSec * 10_000) / 10_000,
+      costUsd: 0.0024, // 8 s x $0.000306/s = 0.002448, rounded to 4 decimals
     });
+  });
+
+  it("charges a clip's GPU time at the clip endpoint's rate", async () => {
+    const api = new FakeRunpodApi(() => [
+      { status: "COMPLETED", output: { url: "https://r2/c.mp4" }, executionTime: 120_000 },
+    ]);
+    const video = new RunpodVideo(deps(api), { ...target, endpointId: "ep-c", workflow: "clip-wan22-480p" });
+    const id = await video.submit({ input: {} }, { signal: new AbortController().signal });
+    expect(await video.wait(id, { timeoutMs: 60_000 })).toEqual({ url: "https://r2/c.mp4", costUsd: 0.0583 }); // 120 s x $0.000486/s
   });
 
   it("treats FAILED and TIMED_OUT as billed but unusable, with the measured cost", async () => {
@@ -138,8 +148,34 @@ describe("RunPod waiting and billing", () => {
       const { image, id } = await submitted(() => [{ status, error: "oom", executionTime: 5000 }]);
       const err = await image.wait(id, { timeoutMs: 60_000 }).catch((e: unknown) => e);
       expect(err).toBeInstanceOf(UnusableResultError);
-      expect((err as UnusableResultError).costUsd).toBeCloseTo(5 * rates.keyframeUsdPerSec, 4);
+      expect((err as UnusableResultError).costUsd).toBe(0.0015); // 5 s x $0.000306/s = 0.00153
     }
+  });
+
+  it("charges nothing for a FAILED or TIMED_OUT job that reports no execution time (it never reached a GPU)", async () => {
+    for (const executionTime of [undefined, 0]) {
+      for (const status of ["FAILED", "TIMED_OUT"] as const) {
+        const { image, id } = await submitted(() => [{ status, error: "no worker", executionTime }]);
+        const err = await image.wait(id, { timeoutMs: 60_000 }).catch((e: unknown) => e);
+        expect(err).toBeInstanceOf(UnusableResultError);
+        expect((err as UnusableResultError).costUsd).toBe(0);
+      }
+    }
+  });
+
+  it("leaves a COMPLETED job without execution time to the stage's estimate", async () => {
+    const { image, id } = await submitted(() => [{ status: "COMPLETED", output: { url: "https://r2/k.png" } }]);
+    expect(await image.wait(id, { timeoutMs: 60_000 })).toEqual({ url: "https://r2/k.png", seed: -1 });
+  });
+
+  it("warns when a COMPLETED job measures exactly $0 despite an execution time", async () => {
+    const api = new FakeRunpodApi(() => [{ status: "COMPLETED", output: { url: "https://r2/k.png" }, executionTime: 0 }]);
+    const warnings: string[] = [];
+    const image = new RunpodImage({ ...deps(api), log: (m) => warnings.push(m) }, target);
+    const id = await image.submit({ input: {} }, { signal: new AbortController().signal });
+    await image.wait(id, { timeoutMs: 60_000 });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/job-1.*\$0.*milliseconds/);
   });
 
   it("stops at a cancelled job and at its own wait deadline without buying anything", async () => {

@@ -1,7 +1,8 @@
-import { copyFile, mkdir, readFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { extname, join } from "node:path";
 import { z } from "zod";
+import { MAX_INPUT_BYTES } from "./providers/runpod-providers.js";
 import { Corner } from "./media/remotion/props.js";
 
 const Hex = z.string().regex(/^#[0-9A-Fa-f]{6}$/, "must be a #RRGGBB colour");
@@ -72,8 +73,21 @@ export async function loadBrandKit(dir: string): Promise<BrandKit> {
 /** Copies the kit's character portrait into `<runDir>/brand/` (frozen with the run); undefined without one. */
 export async function installReference(kit: BrandKit, kitDir: string, runDir: string): Promise<string | undefined> {
   if (!kit.reference) return undefined;
+  const name = `reference${extname(kit.reference).toLowerCase()}`;
+  // the logo is installed under its own name in the same folder, so a logo called reference.png would be overwritten
+  if (kit.logo.toLowerCase() === name) {
+    throw new Error(`brand kit: the logo ${kit.logo} would collide with the installed portrait brand/${name}; rename the logo`);
+  }
+  // the worker takes the portrait as base64 inside one request, which RunPod caps (3 raw bytes become 4)
+  const { size } = await stat(join(kitDir, kit.reference));
+  if (Math.ceil(size / 3) * 4 > MAX_INPUT_BYTES) {
+    throw new Error(
+      `brand kit: the portrait ${kit.reference} is ${(size / 1048576).toFixed(1)} MB; RunPod takes at most ` +
+        `${((MAX_INPUT_BYTES * 3) / 4 / 1048576).toFixed(1)} MB of image per request, so shrink it`,
+    );
+  }
   await mkdir(join(runDir, "brand"), { recursive: true });
-  const rel = `brand/reference${extname(kit.reference).toLowerCase()}`;
+  const rel = `brand/${name}`;
   await copyFile(join(kitDir, kit.reference), join(runDir, rel));
   return rel;
 }

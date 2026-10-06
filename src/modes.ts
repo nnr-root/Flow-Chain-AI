@@ -6,6 +6,7 @@ import { type VideoProfileId, videoProfileOf } from "./video-profiles.js";
 
 export type PlanModesInput = {
   scenes: Array<{ actionLevel: ActionLevel; shot: Shot; requestedSec: number; narrationChars: number }>;
+  /** Prices the clips; absent = kling-v1 (so runs made before 2.3 keep their modes cache key). */
   videoProfile?: VideoProfileId;
   /** Prices the keyframes; absent = fal-flux@1 (so runs made before 2.4 keep their modes cache key). */
   imageProfile?: ImageProfileId;

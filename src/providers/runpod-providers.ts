@@ -18,6 +18,8 @@ export type RunpodDeps = {
   client: RunpodClient;
   r2: R2;
   rates: RunpodRates;
+  /** Where warnings go (default: the console, like the CLI's own log). */
+  log?: (message: string) => void;
   poll?: { pollMs?: number; sleep?: (ms: number) => Promise<void>; now?: () => number };
 };
 
@@ -27,7 +29,7 @@ const realSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(reso
 
 /** Width and height from a PNG's IHDR chunk. */
 export function pngSize(png: Buffer): { width: number; height: number } {
-  if (png.length < 24 || png.readUInt32BE(12) !== 0x49484452) throw new Error("not a PNG image");
+  if (png.length < 24 || png.readUInt32BE(12) !== 0x49484452) throw new NonRetryableError("not a PNG image");
   return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
 }
 
@@ -35,7 +37,7 @@ export function pngSize(png: Buffer): { width: number; height: number } {
 export function clipFrames(durationSec: number): number {
   const frames = Math.round(durationSec * WAN_FPS);
   if (frames < 33 || frames > 81 || (frames - 1) % 4 !== 0) {
-    throw new Error(`a Wan clip must be 4k+1 frames between 33 and 81 at ${WAN_FPS} fps; got ${durationSec} s (${frames})`);
+    throw new NonRetryableError(`a Wan clip must be 4k+1 frames between 33 and 81 at ${WAN_FPS} fps; got ${durationSec} s (${frames})`);
   }
   return frames;
 }
@@ -76,6 +78,11 @@ abstract class RunpodQueued<Req, Out extends { url: string; costUsd?: number }> 
     return Math.round((job.executionTime / 1000) * this.usdPerSec() * 10_000) / 10_000;
   }
 
+  /** A failed or timed-out job that reports no execution time never reached a GPU, so it cost nothing. */
+  private failedCost(job: RunpodJob): number {
+    return typeof job.executionTime === "number" && job.executionTime > 0 ? (this.cost(job) ?? 0) : 0;
+  }
+
   async wait(jobId: string, opts: WaitOptions): Promise<Out> {
     const { pollMs = 3000, sleep = realSleep, now = Date.now } = this.deps.poll ?? {};
     const deadline = now() + opts.timeoutMs;
@@ -87,11 +94,18 @@ abstract class RunpodQueued<Req, Out extends { url: string; costUsd?: number }> 
         if (typeof out?.url !== "string") {
           throw new UnusableResultError(`RunPod job ${jobId} completed without an output url`, this.cost(job));
         }
-        return this.output(jobId, { url: out.url, seed: typeof out.seed === "number" ? out.seed : undefined }, this.cost(job));
+        const cost = this.cost(job);
+        if (cost === 0 && job.executionTime !== undefined) {
+          (this.deps.log ?? console.warn)(
+            `RunPod job ${jobId} completed with executionTime ${job.executionTime} but a measured cost of $0; ` +
+              `is executionTime still in milliseconds?`,
+          );
+        }
+        return this.output(jobId, { url: out.url, seed: typeof out.seed === "number" ? out.seed : undefined }, cost);
       }
       if (job.status === "FAILED" || job.status === "TIMED_OUT") {
         const why = job.status === "TIMED_OUT" ? "ran past its execution timeout" : `failed: ${JSON.stringify(job.error)}`;
-        throw new UnusableResultError(`RunPod job ${jobId} ${why}`, this.cost(job));
+        throw new UnusableResultError(`RunPod job ${jobId} ${why}`, this.failedCost(job));
       }
       if (job.status === "CANCELLED") throw new NonRetryableError(`RunPod job ${jobId} was cancelled`);
       if (now() >= deadline) {
