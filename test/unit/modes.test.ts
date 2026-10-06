@@ -76,6 +76,30 @@ describe("planModes", () => {
   });
 });
 
+describe("planModes with pinned scenes", () => {
+  const scenes = (levels: ActionLevel[]) =>
+    levels.map((actionLevel) => ({ actionLevel, shot: "cut" as Shot, requestedSec: 5, narrationChars: 100 }));
+
+  it("starts a pinned scene at its pinned mode, whatever its action level, and says who decided", () => {
+    const r = planModes({ scenes: scenes(["high", "low", "medium"]), prices, keyframeSize, budgetUsd: 10, pinned: [2, 1, null] });
+    expect(r.modes).toEqual([2, 1, 1]);
+    expect(r.reasons).toEqual(["set by you", "set by you", "auto: medium action"]);
+    expect(r.estimatedUsd).toBe(0.575); // 3 keyframes + 2 clips
+  });
+
+  it("never downgrades a pinned clip to fit the budget; the other medium scene goes instead", () => {
+    // $0.825 for three clips; the later medium scene would normally be dropped first, but it is pinned
+    const r = planModes({ scenes: scenes(["high", "medium", "medium"]), prices, keyframeSize, budgetUsd: 0.6, pinned: [null, null, 1] });
+    expect(r.modes).toEqual([1, 2, 1]);
+    expect(r.reasons).toEqual(["auto: high action", "auto: medium action → Mode 2 to fit $0.60", "set by you"]);
+  });
+
+  it("plans exactly as without pins when every entry is null", () => {
+    const input = { scenes: scenes(["high", "medium", "low"]), prices, keyframeSize, budgetUsd: 10 };
+    expect(planModes({ ...input, pinned: [null, null, null] })).toEqual(planModes(input));
+  });
+});
+
 describe("planModes on RunPod profiles", () => {
   it("adds each endpoint's cold start once: images always, video only when a scene is Mode 1", () => {
     const base = { prices: Prices.parse({}), keyframeSize: { width: 1000, height: 1000 }, budgetUsd: 10 };

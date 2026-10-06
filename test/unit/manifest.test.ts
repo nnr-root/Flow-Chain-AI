@@ -147,3 +147,16 @@ describe("resolveShots", () => {
     expect(() => resolveShots("continue,cut", 2)).toThrowError(/scene 1 must be "cut"/);
   });
 });
+
+describe("mode overrides", () => {
+  const auto = { topic: "foxes", aspect: "9:16" as const, sceneCount: 2, modeBudgetUsd: 1, modePrices: Prices.parse({}), voiceId: "v1" };
+
+  it("are accepted on an auto run with one entry per scene", () => {
+    expect(createManifest("r", { ...auto, modeOverrides: [2, null] }, models).request.modeOverrides).toEqual([2, null]);
+  });
+
+  it("are refused with the wrong length or on a run with explicit modes", () => {
+    expect(() => createManifest("r", { ...auto, modeOverrides: [2] }, models)).toThrow("modeOverrides has 1 entries but sceneCount is 2");
+    expect(() => createManifest("r", { ...request, modeOverrides: [2, null] }, models)).toThrow("need an auto run");
+  });
+});

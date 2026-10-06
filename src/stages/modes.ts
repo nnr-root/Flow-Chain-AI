@@ -1,7 +1,14 @@
+import type { Manifest, Mode } from "../manifest/schema.js";
 import { planModes, type PlanModesInput } from "../modes.js";
 import { videoProfileOf } from "../video-profiles.js";
 import { requireAudio, requireScript } from "./require.js";
 import type { Dep, Stage, StageContext } from "./types.js";
+
+/** The pinned modes, or undefined when nothing is pinned (so runs without overrides keep their modes cache key). */
+export function pinnedModes(m: Manifest): Array<Mode | null> | undefined {
+  const overrides = m.request.modeOverrides;
+  return overrides?.some((o) => o !== null) ? overrides : undefined;
+}
 
 /** The mode rules' inputs; null for explicit runs (--modes / --mode 1|2), whose modes are copied as given. */
 function autoInputs(ctx: StageContext): PlanModesInput | null {
@@ -24,6 +31,7 @@ function autoInputs(ctx: StageContext): PlanModesInput | null {
     budgetUsd,
     videoProfile: m.request.videoProfile,
     imageProfile: m.request.imageProfile,
+    pinned: pinnedModes(m),
   };
 }
 

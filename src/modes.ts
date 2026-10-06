@@ -13,10 +13,14 @@ export type PlanModesInput = {
   prices: Prices;
   keyframeSize: Size;
   budgetUsd: number;
+  /** Modes the user pinned per scene (null = by the rules); absent on runs without overrides, so their cache key is unchanged. */
+  pinned?: Array<Mode | null>;
 };
 export type PlanModesResult = { modes: Mode[]; reasons: string[]; estimatedUsd: number };
 
 const START: Record<ActionLevel, Mode> = { high: 1, medium: 1, low: 2 };
+/** The mode reason of a scene whose mode the user pinned. */
+export const PINNED_REASON = "set by you";
 
 /** The whole run's cost under candidate modes (spec §5): keyframes follow the Phase 1 rule on these modes. */
 function runCost(input: PlanModesInput, modes: Mode[]): number {
@@ -37,16 +41,17 @@ function runCost(input: PlanModesInput, modes: Mode[]): number {
 /**
  * Smart Hybrid Mode Recommender (spec §5): high → Mode 1, low → Mode 2, medium → Mode 1 while the budget
  * allows. Over budget, medium scenes drop to Mode 2 one at a time, largest saving first (ties: the later
- * scene). High scenes are never downgraded.
+ * scene). High scenes are never downgraded, and neither is a scene whose mode was pinned.
  */
 export function planModes(input: PlanModesInput): PlanModesResult {
-  const modes = input.scenes.map((s) => START[s.actionLevel]);
+  const pinned = (i: number): Mode | null => input.pinned?.[i] ?? null;
+  const modes = input.scenes.map((s, i) => pinned(i) ?? START[s.actionLevel]);
   const downgraded = new Set<number>();
   let cost = runCost(input, modes);
   while (cost > input.budgetUsd) {
     let best: { i: number; saving: number } | undefined;
     input.scenes.forEach((s, i) => {
-      if (s.actionLevel !== "medium" || modes[i] !== 1) return;
+      if (s.actionLevel !== "medium" || modes[i] !== 1 || pinned(i) !== null) return;
       const saving = round4(cost - runCost(input, modes.with(i, 2)));
       if (!best || saving >= best.saving) best = { i, saving };
     });
@@ -56,9 +61,11 @@ export function planModes(input: PlanModesInput): PlanModesResult {
     cost = runCost(input, modes);
   }
   const reasons = input.scenes.map((s, i) =>
-    downgraded.has(i)
-      ? `auto: medium action → Mode 2 to fit $${input.budgetUsd.toFixed(2)}`
-      : `auto: ${s.actionLevel} action`,
+    pinned(i) !== null
+      ? PINNED_REASON
+      : downgraded.has(i)
+        ? `auto: medium action → Mode 2 to fit $${input.budgetUsd.toFixed(2)}`
+        : `auto: ${s.actionLevel} action`,
   );
   return { modes, reasons, estimatedUsd: cost };
 }

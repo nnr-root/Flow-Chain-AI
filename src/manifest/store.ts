@@ -69,6 +69,7 @@ export function createManifest(
   if (!request.modes && (request.modeBudgetUsd === undefined || request.modePrices === undefined)) {
     throw new Error("auto modes need modeBudgetUsd and modePrices");
   }
+  if (request.modeOverrides) assertModeOverrides(request);
   // auto runs start as all Mode 1 (the most expensive assumption) until the modes stage has run
   const modes = request.modes ?? Array.from({ length: request.sceneCount }, (): Mode => 1);
   return {
@@ -133,4 +134,12 @@ export function resolveShots(shots: string | undefined, sceneCount: number): Sho
   if (parsed.length !== sceneCount) throw new Error(`--shots has ${parsed.length} entries but --scenes is ${sceneCount}`);
   if (parsed[0] !== "cut") throw new Error('--shots: scene 1 must be "cut" (there is no earlier clip to continue from)');
   return parsed;
+}
+
+/** Overrides pin scenes of an auto run, one entry per scene. */
+export function assertModeOverrides(request: RunRequest): void {
+  if (request.modes) throw new Error("mode overrides need an auto run; this run has explicit modes");
+  if (request.modeOverrides && request.modeOverrides.length !== request.sceneCount) {
+    throw new Error(`modeOverrides has ${request.modeOverrides.length} entries but sceneCount is ${request.sceneCount}`);
+  }
 }

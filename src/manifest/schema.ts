@@ -167,6 +167,11 @@ export const RunRequest = z.object({
   modeBudgetUsd: z.number().min(0).optional(),
   /** Frozen price table for the auto mode rules (required when modes is absent). */
   modePrices: Prices.optional(),
+  /**
+   * Per-scene modes pinned on a draft of an auto run (3.1): null leaves the scene to the mode rules. Absent on
+   * runs made by the CLI or before 3.1; changeable only until media is bought (`draft-modes`).
+   */
+  modeOverrides: z.array(Mode.nullable()).optional(),
   /** Forced style preset (--style); absent = Gemini picks one. */
   style: PresetName.optional(),
   /** Character bible (--characters or the brand kit's), enforced into styleBible.characters; frozen. */

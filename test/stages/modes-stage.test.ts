@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Prices } from "../../src/config.js";
+import { stableStringify } from "../../src/manifest/hash.js";
 import { planRun, type Plan, runPipeline, type RunOptions } from "../../src/pipeline.js";
 import { PRESETS } from "../../src/presets.js";
 import { clipsStage } from "../../src/stages/clips.js";
@@ -40,6 +41,23 @@ describe("modes stage", () => {
     await runPipeline(ctx, AUDIO, capture().opts);
     expect(ctx.manifest.scenes.map((s) => s.mode)).toEqual([1, 1, 2]);
     expect(ctx.manifest.scenes[2].modeReason).toBe("auto: medium action → Mode 2 to fit $0.60");
+  });
+
+  it("auto with overrides: pinned scenes keep their mode, the rest follow the rules", async () => {
+    const { ctx } = await makeTestContext({ modes: "auto", actionLevels: ["high", "medium", "low"] });
+    ctx.manifest.request.modeOverrides = [2, null, 1];
+    await runPipeline(ctx, AUDIO, capture().opts);
+    expect(ctx.manifest.scenes.map((s) => s.mode)).toEqual([2, 1, 1]);
+    expect(ctx.manifest.scenes.map((s) => s.modeReason)).toEqual(["set by you", "auto: medium action", "set by you"]);
+  });
+
+  it("overrides that pin nothing leave the stage's cache key as it was before overrides existed", async () => {
+    const { ctx } = await makeTestContext({ modes: "auto" });
+    await runPipeline(ctx, AUDIO, capture().opts);
+    const before = await modesStage.inputsFor(ctx);
+    ctx.manifest.request.modeOverrides = [null, null, null];
+    expect(stableStringify(await modesStage.inputsFor(ctx))).toBe(stableStringify(before));
+    expect(stableStringify(before)).not.toContain("pinned");
   });
 
   it("explicit modes are copied as given", async () => {
