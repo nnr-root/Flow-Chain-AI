@@ -42,6 +42,8 @@ export type PreparedJob = { readonly input: Record<string, unknown> };
 export interface QueuedProvider<Req, Out> {
   /** How long one wait may take, when the provider needs longer than the stage default (e.g. cold starts). */
   readonly waitMs?: number;
+  /** How long the submit request may take, when it carries more than the stage default allows (e.g. an image inside it). */
+  readonly submitMs?: number;
   prepare(req: Req): Promise<PreparedJob>;
   submit(job: PreparedJob, opts: SubmitOptions): Promise<string>;
   wait(requestId: string, opts: WaitOptions): Promise<Out>;

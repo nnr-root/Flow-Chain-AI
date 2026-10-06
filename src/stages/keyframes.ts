@@ -69,6 +69,7 @@ export const keyframesStage: Stage = {
       submit: (job, signal) => ctx.providers.image.submit(job, { signal }),
       wait: (id) => ctx.providers.image.wait(id, { timeoutMs: ctx.providers.image.waitMs ?? TIMEOUTS.image }),
       waitMs: ctx.providers.image.waitMs ?? TIMEOUTS.image,
+      submitTimeoutMs: ctx.providers.image.submitMs,
     });
     await download(result.url, await outPath(ctx, paths.keyframe(i)));
     ctx.manifest.scenes[i].keyframe = { path: paths.keyframe(i), seed: result.seed, sourceUrl: result.url };

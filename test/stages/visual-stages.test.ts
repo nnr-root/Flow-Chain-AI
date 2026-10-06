@@ -138,6 +138,24 @@ describe("wait deadline", () => {
     expect(fakes.image.waitTimeouts).toEqual([777_000]);
     expect(fakes.video.waitTimeouts).toEqual([888_000]);
   });
+
+  it("gives a submit the provider's own allowance: a slow upload fails within submitMs, and passes with enough of it", async () => {
+    const tight = await makeTestContext({ modes: [1], shots: ["cut"] });
+    tight.fakes.image.submitDelayMs = 150;
+    tight.fakes.image.submitMs = 20;
+    await expect(runPipeline(tight.ctx, [scriptStage, ttsStage, silenceStage, keyframesStage], auto)).rejects.toThrow(
+      "submit timed out after 20 ms",
+    );
+    expect(tight.ctx.manifest.scenes[0].jobs.keyframes).toBeUndefined(); // nothing was recorded as bought
+
+    const roomy = await makeTestContext({ modes: [1], shots: ["cut"] });
+    roomy.fakes.image.submitDelayMs = 150;
+    roomy.fakes.video.submitDelayMs = 150;
+    roomy.fakes.image.submitMs = 5_000;
+    roomy.fakes.video.submitMs = 5_000;
+    await runPipeline(roomy.ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
+    expect(roomy.ctx.manifest.scenes[0].stages.clips?.status).toBe("done");
+  });
 });
 
 describe("clip lengths from the run's video profile", () => {

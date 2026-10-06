@@ -48,6 +48,12 @@ export function clipFrames(durationSec: number): number {
  * is recovered from the bucket the worker uploaded to; its cost is then left to the stage's estimate.
  */
 abstract class RunpodQueued<Req, Out extends { url: string; costUsd?: number }> {
+  /**
+   * A RunPod job carries its image inside the submit request (3–5 MB as base64), where fal uploads it during
+   * `prepare`. On a slow uplink that took over the 60 s default twice in one live run (3.1 spec §16).
+   */
+  readonly submitMs = 180_000;
+
   constructor(
     protected readonly deps: RunpodDeps,
     protected readonly target: Target,

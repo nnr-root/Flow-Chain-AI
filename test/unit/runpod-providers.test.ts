@@ -239,6 +239,8 @@ describe("createProviders", () => {
     expect(p.image).toBeInstanceOf(RunpodImage);
     expect(p.video).toBeInstanceOf(RunpodVideo);
     expect([p.image.waitMs, p.video.waitMs]).toEqual([600_000, 1_200_000]);
+    // a RunPod submit uploads the image inside the request, so it gets three minutes instead of the 60 s default
+    expect([p.image.submitMs, p.video.submitMs]).toEqual([180_000, 180_000]);
   });
 
   it("names the missing key", () => {

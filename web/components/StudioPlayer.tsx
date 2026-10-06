@@ -5,6 +5,9 @@ import type { RenderProps } from "@src/media/remotion/props";
 import { Video } from "@src/media/remotion/Video";
 import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from "react";
 
+/** 12 scenes at most: 11 cuts + the hook's impact + narration + music, with a little room. */
+const MAX_AUDIO_TAGS = 16;
+
 export type StudioPlayerHandle = { seekTo: (frame: number) => void };
 
 type Props = {
@@ -38,6 +41,9 @@ export const StudioPlayer = forwardRef<StudioPlayerHandle, Props>(function Studi
         compositionWidth={props.width}
         compositionHeight={props.height}
         style={style}
+        // narration + music + one sound effect per cut and the hook: the Player's default of 5 shared audio tags
+        // is too few for a 4-scene video with a transition at every cut, and exceeding it crashes the Player
+        numberOfSharedAudioTags={MAX_AUDIO_TAGS}
         controls
         clickToPlay
         spaceKeyToPlayOrPause

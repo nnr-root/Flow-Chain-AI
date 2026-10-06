@@ -76,6 +76,7 @@ export const referenceStage: Stage = {
       submit: (job, signal) => image.submit(job, { signal }),
       wait: (id) => image.wait(id, { timeoutMs: image.waitMs ?? TIMEOUTS.image }),
       waitMs: image.waitMs ?? TIMEOUTS.image,
+      submitTimeoutMs: image.submitMs,
     });
     await download(result.url, await outPath(ctx, paths.reference));
   },

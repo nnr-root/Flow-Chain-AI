@@ -82,6 +82,10 @@ abstract class FakeQueue<Req, Out> {
   waitTimeouts: Array<number | undefined> = [];
   /** How long one wait may take, like RunPod's providers expose; absent = the stage's default. */
   waitMs?: number;
+  /** How long a submit may take, like RunPod's providers expose; absent = the stage's default. */
+  submitMs?: number;
+  /** Makes every submit take this long before it answers, like a slow upload. */
+  submitDelayMs = 0;
   /** Throw from submit (nothing is queued). */
   failSubmit?: (req: Req) => boolean;
   /** Throw while waiting; the job stays queued, like a timeout or a network error. */
@@ -106,6 +110,16 @@ abstract class FakeQueue<Req, Out> {
     const req = job.input.req as Req;
     if (opts.signal.aborted) throw opts.signal.reason;
     if (this.failSubmit?.(req)) throw new Error("fake submit failure");
+    if (this.submitDelayMs > 0) {
+      // like a real request: it ends early, with the abort's reason, when the caller gives up
+      await new Promise<void>((done, fail) => {
+        const timer = setTimeout(done, this.submitDelayMs);
+        opts.signal.addEventListener("abort", () => {
+          clearTimeout(timer);
+          fail(opts.signal.reason);
+        });
+      });
+    }
     const n = this.submits.push(req);
     return `req-${n}`;
   }

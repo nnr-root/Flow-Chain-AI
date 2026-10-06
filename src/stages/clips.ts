@@ -95,6 +95,7 @@ export const clipsStage: Stage = {
       submit: (job, signal) => ctx.providers.video.submit(job, { signal }),
       wait: (id) => ctx.providers.video.wait(id, { timeoutMs: ctx.providers.video.waitMs ?? TIMEOUTS.video }),
       waitMs: ctx.providers.video.waitMs ?? TIMEOUTS.video,
+      submitTimeoutMs: ctx.providers.video.submitMs,
     });
     await download(result.url, out);
     state.clip = { path: paths.clip(i), sourceUrl: result.url, duration: await probeDuration(out), requestedSec: seconds };
