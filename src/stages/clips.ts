@@ -91,8 +91,8 @@ export const clipsStage: Stage = {
         return ctx.providers.video.prepare({ imagePath, prompt: motionPrompt(script, i, effectivePreset(m)), durationSec: seconds });
       },
       submit: (job, signal) => ctx.providers.video.submit(job, { signal }),
-      wait: (id) => ctx.providers.video.wait(id, { timeoutMs: TIMEOUTS.video }),
-      waitMs: TIMEOUTS.video,
+      wait: (id) => ctx.providers.video.wait(id, { timeoutMs: ctx.providers.video.waitMs ?? TIMEOUTS.video }),
+      waitMs: ctx.providers.video.waitMs ?? TIMEOUTS.video,
     });
     await download(result.url, out);
     state.clip = { path: paths.clip(i), sourceUrl: result.url, duration: await probeDuration(out), requestedSec: seconds };

@@ -10,8 +10,15 @@ export const TIMEOUTS = {
 /** Retrying the same call cannot fix this error. */
 export class NonRetryableError extends Error {}
 
-/** The provider finished (and billed) the job, but its output cannot be used. */
-export class UnusableResultError extends NonRetryableError {}
+/** The provider finished (and billed) the job, but its output cannot be used. `costUsd`: what it billed, if known. */
+export class UnusableResultError extends NonRetryableError {
+  constructor(
+    message: string,
+    readonly costUsd?: number,
+  ) {
+    super(message);
+  }
+}
 
 /** An HTTP error from a provider; `status` decides whether a retry can help. */
 export class HttpError extends Error {

@@ -40,17 +40,29 @@ export type PreparedJob = { readonly input: Record<string, unknown> };
  *   used, and NonRetryableError when the job is still not finished after `timeoutMs`.
  */
 export interface QueuedProvider<Req, Out> {
+  /** How long one wait may take, when the provider needs longer than the stage default (e.g. cold starts). */
+  readonly waitMs?: number;
   prepare(req: Req): Promise<PreparedJob>;
   submit(job: PreparedJob, opts: SubmitOptions): Promise<string>;
   wait(requestId: string, opts: WaitOptions): Promise<Out>;
 }
 
-export type ImageRequest = { prompt: string; width: number; height: number; seed?: number };
-export type ImageOutput = { url: string; seed: number };
+export type ImageRequest = {
+  prompt: string;
+  width: number;
+  height: number;
+  seed?: number;
+  /** The run's style preset (providers that pick a model per preset). */
+  preset?: PresetName;
+  /** A character portrait to condition the image on (providers that support references). */
+  referenceImagePath?: string;
+};
+/** `costUsd`: what the job actually cost, when the provider bills by measured time (else the stage estimate). */
+export type ImageOutput = { url: string; seed: number; costUsd?: number };
 export type ImageProvider = QueuedProvider<ImageRequest, ImageOutput>;
 
 export type VideoRequest = { imagePath: string; prompt: string; durationSec: number };
-export type VideoOutput = { url: string };
+export type VideoOutput = { url: string; costUsd?: number };
 export type VideoProvider = QueuedProvider<VideoRequest, VideoOutput>;
 
 export type Providers = { llm: LlmProvider; tts: TtsProvider; image: ImageProvider; video: VideoProvider };

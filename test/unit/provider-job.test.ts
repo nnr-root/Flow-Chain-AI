@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { UnusableResultError } from "../../src/providers/retry.js";
 import { runProviderJob, type JobSpec } from "../../src/stages/job.js";
 import type { RunContext } from "../../src/stages/types.js";
 import { makeTestContext } from "../helpers/context.js";
@@ -27,7 +28,9 @@ function slowSubmit(ms: number, bought: string[]) {
     });
 }
 
-function spec(overrides: Partial<JobSpec<{ url: string }>>): JobSpec<{ url: string }> {
+function spec(
+  overrides: Partial<JobSpec<{ url: string; costUsd?: number }>>,
+): JobSpec<{ url: string; costUsd?: number }> {
   return {
     label: "clip scene 1",
     costUsd: 0.25,
@@ -115,5 +118,27 @@ describe("runProviderJob submit deadline", () => {
     expect((err as Error).message).toMatch(/fal 503/);
     expect(submits).toBe(1);
     expect(run.manifest.scenes[0].jobs.clips).toBeUndefined();
+  });
+});
+
+describe("runProviderJob charges", () => {
+  it("charges the provider's measured cost when it reports one, else the estimate", async () => {
+    const measured = await runContext();
+    await runProviderJob(measured.run, 0, "clips", spec({ wait: async () => ({ url: "file:///c.mp4", costUsd: 0.0731 }) }));
+    expect(measured.charges).toEqual([0.0731]);
+    const estimated = await runContext();
+    await runProviderJob(estimated.run, 0, "clips", spec({}));
+    expect(estimated.charges).toEqual([0.25]);
+  });
+
+  it("charges a billed but unusable job what the provider says it cost", async () => {
+    const { run, charges } = await runContext();
+    const failed = spec({
+      wait: async () => {
+        throw new UnusableResultError("RunPod job job-1 failed", 0.0123);
+      },
+    });
+    await expect(runProviderJob(run, 0, "clips", failed)).rejects.toThrow(/request req-1 is kept/);
+    expect(charges).toEqual([0.0123]);
   });
 });

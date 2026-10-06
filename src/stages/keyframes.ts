@@ -41,8 +41,8 @@ export const keyframesStage: Stage = {
       costUsd: imageCost(ctx.prices, ctx.keyframeSize),
       prepare: () => ctx.providers.image.prepare({ prompt, ...ctx.keyframeSize, seed: keyframeSeed(ctx.manifest, i) }),
       submit: (job, signal) => ctx.providers.image.submit(job, { signal }),
-      wait: (id) => ctx.providers.image.wait(id, { timeoutMs: TIMEOUTS.image }),
-      waitMs: TIMEOUTS.image,
+      wait: (id) => ctx.providers.image.wait(id, { timeoutMs: ctx.providers.image.waitMs ?? TIMEOUTS.image }),
+      waitMs: ctx.providers.image.waitMs ?? TIMEOUTS.image,
     });
     await download(result.url, await outPath(ctx, paths.keyframe(i)));
     ctx.manifest.scenes[i].keyframe = { path: paths.keyframe(i), seed: result.seed, sourceUrl: result.url };

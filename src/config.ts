@@ -20,13 +20,23 @@ export function keyframeSize(aspect: Aspect): Size {
 const Env = z.object({
   GEMINI_API_KEY: z.string().min(1),
   GEMINI_MODEL: z.string().min(1).default("gemini-flash-latest"),
-  FAL_KEY: z.string().min(1),
+  /** fal provider (runs with unprefixed model ids). */
+  FAL_KEY: z.string().min(1).optional(),
   FAL_IMAGE_MODEL: z.string().min(1).default("fal-ai/flux/dev"),
   FAL_VIDEO_MODEL: z.string().min(1).default("fal-ai/kling-video/v2.1/standard/image-to-video"),
   ELEVENLABS_API_KEY: z.string().min(1),
   ELEVENLABS_VOICE_ID: z.string().min(1),
   ELEVENLABS_MODEL: z.string().min(1).default("eleven_multilingual_v2"),
   FLOWCHAIN_BUDGET_USD: z.coerce.number().positive().default(3),
+  /** The image/video provider for new runs; each run keeps its own (2.4 spec §3.4). */
+  PROVIDER_MODE: z.enum(["fal", "runpod"]).default("fal"),
+  RUNPOD_API_KEY: z.string().min(1).optional(),
+  RUNPOD_KEYFRAME_ENDPOINT: z.string().min(1).optional(),
+  RUNPOD_CLIP_ENDPOINT: z.string().min(1).optional(),
+  R2_ACCOUNT_ID: z.string().min(1).optional(),
+  R2_BUCKET: z.string().min(1).optional(),
+  R2_ACCESS_KEY_ID: z.string().min(1).optional(),
+  R2_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   RUNS_DIR: z.string().min(1).default("./runs"),
 });
 export type Env = z.infer<typeof Env>;
@@ -47,8 +57,30 @@ export const Prices = z.strictObject({
   ttsPer1kChars: z.number().default(0.3),
   llmPerMInputTokens: z.number().default(0.3),
   llmPerMOutputTokens: z.number().default(2.5),
+  // RunPod (2.4). Optional with no schema default: price tables frozen into runs made before 2.4 then hash
+  // exactly as before (undefined is dropped); `runpodRates` fills the defaults where they are used.
+  runpodKeyframeUsdPerSec: z.number().optional(),
+  runpodClipUsdPerSec: z.number().optional(),
+  runpodKeyframeSec: z.number().optional(),
+  runpodReferenceSec: z.number().optional(),
+  runpodClipSecPerFrame: z.number().optional(),
+  runpodColdStartSec: z.number().optional(),
 });
 export type Prices = z.infer<typeof Prices>;
+
+export type RunpodRates = ReturnType<typeof runpodRates>;
+
+/** RunPod rates with their defaults (2.4 spec §6): GPU $/s per endpoint and the estimated seconds per job. */
+export function runpodRates(p: Prices) {
+  return {
+    keyframeUsdPerSec: p.runpodKeyframeUsdPerSec ?? 0.000306, // RTX 4090
+    clipUsdPerSec: p.runpodClipUsdPerSec ?? 0.000486, // L40S
+    keyframeSec: p.runpodKeyframeSec ?? 8,
+    referenceSec: p.runpodReferenceSec ?? 8,
+    clipSecPerFrame: p.runpodClipSecPerFrame ?? 1.5,
+    coldStartSec: p.runpodColdStartSec ?? 90,
+  };
+}
 
 export function loadPrices(path = "prices.json"): Prices {
   if (!existsSync(path)) return Prices.parse({});

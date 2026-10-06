@@ -90,6 +90,7 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models, voi
       return "available";
     }),
     await attempt("fal.ai key", async () => {
+      if (!env.FAL_KEY) throw new Error("FAL_KEY is not set");
       await checkFal(createFal(env.FAL_KEY));
       return "storage upload works";
     }),

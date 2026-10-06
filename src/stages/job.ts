@@ -4,7 +4,7 @@ import { TIMEOUTS, UnusableResultError, withRetry } from "../providers/retry.js"
 import type { PreparedJob } from "../providers/types.js";
 import type { RunContext } from "./types.js";
 
-export type JobSpec<Out extends { url: string; seed?: number }> = {
+export type JobSpec<Out extends { url: string; seed?: number; costUsd?: number }> = {
   /** Human label for logs and errors, e.g. "clip scene 2". */
   label: string;
   /** What one completed job costs (charged exactly once per job). */
@@ -64,7 +64,7 @@ async function chargeOnce(ctx: RunContext, job: ProviderJob, usd: number): Promi
  * A timeout or error while waiting fails the stage with the request id kept. Spend is recorded the moment
  * the job completes, before any download. A new inputHash (e.g. a reroll nonce bump) submits a new job.
  */
-export async function runProviderJob<Out extends { url: string; seed?: number }>(
+export async function runProviderJob<Out extends { url: string; seed?: number; costUsd?: number }>(
   ctx: RunContext,
   scene: number,
   stage: StageName,
@@ -74,7 +74,7 @@ export async function runProviderJob<Out extends { url: string; seed?: number }>
   let job = state.jobs[stage];
   if (job && job.inputHash !== ctx.inputHash) job = undefined;
   if (job?.result) {
-    ctx.log(`${spec.label}: reusing the paid result of fal request ${job.requestId}`);
+    ctx.log(`${spec.label}: reusing the paid result of request ${job.requestId}`);
     return job.result as Out;
   }
 
@@ -94,9 +94,9 @@ export async function runProviderJob<Out extends { url: string; seed?: number }>
     job = { requestId, inputHash: ctx.inputHash, submittedAt: new Date().toISOString(), chargedUsd: 0 };
     state.jobs[stage] = job;
     await saveManifest(ctx.dir, ctx.manifest);
-    ctx.log(`${spec.label}: submitted fal request ${requestId}`);
+    ctx.log(`${spec.label}: submitted request ${requestId}`);
   } else {
-    ctx.log(`${spec.label}: resuming fal request ${job.requestId}`);
+    ctx.log(`${spec.label}: resuming request ${job.requestId}`);
   }
 
   const pending = job;
@@ -108,15 +108,18 @@ export async function runProviderJob<Out extends { url: string; seed?: number }>
     });
   } catch (err) {
     // The job completed, so it was billed, even though its output is unusable.
-    if (err instanceof Error && err.cause instanceof UnusableResultError) await chargeOnce(ctx, pending, spec.costUsd);
+    if (err instanceof Error && err.cause instanceof UnusableResultError) {
+      await chargeOnce(ctx, pending, err.cause.costUsd ?? spec.costUsd);
+    }
     const message = err instanceof Error ? err.message : String(err);
     throw new Error(
-      `${message} [fal request ${pending.requestId} is kept: resume polls it again instead of paying for a new one; ` +
+      `${message} [request ${pending.requestId} is kept: resume polls it again instead of paying for a new one; ` +
         `reroll this scene's ${stage} to submit a new request]`,
       { cause: err },
     );
   }
   pending.result = result.seed === undefined ? { url: result.url } : { url: result.url, seed: result.seed };
-  await chargeOnce(ctx, pending, spec.costUsd);
+  // providers that bill by measured GPU time report the actual cost; otherwise the estimate is charged
+  await chargeOnce(ctx, pending, result.costUsd ?? spec.costUsd);
   return result;
 }

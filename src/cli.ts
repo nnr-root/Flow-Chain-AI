@@ -14,9 +14,7 @@ import {
 import { CaptionStyleName, Transition } from "./media/remotion/props.js";
 import { type Plan, planRun, RunAborted, runPipeline } from "./pipeline.js";
 import { PresetName } from "./presets.js";
-import { ElevenLabsTts } from "./providers/elevenlabs.js";
-import { createFal, FalImage, FalVideo } from "./providers/fal.js";
-import { GeminiLlm } from "./providers/gemini.js";
+import { createProviders } from "./providers/factory.js";
 import type { Providers } from "./providers/types.js";
 import { applyRenderOptions, assertRenderOnly, noPaidProviders } from "./rerender.js";
 import { bumpNonce, REROLLABLE } from "./reroll.js";
@@ -32,15 +30,7 @@ try {
   // no .env file: rely on the real environment
 }
 
-function providersFor(env: Env, models: Models): Providers {
-  const fal = createFal(env.FAL_KEY);
-  return {
-    llm: new GeminiLlm(env.GEMINI_API_KEY, models.llm),
-    tts: new ElevenLabsTts(env.ELEVENLABS_API_KEY, models.tts),
-    image: new FalImage(fal, models.image),
-    video: new FalVideo(fal, models.video),
-  };
-}
+const providersFor = (env: Env, models: Models): Providers => createProviders(env, models, loadPrices());
 
 async function askConfirm(_plan: Plan, reason: string): Promise<boolean> {
   if (!process.stdin.isTTY) {
