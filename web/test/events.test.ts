@@ -1,8 +1,15 @@
 import { appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runEvents } from "@/server/events";
 import { draftManifest, finishedManifest, nextRunId, saveRun, useStudio } from "./helpers";
+
+// the real `watch`, observable: a stream that was closed during start-up must never create one
+const watched = vi.hoisted(() => ({ calls: [] as unknown[][] }));
+vi.mock("node:fs", async (importOriginal) => {
+  const fs = await importOriginal<typeof import("node:fs")>();
+  return { ...fs, watch: ((...args: Parameters<typeof fs.watch>) => (watched.calls.push(args), fs.watch(...args))) as typeof fs.watch };
+});
 
 const studio = useStudio();
 
@@ -67,6 +74,65 @@ describe("run events", () => {
     const next = await take(stream, 1, ["run"]);
     expect(next.events[0].data.state).toBe("interrupted");
     abort.abort();
+  });
+
+  describe("a client that leaves while the stream is starting", () => {
+    const HEARTBEAT = 4321; // distinctive, so only this stream's interval is counted
+    const settle = () => new Promise((r) => setTimeout(r, 100));
+    const ended = (reader: ReadableStreamDefaultReader<Uint8Array>) =>
+      Promise.race([reader.read().then((r) => r.done), new Promise<string>((r) => setTimeout(() => r("still open"), 1000))]);
+
+    it("an already aborted signal ends the stream at once and creates no watcher or timer", async () => {
+      const id = nextRunId();
+      await saveRun(studio, draftManifest(id));
+      const timers = vi.spyOn(globalThis, "setInterval");
+      watched.calls.length = 0;
+      try {
+        const abort = new AbortController();
+        abort.abort();
+        const stream = runEvents(id, abort.signal, { heartbeatMs: HEARTBEAT });
+        expect(await ended(stream.getReader())).toBe(true);
+        await settle();
+        expect(watched.calls).toHaveLength(0);
+        expect(timers.mock.calls.filter((c) => c[1] === HEARTBEAT)).toHaveLength(0);
+      } finally {
+        timers.mockRestore();
+      }
+    });
+
+    it("an abort during start-up leaves no watcher or timer behind", async () => {
+      const id = nextRunId();
+      await saveRun(studio, draftManifest(id));
+      const timers = vi.spyOn(globalThis, "setInterval");
+      watched.calls.length = 0;
+      try {
+        const abort = new AbortController();
+        const stream = runEvents(id, abort.signal, { heartbeatMs: HEARTBEAT });
+        abort.abort(); // start() is still awaiting the log size and the first read
+        expect(await ended(stream.getReader())).toBe(true);
+        await settle();
+        expect(watched.calls).toHaveLength(0);
+        expect(timers.mock.calls.filter((c) => c[1] === HEARTBEAT)).toHaveLength(0);
+      } finally {
+        timers.mockRestore();
+      }
+    });
+
+    it("cancelling the reader during start-up leaves no watcher or timer behind", async () => {
+      const id = nextRunId();
+      await saveRun(studio, draftManifest(id));
+      const timers = vi.spyOn(globalThis, "setInterval");
+      watched.calls.length = 0;
+      try {
+        const stream = runEvents(id, new AbortController().signal, { heartbeatMs: HEARTBEAT });
+        await stream.cancel();
+        await settle();
+        expect(watched.calls).toHaveLength(0);
+        expect(timers.mock.calls.filter((c) => c[1] === HEARTBEAT)).toHaveLength(0);
+      } finally {
+        timers.mockRestore();
+      }
+    });
   });
 
   it("an unknown run id never opens a stream", async () => {

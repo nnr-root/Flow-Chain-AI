@@ -20,15 +20,20 @@ export function runEvents(runId: string, signal: AbortSignal, opts: { heartbeatM
   let logAt = 0;
   let last = "";
   let closed = false;
+  // the one cleanup, shared by the abort signal, the reader cancelling and a watcher error; false when it already ran
+  const stop = () => {
+    if (closed) return false;
+    closed = true;
+    watcher?.close();
+    clearInterval(heartbeat);
+    clearTimeout(timer);
+    return true;
+  };
 
   return new ReadableStream<Uint8Array>({
     async start(controller) {
       const close = () => {
-        if (closed) return;
-        closed = true;
-        watcher?.close();
-        clearInterval(heartbeat);
-        clearTimeout(timer);
+        if (!stop()) return;
         try {
           controller.close();
         } catch {
@@ -67,10 +72,13 @@ export function runEvents(runId: string, signal: AbortSignal, opts: { heartbeatM
         }
       };
 
+      if (signal.aborted) return close();
       signal.addEventListener("abort", close);
       // only what was written from now on is "new" output; the page already shows the tail it loaded
       logAt = await stat(logPath).then((s) => s.size, () => 0);
+      if (closed) return;
       await sendRun();
+      if (closed) return; // the client left while the first read was under way: nothing may be started now
       if (existsSync(dir)) {
         // the manifest is replaced by rename, so the folder is watched, not the file
         watcher = watch(dir, () => {
@@ -86,10 +94,7 @@ export function runEvents(runId: string, signal: AbortSignal, opts: { heartbeatM
       }, opts.heartbeatMs ?? 15_000);
     },
     cancel() {
-      closed = true;
-      watcher?.close();
-      clearInterval(heartbeat);
-      clearTimeout(timer);
+      stop();
     },
   });
 }

@@ -21,6 +21,14 @@ describe("published files", () => {
     }
   });
 
+  it("answers not found for names that merely exist on every object", () => {
+    const id = nextRunId();
+    const shown = preview(finishedManifest(id), id);
+    for (const name of ["constructor", "toString", "valueOf", "hasOwnProperty", "__proto__"]) {
+      expect(() => resolvePublished(join(studio.runs, id), name, shown)).toThrow(`no file ${name} in this run`);
+    }
+  });
+
   it("a file outside the run folder is reachable only because the run names it (its music)", () => {
     const id = nextRunId();
     const m = finishedManifest(id);

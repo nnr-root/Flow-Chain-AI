@@ -20,8 +20,9 @@ const EXTRAS = [/^final\.mp4$/, /^chain\.png$/, /^images\/keyframe_\d{2}\.png$/,
  * outside the run folder is reachable exactly when the run uses it), plus a short list of run outputs.
  */
 export function resolvePublished(runDirPath: string, published: string, preview: Preview | null): string {
-  const fromProps = preview?.files[published];
-  if (fromProps) return fromProps;
+  // own properties only: "constructor" or "__proto__" are not published files
+  const fromProps = preview && Object.hasOwn(preview.files, published) ? preview.files[published] : undefined;
+  if (typeof fromProps === "string" && fromProps) return fromProps;
   if (EXTRAS.some((re) => re.test(published))) return join(runDirPath, published);
   throw new ApiError("not_found", `no file ${published} in this run`);
 }
