@@ -11,6 +11,11 @@ export type Plan = { items: WorkItem[]; totalUsd: number };
 export type ConfirmFn = (plan: Plan, reason: string) => Promise<boolean>;
 export type RunOptions = {
   budgetUsd: number;
+  /**
+   * A ceiling on what this command spends in total: every checkpoint stops the run when what the command has
+   * already spent plus what is still planned would exceed it. `budgetUsd` only decides when to ask.
+   */
+  capUsd?: number;
   confirm: ConfirmFn;
   yes?: boolean;
   /** Rerolls confirm whenever paid work is planned, regardless of budget. */
@@ -24,8 +29,8 @@ export type RunOptions = {
 export const MEDIA_CHECKPOINT: StageName = "keyframes";
 
 export class RunAborted extends Error {
-  constructor() {
-    super("Run aborted: the estimated cost was not confirmed.");
+  constructor(message = "Run aborted: the estimated cost was not confirmed.") {
+    super(message);
   }
 }
 
@@ -133,10 +138,22 @@ async function execute(ctx: StageContext, stage: Stage, scene?: number): Promise
 export async function runPipeline(ctx: StageContext, stages: Stage[], opts: RunOptions): Promise<void> {
   const forced = forcedStages(stages, opts.from);
   let accepted = 0;
+  const ledgerUsd = () => ctx.manifest.ledger.reduce((sum, e) => sum + e.usd, 0);
+  const spentAtStart = ledgerUsd();
   const checkpoint = async (remaining: Stage[], label: string) => {
     const plan = await planRun(ctx, remaining, forced);
     opts.onPlan?.(plan, label);
     ctx.log(formatPlan(plan, label));
+    // The cap is checked before any question and cannot be confirmed away: each checkpoint's plan covers only
+    // what remains, so without it a later checkpoint would allow the whole amount again.
+    if (opts.capUsd !== undefined) {
+      const spent = round4(ledgerUsd() - spentAtStart);
+      if (round4(spent + plan.totalUsd) > opts.capUsd + 1e-9) {
+        throw new RunAborted(
+          `Run stopped: $${spent.toFixed(2)} spent by this command plus $${plan.totalUsd.toFixed(2)} still planned is over the $${opts.capUsd.toFixed(2)} cap.`,
+        );
+      }
+    }
     const needsConfirm = opts.reroll ? plan.totalUsd > 0 : plan.totalUsd > opts.budgetUsd;
     if (needsConfirm && plan.totalUsd > accepted + 0.01 && !opts.yes) {
       const reason = opts.reroll ? "reroll" : `over the $${opts.budgetUsd.toFixed(2)} budget`;

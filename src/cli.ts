@@ -62,6 +62,13 @@ function budget(raw: string | undefined, env: Env): number {
   return value;
 }
 
+function cap(raw: string | undefined): number | undefined {
+  if (raw === undefined) return undefined;
+  const value = raw.trim() === "" ? Number.NaN : Number(raw);
+  if (!Number.isFinite(value) || value < 0) throw new Error(`--cap must be a non-negative number, got "${raw}"`);
+  return value;
+}
+
 function seed(raw: string | undefined): number {
   if (raw === undefined) return randomInt(0, MAX_SEED + 1);
   const value = raw.trim() === "" ? Number.NaN : Number(raw);
@@ -101,7 +108,7 @@ function contextFor(dir: string, manifest: Manifest, providers: Providers, concu
 
 async function execute(
   ctx: StageContext,
-  opts: { budgetUsd: number; yes?: boolean; reroll?: boolean; from?: StageName; draft?: boolean },
+  opts: { budgetUsd: number; capUsd?: number; yes?: boolean; reroll?: boolean; from?: StageName; draft?: boolean },
 ): Promise<void> {
   const { dir, manifest } = ctx;
   const { draft, ...run } = opts;
@@ -285,9 +292,10 @@ program
   .description("continue a run after a failure or interruption")
   .addOption(new Option("--from <stage>", "re-run this stage and every later one").choices(StageName.options))
   .option("--budget <usd>", "ask before spending more than this")
+  .option("--cap <usd>", "stop if what this command spends plus what remains would exceed this")
   .option("--render-concurrency <n>", "Remotion render concurrency")
   .option("--yes", "never ask for confirmation")
-  .action(async (runId: string, o: { from?: StageName; budget?: string; renderConcurrency?: string; yes?: boolean }) => {
+  .action(async (runId: string, o: { from?: StageName; budget?: string; cap?: string; renderConcurrency?: string; yes?: boolean }) => {
     const env = loadEnv();
     const dir = runDir(runId);
     await loadManifest(dir); // a clear error for an unknown run id, before any lock file is created
@@ -295,7 +303,7 @@ program
       const manifest = await loadManifest(dir);
       await requireDoctor(env, manifest.models, manifest.request.voiceId);
       const ctx = contextFor(dir, manifest, providersFor(env, manifest.models), renderConcurrency(o.renderConcurrency));
-      await execute(ctx, { budgetUsd: budget(o.budget, env), yes: o.yes, from: o.from });
+      await execute(ctx, { budgetUsd: budget(o.budget, env), capUsd: cap(o.cap), yes: o.yes, from: o.from });
     });
   });
 
@@ -305,9 +313,10 @@ program
   .requiredOption("--scene <n>", "scene number, starting at 1")
   .addOption(new Option("--stage <stage>", "what to regenerate").choices([...REROLLABLE]).makeOptionMandatory())
   .option("--budget <usd>", "spend up to this without asking (default: always ask before a paid reroll)")
+  .option("--cap <usd>", "stop if what this command spends plus what remains would exceed this")
   .option("--render-concurrency <n>", "Remotion render concurrency")
   .option("--yes", "never ask for confirmation")
-  .action(async (runId: string, o: { scene: string; stage: string; budget?: string; renderConcurrency?: string; yes?: boolean }) => {
+  .action(async (runId: string, o: { scene: string; stage: string; budget?: string; cap?: string; renderConcurrency?: string; yes?: boolean }) => {
     const env = loadEnv();
     const dir = runDir(runId);
     await loadManifest(dir); // a clear error for an unknown run id, before any lock file is created
@@ -317,7 +326,7 @@ program
       await requireDoctor(env, manifest.models, manifest.request.voiceId);
       const ctx = contextFor(dir, manifest, providersFor(env, manifest.models), renderConcurrency(o.renderConcurrency));
       // with an approved amount a reroll is capped like a resume; without one it asks whenever it would spend
-      await execute(ctx, { budgetUsd: budget(o.budget, env), yes: o.yes, reroll: o.budget === undefined });
+      await execute(ctx, { budgetUsd: budget(o.budget, env), capUsd: cap(o.cap), yes: o.yes, reroll: o.budget === undefined });
     });
   });
 
