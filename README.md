@@ -6,8 +6,9 @@ Remotion (React): word-by-word captions, Ken Burns stills, transitions at cuts a
 
 Design: `docs/superpowers/specs/2026-10-02-phase1-cli-poc-design.md` (pipeline),
 `docs/superpowers/specs/2026-10-03-phase2.1-remotion-render-engine-design.md` (render engine),
-`docs/superpowers/specs/2026-10-04-phase2.2-content-intelligence-design.md` (modes, transitions, style presets) and
-`docs/superpowers/specs/2026-10-05-phase2.3-retention-brand-design.md` (hook, sound effects, brand kit, clip lengths).
+`docs/superpowers/specs/2026-10-04-phase2.2-content-intelligence-design.md` (modes, transitions, style presets),
+`docs/superpowers/specs/2026-10-05-phase2.3-retention-brand-design.md` (hook, sound effects, brand kit, clip lengths)
+and `docs/superpowers/specs/2026-10-05-phase2.4-runpod-providers-design.md` (RunPod providers).
 
 ## Setup
 
@@ -82,7 +83,36 @@ smoke:brand` a 4-scene `--style anime` video with the example brand kit.
 
 Rendering a 16 s 1080×1920 video takes about 1.5 minutes on Apple Silicon (`--render-concurrency` tunes it).
 
+## RunPod (self-hosted keyframes and clips)
+
+Keyframes (SDXL with IP-Adapter character references) and clips (Wan 2.2 image-to-video) can run on your own
+RunPod Serverless endpoints instead of fal: roughly $0.20–0.35 per 4-scene video instead of ≈ $1.35. Each run
+keeps the provider it was created with, so older fal runs are never affected.
+
+One-time setup (accounts and keys only):
+
+1. RunPod: create an API key → `RUNPOD_API_KEY` in `.env`.
+2. Cloudflare R2: create a bucket and an S3 API token with read/write on it → `R2_ACCOUNT_ID`, `R2_BUCKET`,
+   `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` in `.env`.
+3. Push this repo to GitHub: the `worker-image` Action builds `ghcr.io/<owner>/flowchain-worker`. Make that
+   package public (GitHub → Packages → flowchain-worker → Package settings → Change visibility).
+4. `npm run runpod:deploy` creates the network volume, template and two endpoints, downloads the model weights
+   onto the volume and writes `RUNPOD_KEYFRAME_ENDPOINT` / `RUNPOD_CLIP_ENDPOINT` into `.env`. It shows what it
+   will create and the monthly volume cost (≈ $5.60 for 80 GB) and asks first; re-running it updates in place.
+
+Then `npm run flowchain -- run --provider runpod …` (or `PROVIDER_MODE=runpod` in `.env`) and
+`PROVIDER_MODE=runpod npm run flowchain -- doctor`. `npm run smoke:runpod` makes a real 4-scene video on RunPod.
+
+Runs with characters get one generated reference portrait (or a brand kit's `reference` image) that every keyframe
+is conditioned on. Clips are 480p (upscaled to the output size) with frame interpolation to 32 fps. GPU time is
+charged per job from RunPod's measured execution time; cold starts and idle time are not attributed per job.
+
+The model stack is licensed for commercial use (SDXL / RealVisXL / Animagine under CreativeML Open RAIL++-M,
+IP-Adapter Apache 2.0, Wan 2.2 Apache 2.0). Open RAIL++-M requires its use restrictions to be passed on in your
+customer terms.
+
 ## Tests
 
 `npm test` runs unit, ffmpeg, Remotion (headless Chrome) and fake-provider pipeline tests offline (about
-2–3 minutes). `npm run typecheck` runs `tsc`.
+2–3 minutes). `npm run typecheck` runs `tsc`. The RunPod worker's Python tests: `npm run setup:worker` once,
+then `npm run test:worker`.
