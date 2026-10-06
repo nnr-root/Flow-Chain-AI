@@ -21,7 +21,12 @@ export function roots() {
   };
 }
 
-export const maxJobs = (): number => Number(process.env.STUDIO_MAX_JOBS ?? 2);
+/** How many jobs may run at once: `STUDIO_MAX_JOBS` when it is a whole number of at least 1, otherwise 2. */
+export function maxJobs(): number {
+  const raw = process.env.STUDIO_MAX_JOBS?.trim() ?? "";
+  const value = /^\d+$/.test(raw) ? Number(raw) : 0;
+  return value >= 1 ? value : 2;
+}
 
 /**
  * The pipeline's settings as the CLI will see them: the repository's `.env` under the real environment. Only

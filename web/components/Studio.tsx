@@ -220,7 +220,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
                 <Button tone="primary" data-testid="generate" onClick={generate} disabled={busy || !estimate}>
                   {estimate ? `${state === "needs_approval" ? "Approve and continue" : "Resume"} — up to ${usd(estimate.totalUsd)}` : "Pricing…"}
                 </Button>
-                {state === "interrupted" && <Button onClick={unlock} disabled={busy}>Clear the stale lock</Button>}
+                {view.staleLock && <Button onClick={unlock} disabled={busy}>Clear the stale lock</Button>}
               </div>
             </div>
           )}

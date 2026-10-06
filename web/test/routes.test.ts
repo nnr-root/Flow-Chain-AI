@@ -1,5 +1,5 @@
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { RenderProps } from "@src/media/remotion/props";
 import { loadManifest } from "@src/manifest/store";
@@ -195,7 +195,7 @@ describe("pricing and paid actions", () => {
     expect((await res.json()).job).toMatchObject({ kind: "generate", approvedUsd: 0.25 });
     await jobDone(id);
     const all = await calls(studio);
-    expect(all.at(-1)).toEqual(["resume", id, "--budget", "0.25"]);
+    expect(all.at(-1)).toEqual(["resume", id, "--budget", "0.25", "--cap", "0.25"]);
     expect(all.flat()).not.toContain("--yes");
   });
 
@@ -208,6 +208,31 @@ describe("pricing and paid actions", () => {
     expect(await error(res)).toMatchObject({ code: "estimate_changed", totalUsd: 0.4 });
     expect((await calls(studio)).some((c) => c[0] === "resume")).toBe(false);
     expect((await generate(request(`/api/runs/${id}/generate`, { json: {} }), params({ id }))).status).toBe(400);
+  });
+
+  it("compares the estimate with the approved amount exactly: a plan a fraction of a cent higher is refused", async () => {
+    const id = nextRunId();
+    await saveRun(studio, draftManifest(id));
+    await stub(studio, "_plan.json", { items: [], totalUsd: 0.3 });
+    const res = await generate(request(`/api/runs/${id}/generate`, { json: { approvedUsd: 0.2996 } }), params({ id }));
+    expect(res.status).toBe(409);
+    expect(await error(res)).toMatchObject({ code: "estimate_changed", totalUsd: 0.3 });
+    expect((await calls(studio)).some((c) => c[0] === "resume")).toBe(false);
+  });
+
+  it("starts nothing when the CLI's plan has no usable total", async () => {
+    const id = nextRunId();
+    await saveRun(studio, finishedManifest(id));
+    for (const plan of [{ items: [] }, { items: [], totalUsd: null }, { items: [], totalUsd: "0.1" }]) {
+      await stub(studio, "_plan.json", plan);
+      const res = await generate(request(`/api/runs/${id}/generate`, { json: { approvedUsd: 5 } }), params({ id }));
+      expect(res.status).toBe(500);
+      expect((await error(res)).code).toBe("internal");
+      const again = await reroll(request(`/api/runs/${id}/reroll`, { json: { scene: 2, stage: "clips", approvedUsd: 5 } }), params({ id }));
+      expect((await error(again)).code).toBe("internal");
+    }
+    expect((await calls(studio)).every((c) => c[0] === "plan")).toBe(true);
+    expect(readJob(join(studio.runs, id))).toBeNull();
   });
 
   it("a run whose job the CLI ended with 'not confirmed' shows as needing approval", async () => {
@@ -229,7 +254,7 @@ describe("pricing and paid actions", () => {
     const ok = await reroll(request(`/api/runs/${id}/reroll`, { json: { scene: 2, stage: "clips", approvedUsd: 0.03 } }), params({ id }));
     expect(ok.status).toBe(202);
     await jobDone(id);
-    expect((await calls(studio)).at(-1)).toEqual(["reroll", id, "--scene", "2", "--stage", "clips", "--budget", "0.03"]);
+    expect((await calls(studio)).at(-1)).toEqual(["reroll", id, "--scene", "2", "--stage", "clips", "--budget", "0.03", "--cap", "0.03"]);
     expect((await reroll(request(`/api/runs/${id}/reroll`, { json: { scene: 2, stage: "fit", approvedUsd: 1 } }), params({ id }))).status).toBe(400);
   });
 
@@ -293,5 +318,31 @@ describe("pricing and paid actions", () => {
     expect((await stopped.json()).job.stoppedAt).toBeDefined();
     await until(() => readJob(join(studio.runs, id))?.state === "stopped");
     expect((await stop(request(`/api/runs/${id}/job`, { method: "DELETE" }), params({ id }))).status).toBe(404);
+  });
+});
+
+describe("every route", () => {
+  /** The POSTs that only read (a preview's props, a price): the one place a handler other than GET may be `write: false`. */
+  const READ_POSTS = ["runs/[id]/props/route.ts", "runs/[id]/plan/route.ts"];
+  const api = resolve("web/app/api");
+
+  it("that is not a GET demands the studio's own origin, except the two POSTs that only read", async () => {
+    const files = (await readdir(api, { recursive: true })).filter((f) => f.endsWith("route.ts")).map((f) => f.split("\\").join("/")).sort();
+    expect(files.length).toBeGreaterThanOrEqual(18);
+    for (const read of READ_POSTS) expect(files).toContain(read);
+    let checked = 0;
+    for (const file of files) {
+      const mod = (await import(/* @vite-ignore */ join(api, file))) as Record<string, unknown>;
+      for (const [name, handler] of Object.entries(mod)) {
+        if (typeof handler !== "function") continue;
+        const where = `${name} ${relative(api, join(api, file))}`;
+        const write = (handler as { write?: boolean }).write;
+        expect(write, `${where} is not wrapped by route()`).toBeTypeOf("boolean");
+        if (name === "GET") continue;
+        expect(write, where).toBe(!READ_POSTS.includes(file));
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThanOrEqual(11);
   });
 });

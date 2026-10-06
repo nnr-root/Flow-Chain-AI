@@ -47,7 +47,9 @@ function alive(pid: number): boolean {
 /** When a process started, as `ps` reports it; undefined if it cannot be told. */
 function procStartOf(pid: number): string | undefined {
   try {
-    return execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || undefined;
+    // LC_ALL=C: `lstart` is written in the locale's language, and a server restarted under another one must still match
+    const env = { ...process.env, LC_ALL: "C" };
+    return execFileSync("ps", ["-o", "lstart=", "-p", String(pid)], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], env }).trim() || undefined;
   } catch {
     return undefined;
   }
@@ -62,6 +64,16 @@ function assertRunId(runId: string): void {
   if (!RUN_ID.test(runId)) throw new ApiError("not_found", `no run ${runId}`);
 }
 
+function exitCodeOf(dir: string): number | undefined {
+  let text: string;
+  try {
+    text = readFileSync(join(dir, JOB_EXIT), "utf8").trim();
+  } catch {
+    return undefined;
+  }
+  return /^\d+$/.test(text) ? Number(text) : undefined;
+}
+
 export function readJob(dir: string): JobView | null {
   let job: Job;
   try {
@@ -69,11 +81,9 @@ export function readJob(dir: string): JobView | null {
   } catch {
     return null;
   }
-  const exit = join(dir, JOB_EXIT);
-  if (existsSync(exit)) {
-    const code = Number(readFileSync(exit, "utf8").trim());
-    return { ...job, state: "ended", exitCode: Number.isInteger(code) ? code : 1 };
-  }
+  // an empty or half-written exit file (read while the shell writes it) is not an exit yet: the process decides
+  const code = exitCodeOf(dir);
+  if (code !== undefined) return { ...job, state: "ended", exitCode: code };
   if (jobAlive(job)) return { ...job, state: "running" };
   return { ...job, state: job.stoppedAt ? "stopped" : "interrupted" };
 }
@@ -93,10 +103,28 @@ export function cliCommand(args: string[]): { cmd: string; argv: string[] } {
     : { cmd: process.execPath, argv: ["--import", "tsx", join(repo, "src/cli.ts"), ...args] };
 }
 
-/** Runs whose start is in flight: job.json is written only after the spawn, so these count as active meanwhile. */
-const starting = new Set<string>();
+/**
+ * Runs whose start is in flight: job.json is written only after the spawn, so these count as active meanwhile.
+ * Kept on `globalThis`: a dev-server recompile loads this module again, and a second set would let one run start twice.
+ */
+const STARTING = Symbol.for("flowchain.studio.starting");
+const shared = globalThis as { [STARTING]?: Set<string> };
+const starting = (shared[STARTING] ??= new Set<string>());
 
-const childEnv = () => ({ ...process.env, RUNS_DIR: roots().runs });
+/**
+ * The environment the CLI runs in: the studio's own, without what Next sets for itself (`NODE_ENV`,
+ * `NODE_OPTIONS`, `NEXT_*`, `__NEXT_*`), which would change how the CLI and its renderer behave.
+ */
+export function childEnv(): NodeJS.ProcessEnv {
+  const env: Record<string, string | undefined> = {};
+  for (const [name, value] of Object.entries(process.env)) {
+    if (name === "NODE_ENV" || name === "NODE_OPTIONS" || name.startsWith("NEXT_") || name.startsWith("__NEXT_")) continue;
+    env[name] = value;
+  }
+  env.RUNS_DIR = roots().runs;
+  // Next's types declare NODE_ENV as always present; here it is left out on purpose
+  return env as NodeJS.ProcessEnv;
+}
 
 /**
  * Starts the CLI detached, in its own process group, so it outlives the web server. Its output goes to the
@@ -164,19 +192,38 @@ export async function stopJob(runId: string): Promise<JobView> {
 }
 
 /**
+ * What a run's lock says about the process that wrote it. A lock without a readable pid counts as live: the CLI
+ * creates the file first and writes its pid into it afterwards.
+ */
+function lockState(dir: string): "none" | "live" | "dead" {
+  let text: string;
+  try {
+    text = readFileSync(join(dir, LOCK_FILE), "utf8").trim();
+  } catch {
+    return "none";
+  }
+  const pid = /^\d+$/.test(text) ? Number(text) : 0;
+  return pid > 0 && !alive(pid) ? "dead" : "live";
+}
+
+/** The run has a lock nobody holds any more (the CLI was killed hard) and no running job: the lock can be cleared. */
+export function hasStaleLock(dir: string, job: JobView | null = readJob(dir)): boolean {
+  return job?.state !== "running" && lockState(dir) === "dead";
+}
+
+/**
  * Removes a lock left behind by a hard kill. Only when no job of this run is alive and the process that wrote
  * the lock is gone: a live process's lock is what stops the same work being bought twice.
  */
 export async function clearStaleLock(runId: string): Promise<void> {
   assertRunId(runId);
   const dir = join(roots().runs, runId);
-  const lock = join(dir, LOCK_FILE);
-  if (!existsSync(lock)) return;
-  const pid = Number((await readFile(lock, "utf8")).trim());
-  if (readJob(dir)?.state === "running" || (Number.isInteger(pid) && pid > 0 && alive(pid))) {
+  const lock = lockState(dir);
+  if (lock === "none") return;
+  if (lock === "live" || readJob(dir)?.state === "running") {
     throw new ApiError("job_active", `run ${runId} is still working`, "stop it first");
   }
-  await rm(lock, { force: true });
+  await rm(join(dir, LOCK_FILE), { force: true });
 }
 
 /** Runs a free, short CLI command (plan, draft-modes) and returns its JSON output. */

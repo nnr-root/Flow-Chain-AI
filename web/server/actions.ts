@@ -8,9 +8,6 @@ import { cliJson, cliText, type JobView, readJob, startJob } from "./jobs";
 import { requireManifest, runDir } from "./runs";
 import { draftArgs, kitDir, type Look, modesArg, musicPath, type NewVideo, rerenderArgs } from "./schemas";
 
-/** Rounding slack when comparing a fresh plan with the amount the user approved (both are 4-decimal sums). */
-const SLACK_USD = 0.0005;
-
 type RerollTarget = { scene: number; stage: string };
 
 /** Buys the script for a new run and stops there. The keys the chosen provider needs must be set first. */
@@ -49,7 +46,12 @@ export async function setModes(runId: string, modes: Array<1 | 2 | null>): Promi
 /** The estimate the user approved must still cover the plan; otherwise nothing starts and the new figure goes back. */
 async function assertApproved(runId: string, approvedUsd: number, reroll?: RerollTarget): Promise<void> {
   const plan = await price(runId, { reroll });
-  if (plan.totalUsd > approvedUsd + SLACK_USD) {
+  // a plan without a number cannot be compared with anything: nothing may start on it
+  if (typeof plan.totalUsd !== "number" || !Number.isFinite(plan.totalUsd)) {
+    throw new ApiError("internal", "the CLI's plan has no total, so nothing was started");
+  }
+  // both are 4-decimal sums the CLI printed, so they compare exactly
+  if (plan.totalUsd > approvedUsd) {
     throw new ApiError(
       "estimate_changed",
       `the estimate is now $${plan.totalUsd.toFixed(2)}, more than the $${approvedUsd.toFixed(2)} that was approved`,
@@ -59,16 +61,19 @@ async function assertApproved(runId: string, approvedUsd: number, reroll?: Rerol
   }
 }
 
-/** Continues a run (a draft's first generation, a failed run, one that needs approval), capped at the approved amount. */
+/**
+ * Continues a run (a draft's first generation, a failed run, one that needs approval). The approved amount goes
+ * to the CLI twice: as `--budget`, so it does not ask, and as `--cap`, the ceiling on what the job spends in total.
+ */
 export async function generate(runId: string, approvedUsd: number): Promise<JobView> {
   await assertApproved(runId, approvedUsd);
   // no --yes: when a later checkpoint prices the rest above the approved amount, the CLI stops (exit 2) instead of spending
-  return startJob(runId, "generate", ["resume", runId, "--budget", String(approvedUsd)], approvedUsd);
+  return startJob(runId, "generate", ["resume", runId, "--budget", String(approvedUsd), "--cap", String(approvedUsd)], approvedUsd);
 }
 
 export async function reroll(runId: string, target: RerollTarget, approvedUsd: number): Promise<JobView> {
   await assertApproved(runId, approvedUsd, target);
-  return startJob(runId, "reroll", ["reroll", runId, "--scene", String(target.scene), "--stage", target.stage, "--budget", String(approvedUsd)], approvedUsd);
+  return startJob(runId, "reroll", ["reroll", runId, "--scene", String(target.scene), "--stage", target.stage, "--budget", String(approvedUsd), "--cap", String(approvedUsd)], approvedUsd);
 }
 
 /** Stores a look in the run without rendering: how a draft (or any unfinished run) keeps the look its preview shows. */

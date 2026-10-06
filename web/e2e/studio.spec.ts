@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 
@@ -78,4 +78,41 @@ test("a draft previews with placeholders, shows the new price after a scene is p
   await expect.poll(calls).toContainEqual(["resume", DRAFT_ID, "--budget", "0.12"]);
   expect(calls().flat()).not.toContain("0.31");
   expect(calls().flat()).not.toContain("--yes");
+});
+
+test("the server answers its loopback name only: a foreign Host is refused on pages, the API and static files", async ({ request }) => {
+  const foreign = { host: "studio.evil.example:3132" };
+  // a real static file of this build, to prove the check also stands in front of files Next serves by itself
+  const home = await request.get("/");
+  expect(home.status()).toBe(200);
+  const asset = /\/_next\/static\/[^"']+\.(?:js|css)/.exec(await home.text())?.[0];
+  expect(asset).toBeTruthy();
+
+  for (const path of ["/", "/api/health", `/runs/${DONE_ID}`, `/api/runs/${DONE_ID}`, "/api/music", "/api/brand-kits", asset!]) {
+    const refused = await request.get(path, { headers: foreign });
+    expect(refused.status(), `${path} with a foreign Host`).toBe(403);
+    expect(await refused.text()).not.toContain("Fox");
+    expect((await request.get(path)).status(), `${path} with the studio's own Host`).toBe(200);
+  }
+  // an RSC request for a page (what a client-side navigation sends) is refused like the page itself
+  expect((await request.get(`/runs/${DONE_ID}`, { headers: { ...foreign, rsc: "1" } })).status()).toBe(403);
+});
+
+test("an upload larger than the 10 MB the request interceptor would keep still arrives whole", async ({ request }) => {
+  const bytes = Buffer.alloc(15 * 1024 * 1024, 0x55);
+  bytes.write("ID3"); // an MP3 by content
+  const res = await request.post("/api/music", {
+    headers: { "sec-fetch-site": "same-origin" },
+    multipart: { name: "e2e big track", file: { name: "big.mp3", mimeType: "audio/mpeg", buffer: bytes } },
+  });
+  expect(res.status()).toBe(201);
+  const { track } = (await res.json()) as { track: { id: string; bytes: number } };
+  rmSync(join(import.meta.dirname, "../.e2e/uploads", track.id.replace("upload:", "")), { force: true });
+  expect(track.bytes).toBe(bytes.length);
+  // the upload endpoints are outside the interceptor, so their own guard must refuse a foreign Host
+  const foreign = await request.post("/api/music", {
+    headers: { "sec-fetch-site": "same-origin", host: "studio.evil.example:3132" },
+    multipart: { file: { name: "x.mp3", mimeType: "audio/mpeg", buffer: Buffer.from("ID3x") } },
+  });
+  expect(foreign.status()).toBe(403);
 });

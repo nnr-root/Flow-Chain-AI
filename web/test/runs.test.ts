@@ -71,6 +71,48 @@ describe("reading runs", () => {
   });
 });
 
+describe("a stale lock", () => {
+  const DEAD = 2 ** 22 + 12345; // a pid that cannot exist
+  const stored = { id: "j", kind: "generate", args: [], startedAt: "t" };
+
+  it("is reported when only the CLI was killed: the shell recorded exit 137 and the lock was left behind", async () => {
+    const id = nextRunId();
+    const dir = await saveRun(studio, draftManifest(id));
+    await writeFile(join(dir, "job.json"), JSON.stringify({ ...stored, pid: DEAD }));
+    await writeFile(join(dir, "job.exit"), "137\n");
+    await writeFile(join(dir, ".lock"), `${DEAD}\n`);
+    expect(await readRun(id)).toMatchObject({ state: "failed", staleLock: true });
+  });
+
+  it("is not reported while the lock's process is alive, its pid is not written yet, a job runs, or there is no lock", async () => {
+    const id = nextRunId();
+    const dir = await saveRun(studio, draftManifest(id));
+    expect((await readRun(id)).staleLock).toBe(false);
+    await writeFile(join(dir, "job.json"), JSON.stringify({ ...stored, pid: DEAD }));
+    await writeFile(join(dir, "job.exit"), "137\n");
+    expect(await readRun(id)).toMatchObject({ state: "failed", staleLock: false });
+    await writeFile(join(dir, ".lock"), `${process.pid}\n`);
+    expect(await readRun(id)).toMatchObject({ state: "failed", staleLock: false });
+    await writeFile(join(dir, ".lock"), "");
+    expect(await readRun(id)).toMatchObject({ state: "failed", staleLock: false });
+
+    // a running job: whatever the lock says, it is not for the user to clear
+    const live = nextRunId();
+    const liveDir = await saveRun(studio, draftManifest(live));
+    await writeFile(join(liveDir, "job.json"), JSON.stringify({ ...stored, pid: process.pid }));
+    await writeFile(join(liveDir, ".lock"), `${DEAD}\n`);
+    expect(await readRun(live)).toMatchObject({ state: "running", staleLock: false });
+  });
+
+  it("is reported for an interrupted run too (a reboot)", async () => {
+    const id = nextRunId();
+    const dir = await saveRun(studio, draftManifest(id));
+    await writeFile(join(dir, "job.json"), JSON.stringify({ ...stored, pid: DEAD }));
+    await writeFile(join(dir, ".lock"), `${DEAD}\n`);
+    expect(await readRun(id)).toMatchObject({ state: "interrupted", staleLock: true });
+  });
+});
+
 describe("preview", () => {
   it("is the draft stand-in until all media exists, then the real media", async () => {
     const id = nextRunId();

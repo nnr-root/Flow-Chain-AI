@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { clearStaleLock, cliJson, JOB_EXIT, JOB_FILE, JOB_LOG, liveJobs, logTail, readJob, startJob, stopJob } from "@/server/jobs";
+import { describe, expect, it, vi } from "vitest";
+import { maxJobs } from "@/server/config";
+import { childEnv, clearStaleLock, cliJson, JOB_EXIT, JOB_FILE, JOB_LOG, liveJobs, logTail, readJob, startJob, stopJob } from "@/server/jobs";
 import { calls, nextRunId, stub, until, useStudio } from "./helpers";
 
 const studio = useStudio();
@@ -104,6 +105,103 @@ describe("jobs", () => {
     await clearStaleLock(id);
     expect(existsSync(join(dir, ".lock"))).toBe(false);
     await clearStaleLock(id); // nothing to do is not an error
+  });
+
+  it("treats a lock without a readable pid as live: the CLI creates the file, then writes its pid", async () => {
+    const id = nextRunId();
+    const dir = join(studio.runs, id);
+    await mkdir(dir, { recursive: true });
+    for (const text of ["", "\n", "not a pid\n", "-5\n", "12.5\n"]) {
+      await writeFile(join(dir, ".lock"), text);
+      await expect(clearStaleLock(id)).rejects.toMatchObject({ code: "job_active" });
+      expect(existsSync(join(dir, ".lock"))).toBe(true);
+    }
+  });
+
+  it("an exit file read before its code is written does not count as an exit: the process decides", async () => {
+    const id = nextRunId();
+    const dir = join(studio.runs, id);
+    await mkdir(dir, { recursive: true });
+    const stored = { id: "j", kind: "generate", args: [], startedAt: "t" };
+    for (const text of ["", "\n", "abc\n", "1.5\n"]) {
+      await writeFile(join(dir, JOB_EXIT), text);
+      await writeFile(join(dir, JOB_FILE), JSON.stringify({ ...stored, pid: process.pid }));
+      expect(readJob(dir), JSON.stringify(text)).toMatchObject({ state: "running" });
+      await writeFile(join(dir, JOB_FILE), JSON.stringify({ ...stored, pid: 2 ** 22 + 12345 }));
+      expect(readJob(dir), JSON.stringify(text)).toMatchObject({ state: "interrupted" });
+    }
+    await writeFile(join(dir, JOB_EXIT), "137\n");
+    expect(readJob(dir)).toMatchObject({ state: "ended", exitCode: 137 });
+    await writeFile(join(dir, JOB_EXIT), "0\n");
+    expect(readJob(dir)).toMatchObject({ state: "ended", exitCode: 0 });
+  });
+
+  it("gives the CLI the studio's environment without Next's own variables", () => {
+    const names = ["NODE_ENV", "NODE_OPTIONS", "NEXT_RUNTIME", "NEXT_PRIVATE_WORKER", "__NEXT_PRIVATE_ORIGIN", "__NEXT_PROCESSED_ENV", "NEXTAUTH_URL", "FAL_KEY", "PORT"];
+    const saved = Object.fromEntries(names.map((n) => [n, process.env[n]]));
+    try {
+      for (const n of names) process.env[n] = "x";
+      const env = childEnv();
+      for (const n of ["NODE_ENV", "NODE_OPTIONS", "NEXT_RUNTIME", "NEXT_PRIVATE_WORKER", "__NEXT_PRIVATE_ORIGIN", "__NEXT_PROCESSED_ENV"]) {
+        expect(env, n).not.toHaveProperty(n);
+      }
+      // everything else passes through, also names that merely start like Next's
+      expect(env).toMatchObject({ NEXTAUTH_URL: "x", FAL_KEY: "x", PORT: "x", PATH: process.env.PATH, RUNS_DIR: studio.runs, FLOWCHAIN_ROOT: studio.root });
+    } finally {
+      for (const n of names) {
+        if (saved[n] === undefined) delete process.env[n];
+        else process.env[n] = saved[n];
+      }
+    }
+  });
+
+  it("the machine limit falls back to 2 unless STUDIO_MAX_JOBS is a whole number of at least 1", () => {
+    delete process.env.STUDIO_MAX_JOBS;
+    expect(maxJobs()).toBe(2);
+    for (const bad of ["", " ", "0", "-1", "1.5", "two", "NaN", "Infinity", "3 jobs"]) {
+      process.env.STUDIO_MAX_JOBS = bad;
+      expect(maxJobs(), JSON.stringify(bad)).toBe(2);
+    }
+    for (const [raw, n] of [["1", 1], ["3", 3], [" 4 ", 4]] as const) {
+      process.env.STUDIO_MAX_JOBS = raw;
+      expect(maxJobs()).toBe(n);
+    }
+  });
+
+  it("reads a process's start time the same way in any locale", async () => {
+    const saved = { LC_ALL: process.env.LC_ALL, LANG: process.env.LANG };
+    await stub(studio, "_behave.json", { sleepMs: 3000 });
+    const id = nextRunId();
+    try {
+      Object.assign(process.env, { LC_ALL: "de_DE.UTF-8", LANG: "de_DE.UTF-8" });
+      const job = await startJob(id, "generate", ["resume", id]);
+      expect(job.procStart).toMatch(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) /);
+      // a server restarted under another locale still recognises its job
+      Object.assign(process.env, { LC_ALL: "fr_FR.UTF-8", LANG: "fr_FR.UTF-8" });
+      expect(readJob(join(studio.runs, id))).toMatchObject({ state: "running" });
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+      await stopJob(id).catch(() => undefined);
+    }
+  });
+
+  it("two copies of the module (a dev-server recompile) share the starts in flight: one run still starts once", async () => {
+    await stub(studio, "_behave.json", { sleepMs: 3000 });
+    const first = await import("@/server/jobs");
+    vi.resetModules();
+    const second = await import("@/server/jobs");
+    expect(second.startJob).not.toBe(first.startJob);
+    const id = nextRunId();
+    const results = await Promise.allSettled([first.startJob(id, "generate", ["resume", id]), second.startJob(id, "generate", ["resume", id])]);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+    expect((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason).toMatchObject({ code: "job_active" });
+    await until(async () => (await calls(studio)).length >= 1);
+    await new Promise((r) => setTimeout(r, 300)); // a second CLI would have logged its call by now
+    expect(await calls(studio)).toHaveLength(1);
+    await stopJob(id);
   });
 
   it("cliJson returns a free command's JSON and turns a failure into a readable error", async () => {

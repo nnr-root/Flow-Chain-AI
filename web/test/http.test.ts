@@ -1,8 +1,27 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { isLoopbackHost } from "@/lib/loopback";
 import { ApiError, body, errorResponse, guard, json, route } from "@/server/http";
 
 const req = (headers: Record<string, string>, method = "POST") => new Request("http://127.0.0.1:3131/api/x", { method, headers });
+
+describe("the loopback host test", () => {
+  it("accepts the machine's own names, with or without a port and in any case", () => {
+    for (const host of ["127.0.0.1", "127.0.0.1:3131", "localhost", "localhost:3131", "LOCALHOST:3131", "[::1]", "[::1]:3131"]) {
+      expect(isLoopbackHost(host), host).toBe(true);
+    }
+  });
+
+  it("refuses every other name, however much it looks like one, and a missing header", () => {
+    const foreign = [
+      "evil.example", "evil.example:3131", "localhost.evil.example", "127.0.0.1.evil.example:3131", "evil.example:127.0.0.1",
+      "127.0.0.2", "192.168.1.5:3131", "0.0.0.0:3131", "::1", "localhost:", "localhost:3131:3131", " localhost", "",
+    ];
+    for (const host of foreign) expect(isLoopbackHost(host), host).toBe(false);
+    expect(isLoopbackHost(null)).toBe(false);
+    expect(isLoopbackHost(undefined)).toBe(false);
+  });
+});
 
 describe("the origin guard", () => {
   it("answers loopback hosts only, so a DNS name pointed at this machine is refused", () => {
@@ -58,6 +77,14 @@ describe("responses", () => {
       throw new ApiError("not_found", "no run x");
     });
     expect((await failing(req({ host: "localhost" }, "GET"), undefined)).status).toBe(404);
+  });
+
+  it("route() marks the handler it returns with whether it is a write", () => {
+    const write = route({ write: true }, () => json({}));
+    const read = route({ write: false }, () => json({}));
+    expect((write as { write?: boolean }).write).toBe(true);
+    expect((read as { write?: boolean }).write).toBe(false);
+    expect(Object.keys(write)).toEqual([]);
   });
 
   it("body() takes JSON only", async () => {

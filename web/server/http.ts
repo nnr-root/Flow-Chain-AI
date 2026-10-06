@@ -1,4 +1,5 @@
 import { ZodError } from "zod";
+import { hostName, isLoopbackHost } from "@/lib/loopback";
 
 export type ErrorCode =
   | "validation" | "not_found" | "job_active" | "busy" | "estimate_changed" | "not_draft" | "missing_keys"
@@ -37,9 +38,6 @@ export function errorResponse(err: unknown): Response {
   return json({ error: { code: "internal", message: "something went wrong in the studio server; see its log" } }, 500);
 }
 
-const LOOPBACK = new Set(["127.0.0.1", "localhost", "[::1]"]);
-const hostName = (host: string) => host.replace(/:\d+$/, "").toLowerCase();
-
 /**
  * There is no login, so the only protection is where a request comes from: the server answers loopback names
  * only (a DNS name pointed at 127.0.0.1 is refused), and a write must come from the studio's own pages — never
@@ -47,7 +45,7 @@ const hostName = (host: string) => host.replace(/:\d+$/, "").toLowerCase();
  */
 export function guard(req: Request, opts: { write: boolean }): void {
   const host = req.headers.get("host") ?? new URL(req.url).host;
-  if (!LOOPBACK.has(hostName(host))) throw new ApiError("forbidden_origin", `the studio only answers on localhost, not ${hostName(host)}`);
+  if (!isLoopbackHost(host)) throw new ApiError("forbidden_origin", `the studio only answers on localhost, not ${hostName(host)}`);
   if (!opts.write) return;
   const site = req.headers.get("sec-fetch-site");
   const origin = req.headers.get("origin");
@@ -57,9 +55,12 @@ export function guard(req: Request, opts: { write: boolean }): void {
 
 type Handler<C> = (req: Request, ctx: C) => Promise<Response> | Response;
 
-/** Wraps a route handler: origin guard first, then every thrown error becomes the one error shape. */
+/**
+ * Wraps a route handler: origin guard first, then every thrown error becomes the one error shape. The handler it
+ * returns carries its `write` value (not enumerable), so a test can check every route file's label.
+ */
 export function route<C>(opts: { write: boolean }, handler: Handler<C>): Handler<C> {
-  return async (req, ctx) => {
+  const wrapped: Handler<C> = async (req, ctx) => {
     try {
       guard(req, opts);
       return await handler(req, ctx);
@@ -67,6 +68,7 @@ export function route<C>(opts: { write: boolean }, handler: Handler<C>): Handler
       return errorResponse(err);
     }
   };
+  return Object.defineProperty(wrapped, "write", { value: opts.write });
 }
 
 /** The JSON body of a write; anything else (a form post from another page, for instance) is refused. */

@@ -10,7 +10,7 @@ import { buildDraftProps, type LookFlags, previewProps } from "@src/studio/props
 import { type RunStatus, statusOf } from "@src/studio/status";
 import { roots } from "./config";
 import { ApiError } from "./http";
-import { type JobView, readJob } from "./jobs";
+import { hasStaleLock, type JobView, readJob } from "./jobs";
 
 export type RunState = "creating" | "draft" | "running" | "needs_approval" | "failed" | "interrupted" | "done" | "incomplete";
 
@@ -18,6 +18,8 @@ export type RunView = {
   runId: string;
   state: RunState;
   job: JobView | null;
+  /** The pipeline's lock was left behind by a process that is gone, and no job runs: it can be cleared from the page. */
+  staleLock: boolean;
   /** Absent while the run is still being created (no manifest yet). */
   status?: RunStatus;
 };
@@ -54,7 +56,7 @@ export async function readRun(runId: string): Promise<RunView> {
   const job = readJob(dir);
   const manifest = await readManifest(runId);
   if (!manifest && !job) throw new ApiError("not_found", `no run ${runId}`);
-  return { runId, state: stateOf(manifest, job), job, ...(manifest ? { status: statusOf(manifest) } : {}) };
+  return { runId, state: stateOf(manifest, job), job, staleLock: hasStaleLock(dir, job), ...(manifest ? { status: statusOf(manifest) } : {}) };
 }
 
 /** A run that must have a manifest (every action but watching a draft being created). */
