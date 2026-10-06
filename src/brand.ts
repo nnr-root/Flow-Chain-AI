@@ -1,6 +1,6 @@
 import { copyFile, mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import { z } from "zod";
 import { Corner } from "./media/remotion/props.js";
 
@@ -33,6 +33,8 @@ export const BrandKit = z.strictObject({
   colors: z.strictObject({ text: Hex.optional(), accent: Hex.optional() }).optional(),
   /** Character bible used when --characters is not given (frozen into the run at creation). */
   characters: z.string().min(1).max(600).optional(),
+  /** A character portrait keyframes are conditioned on (RunPod runs); replaces the generated reference. */
+  reference: z.string().regex(/^[^/\\]+\.(png|jpe?g)$/i, "must be a .png or .jpg file inside the kit folder").optional(),
 });
 export type BrandKit = z.infer<typeof BrandKit>;
 
@@ -61,10 +63,19 @@ export async function loadBrandKit(dir: string): Promise<BrandKit> {
     throw new Error(`brand kit ${where} is invalid:\n${problems}`);
   }
   const kit = parsed.data;
-  for (const file of [kit.logo, kit.font?.file]) {
+  for (const file of [kit.logo, kit.font?.file, kit.reference]) {
     if (file && !existsSync(join(dir, file))) throw new Error(`brand kit ${where}: ${file} not found in ${dir}`);
   }
   return kit;
+}
+
+/** Copies the kit's character portrait into `<runDir>/brand/` (frozen with the run); undefined without one. */
+export async function installReference(kit: BrandKit, kitDir: string, runDir: string): Promise<string | undefined> {
+  if (!kit.reference) return undefined;
+  await mkdir(join(runDir, "brand"), { recursive: true });
+  const rel = `brand/reference${extname(kit.reference).toLowerCase()}`;
+  await copyFile(join(kitDir, kit.reference), join(runDir, rel));
+  return rel;
 }
 
 /** Copies the kit's logo and font into `<runDir>/brand/` and returns the look with run-relative paths. */

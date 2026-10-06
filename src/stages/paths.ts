@@ -10,6 +10,8 @@ export const paths = {
   rawAudio: (i: number) => `audio/scene_${n(i)}.raw.mp3`,
   audio: (i: number) => `audio/scene_${n(i)}.wav`,
   keyframe: (i: number) => `images/keyframe_${n(i)}.png`,
+  /** The character portrait every keyframe is conditioned on (RunPod runs with characters). */
+  reference: "images/reference.png",
   clip: (i: number) => `clips/clip_${n(i)}.mp4`,
   /** chain.png: first frame of scene i's raw clip. */
   firstFrame: (i: number) => `frames/first_${n(i)}.png`,

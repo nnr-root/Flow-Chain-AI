@@ -12,7 +12,7 @@ export const MAX_HOOK_WORDS = 6;
 // fal's Flux seed is a signed 32-bit integer; every seed it has returned is below 2^31.
 export const MAX_SEED = 2 ** 31 - 1;
 
-export const StageName = z.enum(["script", "tts", "silence", "modes", "keyframes", "clips", "fit", "captions", "render"]);
+export const StageName = z.enum(["script", "reference", "tts", "silence", "modes", "keyframes", "clips", "fit", "captions", "render"]);
 export type StageName = z.infer<typeof StageName>;
 
 export const Mode = z.union([z.literal(1), z.literal(2)]);
@@ -177,6 +177,8 @@ export const RunRequest = z.object({
   videoProfile: VideoProfileId.optional(),
   /** How keyframes are bought; absent = fal-flux@1 (runs made before 2.4); frozen. */
   imageProfile: ImageProfileId.optional(),
+  /** A brand kit's character portrait, copied into the run (run-relative path); frozen. */
+  referenceImage: z.string().optional(),
   /** Fixed shot per scene (testing override from --shots); when absent the LLM decides. */
   shots: z.array(Shot).optional(),
   voiceId: z.string().min(1),

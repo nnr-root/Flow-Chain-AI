@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { copyFile, mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { installBrand, loadBrandKit } from "../../src/brand.js";
+import { installBrand, installReference, loadBrandKit } from "../../src/brand.js";
 import { tempDir } from "../helpers/media.js";
 
 const EXAMPLE = resolve("assets/brand/example");
@@ -64,5 +64,22 @@ describe("installBrand", () => {
     });
     expect(existsSync(join(run, "brand/logo.svg"))).toBe(true);
     expect(existsSync(join(run, "brand/Brand.ttf"))).toBe(true);
+  });
+});
+
+describe("installReference", () => {
+  it("copies the kit's character portrait into the run, and nothing without one", async () => {
+    const dir = await kit({ name: "n", logo: "logo.svg", reference: "face.PNG" });
+    await copyFile(join(EXAMPLE, "logo.svg"), join(dir, "face.PNG"));
+    const run = await tempDir("flowchain-run-");
+    expect(await installReference(await loadBrandKit(dir), dir, run)).toBe("brand/reference.png");
+    expect(existsSync(join(run, "brand/reference.png"))).toBe(true);
+    expect(await installReference(await loadBrandKit(await kit({ name: "n", logo: "logo.svg" })), dir, run)).toBeUndefined();
+  });
+
+  it("accepts only a PNG or JPEG portrait inside the kit", async () => {
+    await expect(loadBrandKit(await kit({ name: "n", logo: "logo.svg", reference: "face.gif" }))).rejects.toThrow(
+      /reference: must be a .png or .jpg file/,
+    );
   });
 });

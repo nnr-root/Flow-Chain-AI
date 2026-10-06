@@ -3,7 +3,9 @@ import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
 import { runProviderJob } from "./job.js";
 import { effectivePreset } from "./look.js";
-import { outPath, paths } from "./paths.js";
+import { abs, outPath, paths } from "./paths.js";
+import { referenceImageOf } from "./reference.js";
+import { fileSha256 } from "../manifest/hash.js";
 import { requireScript } from "./require.js";
 import { MAX_SEED, type Manifest } from "../manifest/schema.js";
 import type { Stage } from "./types.js";
@@ -24,13 +26,23 @@ export const keyframesStage: Stage = {
   perScene: true,
   paid: true,
   appliesTo: needsKeyframe,
-  deps: (m) => [{ stage: "script" }, ...autoModeDeps(m)],
-  inputsFor: async (ctx, scene) => ({
-    model: ctx.manifest.models.image,
-    prompt: imagePrompt(requireScript(ctx.manifest), scene!, effectivePreset(ctx.manifest)),
-    size: ctx.keyframeSize,
-    seed: keyframeSeed(ctx.manifest, scene!),
-  }),
+  deps: (m) => [
+    { stage: "script" },
+    ...autoModeDeps(m),
+    // RunPod runs condition every keyframe on the reference portrait (2.4 spec §5.2)
+    ...(m.request.imageProfile === "runpod-sdxl@1" ? [{ stage: "reference" as const, scene: 0 }] : []),
+  ],
+  inputsFor: async (ctx, scene) => {
+    const reference = referenceImageOf(ctx.manifest);
+    return {
+      model: ctx.manifest.models.image,
+      prompt: imagePrompt(requireScript(ctx.manifest), scene!, effectivePreset(ctx.manifest)),
+      size: ctx.keyframeSize,
+      seed: keyframeSeed(ctx.manifest, scene!),
+      // only runs with a reference key on it, so every other run keeps its cache key
+      reference: reference === undefined ? undefined : await fileSha256(abs(ctx, reference)),
+    };
+  },
   outputsFor: (_m, scene) => [paths.keyframe(scene!)],
   estimateCostUsd(ctx, scene) {
     const profile = imageProfileOf(ctx.manifest.request.imageProfile);
@@ -44,7 +56,16 @@ export const keyframesStage: Stage = {
     const result = await runProviderJob(ctx, i, "keyframes", {
       label: `keyframe scene ${i + 1}`,
       costUsd: imageProfileOf(ctx.manifest.request.imageProfile).keyframeUsd(ctx.prices, ctx.keyframeSize),
-      prepare: () => ctx.providers.image.prepare({ prompt, ...ctx.keyframeSize, seed: keyframeSeed(ctx.manifest, i) }),
+      prepare: () => {
+        const reference = referenceImageOf(ctx.manifest);
+        return ctx.providers.image.prepare({
+          prompt,
+          ...ctx.keyframeSize,
+          seed: keyframeSeed(ctx.manifest, i),
+          preset: effectivePreset(ctx.manifest)?.name,
+          referenceImagePath: reference === undefined ? undefined : abs(ctx, reference),
+        });
+      },
       submit: (job, signal) => ctx.providers.image.submit(job, { signal }),
       wait: (id) => ctx.providers.image.wait(id, { timeoutMs: ctx.providers.image.waitMs ?? TIMEOUTS.image }),
       waitMs: ctx.providers.image.waitMs ?? TIMEOUTS.image,
