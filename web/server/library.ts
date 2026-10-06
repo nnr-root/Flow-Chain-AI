@@ -29,7 +29,7 @@ export async function listKits(): Promise<KitSummary[]> {
 }
 
 export const slugify = (name: string): string =>
-  name.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48);
+  name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48);
 
 type Upload = { bytes: Uint8Array; ext: string };
 
