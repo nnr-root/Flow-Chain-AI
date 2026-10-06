@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 
@@ -54,23 +54,28 @@ test("a finished run plays in the Player, a look change previews at once, and Ap
   expect(errors).toEqual([]);
 });
 
-test("a draft previews with placeholders, prices a mode change and generates capped at the shown estimate", async ({ page }) => {
+test("a draft previews with placeholders, shows the new price after a scene is pinned and generates capped at it", async ({ page }) => {
   await page.goto(`/runs/${DRAFT_ID}`);
   await expect(page.locator("[data-state=draft]")).toBeVisible();
   await expect(page.getByTestId("draft-note")).toBeVisible();
   await expect(page.getByTestId("player").locator("img").first()).toHaveAttribute("src", /draft\/scene_0\d\.svg$/);
   await expect(page.getByTestId("generate")).toHaveText("Generate video — up to $0.31");
 
-  // pinning scene 1 to a still saves it and shows the new price
+  // The stub CLI cannot price a pin itself, so the test stands in for "the plan is cheaper once scene 1 is a still":
+  // it makes the stub answer every later `plan` with $0.12. This proves the page asks the server again after a pin,
+  // shows the server's new price and sends that amount as the cap. It does not prove that the CLI persists the pin
+  // (the stub's `draft-modes` only records the call) or that the CLI prices a pin correctly.
+  writeFileSync(join(runs, "_plan.json"), JSON.stringify({ items: [], totalUsd: 0.12 }));
   await page.getByTestId("scene-1").getByRole("radio", { name: "Still" }).click();
   await expect.poll(calls).toContainEqual(["draft-modes", DRAFT_ID, "--modes", "2,auto,auto", "--json"]);
 
-  // generating passes the amount on the button as the CLI's budget, without --yes
+  // the button now shows the new price, and generating passes exactly that amount as the CLI's budget, without --yes
   const generate = page.getByTestId("generate");
-  await expect(generate).toHaveText("Generate video — up to $0.31");
+  await expect(generate).toHaveText("Generate video — up to $0.12");
   const started = page.waitForResponse((r) => r.url().endsWith(`/api/runs/${DRAFT_ID}/generate`));
   await generate.click();
   expect((await started).status()).toBe(202);
-  await expect.poll(calls).toContainEqual(["resume", DRAFT_ID, "--budget", "0.31"]);
+  await expect.poll(calls).toContainEqual(["resume", DRAFT_ID, "--budget", "0.12"]);
+  expect(calls().flat()).not.toContain("0.31");
   expect(calls().flat()).not.toContain("--yes");
 });

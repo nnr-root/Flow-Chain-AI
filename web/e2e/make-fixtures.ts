@@ -72,7 +72,6 @@ finished.ledger.push({ stage: "tts", scene: 0, usd: 0.02, at: done.finishedAt },
 await saveManifest(dir, finished);
 
 await saveManifest(join(runs, DRAFT_ID), scripted(DRAFT_ID));
-// what the stub CLI answers when the studio prices the draft, and when it tries other modes
+// what the stub CLI answers when the studio prices the draft (the browser test rewrites it to simulate a cheaper plan)
 writeFileSync(join(runs, "_plan.json"), JSON.stringify({ items: [{ stage: "tts", scene: 1, costUsd: 0.02 }], totalUsd: 0.31 }));
-writeFileSync(join(runs, "_plan-modes.json"), JSON.stringify({ items: [], totalUsd: 0.12 }));
 console.log(`fixtures in ${dirname(dir)}`);
