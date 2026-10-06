@@ -69,7 +69,7 @@ Mode 2 — use it to judge continuity at each seam), plus intermediates.
 ## Costs
 
 Estimates come from the price table in `src/config.ts` (override with `prices.json`). A run asks for
-confirmation when the estimate exceeds `FLOWCHAIN_BUDGET_USD` (default $3); rerolls always ask; `--yes` skips.
+confirmation when the estimate exceeds `FLOWCHAIN_BUDGET_USD` (default $3); rerolls ask unless you give `--budget`; `--yes` skips.
 For `--mode auto` runs, `--budget` (or `FLOWCHAIN_BUDGET_USD`) and the price table are frozen with the run for
 the mode rules; a later `--budget` only changes when to ask. `resume --from <stage>` re-runs, and re-buys,
 that stage and every later one (so `--from modes` re-buys every keyframe and clip). On runs with a seed,
@@ -126,18 +126,29 @@ CLI makes (everything in `runs/` shows up, and anything made in the studio can b
    browser with placeholder pictures, estimated timing and no voice, but the real captions, hook, transitions,
    brand, music and sound effects.
 2. On the draft, set each scene to **Auto, Clip or Still**; the price updates. **Generate video** shows the
-   estimate on the button and passes it to the pipeline as a cap: if the plan ever exceeds it, the run stops and
-   asks again instead of spending more.
+   estimate on the button, and that amount is a cap on what the job spends in total (`--cap`): if what the job
+   has already spent plus what is still planned ever exceeds it, the run stops and asks again instead of
+   spending more.
 3. A finished run plays with its real media. Caption style, transitions, hook, sound effects, music level and
    brand preview live as you change them; **Apply and re-render** is free. Each scene can get a new voice take,
-   picture or clip, priced before you confirm.
+   picture or clip, priced before you confirm and capped at that price in the same way. Generating and
+   regenerating a scene first save a look you changed but have not saved, so the video is made with the look
+   the preview shows; **Save this look** keeps a look on a run that is not finished yet.
 4. **Brand kits** creates kits by upload (logo, optional font, colours, characters, portrait) into `brand-kits/`;
-   music can be uploaded in the new-video form (`uploads/music/`). Both folders are git-ignored.
+   music can be uploaded in the new-video form (`uploads/music/`). Both folders are git-ignored. Upload limits:
+   logo 2 MB, font 5 MB, portrait 6 MB, music an MP3 of up to 20 MB.
 
-The studio has no login. It listens on `127.0.0.1` only and refuses any write that does not come from its own
-pages. API keys stay in `.env`, which only the CLI reads; the browser never sees them. Jobs are the CLI itself,
-started detached, so a job keeps running if the web server restarts; at most two run at once
-(`STUDIO_MAX_JOBS`). The preview is not frame-exact (the rendered MP4 is), and draft timings are estimates.
+The studio has no login. It listens on `127.0.0.1` only, answers only requests addressed to `127.0.0.1` or
+`localhost`, and refuses any write that does not come from its own pages. API keys stay in `.env`, and only
+the CLI uses their values: the studio reads `.env` only to see which names are set and what the default
+provider and budget are, and the browser never receives a value. Jobs are the CLI itself, started detached, so
+a job keeps running if the web server restarts; at most two run at once. The preview is not frame-exact (the
+rendered MP4 is), and draft timings are estimates.
+
+The studio's own settings are not read from `.env`: set `STUDIO_MAX_JOBS` (how many jobs may run at once) and
+`RUNS_DIR` (another runs folder) in the environment the studio starts in, for example
+`STUDIO_MAX_JOBS=3 npm run web`.
+
 Remotion is free for individuals and companies of up to three people; larger companies need its company licence.
 
 The studio uses these CLI commands, which also work on their own:
@@ -148,9 +159,10 @@ The studio uses these CLI commands, which also work on their own:
 | `run --pin-modes auto,1,2` | pins scenes of an auto run to clip (1) or still (2) |
 | `draft-modes <runId> --modes auto,1,2` | changes the pins while only the script is bought |
 | `plan <runId> [--reroll 2:clips] [--modes …] [--json]` | what continuing would do and cost, without doing it |
-| `look <runId> …` | stores a new look without rendering (takes `rerender`'s options; works on a draft) |
+| `look <runId> …` | stores a new look without rendering (takes `rerender`'s look options, not `--render-concurrency`; works on a draft) |
 | `status <runId> --json` | the status as JSON |
-| `reroll … --budget <usd>` | a reroll capped at an amount instead of asking |
+| `reroll … --budget <usd>` | a reroll that spends up to an amount without asking |
+| `resume … --cap <usd>`, `reroll … --cap <usd>` | stops the command when what it has spent plus what is still planned would exceed the amount |
 
 ## Tests
 
