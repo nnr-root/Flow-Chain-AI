@@ -3,6 +3,7 @@ import type { RenderProps } from "@src/media/remotion/props";
 import type { PlanJson } from "@src/studio/commands";
 import type { SceneStatus } from "@src/studio/status";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ActionKind, afterRefusal } from "@/lib/approval";
 import { ApiFailure, errorText, sendJson, usd } from "@/lib/api";
 import { controlsOf, type LookControls, pendingLook } from "@/lib/look";
 import { encodeLookToken } from "@/lib/look-token";
@@ -97,10 +98,9 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
   const needsEstimate = state === "draft" || RESUMABLE.includes(state);
   const modesKey = status?.scenes.map((s) => s.override ?? "a").join(",") ?? "";
   useEffect(() => {
-    if (!needsEstimate) {
-      setEstimate(null);
-      return;
-    }
+    // a price for the old state or modes must not stay clickable while (or if) the new one is fetched
+    setEstimate(null);
+    if (!needsEstimate) return;
     let stale = false;
     sendJson<PlanJson>(`/api/runs/${id}/plan`, {}).then((p) => !stale && setEstimate(p), (err) => !stale && setError(errorText(err)));
     return () => {
@@ -108,15 +108,17 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
     };
   }, [id, needsEstimate, modesKey, state]);
 
-  /** Runs an action, showing its error; an estimate that rose replaces the one on screen so the user can approve it. */
-  const act = async (fn: () => Promise<unknown>) => {
+  /** Runs an action, showing its error; an estimate that rose replaces the figure of that action on screen so the user can approve it. */
+  const act = async (fn: () => Promise<unknown>, action?: ActionKind) => {
     setBusy(true);
     setError("");
     try {
       await fn();
     } catch (err) {
-      if (err instanceof ApiFailure && err.code === "estimate_changed" && typeof err.data.totalUsd === "number") {
-        setEstimate((old) => ({ items: old?.items ?? [], totalUsd: err.data.totalUsd as number }));
+      if (action && err instanceof ApiFailure && err.code === "estimate_changed" && typeof err.data.totalUsd === "number") {
+        const totalUsd = err.data.totalUsd;
+        setEstimate((old) => afterRefusal(action, totalUsd, { estimate: old, ask: null }).estimate);
+        setAsk((old) => afterRefusal(action, totalUsd, { estimate: null, ask: old }).ask);
       }
       setError(errorText(err));
     } finally {
@@ -129,7 +131,12 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
       const modes = status!.scenes.map((s) => (s.scene === scene ? mode : s.override));
       setEstimate(await sendJson<PlanJson>(`/api/runs/${id}/modes`, { modes }));
     });
-  const generate = () => act(() => sendJson(`/api/runs/${id}/generate`, { approvedUsd: estimate!.totalUsd }));
+  // the preview shows the look being edited, so that is the look the bought video gets: save it first (a failed save stops here)
+  const generate = () =>
+    act(async () => {
+      if (dirty) await sendJson(`/api/runs/${id}/look`, { look });
+      await sendJson(`/api/runs/${id}/generate`, { approvedUsd: estimate!.totalUsd });
+    }, "generate");
   const stop = () => act(() => sendJson(`/api/runs/${id}/job`, {}, "DELETE"));
   const unlock = () => act(() => sendJson(`/api/runs/${id}/unlock`));
   const saveLook = () => act(() => sendJson(`/api/runs/${id}/look`, { look }));
@@ -143,7 +150,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
     act(async () => {
       await sendJson(`/api/runs/${id}/reroll`, { scene: ask!.scene, stage: ask!.stage, approvedUsd: ask!.totalUsd });
       setAsk(null);
-    });
+    }, "reroll");
 
   const failures = status ? [...status.runSteps, ...status.scenes.flatMap((s) => s.steps.map((x) => ({ ...x, scene: s.scene })))].filter((s) => s.status === "failed") : [];
   const set = <K extends keyof LookControls>(key: K, value: LookControls[K]) => setControls((c) => (c ? { ...c, [key]: value } : c));
