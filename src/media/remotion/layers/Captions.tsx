@@ -3,8 +3,9 @@ import { fitText } from "@remotion/layout-utils";
 import type React from "react";
 import { Fragment, useEffect, useState } from "react";
 import {
-  AbsoluteFill, cancelRender, continueRender, delayRender, staticFile, useCurrentFrame, useVideoConfig,
+  AbsoluteFill, cancelRender, continueRender, delayRender, useCurrentFrame, useVideoConfig,
 } from "remotion";
+import { useMedia } from "../media.js";
 import type { CaptionPage, CaptionStyle } from "../props.js";
 import { activePageIndex, activeTokenIndex } from "../timeline.js";
 
@@ -16,12 +17,13 @@ import { activePageIndex, activeTokenIndex } from "../timeline.js";
 export function useCaptionFont(style: CaptionStyle): boolean {
   const [handle] = useState(() => delayRender(`font ${style.font.family}`));
   const [loaded, setLoaded] = useState(false);
+  const url = useMedia()(style.font.file);
   useEffect(() => {
-    loadFont({ family: style.font.family, url: staticFile(style.font.file), weight: String(style.font.weight) }).then(
+    loadFont({ family: style.font.family, url, weight: String(style.font.weight) }).then(
       () => setLoaded(true),
       (err: unknown) => cancelRender(err),
     );
-  }, [style.font.family, style.font.file, style.font.weight]);
+  }, [style.font.family, url, style.font.weight]);
   useEffect(() => {
     if (loaded) continueRender(handle);
   }, [loaded, handle]);

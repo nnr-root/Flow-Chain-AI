@@ -1,5 +1,6 @@
 import type React from "react";
-import { Audio, Sequence, staticFile } from "remotion";
+import { Audio, Sequence } from "remotion";
+import { useMedia } from "../media.js";
 import type { RenderProps } from "../props.js";
 import { duckVolume, fadeOutVolume } from "../timeline.js";
 
@@ -10,17 +11,18 @@ import { duckVolume, fadeOutVolume } from "../timeline.js";
  */
 export const AudioLayer: React.FC<{ audio: RenderProps["audio"]; totalFrames: number }> = ({ audio, totalFrames }) => {
   const { bgm, speech } = audio;
+  const media = useMedia();
   return (
     <>
-      <Audio src={staticFile(audio.narration)} />
+      <Audio src={media(audio.narration)} />
       {audio.sfx.map((cue, i) => (
         <Sequence key={i} from={cue.frame} layout="none" name={`sfx ${i + 1}`}>
-          <Audio src={staticFile(cue.src)} volume={cue.gain} />
+          <Audio src={media(cue.src)} volume={cue.gain} />
         </Sequence>
       ))}
       {bgm && (
         <Audio
-          src={staticFile(bgm.src)}
+          src={media(bgm.src)}
           loop
           // "repeat" (the default) restarts the frame passed to `volume` on every loop, which would evaluate the duck and
           // fade-out curves (absolute video frames) against the wrong frame whenever the BGM is shorter than the video.
