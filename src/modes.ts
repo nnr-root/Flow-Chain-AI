@@ -1,12 +1,14 @@
 import type { Prices, Size } from "./config.js";
-import { imageCost, round4, scriptCost, ttsCost } from "./cost.js";
+import { round4, scriptCost, ttsCost } from "./cost.js";
+import { type ImageProfileId, imageProfileOf } from "./image-profiles.js";
 import type { ActionLevel, Mode, Shot } from "./manifest/schema.js";
 import { type VideoProfileId, videoProfileOf } from "./video-profiles.js";
 
 export type PlanModesInput = {
   scenes: Array<{ actionLevel: ActionLevel; shot: Shot; requestedSec: number; narrationChars: number }>;
-  /** Prices the clips; absent = kling-v1 (so runs made before 2.3 keep their modes cache key). */
   videoProfile?: VideoProfileId;
+  /** Prices the keyframes; absent = fal-flux@1 (so runs made before 2.4 keep their modes cache key). */
+  imageProfile?: ImageProfileId;
   prices: Prices;
   keyframeSize: Size;
   budgetUsd: number;
@@ -18,12 +20,16 @@ const START: Record<ActionLevel, Mode> = { high: 1, medium: 1, low: 2 };
 /** The whole run's cost under candidate modes (spec §5): keyframes follow the Phase 1 rule on these modes. */
 function runCost(input: PlanModesInput, modes: Mode[]): number {
   const { scenes, prices } = input;
-  let usd = scriptCost(prices);
+  const image = imageProfileOf(input.imageProfile);
+  const video = videoProfileOf(input.videoProfile);
+  // a cold start is paid once per run by each endpoint that is used (0 for fal and Kling)
+  let usd = scriptCost(prices) + image.runOverheadUsd(prices);
   scenes.forEach((s, i) => {
     usd += ttsCost(prices, s.narrationChars);
-    if (i === 0 || modes[i] === 2 || modes[i - 1] === 2 || s.shot === "cut") usd += imageCost(prices, input.keyframeSize);
-    if (modes[i] === 1) usd += videoProfileOf(input.videoProfile).costUsd(prices, s.requestedSec);
+    if (i === 0 || modes[i] === 2 || modes[i - 1] === 2 || s.shot === "cut") usd += image.keyframeUsd(prices, input.keyframeSize);
+    if (modes[i] === 1) usd += video.costUsd(prices, s.requestedSec);
   });
+  if (modes.includes(1)) usd += video.runOverheadUsd(prices);
   return round4(usd);
 }
 

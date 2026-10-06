@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Prices } from "../../src/config.js";
+import { round4, scriptCost } from "../../src/cost.js";
 import type { ActionLevel, Shot } from "../../src/manifest/schema.js";
 import { planModes } from "../../src/modes.js";
 
@@ -74,3 +75,21 @@ describe("planModes", () => {
     expect(withAudio.estimatedUsd).toBe(0.5805);
   });
 });
+
+describe("planModes on RunPod profiles", () => {
+  it("adds each endpoint's cold start once: images always, video only when a scene is Mode 1", () => {
+    const base = { prices: Prices.parse({}), keyframeSize: { width: 1000, height: 1000 }, budgetUsd: 10 };
+    const scenes = [{ actionLevel: "low" as const, shot: "cut" as const, requestedSec: 81 / 16, narrationChars: 0 }];
+    const stills = planModes({ ...base, scenes, imageProfile: "runpod-sdxl@1", videoProfile: "wan22-480p@1" });
+    // script + 1 keyframe (8 s × $0.000306) + the keyframe endpoint's cold start; no clip, so no clip cold start
+    expect(stills.estimatedUsd).toBe(round4(scriptCost(base.prices) + 0.0024 + 0.0275));
+    const moving = planModes({
+      ...base,
+      scenes: [{ ...scenes[0], actionLevel: "high" }],
+      imageProfile: "runpod-sdxl@1",
+      videoProfile: "wan22-480p@1",
+    });
+    expect(moving.estimatedUsd).toBe(round4(scriptCost(base.prices) + 0.0024 + 0.0275 + 0.059 + 0.0437));
+  });
+});
+

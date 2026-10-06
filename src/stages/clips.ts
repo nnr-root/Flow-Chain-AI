@@ -68,10 +68,12 @@ export const clipsStage: Stage = {
   },
   outputsFor: (_m, scene) => [paths.clip(scene!)],
   estimateCostUsd(ctx, scene) {
-    const s = ctx.manifest.scenes[scene!];
     const profile = videoProfileOf(ctx.manifest.request.videoProfile);
-    // before the audio exists, assume the longest clip the profile buys
-    return profile.costUsd(ctx.prices, profile.clipSec(s.audio ? s.audio.duration : Number.POSITIVE_INFINITY));
+    // before the audio exists, assume the longest clip the profile buys; the first clip also pays the cold start
+    const first = ctx.manifest.scenes.findIndex((x) => x.mode === 1) === scene;
+    const s = ctx.manifest.scenes[scene!];
+    const clip = profile.costUsd(ctx.prices, profile.clipSec(s.audio ? s.audio.duration : Number.POSITIVE_INFINITY));
+    return clip + (first ? profile.runOverheadUsd(ctx.prices) : 0);
   },
   async run(ctx, scene) {
     const i = scene!;

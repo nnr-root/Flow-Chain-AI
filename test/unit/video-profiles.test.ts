@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Prices } from "../../src/config.js";
-import { NEW_RUN_VIDEO_PROFILE, VIDEO_PROFILES, videoProfileOf } from "../../src/video-profiles.js";
+import { NEW_RUN_VIDEO_PROFILE, VIDEO_PROFILES, videoProfileOf, wanFrames } from "../../src/video-profiles.js";
 
 describe("video profiles", () => {
   it("kling-v1 (runs made before 2.3) buys 5 s up to 5.0 s of narration, else 10 s", () => {
@@ -23,5 +23,21 @@ describe("video profiles", () => {
     expect(NEW_RUN_VIDEO_PROFILE).toBe("kling-v2");
     expect(videoProfileOf(undefined).id).toBe("kling-v1");
     expect(videoProfileOf("kling-v2").id).toBe("kling-v2");
+  });
+});
+
+describe("wan22-480p@1", () => {
+  const wan = VIDEO_PROFILES["wan22-480p@1"];
+  const prices = Prices.parse({});
+
+  it("buys only the 4k+1 frames the narration needs after a 1.25× stretch, 33 to 81", () => {
+    expect([2.5, 3, 4.5, 6, 6.3, 10].map(wanFrames)).toEqual([33, 41, 61, 81, 81, 81]);
+    expect(wan.clipSec(3)).toBe(41 / 16);
+  });
+
+  it("prices a clip by frames × GPU seconds per frame × $/s, plus one cold start per run", () => {
+    expect(wan.costUsd(prices, 81 / 16)).toBe(0.059); // 81 × 1.5 s × $0.000486
+    expect(wan.runOverheadUsd(prices)).toBe(0.0437); // 90 s × $0.000486
+    expect(VIDEO_PROFILES["kling-v2"].runOverheadUsd(prices)).toBe(0);
   });
 });

@@ -23,6 +23,7 @@ function autoInputs(ctx: StageContext): PlanModesInput | null {
     keyframeSize: ctx.keyframeSize,
     budgetUsd,
     videoProfile: m.request.videoProfile,
+    imageProfile: m.request.imageProfile,
   };
 }
 

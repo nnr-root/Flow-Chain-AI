@@ -3,6 +3,7 @@ import { BrandLook } from "../brand.js";
 import { Aspect, Prices } from "../config.js";
 import { CaptionStyleName, Transition } from "../media/remotion/props.js";
 import { PresetName } from "../presets.js";
+import { ImageProfileId } from "../image-profiles.js";
 import { VideoProfileId } from "../video-profiles.js";
 
 export const MAX_NARRATION_WORDS = 16;
@@ -174,6 +175,8 @@ export const RunRequest = z.object({
   seed: z.number().int().min(0).max(MAX_SEED).optional(),
   /** How clips are bought (clip length per narration, price); absent = kling-v1 (runs made before 2.3); frozen. */
   videoProfile: VideoProfileId.optional(),
+  /** How keyframes are bought; absent = fal-flux@1 (runs made before 2.4); frozen. */
+  imageProfile: ImageProfileId.optional(),
   /** Fixed shot per scene (testing override from --shots); when absent the LLM decides. */
   shots: z.array(Shot).optional(),
   voiceId: z.string().min(1),

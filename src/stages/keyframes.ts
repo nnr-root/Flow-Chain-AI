@@ -1,4 +1,4 @@
-import { imageCost } from "../cost.js";
+import { imageProfileOf } from "../image-profiles.js";
 import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
 import { runProviderJob } from "./job.js";
@@ -32,13 +32,18 @@ export const keyframesStage: Stage = {
     seed: keyframeSeed(ctx.manifest, scene!),
   }),
   outputsFor: (_m, scene) => [paths.keyframe(scene!)],
-  estimateCostUsd: (ctx) => imageCost(ctx.prices, ctx.keyframeSize),
+  estimateCostUsd(ctx, scene) {
+    const profile = imageProfileOf(ctx.manifest.request.imageProfile);
+    // the run's first keyframe also pays the endpoint's cold start (0 on fal)
+    const first = ctx.manifest.scenes.findIndex((s) => needsKeyframe(ctx.manifest, s.idx)) === scene;
+    return profile.keyframeUsd(ctx.prices, ctx.keyframeSize) + (first ? profile.runOverheadUsd(ctx.prices) : 0);
+  },
   async run(ctx, scene) {
     const i = scene!;
     const prompt = imagePrompt(requireScript(ctx.manifest), i, effectivePreset(ctx.manifest));
     const result = await runProviderJob(ctx, i, "keyframes", {
       label: `keyframe scene ${i + 1}`,
-      costUsd: imageCost(ctx.prices, ctx.keyframeSize),
+      costUsd: imageProfileOf(ctx.manifest.request.imageProfile).keyframeUsd(ctx.prices, ctx.keyframeSize),
       prepare: () => ctx.providers.image.prepare({ prompt, ...ctx.keyframeSize, seed: keyframeSeed(ctx.manifest, i) }),
       submit: (job, signal) => ctx.providers.image.submit(job, { signal }),
       wait: (id) => ctx.providers.image.wait(id, { timeoutMs: ctx.providers.image.waitMs ?? TIMEOUTS.image }),
