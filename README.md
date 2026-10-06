@@ -98,13 +98,18 @@ One-time setup (accounts and keys only):
    package public (GitHub → Packages → flowchain-worker → Package settings → Change visibility).
 4. `npm run runpod:deploy` creates the network volume, template and two endpoints, downloads the model weights
    onto the volume and writes `RUNPOD_KEYFRAME_ENDPOINT` / `RUNPOD_CLIP_ENDPOINT` into `.env`. It shows what it
-   will create and the monthly volume cost (≈ $5.60 for 80 GB) and asks first; re-running it updates in place.
+   will create, the monthly volume cost (≈ $5.60 for 80 GB) and the one-time model download it runs on the
+   endpoints' GPUs (≈ $1–2), and asks first; re-running it updates in place. It uses the image tag built from the
+   current `workers/` folder and stops if that image is not public on GHCR. `RUNPOD_WORKER_IMAGE` deploys another
+   image instead, `RUNPOD_DATACENTER` picks another data centre (default `EU-RO-1`), and `--yes` skips the question.
 
 Then `npm run flowchain -- run --provider runpod …` (or `PROVIDER_MODE=runpod` in `.env`) and
-`PROVIDER_MODE=runpod npm run flowchain -- doctor`. `npm run smoke:runpod` makes a real 4-scene video on RunPod.
+`PROVIDER_MODE=runpod npm run flowchain -- doctor`. `npm run smoke:runpod` makes a real 4-scene video on RunPod
+and is a paid run.
 
 Runs with characters get one generated reference portrait (or a brand kit's `reference` image) that every keyframe
-is conditioned on. Clips are 480p (upscaled to the output size) with frame interpolation to 32 fps. GPU time is
+is conditioned on; `reroll <runId> --stage reference --scene 1` generates a new portrait (keyframes are then
+redone from it). Clips are 480p (upscaled to the output size) with frame interpolation to 32 fps. GPU time is
 charged per job from RunPod's measured execution time; cold starts and idle time are not attributed per job.
 
 The model stack is licensed for commercial use (SDXL / RealVisXL / Animagine under CreativeML Open RAIL++-M,
