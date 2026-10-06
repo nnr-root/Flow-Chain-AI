@@ -1,4 +1,4 @@
-# Flow-Chain-AI — CLI
+# Flow-Chain-AI — CLI and Studio
 
 Turns a topic into a captioned short video. Audio drives timing: the voiceover is generated and
 silence-trimmed first, then every visual is fitted to it frame-exactly. The final video is rendered with
@@ -7,8 +7,9 @@ Remotion (React): word-by-word captions, Ken Burns stills, transitions at cuts a
 Design: `docs/superpowers/specs/2026-10-02-phase1-cli-poc-design.md` (pipeline),
 `docs/superpowers/specs/2026-10-03-phase2.1-remotion-render-engine-design.md` (render engine),
 `docs/superpowers/specs/2026-10-04-phase2.2-content-intelligence-design.md` (modes, transitions, style presets),
-`docs/superpowers/specs/2026-10-05-phase2.3-retention-brand-design.md` (hook, sound effects, brand kit, clip lengths)
-and `docs/superpowers/specs/2026-10-05-phase2.4-runpod-providers-design.md` (RunPod providers).
+`docs/superpowers/specs/2026-10-05-phase2.3-retention-brand-design.md` (hook, sound effects, brand kit, clip lengths),
+`docs/superpowers/specs/2026-10-05-phase2.4-runpod-providers-design.md` (RunPod providers)
+and `docs/superpowers/specs/2026-10-06-phase3.1-web-ui-player-design.md` (the studio web app).
 
 ## Setup
 
@@ -116,8 +117,45 @@ The model stack is licensed for commercial use (SDXL / RealVisXL / Animagine und
 IP-Adapter Apache 2.0, Wan 2.2 Apache 2.0). Open RAIL++-M requires its use restrictions to be passed on in your
 customer terms.
 
+## Studio (web app)
+
+`npm run web` starts the studio at <http://127.0.0.1:3131>: a local, single-user front end to the same runs the
+CLI makes (everything in `runs/` shows up, and anything made in the studio can be resumed from the terminal).
+
+1. **New video** buys only the script (about $0.006) and opens a **draft**: the real Remotion composition in the
+   browser with placeholder pictures, estimated timing and no voice, but the real captions, hook, transitions,
+   brand, music and sound effects.
+2. On the draft, set each scene to **Auto, Clip or Still**; the price updates. **Generate video** shows the
+   estimate on the button and passes it to the pipeline as a cap: if the plan ever exceeds it, the run stops and
+   asks again instead of spending more.
+3. A finished run plays with its real media. Caption style, transitions, hook, sound effects, music level and
+   brand preview live as you change them; **Apply and re-render** is free. Each scene can get a new voice take,
+   picture or clip, priced before you confirm.
+4. **Brand kits** creates kits by upload (logo, optional font, colours, characters, portrait) into `brand-kits/`;
+   music can be uploaded in the new-video form (`uploads/music/`). Both folders are git-ignored.
+
+The studio has no login. It listens on `127.0.0.1` only and refuses any write that does not come from its own
+pages. API keys stay in `.env`, which only the CLI reads; the browser never sees them. Jobs are the CLI itself,
+started detached, so a job keeps running if the web server restarts; at most two run at once
+(`STUDIO_MAX_JOBS`). The preview is not frame-exact (the rendered MP4 is), and draft timings are estimates.
+Remotion is free for individuals and companies of up to three people; larger companies need its company licence.
+
+The studio uses these CLI commands, which also work on their own:
+
+| Command | Does |
+|---|---|
+| `run --draft` | buys only the script and stops; `resume` continues |
+| `run --pin-modes auto,1,2` | pins scenes of an auto run to clip (1) or still (2) |
+| `draft-modes <runId> --modes auto,1,2` | changes the pins while only the script is bought |
+| `plan <runId> [--reroll 2:clips] [--modes …] [--json]` | what continuing would do and cost, without doing it |
+| `look <runId> …` | stores a new look without rendering (takes `rerender`'s options; works on a draft) |
+| `status <runId> --json` | the status as JSON |
+| `reroll … --budget <usd>` | a reroll capped at an amount instead of asking |
+
 ## Tests
 
-`npm test` runs unit, ffmpeg, Remotion (headless Chrome) and fake-provider pipeline tests offline (about
-2–3 minutes). `npm run typecheck` runs `tsc`. The RunPod worker's Python tests: `npm run setup:worker` once,
+`npm test` runs unit, ffmpeg, Remotion (headless Chrome), fake-provider pipeline and studio server tests offline
+(about 2–3 minutes). `npm run typecheck` runs `tsc` for the pipeline and the studio. `npm run test:e2e` builds the
+studio and drives it in a browser against fixture runs and a stand-in CLI (run `npx playwright install chromium`
+once); it never reaches a provider. The RunPod worker's Python tests: `npm run setup:worker` once,
 then `npm run test:worker`.
