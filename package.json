@@ -12,6 +12,7 @@
     "test:unit": "vitest run test/unit",
     "typecheck": "tsc --noEmit",
     "make:sfx": "tsx scripts/make-sfx.ts",
+    "runpod:deploy": "tsx scripts/runpod-deploy.ts",
     "setup:worker": "python3 -m venv workers/.venv && workers/.venv/bin/pip install -q -r workers/requirements-dev.txt",
     "test:worker": "workers/.venv/bin/python -m pytest -q workers/tests",
     "smoke": "tsx src/cli.ts run --topic \"A lighthouse keeper discovers the light is alive\" --scenes 3 --modes 1,1,1 --shots cut,continue,continue",
