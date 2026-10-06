@@ -80,6 +80,24 @@ test("a draft previews with placeholders, shows the new price after a scene is p
   expect(calls().flat()).not.toContain("--yes");
 });
 
+test("a reroll first saves the look being previewed, then starts capped at the confirmed price", async ({ page }) => {
+  await page.goto(`/runs/${DONE_ID}`);
+  await expect(page.locator("[data-state=done]")).toBeVisible();
+  await page.getByTestId("caption-style").selectOption("minimalist");
+  await page.getByTestId("scene-2").getByRole("button", { name: "New clip" }).click();
+  const started = page.waitForResponse((r) => r.url().endsWith(`/api/runs/${DONE_ID}/reroll`));
+  await page.getByRole("dialog", { name: "Confirm regeneration" }).getByRole("button", { name: "Confirm" }).click();
+  expect((await started).status()).toBe(202);
+  const reroll = (c: string[]) => c[0] === "reroll";
+  await expect.poll(() => calls().some(reroll)).toBe(true);
+  const all = calls();
+  const at = all.findIndex(reroll);
+  const price = all[at].at(-1)!;
+  expect(all[at]).toEqual(["reroll", DONE_ID, "--scene", "2", "--stage", "clips", "--budget", price, "--cap", price]);
+  expect(Number(price)).toBeGreaterThan(0);
+  expect(all.slice(0, at)).toContainEqual(["look", DONE_ID, "--caption-style", "minimalist"]);
+});
+
 test("the server answers its loopback name only: a foreign Host is refused on pages, the API and static files", async ({ request }) => {
   const foreign = { host: "studio.evil.example:3132" };
   // a real static file of this build, to prove the check also stands in front of files Next serves by itself

@@ -8,6 +8,7 @@ import { ApiFailure, errorText, sendJson, usd } from "@/lib/api";
 import { controlsOf, type LookControls, pendingLook } from "@/lib/look";
 import { encodeLookToken } from "@/lib/look-token";
 import type { KitSummary } from "@/server/library";
+import type { JobView } from "@/server/jobs";
 import type { RunView } from "@/server/runs";
 import { StudioPlayer, type StudioPlayerHandle } from "./StudioPlayer";
 import { Button, ErrorNote, Field, Panel, Segmented, StateBadge } from "./ui";
@@ -126,6 +127,12 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
     }
   };
 
+  /** Starts a job and shows it at once: waiting for the events stream would leave a paid button enabled meanwhile. */
+  const start = async (action: string, body: unknown) => {
+    const { job: started } = await sendJson<{ job: JobView }>(`/api/runs/${id}/${action}`, body);
+    // unless the stream was faster: what it says about this job (even that it already ended) is newer than the answer
+    setView((v) => (v.job?.id === started.id ? v : { ...v, job: started, state: "running" }));
+  };
   const setMode = (scene: number, mode: Mode) =>
     act(async () => {
       const modes = status!.scenes.map((s) => (s.scene === scene ? mode : s.override));
@@ -135,20 +142,22 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
   const generate = () =>
     act(async () => {
       if (dirty) await sendJson(`/api/runs/${id}/look`, { look });
-      await sendJson(`/api/runs/${id}/generate`, { approvedUsd: estimate!.totalUsd });
+      await start("generate", { approvedUsd: estimate!.totalUsd });
     }, "generate");
   const stop = () => act(() => sendJson(`/api/runs/${id}/job`, {}, "DELETE"));
   const unlock = () => act(() => sendJson(`/api/runs/${id}/unlock`));
   const saveLook = () => act(() => sendJson(`/api/runs/${id}/look`, { look }));
-  const rerender = () => act(() => sendJson(`/api/runs/${id}/rerender`, { look }));
+  const rerender = () => act(() => start("rerender", { look }));
   const askReroll = (scene: number, stage: string, label: string) =>
     act(async () => {
       const plan = await sendJson<PlanJson>(`/api/runs/${id}/plan`, { reroll: { scene, stage } });
       setAsk({ scene, stage, label, totalUsd: plan.totalUsd });
     });
+  // a reroll renders the video again, so like generate it first saves the look the preview shows
   const confirmReroll = () =>
     act(async () => {
-      await sendJson(`/api/runs/${id}/reroll`, { scene: ask!.scene, stage: ask!.stage, approvedUsd: ask!.totalUsd });
+      if (dirty) await sendJson(`/api/runs/${id}/look`, { look });
+      await start("reroll", { scene: ask!.scene, stage: ask!.stage, approvedUsd: ask!.totalUsd });
       setAsk(null);
     }, "reroll");
 
