@@ -3,3 +3,6 @@ runs/
 .env
 .DS_Store
 coverage/
+workers/.venv/
+__pycache__/
+.pytest_cache/
