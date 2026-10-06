@@ -89,7 +89,7 @@ describe("planModes on RunPod profiles", () => {
       imageProfile: "runpod-sdxl@1",
       videoProfile: "wan22-480p@1",
     });
-    expect(moving.estimatedUsd).toBe(round4(scriptCost(base.prices) + 0.0024 + 0.0275 + 0.059 + 0.0437));
+    expect(moving.estimatedUsd).toBe(round4(scriptCost(base.prices) + 0.0024 + 0.0275 + 0.0372 + 0.0275));
   });
 });
 

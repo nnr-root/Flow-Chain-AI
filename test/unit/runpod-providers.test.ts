@@ -140,7 +140,7 @@ describe("RunPod waiting and billing", () => {
     ]);
     const video = new RunpodVideo(deps(api), { ...target, endpointId: "ep-c", workflow: "clip-wan22-480p" });
     const id = await video.submit({ input: {} }, { signal: new AbortController().signal });
-    expect(await video.wait(id, { timeoutMs: 60_000 })).toEqual({ url: "https://r2/c.mp4", costUsd: 0.0583 }); // 120 s x $0.000486/s
+    expect(await video.wait(id, { timeoutMs: 60_000 })).toEqual({ url: "https://r2/c.mp4", costUsd: 0.0367 }); // 120 s x $0.000306/s
   });
 
   it("treats FAILED and TIMED_OUT as billed but unusable, with the measured cost", async () => {

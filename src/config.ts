@@ -74,7 +74,7 @@ export type RunpodRates = ReturnType<typeof runpodRates>;
 export function runpodRates(p: Prices) {
   return {
     keyframeUsdPerSec: p.runpodKeyframeUsdPerSec ?? 0.000306, // RTX 4090
-    clipUsdPerSec: p.runpodClipUsdPerSec ?? 0.000486, // L40S
+    clipUsdPerSec: p.runpodClipUsdPerSec ?? 0.000306, // RTX 4090 (no 48 GB card was in stock in the volume's data centre)
     keyframeSec: p.runpodKeyframeSec ?? 8,
     referenceSec: p.runpodReferenceSec ?? 8,
     clipSecPerFrame: p.runpodClipSecPerFrame ?? 1.5,
