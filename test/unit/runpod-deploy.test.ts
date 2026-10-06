@@ -76,7 +76,7 @@ describe("runpod deploy", () => {
     });
     expect(store.endpoints.map((e) => [e.name, e.gpuTypeIds, e.executionTimeoutMs, e.workersMax, e.networkVolumeId])).toEqual([
       [NAMES.keyframe, ["NVIDIA GeForce RTX 4090"], 120_000, 2, ids.volumeId],
-      [NAMES.clip, ["NVIDIA L40S"], 600_000, 2, ids.volumeId],
+      [NAMES.clip, ["NVIDIA L40S", "NVIDIA L40", "NVIDIA RTX 6000 Ada Generation"], 600_000, 2, ids.volumeId],
     ]);
     expect([...secrets].sort()).toEqual(["flowchain_r2_access_key_id", "flowchain_r2_secret_access_key"]);
   });

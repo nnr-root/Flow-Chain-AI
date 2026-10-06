@@ -25,7 +25,8 @@ export const DEFAULTS = {
   dataCenterId: "EU-RO-1",
   volumeGb: 80,
   keyframeGpus: ["NVIDIA GeForce RTX 4090"],
-  clipGpus: ["NVIDIA L40S"],
+  // the three 48 GB cards RunPod bills at the same rate: one type alone can be out of stock in the volume's data centre
+  clipGpus: ["NVIDIA L40S", "NVIDIA L40", "NVIDIA RTX 6000 Ada Generation"],
   /** Network volume storage, $ per GB per month (RunPod standard tier). */
   volumeUsdPerGbMonth: 0.07,
 };
