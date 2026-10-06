@@ -11,6 +11,9 @@ import { sfxFiles } from "./media/sfx.js";
 import { PRESETS } from "./presets.js";
 import { ElevenLabsTts } from "./providers/elevenlabs.js";
 import { checkFal, createFal } from "./providers/fal.js";
+import { parseModelId } from "./providers/model-id.js";
+import { R2 } from "./providers/r2.js";
+import { RunpodClient } from "./providers/runpod.js";
 import { GeminiLlm } from "./providers/gemini.js";
 
 export type Check = { name: string; ok: boolean; detail: string };
@@ -64,7 +67,41 @@ export function captionFontFiles(fontsDir: string): string[] {
 }
 
 /** `models` lets resume/reroll check the models frozen in the manifest instead of today's env. */
+/** Which image/video providers to check: a run's own (frozen) ones, else the one new runs would use. */
+export function providersInUse(env: Env, models?: Models): Set<"fal" | "runpod"> {
+  if (!models) return new Set([env.PROVIDER_MODE]);
+  return new Set([parseModelId(models.image).provider, parseModelId(models.video).provider]);
+}
+
+/** Each RunPod endpoint answers /health (no job is bought). */
+export async function checkRunpodEndpoints(client: RunpodClient, endpointIds: string[]): Promise<string> {
+  for (const id of endpointIds) await client.health(id);
+  return `${endpointIds.length} endpoint(s) healthy`;
+}
+
+/** A tiny object can be written, read back and deleted, so workers can upload and runs can recover outputs. */
+export async function checkR2RoundTrip(r2: R2): Promise<string> {
+  const key = `flowchain/doctor-${Date.now()}.txt`;
+  await r2.put(key, "flowchain doctor");
+  const back = await r2.get(key);
+  await r2.delete(key);
+  if (back !== "flowchain doctor") throw new Error("R2 returned different content");
+  return "put, get and delete work";
+}
+
+function runpodEndpointIds(env: Env, models?: Models): string[] {
+  if (models) {
+    return [models.image, models.video]
+      .map(parseModelId)
+      .flatMap((ref) => (ref.provider === "runpod" ? [ref.endpointId] : []));
+  }
+  const ids = [env.RUNPOD_KEYFRAME_ENDPOINT, env.RUNPOD_CLIP_ENDPOINT];
+  if (ids.some((id) => !id)) throw new Error("RUNPOD_KEYFRAME_ENDPOINT and RUNPOD_CLIP_ENDPOINT must be set (npm run runpod:deploy)");
+  return ids as string[];
+}
+
 export async function runDoctor(env: Env, fontsDir: string, models?: Models, voiceId?: string): Promise<Check[]> {
+  const inUse = providersInUse(env, models);
   const llmModel = models?.llm ?? env.GEMINI_MODEL;
   const ttsModel = models?.tts ?? env.ELEVENLABS_MODEL;
   const voice = voiceId ?? env.ELEVENLABS_VOICE_ID;
@@ -89,11 +126,32 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models, voi
       await new GeminiLlm(env.GEMINI_API_KEY, llmModel).checkModel();
       return "available";
     }),
-    await attempt("fal.ai key", async () => {
-      if (!env.FAL_KEY) throw new Error("FAL_KEY is not set");
-      await checkFal(createFal(env.FAL_KEY));
-      return "storage upload works";
-    }),
+    ...(inUse.has("fal")
+      ? [
+          await attempt("fal.ai key", async () => {
+            if (!env.FAL_KEY) throw new Error("FAL_KEY is not set");
+            await checkFal(createFal(env.FAL_KEY));
+            return "storage upload works";
+          }),
+        ]
+      : []),
+    ...(inUse.has("runpod")
+      ? [
+          await attempt("RunPod endpoints", async () => {
+            if (!env.RUNPOD_API_KEY) throw new Error("RUNPOD_API_KEY is not set");
+            return checkRunpodEndpoints(new RunpodClient(env.RUNPOD_API_KEY), runpodEndpointIds(env, models));
+          }),
+          await attempt("R2 bucket", async () => {
+            const { R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY } = env;
+            if (!R2_ACCOUNT_ID || !R2_BUCKET || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
+              throw new Error("R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY must be set");
+            }
+            return checkR2RoundTrip(
+              new R2({ accountId: R2_ACCOUNT_ID, bucket: R2_BUCKET, accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY }),
+            );
+          }),
+        ]
+      : []),
     await attempt(`ElevenLabs voice ${voice}`, async () => {
       await new ElevenLabsTts(env.ELEVENLABS_API_KEY, ttsModel).checkVoice(voice);
       return "available";

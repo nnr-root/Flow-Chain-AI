@@ -1,11 +1,13 @@
+import { imageProfileOf } from "./image-profiles.js";
 import type { Manifest, StageName, StageRecord } from "./manifest/schema.js";
 import { effectivePreset, hookTextFor } from "./stages/look.js";
-import { videoProfileOf } from "./video-profiles.js";
+import { referenceApplies } from "./stages/reference.js";
 import { needsKeyframe } from "./stages/visual.js";
+import { videoProfileOf } from "./video-profiles.js";
 
 const mark = (r?: StageRecord) => (r === undefined ? "·" : r.status === "done" ? "✓" : "✗");
 const RUN_STAGES: StageName[] = ["script", "modes", "captions", "render"];
-const SCENE_STAGES: StageName[] = ["tts", "silence", "keyframes", "clips", "fit"];
+const SCENE_STAGES: StageName[] = ["reference", "tts", "silence", "keyframes", "clips", "fit"];
 
 /** The effective preset and where it came from (spec §7). */
 function styleLine(m: Manifest): string {
@@ -27,7 +29,7 @@ export function formatStatus(m: Manifest): string {
     `Style: ${styleLine(m)}`,
     `Hook: ${hookTextFor(m) ?? (!r.render.hook ? "off" : m.script ? "none" : "by Gemini")} · sound effects ${r.render.sfx ? `on (${r.render.sfxGain})` : "off"}`,
     `Brand: ${r.render.brand?.name ?? "none"} · characters: ${charactersLine(r.characters)}`,
-    `Seed: ${r.seed ?? "none"} · video profile: ${videoProfileOf(r.videoProfile).id}`,
+    `Seed: ${r.seed ?? "none"} · image profile: ${imageProfileOf(r.imageProfile).id} · video profile: ${videoProfileOf(r.videoProfile).id}`,
     `Models: llm ${models.llm} · tts ${models.tts} · image ${models.image} · video ${models.video}`,
     `Run stages: ${RUN_STAGES.map((s) => `${s} ${mark(m.runStages[s])}`).join("  ")}`,
   ];
@@ -38,7 +40,10 @@ export function formatStatus(m: Manifest): string {
   for (const scene of m.scenes) {
     // keyframes only where the scene has one; clips and fit only for Mode 1 (Mode 2 is animated at render time)
     const shown = SCENE_STAGES.filter(
-      (s) => (s !== "keyframes" || needsKeyframe(m, scene.idx)) && ((s !== "clips" && s !== "fit") || scene.mode === 1),
+      (s) =>
+        (s !== "reference" || referenceApplies(m, scene.idx)) &&
+        (s !== "keyframes" || needsKeyframe(m, scene.idx)) &&
+        ((s !== "clips" && s !== "fit") || scene.mode === 1),
     );
     const reason = scene.modeReason ?? (r.modes ? undefined : "auto: not resolved yet");
     const mode = reason ? `mode ${scene.mode} · ${reason}` : `mode ${scene.mode}`;

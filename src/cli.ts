@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { randomInt } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { Command, Option } from "commander";
-import { type BrandKit, installBrand, loadBrandKit } from "./brand.js";
+import { type BrandKit, installBrand, installReference, loadBrandKit } from "./brand.js";
 import { FONTS_DIR, SFX_DIR } from "./assets.js";
 import { type Env, FPS, keyframeSize, loadEnv, loadPrices, outputSize } from "./config.js";
 import { formatChecks, runDoctor } from "./doctor.js";
@@ -15,11 +15,11 @@ import { CaptionStyleName, Transition } from "./media/remotion/props.js";
 import { type Plan, planRun, RunAborted, runPipeline } from "./pipeline.js";
 import { PresetName } from "./presets.js";
 import { createProviders } from "./providers/factory.js";
+import { newRunProviders } from "./providers/new-run.js";
 import type { Providers } from "./providers/types.js";
 import { applyRenderOptions, assertRenderOnly, noPaidProviders } from "./rerender.js";
 import { bumpNonce, REROLLABLE } from "./reroll.js";
 import { STAGES } from "./stages/index.js";
-import { NEW_RUN_VIDEO_PROFILE } from "./video-profiles.js";
 import type { StageContext } from "./stages/types.js";
 import { formatStatus } from "./status.js";
 
@@ -135,6 +135,7 @@ type RunFlags = {
   brand?: string;
   characters?: string;
   seed?: string;
+  provider?: "fal" | "runpod";
   voice?: string;
   bgm?: string;
   captionStyle?: string;
@@ -180,6 +181,9 @@ program
   .option("--brand <dir>", "brand kit folder (brand.json, logo, optional font): watermark, font, colours, characters")
   .option("--characters <text>", "character bible used in every prompt (default: the brand kit's, else Gemini's)")
   .option("--seed <n>", "Flux seed shared by every keyframe (default: random)")
+  .addOption(
+    new Option("--provider <name>", "image and video provider (default: PROVIDER_MODE, else fal)").choices(["fal", "runpod"]),
+  )
   .option("--voice <id>", "ElevenLabs voice id (default: ELEVENLABS_VOICE_ID)")
   .option("--bgm <file>", "background music, ducked under the narration")
   .addOption(new Option("--caption-style <style>", "caption look (default: the preset's)").choices(CAPTION_CHOICES))
@@ -198,6 +202,7 @@ program
     const budgetUsd = budget(o.budget, env);
     if (o.bgm && !existsSync(o.bgm)) throw new Error(`--bgm file not found: ${o.bgm}`);
     const kit: BrandKit | undefined = o.brand ? await loadBrandKit(o.brand) : undefined;
+    const providers = newRunProviders(env, o.provider ?? env.PROVIDER_MODE);
     const request = RunRequest.parse({
       topic: o.topic,
       aspect: o.aspect,
@@ -211,7 +216,8 @@ program
       // frozen with the run: they change what is bought
       characters: o.characters ?? kit?.characters,
       seed: seed(o.seed),
-      videoProfile: NEW_RUN_VIDEO_PROFILE,
+      videoProfile: providers.videoProfile,
+      imageProfile: providers.imageProfile,
       voiceId: o.voice ?? env.ELEVENLABS_VOICE_ID,
       bgm: o.bgm ? resolve(o.bgm) : undefined,
       render: {
@@ -228,13 +234,16 @@ program
     const models: Models = {
       llm: env.GEMINI_MODEL,
       tts: env.ELEVENLABS_MODEL,
-      image: env.FAL_IMAGE_MODEL,
-      video: env.FAL_VIDEO_MODEL,
+      image: providers.image,
+      video: providers.video,
     };
     await requireDoctor(env, models, request.voiceId);
     const runId = newRunId();
     const dir = runDir(runId);
-    if (kit) request.render.brand = await installBrand(kit, o.brand!, dir);
+    if (kit) {
+      request.render.brand = await installBrand(kit, o.brand!, dir);
+      request.referenceImage = await installReference(kit, o.brand!, dir);
+    }
     const manifest = createManifest(runId, request, models);
     await saveManifest(dir, manifest);
     console.log(`Run ${runId} → ${dir}`);

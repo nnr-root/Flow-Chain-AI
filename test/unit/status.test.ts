@@ -51,7 +51,7 @@ describe("formatStatus", () => {
     expect(formatStatus(m)).toContain("Style: anime (--style)");
     expect(formatStatus(m)).toContain("Hook: Foxes never sleep · sound effects on (0.6)");
     expect(formatStatus(m)).toContain("Brand: none · characters: by Gemini");
-    expect(formatStatus(m)).toContain("Seed: none · video profile: kling-v1");
+    expect(formatStatus(m)).toContain("Seed: none · image profile: fal-flux@1 · video profile: kling-v1");
     m.request.render.hook = false;
     m.request.render.sfx = false;
     m.request.render.brand = {
@@ -66,7 +66,7 @@ describe("formatStatus", () => {
     expect(formatStatus(m)).toContain(
       "Brand: Acme · characters: Nova: a woman in her 20s, short silver bob, cyan visor over…",
     );
-    expect(formatStatus(m)).toContain("Seed: 42 · video profile: kling-v2");
+    expect(formatStatus(m)).toContain("Seed: 42 · image profile: fal-flux@1 · video profile: kling-v2");
     m.request.style = undefined;
     m.script.stylePreset = undefined;
     expect(formatStatus(m)).toContain("Style: none (scripted before style presets)");
@@ -80,5 +80,16 @@ describe("formatStatus", () => {
     );
     expect(formatStatus(m)).toContain("Scene 1 [mode 1 · auto: not resolved yet]: ");
     expect(formatStatus(m)).toContain("Scene 2 [mode 1 · auto: not resolved yet]: ");
+  });
+
+  it("shows the reference portrait as scene 1's first step on RunPod runs with characters", () => {
+    const m = createManifest(
+      "r",
+      { topic: "foxes", aspect: "9:16", sceneCount: 1, modes: [1], voiceId: "v", imageProfile: "runpod-sdxl@1" },
+      { llm: "l", tts: "t", image: "runpod:ep-k/keyframe-sdxl@1", video: "runpod:ep-c/clip-wan22-480p@1" },
+    );
+    m.script = fakeScript(1);
+    expect(formatStatus(m)).toContain("Scene 1 [mode 1]: reference ·  tts ·");
+    expect(formatStatus(m)).toContain("image profile: runpod-sdxl@1");
   });
 });
