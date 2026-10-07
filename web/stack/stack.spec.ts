@@ -36,7 +36,7 @@ test("nothing answers without the login, and with it only the studio's own name 
   expect((await get("/", { login: `${USER}:nope` })).status).toBe(401);
   // behind the login the app's own guard still stands: the configured public name, and no other
   expect((await get("/api/health", { login: LOGIN })).status).toBe(200);
-  for (const path of ["/", "/api/health"]) expect((await get(path, { login: LOGIN, host: "other.example" })).status, path).toBe(403);
+  for (const path of ["/", "/api/health", "/api/music"]) expect((await get(path, { login: LOGIN, host: "other.example" })).status, path).toBe(403);
 });
 
 test("behind the login the studio works through the queue: a job waits its turn, runs in the worker and the page follows it", async ({ page }) => {

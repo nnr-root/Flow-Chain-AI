@@ -33,13 +33,17 @@ export type QuickJobResult = { stdout: string };
 /**
  * What the worker agrees to run, whoever put the job in Redis: the commands the studio sends and no others.
  * The provider keys live with the worker, so it does not take the web's word that a job is one of these.
- * Returns why a job is refused, or nothing when it may run.
+ * Returns why a job is refused, or nothing when it may run. This limits what can be run, not how much a run
+ * may spend: the amounts are the web's to approve.
  */
-export function refusal(queue: keyof typeof QUEUES, args: unknown): string | undefined {
+export function refusal(queue: keyof typeof QUEUES, args: unknown, runId?: string): string | undefined {
   if (!Array.isArray(args) || args.length === 0 || !args.every((a) => typeof a === "string")) return "the job has no command";
   const [command] = args as string[];
   if (queue === "quick") return ["plan", "draft-modes", "look"].includes(command) ? undefined : `"${command}" is not a quick command`;
   // a draft buys only the script and says so with --yes; everything else spends up to an approved amount and must stop to ask
+  // the job's run is the command's run: one job per run means nothing if a job may work on another
+  const target = command === "run" ? args[args.indexOf("--run-id") + 1] : args[1];
+  if (runId !== undefined && (target !== runId || (command === "run" && !args.includes("--run-id")))) return "the command is for another run than the job";
   if (command === "run") return args.includes("--draft") ? undefined : "a run may only be started as a draft";
   if (command === "rerender") return undefined;
   if (command === "resume" || command === "reroll") return args.includes("--yes") ? `"${command}" may not be started with --yes` : undefined;

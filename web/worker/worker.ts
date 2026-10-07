@@ -9,7 +9,7 @@ import { health, roots } from "../server/config";
 import {
   consumerConnection, KEYS, type QuickJobData, type QuickJobResult, QUEUES, refusal, type RunJobData, type RunJobResult,
 } from "../server/jobs/redis";
-import { exitCodeOf, readJobRecord, runFolder, runShort, spawnCli, stopProcess } from "../server/jobs/run-cli";
+import { exitCodeOf, lockState, readJobRecord, runFolder, runShort, spawnCli, stopProcess } from "../server/jobs/run-cli";
 import { type Job, LOCK_FILE } from "../server/jobs/types";
 
 export type WorkerOptions = {
@@ -155,10 +155,19 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   const cleared = await sweepLocks(roots().runs);
   if (cleared.length > 0) log(`worker: cleared stale locks of ${cleared.join(", ")}`);
 
+  /**
+   * Removes a run's lock when the process that wrote it is gone: a CLI killed outright (out of memory, say)
+   * cannot remove its own, and the lock would refuse this run's every later job. A lock whose process lives —
+   * a quick command at work on the run, a CLI someone started by hand — is never touched.
+   */
+  const clearDeadLock = async (dir: string) => {
+    if (lockState(dir) === "dead") await rm(join(dir, LOCK_FILE), { force: true });
+  };
+
   const runJob = async (job: QueueJob<RunJobData>): Promise<RunJobResult> => {
     const { runId, kind, args, approvedUsd } = job.data;
     const dir = runFolder(runId);
-    const refused = refusal("runs", args);
+    const refused = refusal("runs", args, runId);
     if (refused) throw new Error(refused);
     // After a long Redis outage the queue can lose track of a job whose CLI is still working and hand the run
     // out again. One CLI per run, whatever the queue believes.
@@ -166,9 +175,7 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     starting.add(runId);
     let started: { job: Job; child: ChildProcess };
     try {
-      // This worker runs every CLI there is, and none is running for this run: a lock in its folder was left by
-      // one that was killed outright (out of memory, say), and would refuse this job and every later one.
-      await rm(join(dir, LOCK_FILE), { force: true });
+      await clearDeadLock(dir);
       started = await spawnCli(runId, kind, args, approvedUsd);
     } catch (err) {
       stopAfterStart.delete(runId);
@@ -186,7 +193,7 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       if (child.exitCode === null && child.signalCode === null) await new Promise<void>((done) => child.once("exit", () => done()));
     } finally {
       // the CLI is gone; if it could not remove its own lock, the run must not stay shut because of it
-      await rm(join(dir, LOCK_FILE), { force: true }).catch(() => {});
+      await clearDeadLock(dir).catch(() => {});
       active.delete(runId);
       publishHeld().catch(() => {});
     }

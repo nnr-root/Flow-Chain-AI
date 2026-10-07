@@ -9,6 +9,8 @@ describe("what the worker agrees to run", () => {
       "20261006-120000-abc001",
     );
     expect(refusal("runs", draft)).toBeUndefined();
+    expect(refusal("runs", draft, "20261006-120000-abc001")).toBeUndefined();
+    expect(refusal("runs", ["resume", "x", "--budget", "1", "--cap", "1"], "x")).toBeUndefined();
     expect(refusal("runs", ["resume", "x", "--budget", "1", "--cap", "1"])).toBeUndefined();
     expect(refusal("runs", ["reroll", "x", "--scene", "1", "--stage", "clips", "--budget", "1", "--cap", "1"])).toBeUndefined();
     expect(refusal("runs", rerenderArgs("x", { captionStyle: "mrbeast" }))).toBeUndefined();
@@ -24,6 +26,10 @@ describe("what the worker agrees to run", () => {
     expect(refusal("runs", ["doctor"])).toBe('"doctor" is not a job command');
     expect(refusal("quick", ["resume", "x"])).toBe('"resume" is not a quick command');
     expect(refusal("quick", ["rerender", "x"])).toBe('"rerender" is not a quick command');
+    // a job works on its own run only
+    expect(refusal("runs", ["resume", "y", "--budget", "1", "--cap", "1"], "x")).toBe("the command is for another run than the job");
+    expect(refusal("runs", ["run", "--draft", "--yes", "--run-id", "y"], "x")).toBe("the command is for another run than the job");
+    expect(refusal("runs", ["run", "--draft", "--yes"], "x")).toBe("the command is for another run than the job");
     expect(refusal("runs", [])).toBe("the job has no command");
     expect(refusal("runs", undefined)).toBe("the job has no command");
     expect(refusal("runs", ["resume", 1])).toBe("the job has no command");

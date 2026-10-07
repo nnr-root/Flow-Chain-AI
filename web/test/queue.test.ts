@@ -243,12 +243,12 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await until(async () => (await state(id)) === "interrupted");
     await until(() => !existsSync(join(studio.runs, id, ".lock")));
 
-    // and one found at the start of a job (left while no job of the run was running) is cleared as well
+    // a lock whose process is alive is never touched: a quick command at work on the run, or a CLI started by hand
     await stub(studio, "_behave.json", {});
-    await writeFile(join(studio.runs, id, ".lock"), "999999\n");
+    await writeFile(join(studio.runs, id, ".lock"), `${process.pid}\n`);
     await startJob(id, "generate", ["resume", id]);
     expect(await ended(id)).toMatchObject({ exitCode: 0 });
-    expect(existsSync(join(studio.runs, id, ".lock"))).toBe(false);
+    expect(await readFile(join(studio.runs, id, ".lock"), "utf8")).toBe(`${process.pid}\n`);
   });
 
   it("while it lets its jobs finish at a shutdown, the worker still answers quick questions", async () => {
