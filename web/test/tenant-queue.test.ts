@@ -1,10 +1,14 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { GET as kits, POST as createKit } from "@/app/api/brand-kits/route";
 import { POST as createDraft } from "@/app/api/drafts/route";
+import { GET as runs } from "@/app/api/runs/route";
+import { GET as file } from "@/app/api/runs/[id]/files/[...path]/route";
+import { GET as run } from "@/app/api/runs/[id]/route";
 import { POST as generate } from "@/app/api/runs/[id]/generate/route";
 import { DELETE as stop } from "@/app/api/runs/[id]/job/route";
 import { GET as viewRun } from "@/app/api/runs/[id]/route";
@@ -12,8 +16,11 @@ import { POST as rerender } from "@/app/api/runs/[id]/rerender/route";
 import { JOB_FILE } from "@/server/jobs";
 import { closeQueue } from "@/server/jobs/queue";
 import { JOB_OPTIONS, QUEUES } from "@/server/jobs/redis";
+import { ObjectStore } from "@/server/store/s3";
+import { keys } from "@/server/store/sync";
 import { freshRunId, localSupabase, newUser, serviceClient, type TestUser } from "../../test/helpers/supabase";
 import { draftManifest, finishedManifest, params, until, useStudio } from "./helpers";
+import { hasDocker, startStore, type TestStore } from "./minio";
 import { hasRedisServer, startRedis, startWorkerProcess, type TestRedis, type TestWorker } from "./redis";
 import { as, cookiesOf, saveRunFor, withAccounts } from "./tenant";
 
@@ -27,9 +34,11 @@ const studio = useStudio();
 let redis: TestRedis;
 let admin: Redis;
 let workers: TestWorker[] = [];
+let bucket: TestStore | undefined;
 
 beforeAll(async () => {
   if (!supa || !hasRedisServer()) return;
+  if (hasDocker()) bucket = await startStore();
   redis = await startRedis();
   admin = new Redis(redis.url, { maxRetriesPerRequest: null });
   admin.on("error", () => {});
@@ -37,6 +46,7 @@ beforeAll(async () => {
 afterAll(async () => {
   admin?.disconnect();
   await redis?.stop();
+  bucket?.stop();
 });
 afterEach(async () => {
   await Promise.all(workers.map((w) => w.stop()));
@@ -83,7 +93,7 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     const w = startWorkerProcess({
       REDIS_URL: redis.url, FLOWCHAIN_ROOT: studio.root, RUNS_DIR: studio.runs, FLOWCHAIN_CLI: process.env.FLOWCHAIN_CLI!,
       SUPABASE_URL: s.url, SUPABASE_ANON_KEY: s.anonKey, SUPABASE_SERVICE_ROLE_KEY: s.serviceKey, WORKER_RECONCILE_MS: "1000",
-      GEMINI_API_KEY: "g", ELEVENLABS_API_KEY: "e", ELEVENLABS_VOICE_ID: "v", FAL_KEY: "f", ...env,
+      GEMINI_API_KEY: "g", ELEVENLABS_API_KEY: "e", ELEVENLABS_VOICE_ID: "v", FAL_KEY: "f", ...bucket?.env, ...env,
     });
     workers.push(w);
     await until(() => w.output().includes("ready") || w.child.exitCode !== null);
@@ -95,6 +105,7 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     await admin.flushall();
     process.env.REDIS_URL = redis.url;
     withAccounts(s);
+    if (bucket) Object.assign(process.env, bucket.env);
     [a, b] = await Promise.all([newUser(s, "a"), newUser(s, "b")]);
     [aCookie, bCookie] = await Promise.all([cookiesOf(a), cookiesOf(b)]);
     await Promise.all([mkdir(folder(a), { recursive: true }), mkdir(folder(b), { recursive: true })]);
@@ -240,5 +251,73 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     await behave(b, {});
     const bRun = await ownRun(b, finishedManifest);
     expect((await rerender(as(bCookie, `/api/runs/${bRun}/rerender`, { json: { look: {} } }), params({ id: bRun }))).status).toBe(202);
+  });
+
+  describe.skipIf(!hasDocker())("with the bucket", () => {
+    const stored = async (prefix: string) => (await new ObjectStore(bucket!.settings).list(prefix)).map((o) => o.key.slice(prefix.length)).sort();
+
+    it("keeps a run in the bucket after its job, lists it when this disk has lost it, and brings it back to be opened and resumed", async () => {
+      await worker();
+      await grant(a, 2);
+      const id = await ownRun(a, finishedManifest);
+      await writeFile(join(folder(a), id, "final.mp4"), "the video");
+      await priced(a, 0.2);
+      await behave(a, { spendUsd: 0.1 });
+      expect((await generate(as(aCookie, `/api/runs/${id}/generate`, { json: { approvedUsd: 0.2 } }), params({ id }))).status).toBe(202);
+      await until(async () => !!(await db().from("runs").select("stored_at").eq("id", id).single()).data?.stored_at);
+      expect(await stored(keys.run(a.id, id))).toEqual(["final.mp4", "job.exit", "job.json", "job.log", "manifest.json"]);
+      expect(await stored(keys.run(b.id, id))).toEqual([]);
+
+      // the disk loses the run (a new server, or the clean-up)
+      await rm(join(folder(a), id), { recursive: true });
+      const listed = async (cookie: string) => ((await (await runs(as(cookie, "/api/runs"), undefined)).json()) as { runs: Array<{ runId: string; state: string }> }).runs.filter((r) => r.runId === id);
+      expect(await listed(aCookie)).toEqual([expect.objectContaining({ runId: id, state: "stored", topic: "foxes at night" })]);
+      expect(await listed(bCookie)).toEqual([]);
+      // nobody else can have it brought back
+      expect((await run(as(bCookie, `/api/runs/${id}`), params({ id }))).status).toBe(404);
+      expect(existsSync(join(folder(b), id))).toBe(false);
+
+      const opened = await run(as(aCookie, `/api/runs/${id}`), params({ id }));
+      expect(opened.status).toBe(200);
+      expect(await readFile(join(folder(a), id, "final.mp4"), "utf8")).toBe("the video");
+      const before = await balance(a);
+      expect((await generate(as(aCookie, `/api/runs/${id}/generate`, { json: { approvedUsd: 0.2 } }), params({ id }))).status).toBe(202);
+      await until(async () => (await openReservations()) === 0);
+      // only the new spend is charged: what the run had cost before is on record in the database, not on the lost disk
+      expect(Math.round((before - (await balance(a))) * 10_000) / 10_000).toBe(0.1);
+    });
+
+    it("serves a file this disk lacks by a short-lived link to the owner's own copy", async () => {
+      await worker();
+      const id = await ownRun(a, finishedManifest);
+      await writeFile(join(folder(a), id, "final.mp4"), "the video");
+      await behave(a, {});
+      expect((await rerender(as(aCookie, `/api/runs/${id}/rerender`, { json: { look: {} } }), params({ id }))).status).toBe(202);
+      await until(async () => !!(await db().from("runs").select("stored_at").eq("id", id).single()).data?.stored_at);
+      await rm(join(folder(a), id, "final.mp4"));
+
+      const res = await file(as(aCookie, `/api/runs/${id}/files/final.mp4`), params({ id, path: ["final.mp4"] }));
+      expect(res.status).toBe(302);
+      const link = res.headers.get("location")!;
+      expect(link).toContain(`/users/${a.id}/runs/${id}/final.mp4?`);
+      expect(await (await fetch(link)).text()).toBe("the video");
+      expect((await file(as(bCookie, `/api/runs/${id}/files/final.mp4`), params({ id, path: ["final.mp4"] }))).status).toBe(404);
+    });
+
+    it("keeps an uploaded brand kit in the owner's part of the bucket and brings it back to a disk that lost it", async () => {
+      const form = new FormData();
+      form.set("name", "Acme");
+      form.set("logo", new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], "logo.png"));
+      expect((await createKit(as(aCookie, "/api/brand-kits", { body: form }), undefined)).status).toBe(201);
+      expect(await stored(keys.brandKits(a.id))).toEqual(["acme/brand.json", "acme/logo.png"]);
+      expect((await a.client.from("brand_kits").select("slug,name")).data).toEqual([{ slug: "acme", name: "Acme" }]);
+
+      const kitDir = join(studio.root, "brand-kits", a.id);
+      await rm(kitDir, { recursive: true });
+      const list = async (cookie: string) => ((await (await kits(as(cookie, "/api/brand-kits"), undefined)).json()) as { kits: Array<{ slug: string }> }).kits.map((k) => k.slug);
+      expect(await list(aCookie)).toEqual(["acme"]);
+      expect(existsSync(join(kitDir, "acme/logo.png"))).toBe(true);
+      expect(await list(bCookie)).toEqual([]);
+    });
   });
 });

@@ -11,8 +11,10 @@ import { type RunStatus, statusOf } from "@src/studio/status";
 import { roots } from "./config";
 import { ApiError } from "./http";
 import { type JobView, runner, viewJob } from "./jobs";
+import { isStoredRun, runRows } from "./store/tenant";
 
-export type RunState = "creating" | "draft" | "queued" | "running" | "needs_approval" | "failed" | "interrupted" | "done" | "incomplete";
+/** `stored`: only in the list of a studio with accounts — the run is kept in the bucket and not on this disk; opening it brings it back. */
+export type RunState = "creating" | "draft" | "queued" | "running" | "needs_approval" | "failed" | "interrupted" | "done" | "incomplete" | "stored";
 
 export type RunView = {
   runId: string;
@@ -52,10 +54,21 @@ export async function readManifest(runId: string): Promise<Manifest | null> {
   return loadManifest(dir);
 }
 
+/**
+ * A run that is the user's but not on this disk (a new server, a disk that was cleaned) is fetched back from the
+ * bucket before anything looks at it. Returns whether it was.
+ */
+async function bringBack(runId: string): Promise<boolean> {
+  if (existsSync(runDir(runId)) || !(await isStoredRun(runId))) return false;
+  await runner().restore(runId);
+  return existsSync(join(runDir(runId), "manifest.json"));
+}
+
 export async function readRun(runId: string): Promise<RunView> {
   runDir(runId);
   const job = await viewJob(runId);
-  const manifest = await readManifest(runId);
+  let manifest = await readManifest(runId);
+  if (!manifest && !job && (await bringBack(runId))) manifest = await readManifest(runId);
   if (!manifest && !job) throw new ApiError("not_found", `no run ${runId}`);
   const staleLock = await runner().staleLock(runId, job);
   return { runId, state: stateOf(manifest, job), job, staleLock, ...(manifest ? { status: statusOf(manifest) } : {}) };
@@ -63,7 +76,8 @@ export async function readRun(runId: string): Promise<RunView> {
 
 /** A run that must have a manifest (every action but watching a draft being created). */
 export async function requireManifest(runId: string): Promise<Manifest> {
-  const manifest = await readManifest(runId);
+  let manifest = await readManifest(runId);
+  if (!manifest && (await bringBack(runId))) manifest = await readManifest(runId);
   if (!manifest) throw new ApiError("not_found", `run ${runId} has no manifest yet`);
   return manifest;
 }
@@ -83,6 +97,14 @@ export type RunSummary = {
 
 /** Every run, newest first. Folders the studio cannot read (older schema, half-written) are listed as failed, not hidden. */
 export async function listRuns(): Promise<RunSummary[]> {
+  const local = await localRuns();
+  // with accounts: what the database lists and this disk does not hold is kept in the bucket
+  const here = new Set(local.map((r) => r.runId));
+  const away = (await runRows()).filter((r) => r.stored && !here.has(r.runId)).map((r): RunSummary => ({ runId: r.runId, state: "stored", topic: r.topic, createdAt: r.createdAt }));
+  return [...local, ...away].sort((x, y) => (x.runId < y.runId ? 1 : -1));
+}
+
+async function localRuns(): Promise<RunSummary[]> {
   const { runs } = roots();
   if (!existsSync(runs)) return [];
   const ids = (await readdir(runs)).filter((id) => RUN_ID.test(id)).sort().reverse();

@@ -303,6 +303,20 @@ export function queueRunner(url: string): JobRunner {
       return { ...e.health.value, queue: { mode: "queue", redis: true, worker: true } };
     },
 
+    restore: (runId) =>
+      reach(async () => {
+        runFolder(runId);
+        const e = await ends(url);
+        await requireWorker(e.redis);
+        const userId = currentUser()?.id;
+        if (!userId) return;
+        try {
+          await ask(e, "restore", { args: [], userId, runId }, QUICK_WAIT_MS);
+        } catch (err) {
+          throw new ApiError("storage_unavailable", "the run could not be brought back from storage", err instanceof Error ? err.message : String(err));
+        }
+      }),
+
     // the worker clears every lock when it starts: with one worker, a lock it did not just take is stale
     staleLock: async () => false,
     clearStaleLock: async (runId) => {

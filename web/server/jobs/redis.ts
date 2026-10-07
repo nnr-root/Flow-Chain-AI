@@ -31,7 +31,8 @@ export type RunJobData = {
 };
 export type RunJobResult = { exitCode: number | null; stopped?: boolean };
 /** Job names on the quick queue: `cli` runs a free command, `health` reports which keys the worker has. */
-export type QuickJobData = { args: string[]; userId?: string };
+/** `restore` (a studio with accounts) brings `runId`'s folder back from the bucket. */
+export type QuickJobData = { args: string[]; userId?: string; runId?: string };
 export type QuickJobResult = { stdout: string };
 
 /**

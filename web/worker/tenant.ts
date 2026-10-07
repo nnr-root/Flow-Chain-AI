@@ -17,7 +17,8 @@ export type TenantDb = {
   openReservations(ageMs: number): Promise<Reservation[]>;
   /** Closes a reservation at what its run has spent in all; returns the amount charged. */
   settle(id: string, runTotalUsd: number): Promise<number>;
-  setRunState(runId: string, state: string, storedAt?: string): Promise<void>;
+  /** `state: null` leaves the state as it is (only the time of the last store is recorded). */
+  setRunState(runId: string, state: string | null, storedAt?: string): Promise<void>;
 };
 
 /** The database as the worker uses it, or null in a studio without accounts. */

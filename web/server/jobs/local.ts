@@ -88,6 +88,8 @@ export const localRunner: JobRunner = {
     return { ...health(), queue: { mode: "local" } };
   },
 
+  async restore() {},
+
   async staleLock(runId, job) {
     return hasStaleLock(runFolder(runId), job);
   },

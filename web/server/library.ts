@@ -4,6 +4,7 @@ import { extname, join } from "node:path";
 import { BrandKit, loadBrandKit } from "@src/brand";
 import { roots } from "./config";
 import { ApiError } from "./http";
+import { bringLibrary, keepBrandKit, keepTrack } from "./store/tenant";
 import { Slug } from "./schemas";
 
 const MB = 1024 * 1024;
@@ -13,6 +14,7 @@ export type KitSummary = { slug: string; name: string; logo: string; hasFont: bo
 
 /** Kits in `brand-kits/`; a folder that does not load as a kit is skipped, not an error for the whole list. */
 export async function listKits(): Promise<KitSummary[]> {
+  await bringLibrary();
   const { brandKits } = roots();
   if (!existsSync(brandKits)) return [];
   const out: KitSummary[] = [];
@@ -134,6 +136,7 @@ export async function createKit(form: FormData): Promise<KitSummary> {
     await rm(tmp, { recursive: true, force: true });
     throw err;
   }
+  await keepBrandKit(slug, name);
   return { slug, name, logo: json.logo, hasFont: !!font, hasPortrait: !!portrait, hasCharacters: !!json.characters };
 }
 
@@ -150,6 +153,7 @@ async function tracksIn(dir: string, source: Track["source"]): Promise<Track[]> 
 }
 
 export async function listMusic(): Promise<Track[]> {
+  await bringLibrary();
   const r = roots();
   return [...(await tracksIn(r.music, "bundled")), ...(await tracksIn(r.uploads, "upload"))];
 }
@@ -176,5 +180,6 @@ export async function addMusic(form: FormData): Promise<Track> {
       throw err;
     }
   }
+  await keepTrack(name, name.replace(/\.mp3$/, ""), bytes.length);
   return { id: `upload:${name}`, name: name.replace(/\.mp3$/, ""), source: "upload", bytes: bytes.length };
 }

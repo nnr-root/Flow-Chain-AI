@@ -6,13 +6,15 @@ import { type Job as QueueJob, Queue, Worker } from "bullmq";
 import type { Redis } from "ioredis";
 import { RUN_ID } from "@src/studio/commands";
 import { multiTenant } from "../lib/supabase/settings";
-import { baseRoots, health } from "../server/config";
+import { baseRoots, health, roots } from "../server/config";
 import {
   consumerConnection, KEYS, type QuickJobData, type QuickJobResult, QUEUES, refusal, type RunJobData, type RunJobResult,
 } from "../server/jobs/redis";
 import { exitCodeOf, lockState, readJobRecord, runFolder, runShort, spawnCli, stopProcess } from "../server/jobs/run-cli";
 import { type Job, type JobView, LOCK_FILE } from "../server/jobs/types";
 import { readManifest, stateOf } from "../server/runs";
+import { objectStore } from "../server/store/s3";
+import { cleanCache, isStored, keys, restoreFolder, storeFolder } from "../server/store/sync";
 import { inScope, UUID } from "../server/tenant";
 import { spendOf, tenantDb } from "./tenant";
 
@@ -201,6 +203,38 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     if (!matches) throw new Error(`no credit is held for this ${data.kind} of ${data.runId}`);
   };
 
+  // With accounts and a bucket: runs are kept there, and this disk is a cache of them.
+  const bucket = db ? objectStore() : null;
+  /** Runs whose store failed (the bucket was away), as "userId/runId"; the reconcile tries them again. */
+  const unstored = new Set<string>();
+  const cacheDays = (() => {
+    const raw = process.env.STUDIO_CACHE_DAYS?.trim() ?? "";
+    return /^\d+$/.test(raw) && Number(raw) >= 1 ? Number(raw) : 14;
+  })();
+
+  /** Copies what changed in a run's folder to the bucket. Must run in the owner's scope. */
+  const storeRun = async (userId: string, runId: string): Promise<void> => {
+    if (!db || !bucket) return;
+    try {
+      const sent = await storeFolder(bucket, runFolder(runId), keys.run(userId, runId));
+      await db.setRunState(runId, null, new Date().toISOString());
+      unstored.delete(`${userId}/${runId}`);
+      if (sent > 0) log(`worker: stored ${sent} file(s) of ${runId}`);
+    } catch (err) {
+      unstored.add(`${userId}/${runId}`);
+      log(`worker: could not store ${runId} yet: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  /** Before a job: what it needs and this disk lacks (the run itself, the user's kits and tracks) is fetched from the bucket. */
+  const bringLocal = async (data: RunJobData): Promise<void> => {
+    if (!bucket || !data.userId) return;
+    const dir = runFolder(data.runId);
+    if (data.kind !== "draft" && !existsSync(join(dir, "manifest.json"))) await restoreFolder(bucket, keys.run(data.userId, data.runId), dir);
+    await restoreFolder(bucket, keys.brandKits(data.userId), roots().brandKits);
+    await restoreFolder(bucket, keys.music(data.userId), roots().uploads);
+  };
+
   /** After a job, however it ended: charge what the run really spent and record how the run stands. */
   const account = async (data: Pick<RunJobData, "runId" | "reservationId">, dir: string, job: JobView | null): Promise<void> => {
     if (!db) return;
@@ -223,6 +257,7 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     const refused = refusal("runs", args, runId);
     if (refused) throw new Error(refused);
     await checkReservation(job.data);
+    await bringLocal(job.data);
     // After a long Redis outage the queue can lose track of a job whose CLI is still working and hand the run
     // out again. One CLI per run, whatever the queue believes.
     if (active.has(runId) || starting.has(runId)) throw new Error(`run ${runId} is still being worked on by this worker`);
@@ -256,12 +291,20 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     log(`worker: ${kind} ${runId} ${stopped ? "stopped" : exitCode === null ? "ended without an exit code" : `exit ${exitCode}`}`);
     const ended: JobView = exitCode !== null ? { ...record, state: "ended", exitCode } : { ...record, state: stopped ? "stopped" : "interrupted" };
     await account(job.data, dir, ended);
+    // after every job, also a failed or stopped one: what was bought so far must outlive this disk
+    if (job.data.userId) await storeRun(job.data.userId, runId);
     // exit 1 (failed) and 2 (not confirmed) are results, not queue failures: nothing here is ever retried
     return { exitCode, ...(stopped ? { stopped } : {}) };
   });
 
   const runQuick = async (job: QueueJob<QuickJobData>): Promise<QuickJobResult> => {
     if (job.name === "health") return { stdout: JSON.stringify(health()) };
+    if (job.name === "restore") {
+      // a run its owner opened that this disk does not hold
+      const { userId, runId } = job.data;
+      if (!bucket || !userId || !runId) throw new Error("nothing to restore from");
+      return asUser(userId, async () => ({ stdout: String(await restoreFolder(bucket, keys.run(userId, runId), runFolder(runId))) }));
+    }
     const refused = refusal("quick", job.data.args);
     if (refused) throw new Error(refused);
     return asUser(job.data.userId, async () => ({ stdout: await runShort(job.data.args) }));
@@ -296,10 +339,38 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
           await db.setRunState(r.run_id, stateOf(await readManifest(r.run_id).catch(() => null), job));
         });
       }
+      // stores that failed while the bucket was away
+      for (const entry of [...unstored]) {
+        const [userId, runId] = entry.split("/");
+        if (active.has(runId) || starting.has(runId)) continue;
+        await inScope({ user: { id: userId, email: "" } }, () => storeRun(userId, runId));
+      }
     } catch (err) {
       log(`worker: could not reconcile credit: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       reconciling = false;
+    }
+  };
+
+  /** At start: runs on this disk that changed since they were last stored (a worker that died before its store). */
+  const noteUnstored = async (): Promise<void> => {
+    if (!bucket) return;
+    const base = baseRoots().runs;
+    if (!existsSync(base)) return;
+    for (const userId of (await readdir(base)).filter((name) => UUID.test(name))) {
+      for (const runId of (await readdir(join(base, userId))).filter((name) => RUN_ID.test(name))) {
+        if (!(await isStored(join(base, userId, runId)).catch(() => true))) unstored.add(`${userId}/${runId}`);
+      }
+    }
+  };
+  /** Daily: free this disk of runs that are wholly in the bucket and long untouched. */
+  const clean = async (): Promise<void> => {
+    if (!bucket) return;
+    try {
+      const removed = await cleanCache(baseRoots().runs, cacheDays);
+      if (removed.length > 0) log(`worker: freed the disk of ${removed.length} stored run(s) untouched for ${cacheDays} days`);
+    } catch (err) {
+      log(`worker: could not clean the disk: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -321,8 +392,11 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   });
   await Promise.all([runs.waitUntilReady(), quick.waitUntilReady()]);
   // nothing is running yet, so every reservation old enough is one a dead worker or a lost job left behind
+  await noteUnstored();
   await reconcile();
   const reconciler = db ? setInterval(() => void reconcile(), reconcileMs) : undefined;
+  void clean();
+  const cleaner = bucket ? setInterval(() => void clean(), 24 * 3600_000) : undefined;
   log(`worker ${id}: ready (runs ×${opts.concurrency ?? 2}, quick ×4${db ? ", with accounts" : ""})`);
 
   let closing: Promise<void> | undefined;
@@ -353,6 +427,7 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       clearTimeout(slow);
       clearInterval(renewal);
       clearInterval(reconciler);
+      clearInterval(cleaner);
       await line.close().catch(() => {});
       // with Redis away these would wait for it to come back; both keys expire by themselves
       const released = (async () => {

@@ -10,6 +10,7 @@ const STATES: Record<string, { label: string; cls: string }> = {
   interrupted: { label: "Interrupted", cls: "bg-bad/15 text-bad" },
   incomplete: { label: "Unfinished", cls: "bg-warn/15 text-warn" },
   done: { label: "Done", cls: "bg-good/15 text-good" },
+  stored: { label: "Archived", cls: "bg-line text-dim" },
 };
 
 export function StateBadge({ state }: { state: string }) {

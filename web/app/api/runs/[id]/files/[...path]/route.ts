@@ -1,4 +1,8 @@
+import { existsSync } from "node:fs";
+import { relative, sep } from "node:path";
 import { resolvePublished, serveFile } from "@/server/files";
+import { storedRunFile } from "@/server/store/tenant";
+import { VIRTUAL } from "@src/studio/draft-media";
 import { ApiError, route } from "@/server/http";
 import { preview, type Preview, requireManifest, runDir } from "@/server/runs";
 import { decodeLookToken, LOOK_PREFIX } from "@/lib/look-token";
@@ -31,5 +35,13 @@ export const GET = route<Ctx>({ write: false }, async (req, ctx) => {
     // no script yet: only the run's plain outputs can be served
   }
   const published = path.join("/");
-  return serveFile(req, resolvePublished(runDir(id), published, shown), m, id, shown);
+  const source = resolvePublished(runDir(id), published, shown);
+  // A file of the run that this disk lacks (it was cleaned, or is still on its way back) is served from the
+  // bucket: a link to that one file, for a few minutes, made only now that the run is known to be the caller's.
+  const inRun = relative(runDir(id), source);
+  if (!source.startsWith(VIRTUAL) && !inRun.startsWith("..") && !existsSync(source)) {
+    const link = await storedRunFile(id, inRun.split(sep).join("/"));
+    if (link) return new Response(null, { status: 302, headers: { location: link, "cache-control": "no-store" } });
+  }
+  return serveFile(req, source, m, id, shown);
 });

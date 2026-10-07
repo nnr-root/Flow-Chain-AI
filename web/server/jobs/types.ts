@@ -52,4 +52,6 @@ export interface JobRunner {
   /** The run's lock was left by a process that is gone and nothing of the run is running. */
   staleLock(runId: string, job: JobView | null): Promise<boolean>;
   clearStaleLock(runId: string): Promise<void>;
+  /** Brings a run's folder back from the bucket (a studio with accounts); nothing to do where runs only live on disk. */
+  restore(runId: string): Promise<void>;
 }
