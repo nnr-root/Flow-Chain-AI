@@ -16,11 +16,34 @@ export function supabaseSettings(): SupabaseSettings {
   return { url, anonKey };
 }
 
-/** Where a visitor is sent after signing in: a path on this site and nothing else (never another site's address). */
+/**
+ * Where a visitor is sent after signing in: a path on this site and nothing else (never another site's address).
+ * The path is read the way a browser will read it — which drops tabs and line breaks and takes "\\" for "/" —
+ * and only kept if it still points here.
+ */
 export function safeNext(next: string | null | undefined): string {
-  if (!next || !next.startsWith("/") || next.startsWith("//") || next.includes("\\") || /[\r\n]/.test(next)) return "/";
-  return next;
+  if (!next || !next.startsWith("/")) return "/";
+  // control characters and spaces have no business in a path, and are how "//other.site" is smuggled past a check
+  for (let i = 0; i < next.length; i++) {
+    const code = next.charCodeAt(i);
+    if (code <= 0x20 || code === 0x7f) return "/";
+  }
+  if (next.includes("\\") || !URL.canParse(next, "http://studio.invalid")) return "/";
+  const url = new URL(next, "http://studio.invalid");
+  if (url.origin !== "http://studio.invalid") return "/";
+  return url.pathname + url.search;
 }
+
+/**
+ * What the sign-in pages may say about a link that did not work. The address carries only one of these names,
+ * never the text itself: a page of ours must not show words that someone put into a link.
+ */
+export const LINK_ERRORS = {
+  link: "That link is no longer valid. Sign in, or ask for a new one.",
+  "signed-in": "You are already signed in. Sign out first to use that link.",
+  incomplete: "Sign-in was not completed.",
+} as const;
+export const linkError = (code: string | null | undefined): string => (code && Object.hasOwn(LINK_ERRORS, code) ? LINK_ERRORS[code as keyof typeof LINK_ERRORS] : "");
 
 /** Pages anyone may open. */
 export const PUBLIC_PAGES = /^\/(login|signup|reset|auth\/callback|auth\/google)(\/|$)/;

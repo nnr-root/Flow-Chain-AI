@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { type Job as QueueJob, Queue, QueueEvents } from "bullmq";
 import type { Redis } from "ioredis";
 import type { Health } from "../config";
@@ -130,6 +131,17 @@ function userJobLimit(): number {
   return /^\d+$/.test(raw) && Number(raw) >= 1 ? Number(raw) : 2;
 }
 
+/**
+ * Whether the run is the caller's to ask about, in a studio with accounts. Run ids are unique across all users
+ * and every user's runs live in a folder of their own, so a run is the caller's exactly when its folder is in
+ * theirs (or, for a draft whose folder the worker has yet to make, when the waiting job is theirs). Without
+ * this, the worker's word "that run is being worked on" would answer for anybody's run id.
+ */
+function mine(dir: string, q: { data: { userId?: string } } | undefined): boolean {
+  const me = currentUser()?.id;
+  return me === undefined || existsSync(dir) || q?.data.userId === me;
+}
+
 /** A queue record as far as the caller may know of it: another user's job is no job at all. */
 function own<T extends { data: { userId?: string } }>(q: T | undefined): T | undefined {
   const me = currentUser()?.id;
@@ -151,7 +163,7 @@ async function view(e: Ends, runId: string): Promise<JobView | null> {
   const dir = runFolder(runId);
   // The worker's own word comes first: a CLI it has running is running, also when a long Redis outage made the
   // queue put the job back in line or forget it. Its exit code on disk is the one thing that is newer still.
-  if (await heldByWorker(e.redis, runId)) {
+  if (existsSync(dir) && (await heldByWorker(e.redis, runId))) {
     const record = readJobRecord(dir);
     if (record && exitCodeOf(dir) === undefined) return { ...record, state: "running" };
   }
@@ -220,6 +232,8 @@ export function queueRunner(url: string): JobRunner {
         const gone = () => new ApiError("not_found", `run ${runId} has no running job`);
         const finished = (s: string | undefined) => s === "completed" || s === "failed" || s === "unknown";
         const q = own(await e.runs.getJob(runId));
+        // somebody else's run does not exist, whether its job is waiting or being worked on
+        if (!mine(runFolder(runId), q)) throw gone();
         // a CLI the worker has running is stopped through the worker, whatever the queue says of its job
         const held = await heldByWorker(e.redis, runId);
         if (!held) {

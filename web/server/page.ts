@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { multiTenant } from "@/lib/supabase/settings";
@@ -7,12 +8,13 @@ import { inScope } from "./tenant";
 
 /* What a page (a server component) needs: its data loaded for the signed-in user. Routes get the same from route(). */
 
-async function pageSession() {
+// once per request: the layout and the page both ask who is signed in
+const pageSession = cache(async () => {
   const jar = await cookies();
   // a page cannot set cookies; the proxy has refreshed the session before the page runs
   const client = sessionClient({ getAll: () => jar.getAll(), setAll: () => {} });
   return { client, user: await sessionUser(client) };
-}
+});
 
 /** Loads a page's data for the signed-in user. Without accounts it simply runs; without a session it goes to the login page. */
 export async function forUser<T>(work: () => Promise<T>): Promise<T> {

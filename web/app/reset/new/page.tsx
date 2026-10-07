@@ -1,5 +1,5 @@
 import { AuthForm } from "@/components/AuthForm";
-import { safeNext } from "@/lib/supabase/settings";
+import { linkError, safeNext } from "@/lib/supabase/settings";
 import { accountsOnly } from "@/server/page";
 
 export const dynamic = "force-dynamic";
@@ -7,5 +7,5 @@ export const dynamic = "force-dynamic";
 export default async function Page({ searchParams }: { searchParams: Promise<{ next?: string; error?: string }> }) {
   accountsOnly();
   const { next, error } = await searchParams;
-  return <AuthForm mode="new-password" next={safeNext(next)} error={error} />;
+  return <AuthForm mode="new-password" next={safeNext(next)} error={linkError(error)} />;
 }

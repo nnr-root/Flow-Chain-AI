@@ -24,7 +24,7 @@ import { POST as reroll } from "@/app/api/runs/[id]/reroll/route";
 import { GET as run } from "@/app/api/runs/[id]/route";
 import { POST as unlock } from "@/app/api/runs/[id]/unlock/route";
 import { GET as callback } from "@/app/auth/callback/route";
-import { safeNext } from "@/lib/supabase/settings";
+import { linkError, safeNext } from "@/lib/supabase/settings";
 import { roots } from "@/server/config";
 import { closeQueue } from "@/server/jobs/queue";
 import { localSupabase, newUser, type TestUser } from "../../test/helpers/supabase";
@@ -52,6 +52,14 @@ describe("where a visitor may be sent after signing in", () => {
     expect(safeNext("/runs/20261006-120000-abc001")).toBe("/runs/20261006-120000-abc001");
     expect(safeNext("/new?x=1")).toBe("/new?x=1");
     for (const bad of [undefined, null, "", "https://evil.example", "//evil.example", "/\\evil.example", "runs", "/a\nb"]) expect(safeNext(bad)).toBe("/");
+    // a browser drops tabs and line breaks from an address and reads "\\" as "/": each of these would land on another site
+    for (const smuggled of ["/\t/evil.example", "/\n/evil.example", "/\r/evil.example", "/ /evil.example", "/\\/evil.example", "/\u0000/evil.example", "/\u007f/evil.example"]) {
+      expect(safeNext(smuggled), JSON.stringify(smuggled)).toBe("/");
+    }
+    expect(safeNext("/runs/../account")).toBe("/account");
+    expect(linkError("link")).toMatch(/no longer valid/);
+    // only our own words are ever shown for a link that failed, never text from the address
+    for (const text of ["Your account is locked, call 555-0100", "constructor", "", undefined]) expect(linkError(text)).toBe("");
   });
 });
 
@@ -84,9 +92,27 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
     expect(await code(await health(request("/api/health"), undefined))).toBe("unauthenticated");
     expect((await run(request("/api/runs/x"), params({ id: nextRunId() }))).status).toBe(401);
     // a cookie that merely claims to be a session is not one
-    const forged = aCookie.replace(/=base64-[A-Za-z0-9_-]{20}/, "=base64-AAAAAAAAAAAAAAAAAAAA");
-    expect((await runs(as(forged, "/api/runs"), undefined)).status).toBe(401);
+    const garbled = aCookie.replace(/=base64-[A-Za-z0-9_-]{20}/, "=base64-AAAAAAAAAAAAAAAAAAAA");
+    expect((await runs(as(garbled, "/api/runs"), undefined)).status).toBe(401);
     expect((await runs(as(aCookie, "/api/runs"), undefined)).status).toBe(200);
+  });
+
+  it("is not fooled by a well-formed token that names another user: the signature decides", async () => {
+    // a's real session, with the user id inside its token swapped for b's and a's signature kept
+    const [name, value] = [aCookie.slice(0, aCookie.indexOf("=")), aCookie.slice(aCookie.indexOf("=") + 1)];
+    expect(aCookie).not.toContain("; "); // one cookie holds the session here
+    const session = JSON.parse(Buffer.from(value.replace(/^base64-/, ""), "base64url").toString()) as { access_token: string; user: { id: string } };
+    const [header, payload, signature] = session.access_token.split(".");
+    const claims = JSON.parse(Buffer.from(payload, "base64url").toString()) as Record<string, unknown>;
+    const forgedToken = [header, Buffer.from(JSON.stringify({ ...claims, sub: b.id, email: b.email })).toString("base64url"), signature].join(".");
+    const forged = `${name}=base64-${Buffer.from(JSON.stringify({ ...session, access_token: forgedToken, user: { ...session.user, id: b.id } })).toString("base64url")}`;
+
+    const mine = nextRunId();
+    await saveRunFor(studio, b, finishedManifest(mine));
+    const res = await runs(as(forged, "/api/runs"), undefined);
+    // refused outright, or at the very least never answered as b
+    expect(res.status === 401 || !JSON.stringify(await res.json()).includes(mine)).toBe(true);
+    expect((await run(as(forged, `/api/runs/${mine}`), params({ id: mine }))).status).not.toBe(200);
   });
 
   it("signs in with a password, keeps the session in cookies, and signs out", async () => {
@@ -100,6 +126,9 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
     expect(ok.status).toBe(200);
     const cookie = cookiesFrom(ok);
     expect(cookie).toMatch(/^sb-.+-auth-token/);
+    // no script in a page can read the session, and an answer that carries one is never stored
+    for (const line of ok.headers.getSetCookie()) expect(line).toMatch(/; HttpOnly/i);
+    expect(ok.headers.get("cache-control")).toBe("private, no-store");
     const me = await accountRoute(as(cookie, "/api/account"), undefined);
     expect(await me.json()).toEqual({ account: { email: a.email, balanceUsd: 0 }, ledger: [] });
 
@@ -117,6 +146,10 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
     expect(await (await accountRoute(as(cookie, "/api/account"), undefined)).json()).toEqual({ account: { email, balanceUsd: 0 }, ledger: [] });
 
     expect((await signup(request("/api/auth/signup", { json: { email, password: "short" } }), undefined)).status).toBe(400);
+    // signing up with an address that has an account answers like a new one: "check your inbox"
+    const again = await signup(request("/api/auth/signup", { json: { email, password: "another-password" } }), undefined);
+    expect([again.status, await again.json()]).toEqual([200, { confirm: true }]);
+    expect(cookiesFrom(again)).not.toMatch(/auth-token(\.\d+)?=/); // and signs nobody in
     expect((await password(request("/api/auth/password", { json: { password: "second-password" } }), undefined)).status).toBe(401);
     expect((await password(as(cookie, "/api/auth/password", { json: { password: "second-password" } }), undefined)).status).toBe(200);
     expect((await login(request("/api/auth/login", { json: { email, password: "first-password" } }), undefined)).status).toBe(401);
@@ -133,7 +166,24 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
   it("sends a link that proves nothing back to the login page, and never to another site", async () => {
     const res = await callback(request("/auth/callback?code=not-a-code&next=https://evil.example"), undefined);
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toMatch(/^http:\/\/127\.0\.0\.1:3131\/login\?error=/);
+    expect(res.headers.get("location")).toBe("http://127.0.0.1:3131/login?error=link");
+    // whatever an address claims went wrong is not carried onto our page
+    const claimed = await callback(request("/auth/callback?error_description=Call+555-0100+to+unlock+your+account"), undefined);
+    expect(claimed.headers.get("location")).toBe("http://127.0.0.1:3131/login?error=incomplete");
+    // a link from an email never replaces the session of someone who is signed in (it could be anybody's link)
+    const switched = await callback(as(aCookie, "/auth/callback?token_hash=abc&type=recovery"), undefined);
+    expect(switched.headers.get("location")).toBe("http://127.0.0.1:3131/login?error=signed-in");
+    expect(switched.headers.getSetCookie()).toEqual([]);
+    expect((await callback(request("/auth/callback?token_hash=abc&type=whatever"), undefined)).headers.get("location")).toBe("http://127.0.0.1:3131/login?error=incomplete");
+
+    // on a server the links in emails are built from the configured name, never from what a request claims
+    process.env.STUDIO_HOST = "studio.example.com";
+    try {
+      const onServer = await callback(request("/auth/callback?code=x", { headers: { host: "studio.example.com" } }), undefined);
+      expect(onServer.headers.get("location")).toBe("https://studio.example.com/login?error=link");
+    } finally {
+      delete process.env.STUDIO_HOST;
+    }
   });
 
   it("shows each user their own runs, and answers 404 for everything of anyone else's", async () => {

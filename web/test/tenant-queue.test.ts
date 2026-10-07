@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { POST as createDraft } from "@/app/api/drafts/route";
 import { POST as generate } from "@/app/api/runs/[id]/generate/route";
 import { DELETE as stop } from "@/app/api/runs/[id]/job/route";
+import { GET as viewRun } from "@/app/api/runs/[id]/route";
 import { POST as rerender } from "@/app/api/runs/[id]/rerender/route";
 import { JOB_FILE } from "@/server/jobs";
 import { closeQueue } from "@/server/jobs/queue";
@@ -227,8 +228,13 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     const third = await start(ids[2]);
     expect([third.status, await error(third)]).toEqual([429, "too_many_jobs"]);
 
-    // b can neither see nor stop a's job, even knowing its id
+    // b can neither see nor stop a's job, even knowing its id: not the one waiting, and not the one being worked on
     expect((await stop(as(bCookie, `/api/runs/${ids[1]}/job`, { method: "DELETE" }), params({ id: ids[1] }))).status).toBe(404);
+    await until(async () => (await jobCalls(a)).length === 1);
+    expect((await stop(as(bCookie, `/api/runs/${ids[0]}/job`, { method: "DELETE" }), params({ id: ids[0] }))).status).toBe(404);
+    expect((await viewRun(as(bCookie, `/api/runs/${ids[0]}`), params({ id: ids[0] }))).status).toBe(404);
+    await new Promise((r) => setTimeout(r, 500));
+    expect(JSON.parse(await readFile(join(folder(a), ids[0], JOB_FILE), "utf8")).stoppedAt).toBeUndefined();
     expect((await stop(as(aCookie, `/api/runs/${ids[1]}/job`, { method: "DELETE" }), params({ id: ids[1] }))).status).toBe(200);
     // and b's own line is not shortened by a's jobs
     await behave(b, {});

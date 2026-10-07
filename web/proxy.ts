@@ -23,14 +23,19 @@ export async function proxy(request: NextRequest): Promise<Response | undefined>
 
   const { url, anonKey } = supabaseSettings();
   let response = NextResponse.next({ request });
+  // the same rules as the routes set them with (web/server/session.ts): no script reads a session cookie
+  const forwarded = request.headers.get("x-forwarded-proto")?.split(",")[0].trim();
+  const secure = !!process.env.STUDIO_HOST?.trim() || (forwarded ?? request.nextUrl.protocol.replace(":", "")) === "https";
+  const cookieOptions = { path: "/", sameSite: "lax" as const, httpOnly: true, secure };
   const client = createServerClient(url, anonKey, {
+    cookieOptions,
     cookies: {
       getAll: () => request.cookies.getAll(),
       // a refreshed session goes both to the code that handles this request and back to the browser
       setAll: (cookies) => {
         for (const c of cookies) request.cookies.set(c.name, c.value);
         response = NextResponse.next({ request });
-        for (const c of cookies) response.cookies.set(c.name, c.value, c.options);
+        for (const c of cookies) response.cookies.set(c.name, c.value, { ...c.options, ...cookieOptions });
       },
     },
   });
@@ -40,7 +45,11 @@ export async function proxy(request: NextRequest): Promise<Response | undefined>
   const login = request.nextUrl.clone();
   login.pathname = "/login";
   login.search = pathname === "/" ? "" : `?next=${encodeURIComponent(pathname + search)}`;
-  return NextResponse.redirect(login);
+  const redirect = NextResponse.redirect(login);
+  // a session that could not be refreshed was cleared above: the clearing must reach the browser with the redirect
+  for (const c of response.cookies.getAll()) redirect.cookies.set(c);
+  redirect.headers.set("cache-control", "private, no-store");
+  return redirect;
 }
 
 export const config = {
