@@ -1,5 +1,5 @@
 import { ZodError } from "zod";
-import { hostName, isLoopbackHost } from "@/lib/loopback";
+import { hostName, isAllowedHost } from "@/lib/hosts";
 
 export type ErrorCode =
   | "validation" | "not_found" | "job_active" | "busy" | "estimate_changed" | "not_draft" | "missing_keys"
@@ -45,7 +45,7 @@ export function errorResponse(err: unknown): Response {
  */
 export function guard(req: Request, opts: { write: boolean }): void {
   const host = req.headers.get("host") ?? new URL(req.url).host;
-  if (!isLoopbackHost(host)) throw new ApiError("forbidden_origin", `the studio only answers on localhost, not ${hostName(host)}`);
+  if (!isAllowedHost(host)) throw new ApiError("forbidden_origin", `the studio does not answer for ${hostName(host)}`);
   if (!opts.write) return;
   const site = req.headers.get("sec-fetch-site");
   const origin = req.headers.get("origin");

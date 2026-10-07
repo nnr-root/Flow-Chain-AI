@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { isLoopbackHost } from "@/lib/loopback";
+import { isAllowedHost, isLoopbackHost } from "@/lib/hosts";
 import { ApiError, body, errorResponse, guard, json, route } from "@/server/http";
 
 const req = (headers: Record<string, string>, method = "POST") => new Request("http://127.0.0.1:3131/api/x", { method, headers });
@@ -23,12 +23,48 @@ describe("the loopback host test", () => {
   });
 });
 
+describe("the allowed-host rule on a server", () => {
+  it("adds exactly the one configured public name to the machine's own, in any case and with any port", () => {
+    for (const host of ["studio.example.com", "studio.example.com:443", "STUDIO.Example.com", "localhost:3131", "127.0.0.1"]) {
+      expect(isAllowedHost(host, "studio.example.com"), host).toBe(true);
+    }
+    for (const host of ["evil.example", "studio.example.com.evil.example", "xstudio.example.com", "example.com", "", null, undefined]) {
+      expect(isAllowedHost(host, "studio.example.com"), String(host)).toBe(false);
+    }
+  });
+
+  it("without a configured name, or with an empty one, only the machine's own names pass", () => {
+    for (const publicHost of [undefined, "", "  "]) {
+      expect(isAllowedHost("studio.example.com", publicHost)).toBe(false);
+      expect(isAllowedHost("", publicHost)).toBe(false);
+      expect(isAllowedHost("localhost:3131", publicHost)).toBe(true);
+    }
+  });
+
+  it("guard() reads the name from STUDIO_HOST and still requires a same-origin write", () => {
+    const before = process.env.STUDIO_HOST;
+    process.env.STUDIO_HOST = "studio.example.com";
+    try {
+      const get = (host: string) => new Request("http://web:3131/api/x", { headers: { host } });
+      expect(() => guard(get("studio.example.com"), { write: false })).not.toThrow();
+      expect(() => guard(get("other.example.com"), { write: false })).toThrow("does not answer for other.example.com");
+      const post = (headers: Record<string, string>) => new Request("http://web:3131/api/x", { method: "POST", headers: { host: "studio.example.com", ...headers } });
+      expect(() => guard(post({ "sec-fetch-site": "same-origin" }), { write: true })).not.toThrow();
+      expect(() => guard(post({ origin: "https://studio.example.com" }), { write: true })).not.toThrow();
+      expect(() => guard(post({ "sec-fetch-site": "cross-site", origin: "https://evil.example" }), { write: true })).toThrow("only be started from the studio itself");
+    } finally {
+      if (before === undefined) delete process.env.STUDIO_HOST;
+      else process.env.STUDIO_HOST = before;
+    }
+  });
+});
+
 describe("the origin guard", () => {
   it("answers loopback hosts only, so a DNS name pointed at this machine is refused", () => {
     for (const host of ["127.0.0.1:3131", "localhost:3131", "localhost", "[::1]:3131"]) {
       expect(() => guard(req({ host }, "GET"), { write: false })).not.toThrow();
     }
-    expect(() => guard(req({ host: "evil.example:3131" }, "GET"), { write: false })).toThrow("only answers on localhost");
+    expect(() => guard(req({ host: "evil.example:3131" }, "GET"), { write: false })).toThrow("does not answer for evil.example");
   });
 
   it("lets a write through only from the studio's own pages", () => {
