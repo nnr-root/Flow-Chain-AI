@@ -24,10 +24,14 @@ export const KEYS = {
 export const JOB_OPTIONS = { attempts: 1, removeOnComplete: true, removeOnFail: true } as const;
 
 /** `token` is unique per request: the queue keeps the first job for a run id, and the token tells whose it is. */
-export type RunJobData = { runId: string; kind: JobKind; args: string[]; approvedUsd?: number; enqueuedAt: string; token: string };
+export type RunJobData = {
+  runId: string; kind: JobKind; args: string[]; approvedUsd?: number; enqueuedAt: string; token: string;
+  /** A studio with accounts: whose job this is, and the credit held for it (paid kinds). */
+  userId?: string; reservationId?: string;
+};
 export type RunJobResult = { exitCode: number | null; stopped?: boolean };
 /** Job names on the quick queue: `cli` runs a free command, `health` reports which keys the worker has. */
-export type QuickJobData = { args: string[] };
+export type QuickJobData = { args: string[]; userId?: string };
 export type QuickJobResult = { stdout: string };
 
 /**

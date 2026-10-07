@@ -5,12 +5,16 @@ import { join } from "node:path";
 import { type Job as QueueJob, Queue, Worker } from "bullmq";
 import type { Redis } from "ioredis";
 import { RUN_ID } from "@src/studio/commands";
-import { health, roots } from "../server/config";
+import { multiTenant } from "../lib/supabase/settings";
+import { baseRoots, health } from "../server/config";
 import {
   consumerConnection, KEYS, type QuickJobData, type QuickJobResult, QUEUES, refusal, type RunJobData, type RunJobResult,
 } from "../server/jobs/redis";
 import { exitCodeOf, lockState, readJobRecord, runFolder, runShort, spawnCli, stopProcess } from "../server/jobs/run-cli";
-import { type Job, LOCK_FILE } from "../server/jobs/types";
+import { type Job, type JobView, LOCK_FILE } from "../server/jobs/types";
+import { readManifest, stateOf } from "../server/runs";
+import { inScope, UUID } from "../server/tenant";
+import { spendOf, tenantDb } from "./tenant";
 
 export type WorkerOptions = {
   redisUrl: string;
@@ -22,8 +26,14 @@ export type WorkerOptions = {
   guardTtlMs?: number;
   /** BullMQ's lock on an active job and how often stalled jobs are looked for (defaults 30 s). */
   lockMs?: number;
+  /** With accounts: how often open reservations without a job are settled, and how old one must be (default 60 s both). */
+  reconcileMs?: number;
   log?: (message: string) => void;
 };
+
+/** What a draft may cost at most; its reservation must hold exactly this (see `web/server/credit.ts`). */
+const DRAFT_CAP_USD = 0.02;
+const PAID = new Set(["draft", "generate", "reroll"]);
 
 /** Thrown when another worker already holds the guard. */
 export class SecondWorker extends Error {
@@ -42,12 +52,16 @@ const RELEASE = 'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call
  */
 export async function sweepLocks(runsDir: string): Promise<string[]> {
   if (!existsSync(runsDir)) return [];
+  // with accounts every user has a folder of runs of their own
+  const folders = multiTenant() ? (await readdir(runsDir)).filter((name) => UUID.test(name)).map((name) => join(runsDir, name)) : [runsDir];
   const cleared: string[] = [];
-  for (const id of await readdir(runsDir)) {
-    const lock = join(runsDir, id, LOCK_FILE);
-    if (!RUN_ID.test(id) || !existsSync(lock)) continue;
-    await rm(lock, { force: true });
-    cleared.push(id);
+  for (const folder of folders) {
+    for (const id of await readdir(folder)) {
+      const lock = join(folder, id, LOCK_FILE);
+      if (!RUN_ID.test(id) || !existsSync(lock)) continue;
+      await rm(lock, { force: true });
+      cleared.push(id);
+    }
   }
   return cleared;
 }
@@ -152,7 +166,7 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   await publishHeld();
   const orphans = await clearOrphans(redis);
   if (orphans.length > 0) log(`worker: removed the jobs a dead worker left of ${orphans.join(", ")}`);
-  const cleared = await sweepLocks(roots().runs);
+  const cleared = await sweepLocks(baseRoots().runs);
   if (cleared.length > 0) log(`worker: cleared stale locks of ${cleared.join(", ")}`);
 
   /**
@@ -164,11 +178,51 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     if (lockState(dir) === "dead") await rm(join(dir, LOCK_FILE), { force: true });
   };
 
-  const runJob = async (job: QueueJob<RunJobData>): Promise<RunJobResult> => {
+  // With accounts: the database as the service role sees it, for checking and settling the credit held for a job.
+  const db = tenantDb();
+  const asUser = <T>(userId: string | undefined, work: () => Promise<T>): Promise<T> => {
+    if (!db) return work();
+    // every path below is the job's user's own; a job that names no user, or no real one, is nobody's
+    if (!userId || !UUID.test(userId)) throw new Error("the job names no user");
+    return inScope({ user: { id: userId, email: "" } }, work);
+  };
+
+  /**
+   * A paid job runs only when credit is held for exactly it: an open reservation of this user, for this run and
+   * kind, whose amount is the cap the command itself carries. Whatever put the job in Redis, it cannot spend
+   * what nobody approved.
+   */
+  const checkReservation = async (data: RunJobData): Promise<void> => {
+    if (!db || !PAID.has(data.kind)) return;
+    const r = data.reservationId && UUID.test(data.reservationId) ? await db.reservation(data.reservationId) : null;
+    const capArg = data.args.includes("--cap") ? Number(data.args[data.args.indexOf("--cap") + 1]) : Number.NaN;
+    const cap = data.kind === "draft" ? DRAFT_CAP_USD : capArg;
+    const matches = r && r.status === "open" && r.run_id === data.runId && r.user_id === data.userId && r.kind === data.kind && Math.abs(r.cap_usd - cap) < 0.00005;
+    if (!matches) throw new Error(`no credit is held for this ${data.kind} of ${data.runId}`);
+  };
+
+  /** After a job, however it ended: charge what the run really spent and record how the run stands. */
+  const account = async (data: Pick<RunJobData, "runId" | "reservationId">, dir: string, job: JobView | null): Promise<void> => {
+    if (!db) return;
+    try {
+      const total = spendOf(dir);
+      if (data.reservationId && total !== undefined) {
+        const charged = await db.settle(data.reservationId, total);
+        log(`worker: ${data.runId} settled at $${charged.toFixed(4)}`);
+      }
+      await db.setRunState(data.runId, stateOf(await readManifest(data.runId).catch(() => null), job));
+    } catch (err) {
+      // the database is away: the reservation stays open and the next reconcile settles it
+      log(`worker: could not settle ${data.runId} yet: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
+  const runJob = (job: QueueJob<RunJobData>): Promise<RunJobResult> => asUser(job.data.userId, async () => {
     const { runId, kind, args, approvedUsd } = job.data;
     const dir = runFolder(runId);
     const refused = refusal("runs", args, runId);
     if (refused) throw new Error(refused);
+    await checkReservation(job.data);
     // After a long Redis outage the queue can lose track of a job whose CLI is still working and hand the run
     // out again. One CLI per run, whatever the queue believes.
     if (active.has(runId) || starting.has(runId)) throw new Error(`run ${runId} is still being worked on by this worker`);
@@ -200,15 +254,53 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     const exitCode = exitCodeOf(dir) ?? null;
     const stopped = readJobRecord(dir)?.stoppedAt !== undefined;
     log(`worker: ${kind} ${runId} ${stopped ? "stopped" : exitCode === null ? "ended without an exit code" : `exit ${exitCode}`}`);
+    const ended: JobView = exitCode !== null ? { ...record, state: "ended", exitCode } : { ...record, state: stopped ? "stopped" : "interrupted" };
+    await account(job.data, dir, ended);
     // exit 1 (failed) and 2 (not confirmed) are results, not queue failures: nothing here is ever retried
     return { exitCode, ...(stopped ? { stopped } : {}) };
-  };
+  });
 
   const runQuick = async (job: QueueJob<QuickJobData>): Promise<QuickJobResult> => {
     if (job.name === "health") return { stdout: JSON.stringify(health()) };
     const refused = refusal("quick", job.data.args);
     if (refused) throw new Error(refused);
-    return { stdout: await runShort(job.data.args) };
+    return asUser(job.data.userId, async () => ({ stdout: await runShort(job.data.args) }));
+  };
+
+  /**
+   * Settles credit that is held for no job: one that was never queued after its reservation, one whose worker
+   * died, one that could not be settled because the database was away. This worker runs every job there is,
+   * so a reservation whose run is neither waiting nor being worked on here belongs to nothing that could
+   * still spend; its run's manifest says what was spent.
+   */
+  const line = new Queue<RunJobData>(QUEUES.runs, { connection: redis });
+  line.on("error", () => {});
+  const reconcileMs = opts.reconcileMs ?? 60_000;
+  let reconciling = false;
+  const reconcile = async (): Promise<void> => {
+    if (!db || reconciling) return;
+    reconciling = true;
+    try {
+      for (const r of await db.openReservations(reconcileMs)) {
+        if (active.has(r.run_id) || starting.has(r.run_id) || (await line.getJob(r.run_id))) continue;
+        if (!UUID.test(r.user_id)) continue;
+        await inScope({ user: { id: r.user_id, email: "" } }, async () => {
+          const dir = runFolder(r.run_id);
+          const total = spendOf(dir);
+          if (total === undefined) return;
+          const charged = await db.settle(r.id, total);
+          log(`worker: settled the credit held for ${r.run_id}, which has no job: $${charged.toFixed(4)} of $${r.cap_usd.toFixed(4)}`);
+          const record = readJobRecord(dir);
+          const code = exitCodeOf(dir);
+          const job: JobView | null = !record ? null : code !== undefined ? { ...record, state: "ended", exitCode: code } : { ...record, state: record.stoppedAt ? "stopped" : "interrupted" };
+          await db.setRunState(r.run_id, stateOf(await readManifest(r.run_id).catch(() => null), job));
+        });
+      }
+    } catch (err) {
+      log(`worker: could not reconcile credit: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      reconciling = false;
+    }
   };
 
   const common = { maxStalledCount: 0, stalledInterval: lockMs, lockDuration: lockMs };
@@ -228,7 +320,10 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     stopProcess(held.dir, held.record).catch((err: Error) => log(`worker: could not stop ${runId}: ${err.message}`));
   });
   await Promise.all([runs.waitUntilReady(), quick.waitUntilReady()]);
-  log(`worker ${id}: ready (runs ×${opts.concurrency ?? 2}, quick ×4)`);
+  // nothing is running yet, so every reservation old enough is one a dead worker or a lost job left behind
+  await reconcile();
+  const reconciler = db ? setInterval(() => void reconcile(), reconcileMs) : undefined;
+  log(`worker ${id}: ready (runs ×${opts.concurrency ?? 2}, quick ×4${db ? ", with accounts" : ""})`);
 
   let closing: Promise<void> | undefined;
   const close = () =>
@@ -257,6 +352,8 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       await Promise.race([quick.close().catch(() => {}), new Promise((r) => (slow = setTimeout(r, 5000)))]);
       clearTimeout(slow);
       clearInterval(renewal);
+      clearInterval(reconciler);
+      await line.close().catch(() => {});
       // with Redis away these would wait for it to come back; both keys expire by themselves
       const released = (async () => {
         await redis.del(KEYS.held);

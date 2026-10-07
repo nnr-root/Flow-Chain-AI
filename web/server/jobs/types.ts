@@ -41,7 +41,8 @@ export type StudioHealth = Health & { queue: QueueHealth };
 export interface JobRunner {
   readonly mode: "local" | "queue";
   /** Starts a run's job, or puts it in line. One job per run. */
-  start(runId: string, kind: JobKind, args: string[], approvedUsd?: number): Promise<JobView>;
+  /** `reservationId`: the credit held for this job (a studio with accounts; paid kinds only). */
+  start(runId: string, kind: JobKind, args: string[], approvedUsd?: number, opts?: { reservationId?: string }): Promise<JobView>;
   /** Ends a running job (the CLI stays resumable) or takes a waiting one out of the line. */
   stop(runId: string): Promise<JobView>;
   view(runId: string): Promise<JobView | null>;

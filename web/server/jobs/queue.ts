@@ -3,6 +3,7 @@ import { type Job as QueueJob, Queue, QueueEvents } from "bullmq";
 import type { Redis } from "ioredis";
 import type { Health } from "../config";
 import { ApiError } from "../http";
+import { currentUser } from "../tenant";
 import {
   clientConnection, consumerConnection, JOB_OPTIONS, KEYS, type QuickJobData, type QuickJobResult, QUEUES, QUICK_WAIT_MS, type RunJobData,
 } from "./redis";
@@ -123,6 +124,18 @@ const fromQueue = (q: QueueJob<RunJobData>): Job => ({
   approvedUsd: q.data.approvedUsd,
 });
 
+/** How many long jobs one account may have waiting or working (`STUDIO_USER_JOBS`, default 2). */
+function userJobLimit(): number {
+  const raw = process.env.STUDIO_USER_JOBS?.trim() ?? "";
+  return /^\d+$/.test(raw) && Number(raw) >= 1 ? Number(raw) : 2;
+}
+
+/** A queue record as far as the caller may know of it: another user's job is no job at all. */
+function own<T extends { data: { userId?: string } }>(q: T | undefined): T | undefined {
+  const me = currentUser()?.id;
+  return q && me !== undefined && q.data.userId !== me ? undefined : q;
+}
+
 /** Where a waiting job stands: 1 is next. */
 async function position(runs: Queue<RunJobData>, runId: string): Promise<number> {
   // the waiting list is in the order the worker will take the jobs
@@ -142,7 +155,7 @@ async function view(e: Ends, runId: string): Promise<JobView | null> {
     const record = readJobRecord(dir);
     if (record && exitCodeOf(dir) === undefined) return { ...record, state: "running" };
   }
-  const q = await e.runs.getJob(runId);
+  const q = own(await e.runs.getJob(runId));
   if (q) {
     const state = await q.getState();
     // "active" is only what the worker last told Redis. With no worker alive nothing is being worked on: the
@@ -175,15 +188,24 @@ export function queueRunner(url: string): JobRunner {
   return {
     mode: "queue",
 
-    start: (runId, kind, args, approvedUsd) =>
+    start: (runId, kind, args, approvedUsd, opts) =>
       reach(async () => {
         runFolder(runId);
         const e = await ends(url);
         await requireWorker(e.redis);
         const taken = () => new ApiError("job_active", `run ${runId} is already queued or working`, "wait for it to finish, or stop it first");
         if ((await heldByWorker(e.redis, runId)) || (await e.runs.getJob(runId))) throw taken();
+        const userId = currentUser()?.id;
+        if (userId) {
+          // one account cannot fill the line: free jobs count here, paid ones are also limited where credit is held
+          const mine = [...(await e.runs.getWaiting()), ...(await e.runs.getActive())].filter((j) => j.data.userId === userId).length;
+          if (mine >= userJobLimit()) {
+            throw new ApiError("too_many_jobs", "you already have as many jobs waiting or working as one account may have", "wait for one to finish");
+          }
+        }
         const token = randomUUID();
-        const added = await e.runs.add(kind, { runId, kind, args, approvedUsd, enqueuedAt: new Date().toISOString(), token }, { ...JOB_OPTIONS, jobId: runId });
+        const data: RunJobData = { runId, kind, args, approvedUsd, enqueuedAt: new Date().toISOString(), token, ...(userId ? { userId } : {}), ...(opts?.reservationId ? { reservationId: opts.reservationId } : {}) };
+        const added = await e.runs.add(kind, data, { ...JOB_OPTIONS, jobId: runId });
         // Two requests at once: the queue keeps the first job for an id and quietly ignores the second `add`, so
         // only the stored job says whose it is. (Already gone means it ran to its end in the meantime.)
         const stored = await e.runs.getJob(runId);
@@ -197,7 +219,7 @@ export function queueRunner(url: string): JobRunner {
         const e = await ends(url);
         const gone = () => new ApiError("not_found", `run ${runId} has no running job`);
         const finished = (s: string | undefined) => s === "completed" || s === "failed" || s === "unknown";
-        const q = await e.runs.getJob(runId);
+        const q = own(await e.runs.getJob(runId));
         // a CLI the worker has running is stopped through the worker, whatever the queue says of its job
         const held = await heldByWorker(e.redis, runId);
         if (!held) {
@@ -233,7 +255,8 @@ export function queueRunner(url: string): JobRunner {
         const e = await ends(url);
         await requireWorker(e.redis);
         try {
-          return (await ask(e, "cli", { args }, QUICK_WAIT_MS)).stdout;
+          const userId = currentUser()?.id;
+          return (await ask(e, "cli", { args, ...(userId ? { userId } : {}) }, QUICK_WAIT_MS)).stdout;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           if (/timed out before finishing/.test(message)) {

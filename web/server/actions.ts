@@ -2,9 +2,11 @@ import { existsSync } from "node:fs";
 import { newRunId } from "@src/manifest/store";
 import type { PlanJson } from "@src/studio/commands";
 import { statusOf } from "@src/studio/status";
+import { DRAFT_CAP_USD, newTenantRun, reserve } from "./credit";
 import { ApiError } from "./http";
 import { cliJson, cliText, type JobView, startJob, studioHealth, viewJob } from "./jobs";
 import { requireManifest } from "./runs";
+import { multiTenant } from "./tenant";
 import { draftArgs, kitDir, type Look, modesArg, musicPath, type NewVideo, rerenderArgs } from "./schemas";
 
 /** The run has a job that is running or waiting its turn. */
@@ -29,6 +31,12 @@ export async function createDraft(input: NewVideo): Promise<{ runId: string; job
   }
   if (input.brandKit && !existsSync(kitDir(input.brandKit))) throw new ApiError("validation", `brandKit: no kit "${input.brandKit}"`);
   if (input.music && !existsSync(musicPath(input.music))) throw new ApiError("validation", `music: no track ${input.music}`);
+  if (multiTenant()) {
+    // the run is registered as the user's, and the script's cost is held from their credit, before anything is queued
+    const runId = await newTenantRun(input.topic);
+    const reservationId = await reserve(runId, "draft", DRAFT_CAP_USD);
+    return { runId, job: await startJob(runId, "draft", draftArgs(input, runId), DRAFT_CAP_USD, { reservationId }) };
+  }
   const runId = newRunId();
   return { runId, job: await startJob(runId, "draft", draftArgs(input, runId)) };
 }
@@ -77,13 +85,16 @@ async function assertApproved(runId: string, approvedUsd: number, reroll?: Rerol
  */
 export async function generate(runId: string, approvedUsd: number): Promise<JobView> {
   await assertApproved(runId, approvedUsd);
+  // with accounts: the approved amount is held from the user's credit first; too little, and nothing is queued
+  const reservationId = multiTenant() ? await reserve(runId, "generate", approvedUsd) : undefined;
   // no --yes: when a later checkpoint prices the rest above the approved amount, the CLI stops (exit 2) instead of spending
-  return startJob(runId, "generate", ["resume", runId, "--budget", String(approvedUsd), "--cap", String(approvedUsd)], approvedUsd);
+  return startJob(runId, "generate", ["resume", runId, "--budget", String(approvedUsd), "--cap", String(approvedUsd)], approvedUsd, { reservationId });
 }
 
 export async function reroll(runId: string, target: RerollTarget, approvedUsd: number): Promise<JobView> {
   await assertApproved(runId, approvedUsd, target);
-  return startJob(runId, "reroll", ["reroll", runId, "--scene", String(target.scene), "--stage", target.stage, "--budget", String(approvedUsd), "--cap", String(approvedUsd)], approvedUsd);
+  const reservationId = multiTenant() ? await reserve(runId, "reroll", approvedUsd) : undefined;
+  return startJob(runId, "reroll", ["reroll", runId, "--scene", String(target.scene), "--stage", target.stage, "--budget", String(approvedUsd), "--cap", String(approvedUsd)], approvedUsd, { reservationId });
 }
 
 /** Stores a look in the run without rendering: how a draft (or any unfinished run) keeps the look its preview shows. */

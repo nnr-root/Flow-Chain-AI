@@ -1,5 +1,6 @@
 import { localRunner } from "./local";
 import { queueRunner } from "./queue";
+import { multiTenant } from "@/lib/supabase/settings";
 import { redisUrl } from "./redis";
 import type { JobKind, JobRunner, JobView, StudioHealth } from "./types";
 
@@ -10,11 +11,13 @@ export * from "./types";
 /** The runner in use: the queue when a Redis address is configured (the server), otherwise this process's own children. */
 export function runner(): JobRunner {
   const url = redisUrl();
+  // with accounts the web must never run the CLI itself: it holds no provider keys and no key to settle credit
+  if (!url && multiTenant()) throw new Error("a studio with accounts (SUPABASE_URL) needs the job queue: set REDIS_URL and run the worker");
   return url ? queueRunner(url) : localRunner;
 }
 
-export const startJob = (runId: string, kind: JobKind, args: string[], approvedUsd?: number): Promise<JobView> =>
-  runner().start(runId, kind, args, approvedUsd);
+export const startJob = (runId: string, kind: JobKind, args: string[], approvedUsd?: number, opts?: { reservationId?: string }): Promise<JobView> =>
+  runner().start(runId, kind, args, approvedUsd, opts);
 export const stopJob = (runId: string): Promise<JobView> => runner().stop(runId);
 export const viewJob = (runId: string): Promise<JobView | null> => runner().view(runId);
 export const clearStaleLock = (runId: string): Promise<void> => runner().clearStaleLock(runId);

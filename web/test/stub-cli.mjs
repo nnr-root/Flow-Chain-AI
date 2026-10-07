@@ -29,6 +29,15 @@ if (command === "plan") {
   // resume, reroll, rerender: wait if asked (so a test can observe "running"), then end as asked
   console.log(`▶ ${command}`);
   const behave = readJson("_behave.json", {});
+  // which of the server's own secrets reached this process (none should)
+  if (behave.envNames) writeFileSync(join(runs, "_env.json"), JSON.stringify(Object.keys(process.env).filter((name) => /^SUPABASE_/.test(name))));
   if (behave.sleepMs) await new Promise((done) => setTimeout(done, behave.sleepMs));
+  // "buys" something: the run's manifest records the spend, as the real pipeline's ledger does
+  if (behave.spendUsd && existsSync(join(runs, args[1], "manifest.json"))) {
+    const file = join(runs, args[1], "manifest.json");
+    const manifest = JSON.parse(readFileSync(file, "utf8"));
+    manifest.ledger.push({ stage: "clips", scene: 1, usd: behave.spendUsd, at: new Date().toISOString() });
+    writeFileSync(file, JSON.stringify(manifest));
+  }
   process.exitCode = behave.exitCode ?? 0;
 }
