@@ -16,6 +16,7 @@
     "test:e2e": "npm run test:e2e -w web",
     "test:queue": "vitest run web/test/queue.test.ts",
     "test:stack": "npm run test:stack -w web",
+    "test:accounts": "npm run test:accounts -w web",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web",
     "make:sfx": "tsx scripts/make-sfx.ts",
     "runpod:deploy": "tsx scripts/runpod-deploy.ts",
