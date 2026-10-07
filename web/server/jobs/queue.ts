@@ -45,10 +45,33 @@ async function ends(url: string): Promise<Ends> {
       done();
     });
   });
-  shared[ENDS] = { url, ends: made, connected };
-  await connected;
+  // the answers to quick jobs arrive on their own connection: an answer given before it listens would be missed
+  const listening = Promise.race([made.quickEvents.waitUntilReady().then(() => {}, () => {}), new Promise<void>((done) => setTimeout(done, 3000))]);
+  const both = Promise.all([connected, listening]).then(() => {});
+  shared[ENDS] = { url, ends: made, connected: both };
+  await both;
   return made;
 }
+
+/**
+ * Asks the worker a quick question and waits for its answer. A finished quick job is removed at once, so an
+ * answer that slipped past the listener (it was still connecting) leaves nothing to look up: these questions
+ * are free and change nothing, so that one is simply asked again.
+ */
+async function ask(e: Ends, name: string, data: QuickJobData, waitMs: number): Promise<QuickJobResult> {
+  for (let attempt = 0; ; attempt++) {
+    const job = await e.quick.add(name, data, JOB_OPTIONS);
+    try {
+      return await job.waitUntilFinished(e.quickEvents, waitMs);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (attempt === 0 && /Missing key for job/.test(message)) continue;
+      await job.remove().catch(() => {}); // an unanswered question is not left in line
+      throw err;
+    }
+  }
+}
+
 
 /** Closes the process's queue connections (tests; a clean shutdown). */
 export async function closeQueue(): Promise<void> {
@@ -207,13 +230,11 @@ export function queueRunner(url: string): JobRunner {
       reach(async () => {
         const e = await ends(url);
         await requireWorker(e.redis);
-        const job = await e.quick.add("cli", { args }, JOB_OPTIONS);
         try {
-          return (await job.waitUntilFinished(e.quickEvents, QUICK_WAIT_MS)).stdout;
+          return (await ask(e, "cli", { args }, QUICK_WAIT_MS)).stdout;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           if (/timed out before finishing/.test(message)) {
-            await job.remove().catch(() => {});
             throw new ApiError("worker_offline", "the worker is busy or offline", "nothing was started; try again in a moment");
           }
           // the CLI's own last error line, as the local runner reports it
@@ -231,12 +252,9 @@ export function queueRunner(url: string): JobRunner {
       }
       if (!worker) return { ...UNKNOWN, queue: { mode: "queue", redis: true, worker: false } };
       if (!e.health || Date.now() - e.health.at > HEALTH_TTL_MS) {
-        let job: QueueJob<QuickJobData, QuickJobResult> | undefined;
         try {
-          job = await e.quick.add("health", { args: [] }, JOB_OPTIONS);
-          e.health = { at: Date.now(), value: JSON.parse((await job.waitUntilFinished(e.quickEvents, 10_000)).stdout) as Health };
+          e.health = { at: Date.now(), value: JSON.parse((await ask(e, "health", { args: [] }, 10_000)).stdout) as Health };
         } catch {
-          await job?.remove().catch(() => {}); // an unanswered question is not left in line
           return { ...UNKNOWN, queue: { mode: "queue", redis: true, worker: false } };
         }
       }

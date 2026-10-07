@@ -80,7 +80,16 @@ export function runEvents(
       // one at a time: the watcher, the heartbeat and the poll may ask together, and two reads of the log at
       // once would send the same new lines twice
       let sending: Promise<void> = Promise.resolve();
-      const sendRun = () => (sending = sending.then(readAndSend));
+      let waiting = false;
+      const sendRun = (): Promise<void> => {
+        // a read that has not begun yet will see whatever this one would: at most one waits behind the one at work
+        if (waiting) return sending;
+        waiting = true;
+        return (sending = sending.then(() => {
+          waiting = false;
+          return readAndSend();
+        }));
+      };
 
       if (signal.aborted) return close();
       signal.addEventListener("abort", close);

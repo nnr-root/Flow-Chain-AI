@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
@@ -34,6 +35,11 @@ describe("serverConfig", () => {
     expect(cfg.worker).toEqual({ FAL_KEY: "server", PROVIDER_MODE: "runpod" });
   });
 
+  it("keeps a local value off the server when server.env sets its name to nothing", () => {
+    const cfg = serverConfig({ ...base, RUNPOD_API_KEY: "", FAL_KEY: " " }, { RUNPOD_API_KEY: "local", FAL_KEY: "local", GEMINI_API_KEY: "g" });
+    expect(cfg.worker).toEqual({ GEMINI_API_KEY: "g" });
+  });
+
   it("never passes on a local path or queue address: the Compose file owns those on the server", () => {
     const cfg = serverConfig(base, { RUNS_DIR: "/Users/me/runs", BRAND_KITS_DIR: "x", STUDIO_UPLOADS_DIR: "y", REDIS_URL: "redis://localhost", FLOWCHAIN_CLI: "stub", GEMINI_API_KEY: "g" });
     expect(cfg.worker).toEqual({ GEMINI_API_KEY: "g" });
@@ -63,6 +69,7 @@ describe("serverConfig", () => {
     [{ ...base, SERVER_DIR: "/opt/../etc" }, "SERVER_DIR must be"],
     [{ ...base, SERVER_DIR: "/opt/my studio" }, "SERVER_DIR must be"],
     [{ ...base, WORKER_CONCURRENCY: "0" }, "WORKER_CONCURRENCY must be"],
+    [{ ...base, BACKUP_BUCKET: "My Bucket", R2_ACCOUNT_ID: "a", R2_ACCESS_KEY_ID: "b", R2_SECRET_ACCESS_KEY: "c" }, "BACKUP_BUCKET is not a bucket name"],
   ])("refuses %j", (env, message) => {
     expect(() => serverConfig(env as Record<string, string>)).toThrow(message);
   });
@@ -108,6 +115,7 @@ describe("the files written on the server", () => {
     });
     const units = backupUnits(cfg);
     expect(units.service).toContain("ExecStart=/opt/flowchain/backup.sh");
+    expect(units.service).toContain("After=docker.service");
     expect(units.timer).toContain("OnCalendar=*-*-* 03:30:00");
   });
 
@@ -137,12 +145,15 @@ describe("the commands run on the server", () => {
   it("installs Docker only when it is missing and creates every data folder", () => {
     const script = prepareScript(cfg);
     expect(script).toContain("if ! command -v docker >/dev/null 2>&1; then");
+    expect(script).not.toMatch(/curl[^\n]*\|\s*sh/); // never a half-downloaded script
+    execFileSync("sh", ["-n", "-c", script]); // parses
     for (const folder of ["runs", "brand-kits", "uploads", "redis", "caddy"]) expect(script).toContain(`/opt/flowchain/data/${folder}`);
   });
 
-  it("replaces the code with the archive on stdin and leaves nothing of the old copy", async () => {
+  it("replaces the code with the archive on stdin and leaves nothing of the old copy; a broken transfer changes nothing", async () => {
     const dir = await tempDir();
     const local = serverConfig({ ...base, SERVER_DIR: join(dir, "studio") });
+    mkdirSync(local.dir, { recursive: true });
     const src = join(dir, "src");
     const archive = (files: Record<string, string>) => {
       execFileSync("rm", ["-rf", src]);
@@ -152,12 +163,27 @@ describe("the commands run on the server", () => {
       }
       return execFileSync("tar", ["-cf", "-", "-C", src, "."]);
     };
-    const run = (input: Buffer) => execFileSync("sh", ["-c", unpackScript(local)], { input });
-    run(archive({ "deploy/compose.yaml": "one", "old.txt": "gone next time" }));
-    run(archive({ "deploy/compose.yaml": "two" }));
+    const sha = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
+    // through `sh -c '<script>'`, the way ssh hands it to the server
+    const run = (script: string, input: Buffer) => execFileSync("sh", ["-c", `sh -c ${shellQuote(script)}`], { input, stdio: ["pipe", "pipe", "pipe"] });
     const app = paths(local).app;
+    const listing = (folder: string) => execFileSync("ls", ["-A", folder], { encoding: "utf8" }).trim();
+
+    const one = archive({ "deploy/compose.yaml": "one", "old.txt": "gone next time" });
+    run(unpackScript(local, sha(one)), one);
+    const two = archive({ "deploy/compose.yaml": "two" });
+    run(unpackScript(local, sha(two)), two);
     expect(readFileSync(join(app, "deploy/compose.yaml"), "utf8")).toBe("two");
-    expect(execFileSync("ls", ["-A", app], { encoding: "utf8" }).trim()).toBe("deploy");
-    expect(execFileSync("ls", ["-A", local.dir], { encoding: "utf8" }).trim()).toBe("app");
+    expect(listing(app)).toBe("deploy");
+    expect(listing(local.dir)).toBe("app");
+
+    // cut off mid-file, cut off at a block boundary (which tar alone may accept as a whole archive), and empty
+    const three = archive({ "deploy/compose.yaml": "three", "extra.txt": "x".repeat(4000) });
+    for (const cut of [three.subarray(0, three.length - 3000), three.subarray(0, 1024), Buffer.alloc(0)]) {
+      expect(() => run(unpackScript(local, sha(three)), cut)).toThrow(/checksum mismatch/);
+      expect(readFileSync(join(app, "deploy/compose.yaml"), "utf8")).toBe("two");
+      expect(listing(local.dir)).toBe("app");
+    }
+    expect(() => unpackScript(local, "not-a-checksum")).toThrow("SHA-256");
   });
 });

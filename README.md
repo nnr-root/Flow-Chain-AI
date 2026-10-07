@@ -182,7 +182,9 @@ provider keys are taken from your `.env`.
 | `npm run server:backup` | copies runs, brand kits and uploads to the backup bucket now |
 
 `npm run server:setup -- --new-password` replaces the login. Run setup again after changing a key in `.env` or
-a setting in `deploy/server.env`.
+a setting in `deploy/server.env`. Connect to the server once by hand first (`ssh root@<server>`) and compare the
+host key it shows with the one your provider lists: the scripts trust the key they see on first contact. If a
+deploy is cut off (the laptop sleeps, the connection drops), run it again; it picks up where the server is.
 
 On the server the web app holds no provider keys and never runs the CLI; only the worker does. The data is in
 `/opt/flowchain/data` (`runs/`, `brand-kits/`, `uploads/`): a run made there is an ordinary run folder. The

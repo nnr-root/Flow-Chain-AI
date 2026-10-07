@@ -43,7 +43,7 @@ export function serverConfig(serverEnv: Record<string, string>, localEnv: Record
     return value;
   };
   const host = need("SERVER_HOST");
-  if (!HOST.test(host)) throw new Error(`SERVER_HOST must be a host name or an IP address, not "${host}"`);
+  if (!HOST.test(host)) throw new Error(`SERVER_HOST must be a host name or an IPv4 address, not "${host}"`);
   const user = get("SERVER_USER") ?? "root";
   if (!/^[a-z_][a-z0-9_-]*$/i.test(user)) throw new Error(`SERVER_USER is not a user name: "${user}"`);
   const dir = get("SERVER_DIR") ?? "/opt/flowchain";
@@ -61,9 +61,14 @@ export function serverConfig(serverEnv: Record<string, string>, localEnv: Record
 
   const skip = new Set([...DEPLOY_KEYS, ...COMPOSE_OWNED]);
   const worker: Record<string, string> = {};
-  for (const [key, value] of [...Object.entries(localEnv), ...Object.entries(serverEnv)]) {
-    if (skip.has(key) || !value.trim()) continue;
-    worker[key] = value.trim();
+  for (const [key, value] of Object.entries(localEnv)) {
+    if (!skip.has(key) && value.trim()) worker[key] = value.trim();
+  }
+  for (const [key, value] of Object.entries(serverEnv)) {
+    if (skip.has(key)) continue;
+    // set to nothing in server.env: the server does without this machine's value
+    if (value.trim()) worker[key] = value.trim();
+    else delete worker[key];
   }
 
   let backup: BackupConfig | undefined;
@@ -74,6 +79,7 @@ export function serverConfig(serverEnv: Record<string, string>, localEnv: Record
       if (!value) throw new Error(`BACKUP_BUCKET is set but ${name} (or BACKUP_${name}) is not`);
       return value;
     };
+    if (!/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket)) throw new Error(`BACKUP_BUCKET is not a bucket name: "${bucket}"`);
     backup = { bucket, accountId: part("R2_ACCOUNT_ID"), accessKeyId: part("R2_ACCESS_KEY_ID"), secretAccessKey: part("R2_SECRET_ACCESS_KEY") };
   }
   return {
@@ -88,7 +94,7 @@ export function serverConfig(serverEnv: Record<string, string>, localEnv: Record
 export function paths(cfg: ServerConfig) {
   const at = (...parts: string[]) => posix.join(cfg.dir, ...parts);
   return {
-    app: at("app"), data: at("data"),
+    app: at("app"), data: at("data"), archive: at("app.tar"),
     composeEnv: at("compose.env"), workerEnv: at("worker.env"), backupEnv: at("backup.env"), backupScript: at("backup.sh"),
     composeFile: at("app/deploy/compose.yaml"),
   };
@@ -151,25 +157,37 @@ export function prepareScript(cfg: ServerConfig): string {
     "set -eu",
     "if ! command -v docker >/dev/null 2>&1; then",
     "  command -v curl >/dev/null 2>&1 || { apt-get update -qq && apt-get install -y -qq curl; }",
-    "  curl -fsSL https://get.docker.com | sh",
+    // downloaded whole before it runs: a broken download must not run half a script
+    "  curl -fsSL https://get.docker.com -o /tmp/get-docker.sh",
+    "  sh /tmp/get-docker.sh",
+    "  rm -f /tmp/get-docker.sh",
     "fi",
-    "docker compose version >/dev/null",
+    'docker compose version >/dev/null 2>&1 || { echo "Docker is installed but its compose plugin is missing (docker compose version fails)" >&2; exit 1; }',
     `mkdir -p ${[p.app, ...DATA_FOLDERS.map((f) => posix.join(p.data, f))].map(shellQuote).join(" ")}`,
     "",
   ].join("\n");
 }
 
 /**
- * Replaces the code on the server with the archive on stdin (`git archive HEAD`): unpacked beside the old copy
- * and swapped in, so a broken transfer leaves the running version's files alone.
+ * Replaces the code on the server with the archive on stdin (`git archive HEAD`). The archive is stored and its
+ * checksum compared before anything is unpacked, and the new copy is unpacked beside the old one and swapped
+ * in: a transfer that breaks, at whatever byte, leaves the running version's files alone.
  */
-export function unpackScript(cfg: ServerConfig): string {
-  const app = shellQuote(paths(cfg).app);
+export function unpackScript(cfg: ServerConfig, sha256: string): string {
+  if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error("the archive's checksum must be a SHA-256 in hex");
+  const p = paths(cfg);
+  const app = shellQuote(p.app);
+  const archive = shellQuote(p.archive);
   return [
     "set -eu",
-    `rm -rf ${app}.new ${app}.old`,
+    `rm -rf ${app}.new ${app}.old ${archive}`,
+    `cat > ${archive}`,
+    // sha256sum on Linux, shasum on macOS (the tests run there)
+    `sum=$( (sha256sum ${archive} 2>/dev/null || shasum -a 256 ${archive}) | cut -d" " -f1)`,
+    `if [ "$sum" != ${sha256} ]; then rm -f ${archive}; echo "the code arrived incomplete (checksum mismatch); nothing was changed" >&2; exit 1; fi`,
     `mkdir -p ${app}.new`,
-    `tar -xf - -C ${app}.new`,
+    `tar -xf ${archive} -C ${app}.new`,
+    `rm -f ${archive}`,
     `if [ -e ${app} ]; then mv ${app} ${app}.old; fi`,
     `mv ${app}.new ${app}`,
     `rm -rf ${app}.old`,
@@ -225,7 +243,7 @@ export const BACKUP_UNIT = "flowchain-backup";
 /** The systemd service and nightly timer for the backup. */
 export function backupUnits(cfg: ServerConfig): { service: string; timer: string } {
   return {
-    service: ["[Unit]", "Description=Flow Chain studio backup", "", "[Service]", "Type=oneshot", `ExecStart=${paths(cfg).backupScript}`, ""].join("\n"),
+    service: ["[Unit]", "Description=Flow Chain studio backup", "After=docker.service", "Requires=docker.service", "", "[Service]", "Type=oneshot", `ExecStart=${paths(cfg).backupScript}`, ""].join("\n"),
     timer: [
       "[Unit]", "Description=Nightly Flow Chain studio backup", "",
       "[Timer]", "OnCalendar=*-*-* 03:30:00", "Persistent=true", "",

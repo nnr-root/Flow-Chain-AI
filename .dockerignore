@@ -2,7 +2,8 @@
 .git
 .env
 **/.env
-deploy/server.env
+**/.env.*
+**/*.env
 deploy/data
 node_modules
 web/node_modules

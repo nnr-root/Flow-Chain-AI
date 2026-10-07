@@ -1,6 +1,6 @@
 # The studio's web app: pages, API, previews and uploads. No ffmpeg, no Chrome, no provider keys.
 # Build context: the repository root.
-FROM node:25-bookworm-slim
+FROM node:26-bookworm-slim
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY web/package.json web/

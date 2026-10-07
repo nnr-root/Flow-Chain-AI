@@ -1,20 +1,39 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { compose, data, PASSWORD, PORT, repo, runs, USER, web } from "./stack";
+import { compose, composeEnv, data, PASSWORD, PORT, repo, runs, USER, web } from "./stack";
 
 /**
  * Brings up the real Compose stack on this machine — proxy with the login, web, worker, Redis — over a fixture
  * data folder, with the worker running the stand-in CLI: nothing in it can reach a provider.
  */
-export default async function setup(): Promise<void> {
-  const sh = (cmd: string, args: string[], cwd = repo) => execFileSync(cmd, args, { cwd, stdio: ["ignore", "inherit", "inherit"] });
+const sh = (cmd: string, args: string[], cwd = repo) => execFileSync(cmd, args, { cwd, env: composeEnv(), stdio: ["ignore", "inherit", "inherit"] });
+const down = () => {
   try {
     sh("docker", [...compose, "down", "-v", "--remove-orphans"]);
   } catch {
     // nothing was up (or no env file yet)
   }
-  rmSync(data, { recursive: true, force: true });
+};
+
+export default async function setup(): Promise<void> {
+  down();
+  try {
+    await up();
+  } catch (err) {
+    // Playwright runs no teardown after a failed setup: do not leave the stack and its port behind
+    if (!process.env.STACK_KEEP) down();
+    throw err;
+  }
+}
+
+async function up(): Promise<void> {
+  try {
+    rmSync(data, { recursive: true, force: true });
+  } catch {
+    // on Linux the containers' files belong to root: remove them the way they were made
+    sh("docker", ["run", "--rm", "-v", `${join(data, "..")}:/e2e`, "caddy:2", "rm", "-rf", "/e2e/stack"]);
+  }
   for (const dir of ["runs", "brand-kits", "uploads", "redis", "caddy"]) mkdirSync(join(data, dir), { recursive: true });
   sh(process.execPath, ["--import", "tsx", "e2e/make-fixtures.ts", runs], web);
   const hash = execFileSync("docker", ["run", "--rm", "caddy:2", "caddy", "hash-password", "--plaintext", PASSWORD], { encoding: "utf8" }).trim();
@@ -35,7 +54,7 @@ export default async function setup(): Promise<void> {
     ].join("\n"),
   );
   // the files as a server gets them: a host name (so a certificate would be asked for), no test overrides
-  const production = { ...process.env, STUDIO_HOST: "studio.example.com", STUDIO_USER: USER, STUDIO_PASSWORD_HASH: hash, WORKER_ENV_FILE: join(data, "worker.env") };
+  const production = { ...composeEnv(), STUDIO_HOST: "studio.example.com", STUDIO_USER: USER, STUDIO_PASSWORD_HASH: hash, WORKER_ENV_FILE: join(data, "worker.env") };
   execFileSync("docker", ["compose", "-f", join(repo, "deploy/compose.yaml"), "config", "--quiet"], { cwd: repo, env: production, stdio: ["ignore", "inherit", "inherit"] });
   sh("docker", ["run", "--rm", "-e", "STUDIO_SITE=studio.example.com", "-e", `STUDIO_USER=${USER}`, "-e", `STUDIO_PASSWORD_HASH=${hash}`,
     "-v", `${join(repo, "deploy/Caddyfile")}:/etc/caddy/Caddyfile:ro`, "caddy:2", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]);

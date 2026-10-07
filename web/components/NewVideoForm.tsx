@@ -36,12 +36,18 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         (now) => {
           if (now.queue.mode === "queue" && !(now.queue.redis && now.queue.worker)) return;
           setHealth(now);
-          setF((old) => ({ ...old, provider: now.defaults.provider as "fal" | "runpod", budgetUsd: now.defaults.budgetUsd }));
+          // the worker's defaults replace the stand-ins the page loaded with, unless the user chose meanwhile
+          setF((old) => ({
+            ...old,
+            provider: old.provider === initialHealth.defaults.provider ? (now.defaults.provider as "fal" | "runpod") : old.provider,
+            budgetUsd: old.budgetUsd === initialHealth.defaults.budgetUsd ? now.defaults.budgetUsd : old.budgetUsd,
+          }));
         },
         () => {},
       );
     }, 5000);
     return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offline]);
 
   async function submit(e: React.FormEvent) {

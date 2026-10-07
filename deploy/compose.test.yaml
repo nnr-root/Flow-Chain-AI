@@ -3,7 +3,8 @@
 services:
   proxy:
     ports: !override
-      - "${STACK_PORT:-8088}:80"
+      # this machine only: the test login is no secret
+      - "127.0.0.1:${STACK_PORT:-8088}:80"
   worker:
     environment:
       FLOWCHAIN_CLI: /app/web/test/stub-cli.mjs

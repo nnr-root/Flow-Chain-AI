@@ -124,7 +124,7 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   /** Tells the web which runs are being worked on, whatever the queue's own records say. */
   const publishHeld = () => redis.set(KEYS.held, JSON.stringify([...new Set([...active.keys(), ...starting])]), "PX", guardTtl);
   const renew = async () => {
-    await publishHeld();
+    await publishHeld().catch(() => {}); // the guard's renewal must not depend on this write
     if ((await redis.eval(RENEW, 1, KEYS.worker, id, String(guardTtl))) !== 0) return;
     // The guard ran out, which is what a Redis outage longer than its lifetime does. If nobody took it meanwhile
     // this is still the one worker: take it again and carry on, so the jobs that are running finish.
@@ -148,6 +148,8 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       .finally(() => (renewing = false));
   }, Math.max(100, Math.floor(guardTtl / 3)));
 
+  // a killed worker's list would otherwise be read as this worker's until the first renewal
+  await publishHeld();
   const orphans = await clearOrphans(redis);
   if (orphans.length > 0) log(`worker: removed the jobs a dead worker left of ${orphans.join(", ")}`);
   const cleared = await sweepLocks(roots().runs);
@@ -233,8 +235,14 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
         clearTimeout(kill);
       }
       clearInterval(renewal);
-      await redis.del(KEYS.held).catch(() => {});
-      await redis.eval(RELEASE, 1, KEYS.worker, id).catch(() => {});
+      // with Redis away these would wait for it to come back; both keys expire by themselves
+      const released = (async () => {
+        await redis.del(KEYS.held);
+        await redis.eval(RELEASE, 1, KEYS.worker, id);
+      })().catch(() => {});
+      let late: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([released, new Promise((r) => (late = setTimeout(r, 3000)))]);
+      clearTimeout(late);
       subscriber.disconnect();
       redis.disconnect();
       log("worker: stopped");

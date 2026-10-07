@@ -312,9 +312,10 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     expect(workers[0].output()).toContain("took it again");
   });
 
-  it("a job that outlives a long Redis outage still reads working, cannot be started twice and can be stopped", async () => {
+  // with one slot the queue puts the "dead" job back in line; with a free slot it fails and forgets it at once
+  it.each([1, 2])("a job that outlives a long Redis outage still reads working, cannot be started twice and can be stopped (%i slot(s))", async (slots) => {
     await stub(studio, "_behave.json", { sleepMs: 60_000 });
-    const w = await worker({ WORKER_CONCURRENCY: "1" });
+    const w = await worker({ WORKER_CONCURRENCY: String(slots) });
     const a = nextRunId();
     await startJob(a, "generate", ["resume", a]);
     await until(async () => (await calls(studio)).length === 1);

@@ -3,7 +3,7 @@
 # Build context: the repository root.
 FROM mwader/static-ffmpeg:8.1 AS ffmpeg
 
-FROM node:25-bookworm-slim
+FROM node:26-bookworm-slim
 # procps: the job runner reads a process's start time with `ps`. The rest is what headless Chrome links against.
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates procps fonts-liberation \
