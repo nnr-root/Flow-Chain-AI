@@ -1,0 +1,12 @@
+# One site: HTTPS (the certificate is obtained and renewed automatically), one login for every path, and
+# everything else passed to the studio. STUDIO_SITE is the public host name (Compose fills it in from
+# STUDIO_HOST); only local tests set it to something else (plain HTTP on a port).
+{$STUDIO_SITE} {
+	basic_auth {
+		{$STUDIO_USER} {$STUDIO_PASSWORD_HASH}
+	}
+	reverse_proxy web:3131 {
+		# the live feed is a long-lived stream: pass it on as it comes
+		flush_interval -1
+	}
+}

@@ -1,0 +1,85 @@
+# The studio on one server: proxy (HTTPS + login) → web → redis ← worker.
+# Settings come from the env file `npm run server:setup` writes on the server; see deploy/server.env.example.
+name: flowchain
+
+x-data: &data
+  RUNS_DIR: /data/runs
+  BRAND_KITS_DIR: /data/brand-kits
+  STUDIO_UPLOADS_DIR: /data/uploads/music
+  REDIS_URL: redis://redis:6379
+
+services:
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "${PROXY_HTTP_PORT:-80}:80"
+      - "${PROXY_HTTPS_PORT:-443}:443"
+    environment:
+      STUDIO_SITE: ${STUDIO_SITE:-${STUDIO_HOST:?set STUDIO_HOST to the studio's public host name}}
+      STUDIO_USER: ${STUDIO_USER:?set STUDIO_USER}
+      STUDIO_PASSWORD_HASH: ${STUDIO_PASSWORD_HASH:?set STUDIO_PASSWORD_HASH (caddy hash-password)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${DATA_DIR:-./data}/caddy:/data
+    depends_on:
+      web:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/web.Dockerfile
+    restart: unless-stopped
+    environment:
+      <<: *data
+      STUDIO_HOST: ${STUDIO_HOST}
+    volumes:
+      # the web app reads runs and writes only what is uploaded in the studio
+      - ${DATA_DIR:-./data}/runs:/data/runs:ro
+      - ${DATA_DIR:-./data}/brand-kits:/data/brand-kits
+      - ${DATA_DIR:-./data}/uploads:/data/uploads
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3131/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/worker.Dockerfile
+    restart: unless-stopped
+    # an init process forwards the stop signal and reaps the CLI's children
+    init: true
+    # a deploy lets running jobs finish; WORKER_DRAIN_MS (default 30 min) must not exceed this
+    stop_grace_period: 31m
+    environment:
+      <<: *data
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+    # the provider keys: given to this service only
+    env_file:
+      - ${WORKER_ENV_FILE:-./worker.env}
+    volumes:
+      - ${DATA_DIR:-./data}/runs:/data/runs
+      - ${DATA_DIR:-./data}/brand-kits:/data/brand-kits:ro
+      - ${DATA_DIR:-./data}/uploads:/data/uploads:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  redis:
+    image: redis:7
+    restart: unless-stopped
+    # the append-only file keeps waiting jobs across a restart
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - ${DATA_DIR:-./data}/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

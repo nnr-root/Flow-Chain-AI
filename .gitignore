@@ -13,3 +13,5 @@ web/test-results/
 /brand-kits/
 /uploads/
 web/.e2e/
+deploy/server.env
+deploy/data/

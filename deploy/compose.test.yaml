@@ -1,0 +1,12 @@
+# Overrides for the whole-stack test on a developer's machine: plain HTTP on a local port, and the worker runs
+# the stand-in CLI, so nothing can reach a provider. Used by `npm run test:stack` only.
+services:
+  proxy:
+    ports: !override
+      - "${STACK_PORT:-8088}:80"
+  worker:
+    environment:
+      FLOWCHAIN_CLI: /app/web/test/stub-cli.mjs
+      WORKER_CONCURRENCY: "1"
+      WORKER_DRAIN_MS: "2000"
+    stop_grace_period: 10s

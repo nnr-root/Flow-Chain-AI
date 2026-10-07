@@ -9,7 +9,8 @@
     "start": "next start -H 127.0.0.1 -p 3131",
     "typecheck": "tsc --noEmit",
     "test:e2e": "playwright test",
-    "worker": "node --import tsx worker/main.ts"
+    "worker": "node --import tsx worker/main.ts",
+    "test:stack": "playwright test --config playwright.stack.config.ts"
   },
   "dependencies": {
     "@remotion/player": "4.0.532",
