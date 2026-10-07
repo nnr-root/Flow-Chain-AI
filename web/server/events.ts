@@ -1,7 +1,7 @@
 import { existsSync, type FSWatcher, watch } from "node:fs";
 import { open, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { JOB_LOG } from "./jobs";
+import { JOB_LOG, runner } from "./jobs";
 import { readRun, runDir } from "./runs";
 
 const encoder = new TextEncoder();
@@ -11,11 +11,16 @@ const frame = (event: string, data: unknown) => encoder.encode(`event: ${event}\
  * A run's live feed as server-sent events: `run` (state, job and status) whenever its folder changes, `log` for
  * new job output, and a comment line every 15 s so proxies and the browser keep the connection open.
  */
-export function runEvents(runId: string, signal: AbortSignal, opts: { heartbeatMs?: number; debounceMs?: number } = {}): ReadableStream<Uint8Array> {
+export function runEvents(
+  runId: string,
+  signal: AbortSignal,
+  opts: { heartbeatMs?: number; debounceMs?: number; pollMs?: number } = {},
+): ReadableStream<Uint8Array> {
   const dir = runDir(runId);
   const logPath = join(dir, JOB_LOG);
   let watcher: FSWatcher | undefined;
   let heartbeat: ReturnType<typeof setInterval> | undefined;
+  let poll: ReturnType<typeof setInterval> | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let logAt = 0;
   let last = "";
@@ -26,6 +31,7 @@ export function runEvents(runId: string, signal: AbortSignal, opts: { heartbeatM
     closed = true;
     watcher?.close();
     clearInterval(heartbeat);
+    clearInterval(poll);
     clearTimeout(timer);
     return true;
   };
@@ -92,6 +98,9 @@ export function runEvents(runId: string, signal: AbortSignal, opts: { heartbeatM
         send(encoder.encode(": keep-alive\n\n"));
         void sendRun();
       }, opts.heartbeatMs ?? 15_000);
+      // with the queue, a job moving up the line or being taken by the worker is no file change either
+      const pollMs = opts.pollMs ?? (runner().mode === "queue" ? 2000 : 0);
+      if (pollMs > 0) poll = setInterval(() => void sendRun(), pollMs);
     },
     cancel() {
       stop();

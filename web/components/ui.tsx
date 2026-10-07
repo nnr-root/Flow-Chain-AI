@@ -3,6 +3,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 const STATES: Record<string, { label: string; cls: string }> = {
   creating: { label: "Creating", cls: "bg-accent/15 text-accent" },
   draft: { label: "Draft", cls: "bg-warn/15 text-warn" },
+  queued: { label: "Queued", cls: "bg-accent/15 text-accent" },
   running: { label: "Working", cls: "bg-accent/15 text-accent" },
   needs_approval: { label: "Needs approval", cls: "bg-warn/15 text-warn" },
   failed: { label: "Failed", cls: "bg-bad/15 text-bad" },

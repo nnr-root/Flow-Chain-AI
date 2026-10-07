@@ -16,7 +16,12 @@ export default defineConfig({
   workers: 1,
   reporter: "list",
   outputDir: "test-results",
-  use: { baseURL: `http://127.0.0.1:${PORT}`, viewport: { width: 1400, height: 1000 } },
+  use: {
+    baseURL: `http://127.0.0.1:${PORT}`, viewport: { width: 1400, height: 1000 },
+    // No sound card needed: with a real audio device Chromium paces playback by it, and when that device stalls
+    // (a sleeping laptop, a CI machine without one) the Player waits at frame 0 for ever.
+    launchOptions: { args: ["--disable-audio-output"] },
+  },
   webServer: {
     command: `node --import tsx e2e/make-fixtures.ts ${runs} && npx next build --webpack && npx next start -H 127.0.0.1 -p ${PORT}`,
     url: `http://127.0.0.1:${PORT}/api/health`,

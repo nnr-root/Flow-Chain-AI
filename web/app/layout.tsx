@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { QueueBanner } from "@/components/QueueBanner";
 import "./globals.css";
 
 export const metadata: Metadata = { title: "Flow-Chain Studio", description: "Create, preview and render videos" };
@@ -16,6 +17,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/new" className="ml-auto rounded-lg bg-accent px-3 py-1.5 font-medium text-ink hover:brightness-110">New video</Link>
           </nav>
         </header>
+        <QueueBanner />
         <main className="mx-auto max-w-7xl px-6 py-6">{children}</main>
       </body>
     </html>

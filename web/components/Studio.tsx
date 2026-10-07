@@ -42,7 +42,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
   const player = useRef<StudioPlayerHandle>(null);
   const { status, state, job } = view;
   const scripted = status?.runSteps.find((s) => s.stage === "script")?.status === "done";
-  const working = state === "running" || state === "creating";
+  const working = state === "running" || state === "creating" || state === "queued";
 
   // live updates: the run whenever its folder changes, and new lines of the job's output
   useEffect(() => {
@@ -200,8 +200,12 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
         <Panel title="Next step" aside={status && <span className="text-sm text-dim">spent so far {usd(status.spendUsd)}</span>}>
           {working && (
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm">{job ? `Working: ${job.kind}…` : "Starting…"}</p>
-              <Button tone="danger" onClick={stop} disabled={busy || state !== "running"}>Stop</Button>
+              <p className="text-sm" data-testid="working">
+                {job?.state === "queued" ? `Waiting in line: ${ordinal(job.position)} (${job.kind}). Nothing is spent while it waits.` : job ? `Working: ${job.kind}…` : "Starting…"}
+              </p>
+              <Button tone="danger" data-testid="stop" onClick={stop} disabled={busy || (state !== "running" && state !== "queued")}>
+                {state === "queued" ? "Remove from queue" : "Stop"}
+              </Button>
             </div>
           )}
           {state === "draft" && (
@@ -336,6 +340,13 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
       </div>
     </div>
   );
+}
+
+/** 1 → "next", 2 → "2nd", … for a place in the queue's line. */
+function ordinal(n: number): string {
+  if (n <= 1) return "next";
+  const tail = n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
+  return `${n}${tail}`;
 }
 
 function spendByStage(ledger: Array<{ stage: string; usd: number }>): Array<[string, number, number]> {

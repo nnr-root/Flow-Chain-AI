@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { cliJson, cliText, JOB_FILE, runner, startJob, stopJob, studioHealth, viewJob } from "@/server/jobs";
 import { closeQueue } from "@/server/jobs/queue";
 import { KEYS, QUEUES } from "@/server/jobs/redis";
+import { runEvents } from "@/server/events";
 import { readRun } from "@/server/runs";
 import { calls, draftManifest, nextRunId, saveRun, stub, until, useStudio } from "./helpers";
 import { hasRedisServer, startRedis, startWorkerProcess, type TestRedis, type TestWorker } from "./redis";
@@ -116,6 +117,32 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     expect((await readRun(b)).state).toBe("queued");
     await ended(c);
     expect((await calls(studio)).map((call) => call[1])).toEqual([a, b, c]);
+  });
+
+  it("the live feed follows a run through the line: queued, working, ended, though no file changes while it waits", async () => {
+    await stub(studio, "_behave.json", { sleepMs: 1000 });
+    await worker({ WORKER_CONCURRENCY: "1" });
+    const [a, b] = [nextRunId(), nextRunId()];
+    await saveRun(studio, draftManifest(b));
+    await startJob(a, "generate", ["resume", a]);
+    await until(async () => (await state(a)) === "running");
+    await startJob(b, "generate", ["resume", b]);
+
+    const abort = new AbortController();
+    const reader = runEvents(b, abort.signal, { heartbeatMs: 60_000 }).getReader();
+    const seen: string[] = [];
+    const decoder = new TextDecoder();
+    const deadline = Date.now() + 20_000;
+    while (!seen.includes("ended") && Date.now() < deadline) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      for (const m of decoder.decode(value).matchAll(/^event: run\ndata: (.*)$/gm)) {
+        const job = (JSON.parse(m[1]) as { job: { state: string } | null }).job;
+        if (job && seen.at(-1) !== job.state) seen.push(job.state);
+      }
+    }
+    abort.abort();
+    expect(seen).toEqual(["queued", "running", "ended"]);
   });
 
   it("stop takes a waiting job out of the line, and ends a running one through the worker", async () => {

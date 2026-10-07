@@ -2,7 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { errorText, sendForm, sendJson } from "@/lib/api";
-import type { Health } from "@/server/config";
+import type { StudioHealth } from "@/server/jobs";
 import type { KitSummary, Track } from "@/server/library";
 import { Button, ErrorNote, Field, Panel, Segmented } from "./ui";
 
@@ -12,7 +12,7 @@ const CAPTION_STYLES = ["preset", "hormozi", "mrbeast", "minimalist"];
 const TRANSITIONS = ["auto", "cut", "fade", "dissolve", "blur", "zoom", "glitch"];
 const PROVIDER_NOTE = { fal: "fal.ai: no setup, about $1.35–2.35 for four scenes", runpod: "your RunPod endpoints: about $0.27 for four scenes" };
 
-export function NewVideoForm({ health, kits, tracks: initialTracks, presets }: { health: Health; kits: KitSummary[]; tracks: Track[]; presets: PresetCard[] }) {
+export function NewVideoForm({ health, kits, tracks: initialTracks, presets }: { health: StudioHealth; kits: KitSummary[]; tracks: Track[]; presets: PresetCard[] }) {
   const router = useRouter();
   const [tracks, setTracks] = useState(initialTracks);
   const [f, setF] = useState({
@@ -24,6 +24,7 @@ export function NewVideoForm({ health, kits, tracks: initialTracks, presets }: {
   const [error, setError] = useState("");
   const set = <K extends keyof typeof f>(key: K, value: (typeof f)[K]) => setF((old) => ({ ...old, [key]: value }));
   const missing = [...health.missing.always, ...health.missing[f.provider]];
+  const offline = health.queue.mode === "queue" && !(health.queue.redis && health.queue.worker);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -183,7 +184,7 @@ export function NewVideoForm({ health, kits, tracks: initialTracks, presets }: {
 
       <ErrorNote>{error}</ErrorNote>
       <div className="flex items-center gap-3">
-        <Button type="submit" tone="primary" data-testid="create-draft" disabled={busy || missing.length > 0 || !f.topic.trim()}>
+        <Button type="submit" tone="primary" data-testid="create-draft" disabled={busy || offline || missing.length > 0 || !f.topic.trim()}>
           {busy ? "Writing the script…" : "Create draft — about $0.006"}
         </Button>
         <span className="text-xs text-dim">Buys only the script. You preview and price the rest before generating.</span>
