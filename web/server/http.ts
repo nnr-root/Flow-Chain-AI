@@ -1,13 +1,16 @@
 import { ZodError } from "zod";
 import { hostName, isAllowedHost } from "@/lib/hosts";
+import { multiTenant } from "@/lib/supabase/settings";
 
 export type ErrorCode =
   | "validation" | "not_found" | "job_active" | "busy" | "estimate_changed" | "not_draft" | "missing_keys"
-  | "forbidden_origin" | "queue_unavailable" | "worker_offline" | "internal";
+  | "forbidden_origin" | "queue_unavailable" | "worker_offline" | "internal"
+  | "unauthenticated" | "insufficient_credit" | "too_many_jobs" | "storage_unavailable";
 
 const STATUS: Record<ErrorCode, number> = {
   validation: 400, not_found: 404, job_active: 409, busy: 429, estimate_changed: 409, not_draft: 409,
   missing_keys: 400, forbidden_origin: 403, queue_unavailable: 503, worker_offline: 503, internal: 500,
+  unauthenticated: 401, insufficient_credit: 402, too_many_jobs: 429, storage_unavailable: 503,
 };
 
 /** An error the client is meant to see; anything else becomes a generic 500. */
@@ -39,9 +42,9 @@ export function errorResponse(err: unknown): Response {
 }
 
 /**
- * There is no login, so the only protection is where a request comes from: the server answers loopback names
- * only (a DNS name pointed at 127.0.0.1 is refused), and a write must come from the studio's own pages — never
- * from another site open in the same browser, which could otherwise spend money through localhost.
+ * Where a request comes from, checked before who sent it: the server answers loopback names and its one public
+ * name only (a DNS name pointed at 127.0.0.1 is refused), and a write must come from the studio's own pages —
+ * never from another site open in the same browser, which could otherwise spend the visitor's money.
  */
 export function guard(req: Request, opts: { write: boolean }): void {
   const host = req.headers.get("host") ?? new URL(req.url).host;
@@ -56,14 +59,26 @@ export function guard(req: Request, opts: { write: boolean }): void {
 type Handler<C> = (req: Request, ctx: C) => Promise<Response> | Response;
 
 /**
- * Wraps a route handler: origin guard first, then every thrown error becomes the one error shape. The handler it
- * returns carries its `write` value (not enumerable), so a test can check every route file's label.
+ * Wraps a route handler: origin guard first, then (in a studio with accounts) the session — a request without
+ * one is refused unless the route is `public`, and the handler runs for that user: every path and row it
+ * touches is the user's own. Every thrown error becomes the one error shape. The handler it returns carries
+ * its `write` value (not enumerable), so a test can check every route file's label.
  */
-export function route<C>(opts: { write: boolean }, handler: Handler<C>): Handler<C> {
+export function route<C>(opts: { write: boolean; public?: boolean }, handler: Handler<C>): Handler<C> {
   const wrapped: Handler<C> = async (req, ctx) => {
     try {
       guard(req, opts);
-      return await handler(req, ctx);
+      if (!multiTenant()) return await handler(req, ctx);
+      // loaded only where there are accounts: the single-user studio and the worker never need it
+      const [{ requestSession, sessionUser }, { inScope }] = await Promise.all([import("./session"), import("./tenant")]);
+      const session = requestSession(req);
+      try {
+        const user = await sessionUser(session.client);
+        if (!user && !opts.public) throw new ApiError("unauthenticated", "sign in first");
+        return session.finish(await inScope({ user: user ?? undefined, db: session.client }, () => handler(req, ctx)));
+      } catch (err) {
+        return session.finish(errorResponse(err));
+      }
     } catch (err) {
       return errorResponse(err);
     }

@@ -2,11 +2,12 @@ import { CAPTION_STYLES } from "@src/media/remotion/styles";
 import { KitForm } from "@/components/KitForm";
 import { Panel } from "@/components/ui";
 import { listKits } from "@/server/library";
+import { forUser } from "@/server/page";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const kits = await listKits();
+  const kits = await forUser(listKits);
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold">Brand kits</h1>

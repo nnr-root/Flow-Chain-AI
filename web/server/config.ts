@@ -1,21 +1,46 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseEnv } from "node:util";
+import { tenantFolder } from "./tenant";
 
 /**
- * Where the studio finds the pipeline. Read on every call (never cached) so tests can point each case at its
- * own folders. `npm run web` starts Next in `web/`, so the repository is the parent directory by default.
+ * The data folders as they are on disk, for every user together. Only what looks after the whole disk may use
+ * this (the worker's start-up sweep and its clean-up); everything else goes through `roots()`.
  */
-export function roots() {
+export function baseRoots() {
   const repo = resolve(process.env.FLOWCHAIN_ROOT ?? join(process.cwd(), ".."));
   return {
     repo,
     runs: resolve(repo, process.env.RUNS_DIR ?? "runs"),
-    fonts: join(repo, "assets/fonts"),
-    sfx: join(repo, "assets/sfx"),
-    music: join(repo, "assets/music"),
     uploads: resolve(repo, process.env.STUDIO_UPLOADS_DIR ?? "uploads/music"),
     brandKits: resolve(repo, process.env.BRAND_KITS_DIR ?? "brand-kits"),
+  };
+}
+
+/**
+ * Where the studio finds the pipeline. Read on every call (never cached) so tests can point each case at its
+ * own folders. `npm run web` starts Next in `web/`, so the repository is the parent directory by default.
+ *
+ * In a studio with accounts `runs`, `brandKits` and `uploads` are the current user's own folders
+ * (`<root>/<userId>`): code that reads or writes them outside a user's scope fails instead of reaching into
+ * the shared root.
+ */
+export function roots() {
+  const base = baseRoots();
+  return {
+    repo: base.repo,
+    get runs() {
+      return join(base.runs, tenantFolder());
+    },
+    fonts: join(base.repo, "assets/fonts"),
+    sfx: join(base.repo, "assets/sfx"),
+    music: join(base.repo, "assets/music"),
+    get uploads() {
+      return join(base.uploads, tenantFolder());
+    },
+    get brandKits() {
+      return join(base.brandKits, tenantFolder());
+    },
     /** A replacement for the CLI (tests use a stub script); undefined = `src/cli.ts` through tsx. */
     cli: process.env.FLOWCHAIN_CLI,
   };

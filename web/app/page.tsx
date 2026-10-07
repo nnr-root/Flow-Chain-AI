@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { StateBadge } from "@/components/ui";
+import { forUser } from "@/server/page";
 import { listRuns } from "@/server/runs";
 
 export const dynamic = "force-dynamic";
 
 export default async function Page() {
-  const runs = await listRuns();
+  const runs = await forUser(listRuns);
   if (runs.length === 0) {
     return (
       <div className="grid place-items-center gap-4 py-24 text-center">

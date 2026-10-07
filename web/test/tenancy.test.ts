@@ -1,0 +1,206 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { GET as accountRoute } from "@/app/api/account/route";
+import { POST as login } from "@/app/api/auth/login/route";
+import { POST as logout } from "@/app/api/auth/logout/route";
+import { POST as password } from "@/app/api/auth/password/route";
+import { POST as reset } from "@/app/api/auth/reset/route";
+import { POST as signup } from "@/app/api/auth/signup/route";
+import { GET as kits } from "@/app/api/brand-kits/route";
+import { GET as health } from "@/app/api/health/route";
+import { GET as music } from "@/app/api/music/route";
+import { GET as runs } from "@/app/api/runs/route";
+import { GET as events } from "@/app/api/runs/[id]/events/route";
+import { GET as file } from "@/app/api/runs/[id]/files/[...path]/route";
+import { POST as generate } from "@/app/api/runs/[id]/generate/route";
+import { DELETE as stop } from "@/app/api/runs/[id]/job/route";
+import { POST as look } from "@/app/api/runs/[id]/look/route";
+import { POST as modes } from "@/app/api/runs/[id]/modes/route";
+import { POST as plan } from "@/app/api/runs/[id]/plan/route";
+import { POST as props } from "@/app/api/runs/[id]/props/route";
+import { POST as rerender } from "@/app/api/runs/[id]/rerender/route";
+import { POST as reroll } from "@/app/api/runs/[id]/reroll/route";
+import { GET as run } from "@/app/api/runs/[id]/route";
+import { POST as unlock } from "@/app/api/runs/[id]/unlock/route";
+import { GET as callback } from "@/app/auth/callback/route";
+import { safeNext } from "@/lib/supabase/settings";
+import { roots } from "@/server/config";
+import { closeQueue } from "@/server/jobs/queue";
+import { localSupabase, newUser, type TestUser } from "../../test/helpers/supabase";
+import { draftManifest, finishedManifest, nextRunId, params, request, useStudio } from "./helpers";
+import { hasRedisServer, startRedis, type TestRedis } from "./redis";
+import { as, cookiesFrom, cookiesOf, saveRunFor, withAccounts } from "./tenant";
+
+/*
+ * The studio with accounts, against the local Supabase stack: who may see what. Skipped when the stack is not
+ * running (`npm run db:start`) or there is no `redis-server`: with accounts the studio always works through
+ * the queue, so it needs a Redis even where no job is started.
+ */
+const supa = localSupabase();
+let redis: TestRedis;
+beforeAll(async () => {
+  if (supa && hasRedisServer()) redis = await startRedis();
+});
+afterAll(() => redis?.stop());
+afterEach(() => closeQueue());
+const studio = useStudio();
+const code = async (res: Response) => ((await res.json()) as { error?: { code: string } }).error?.code;
+
+describe("where a visitor may be sent after signing in", () => {
+  it("is a path on this site and nothing else", () => {
+    expect(safeNext("/runs/20261006-120000-abc001")).toBe("/runs/20261006-120000-abc001");
+    expect(safeNext("/new?x=1")).toBe("/new?x=1");
+    for (const bad of [undefined, null, "", "https://evil.example", "//evil.example", "/\\evil.example", "runs", "/a\nb"]) expect(safeNext(bad)).toBe("/");
+  });
+});
+
+describe("a studio without accounts", () => {
+  it("has no sign-in routes, and its data folders are the shared ones", async () => {
+    for (const handler of [login, signup, reset, logout]) {
+      expect((await handler(request("/api/auth/x", { json: { email: "a@example.test", password: "password-1" } }), undefined)).status).toBe(404);
+    }
+    expect((await accountRoute(request("/api/account"), undefined)).status).toBe(404);
+    expect(roots().runs).toBe(studio.runs);
+  });
+});
+
+describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
+  const s = supa!;
+  let a: TestUser;
+  let b: TestUser;
+  let aCookie: string;
+  let bCookie: string;
+
+  beforeEach(async () => {
+    withAccounts(s);
+    process.env.REDIS_URL = redis.url;
+    [a, b] = await Promise.all([newUser(s, "a"), newUser(s, "b")]);
+    [aCookie, bCookie] = await Promise.all([cookiesOf(a), cookiesOf(b)]);
+  });
+
+  it("answers nobody who is not signed in, except on the sign-in routes", async () => {
+    expect((await runs(request("/api/runs"), undefined)).status).toBe(401);
+    expect(await code(await health(request("/api/health"), undefined))).toBe("unauthenticated");
+    expect((await run(request("/api/runs/x"), params({ id: nextRunId() }))).status).toBe(401);
+    // a cookie that merely claims to be a session is not one
+    const forged = aCookie.replace(/=base64-[A-Za-z0-9_-]{20}/, "=base64-AAAAAAAAAAAAAAAAAAAA");
+    expect((await runs(as(forged, "/api/runs"), undefined)).status).toBe(401);
+    expect((await runs(as(aCookie, "/api/runs"), undefined)).status).toBe(200);
+  });
+
+  it("signs in with a password, keeps the session in cookies, and signs out", async () => {
+    const wrong = await login(request("/api/auth/login", { json: { email: a.email, password: "not-the-password" } }), undefined);
+    expect(wrong.status).toBe(401);
+    // the same answer for an address with no account
+    const nobody = await login(request("/api/auth/login", { json: { email: "nobody@example.test", password: "whatever-123" } }), undefined);
+    expect(await nobody.json()).toEqual(await wrong.json());
+
+    const ok = await login(request("/api/auth/login", { json: { email: a.email.toUpperCase(), password: a.password } }), undefined);
+    expect(ok.status).toBe(200);
+    const cookie = cookiesFrom(ok);
+    expect(cookie).toMatch(/^sb-.+-auth-token/);
+    const me = await accountRoute(as(cookie, "/api/account"), undefined);
+    expect(await me.json()).toEqual({ account: { email: a.email, balanceUsd: 0 }, ledger: [] });
+
+    const out = await logout(as(cookie, "/api/auth/logout", { json: {} }), undefined);
+    expect(out.status).toBe(200);
+    expect(cookiesFrom(out, cookie)).toBe("");
+  });
+
+  it("creates an account that starts with nothing to spend, and lets its owner change the password", async () => {
+    const email = `new-${Date.now().toString(36)}@example.test`;
+    const made = await signup(request("/api/auth/signup", { json: { email, password: "first-password" } }), undefined);
+    // the local stack does not ask for email confirmation; production does (`confirm: true`, and no session yet)
+    expect(await made.json()).toEqual({ confirm: false });
+    const cookie = cookiesFrom(made);
+    expect(await (await accountRoute(as(cookie, "/api/account"), undefined)).json()).toEqual({ account: { email, balanceUsd: 0 }, ledger: [] });
+
+    expect((await signup(request("/api/auth/signup", { json: { email, password: "short" } }), undefined)).status).toBe(400);
+    expect((await password(request("/api/auth/password", { json: { password: "second-password" } }), undefined)).status).toBe(401);
+    expect((await password(as(cookie, "/api/auth/password", { json: { password: "second-password" } }), undefined)).status).toBe(200);
+    expect((await login(request("/api/auth/login", { json: { email, password: "first-password" } }), undefined)).status).toBe(401);
+    expect((await login(request("/api/auth/login", { json: { email, password: "second-password" } }), undefined)).status).toBe(200);
+  });
+
+  it("answers a reset request the same way whether or not the address has an account", async () => {
+    const known = await reset(request("/api/auth/reset", { json: { email: a.email } }), undefined);
+    const unknown = await reset(request("/api/auth/reset", { json: { email: "nobody@example.test" } }), undefined);
+    expect([known.status, await known.json()]).toEqual([unknown.status, await unknown.json()]);
+    expect(known.status).toBe(200);
+  });
+
+  it("sends a link that proves nothing back to the login page, and never to another site", async () => {
+    const res = await callback(request("/auth/callback?code=not-a-code&next=https://evil.example"), undefined);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toMatch(/^http:\/\/127\.0\.0\.1:3131\/login\?error=/);
+  });
+
+  it("shows each user their own runs, and answers 404 for everything of anyone else's", async () => {
+    const mine = nextRunId();
+    const theirs = nextRunId();
+    await saveRunFor(studio, a, finishedManifest(mine));
+    const dir = await saveRunFor(studio, b, finishedManifest(theirs));
+    await mkdir(join(dir, "keyframes"), { recursive: true });
+    await writeFile(join(dir, "final.mp4"), "video");
+
+    const list = async (cookie: string) => ((await (await runs(as(cookie, "/api/runs"), undefined)).json()) as { runs: Array<{ runId: string }> }).runs.map((r) => r.runId);
+    expect(await list(aCookie)).toEqual([mine]);
+    expect(await list(bCookie)).toEqual([theirs]);
+
+    // b's run through a's session: every door answers as if the run did not exist
+    const id = params({ id: theirs });
+    const doors: Array<[string, () => Promise<Response> | Response]> = [
+      ["run", () => run(as(aCookie, `/api/runs/${theirs}`), id)],
+      ["events", () => events(as(aCookie, `/api/runs/${theirs}/events`), id)],
+      ["file", () => file(as(aCookie, `/api/runs/${theirs}/files/final.mp4`), params({ id: theirs, path: ["final.mp4"] }))],
+      ["props", () => props(as(aCookie, `/api/runs/${theirs}/props`, { json: {} }), id)],
+      ["plan", () => plan(as(aCookie, `/api/runs/${theirs}/plan`, { json: {} }), id)],
+      ["modes", () => modes(as(aCookie, `/api/runs/${theirs}/modes`, { json: { modes: [1, 1, 2] } }), id)],
+      ["look", () => look(as(aCookie, `/api/runs/${theirs}/look`, { json: { look: { captionStyle: "mrbeast" } } }), id)],
+      ["generate", () => generate(as(aCookie, `/api/runs/${theirs}/generate`, { json: { approvedUsd: 1 } }), id)],
+      ["reroll", () => reroll(as(aCookie, `/api/runs/${theirs}/reroll`, { json: { scene: 1, stage: "clips", approvedUsd: 1 } }), id)],
+      ["rerender", () => rerender(as(aCookie, `/api/runs/${theirs}/rerender`, { json: { look: {} } }), id)],
+      ["stop", () => stop(as(aCookie, `/api/runs/${theirs}/job`, { method: "DELETE" }), id)],
+      ["unlock", () => unlock(as(aCookie, `/api/runs/${theirs}/unlock`, { json: {} }), id)],
+    ];
+    for (const [name, open] of doors) expect((await open()).status, name).toBe(404);
+
+    // and the same doors open for the owner
+    expect((await run(as(bCookie, `/api/runs/${theirs}`), id)).status).toBe(200);
+    const served = await file(as(bCookie, `/api/runs/${theirs}/files/final.mp4`), params({ id: theirs, path: ["final.mp4"] }));
+    expect([served.status, await served.text()]).toEqual([200, "video"]);
+  });
+
+  it("follows a run's folder in its live feed for its owner (the feed outlives the request that opened it)", async () => {
+    const id = nextRunId();
+    await saveRunFor(studio, a, draftManifest(id));
+    const abort = new AbortController();
+    const res = await events(as(aCookie, `/api/runs/${id}/events`, { headers: {} }), params({ id }));
+    expect(res.status).toBe(200);
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    const next = async () => decoder.decode((await reader.read()).value);
+    expect(await next()).toContain('"state":"draft"');
+    // a change after the handler returned is read from the same user's folder
+    await saveRunFor(studio, a, finishedManifest(id));
+    let text = "";
+    while (!text.includes("event: run")) text = await next();
+    expect(text).not.toContain('"state":"draft"');
+    abort.abort();
+    await reader.cancel();
+  });
+
+  it("keeps each user's brand kits and tracks apart on disk", async () => {
+    const kitDir = join(studio.root, "brand-kits", a.id, "mine");
+    await mkdir(kitDir, { recursive: true });
+    await writeFile(join(kitDir, "kit.json"), JSON.stringify({ name: "Mine", logo: "logo.png", colors: { primary: "#ffffff", accent: "#000000" } }));
+    await mkdir(join(studio.root, "uploads/music", a.id), { recursive: true });
+    await writeFile(join(studio.root, "uploads/music", a.id, "track.mp3"), "ID3");
+    const names = async (cookie: string) => ((await (await music(as(cookie, "/api/music"), undefined)).json()) as { tracks: Array<{ id: string; source: string }> }).tracks.filter((t) => t.source === "upload").map((t) => t.id);
+    expect(await names(aCookie)).toEqual(["upload:track.mp3"]);
+    expect(await names(bCookie)).toEqual([]);
+    expect((await kits(as(bCookie, "/api/brand-kits"), undefined)).status).toBe(200);
+    expect(((await (await kits(as(bCookie, "/api/brand-kits"), undefined)).json()) as { kits: unknown[] }).kits).toEqual([]);
+  });
+});
