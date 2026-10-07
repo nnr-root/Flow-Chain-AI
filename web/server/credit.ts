@@ -12,6 +12,7 @@ const REFUSALS: Record<string, () => ApiError> = {
   job_active: () => new ApiError("job_active", "this run already has a paid job waiting or working", "wait for it to finish, or stop it first"),
   too_many_jobs: () => new ApiError("too_many_jobs", "you already have as many jobs waiting or working as one account may have", "wait for one to finish"),
   insufficient_credit: () => new ApiError("insufficient_credit", "your credit does not cover this", "see your balance on the account page"),
+  too_many_runs: () => new ApiError("too_many_jobs", "you have too many videos that were never started", "open or generate one of them first"),
   unauthenticated: () => new ApiError("unauthenticated", "sign in first"),
 };
 

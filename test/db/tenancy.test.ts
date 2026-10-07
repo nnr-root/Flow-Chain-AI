@@ -83,6 +83,13 @@ describe.skipIf(!supa)("tenancy in the database", () => {
     await a.client.from("runs").update({ charged_usd: 0, state: "done" }).eq("id", RUN_A);
     await a.client.from("runs").delete().eq("id", RUN_B);
     await a.client.from("ledger").delete().eq("user_id", a.id);
+    await a.client.from("ledger").update({ amount_usd: 500 }).eq("user_id", a.id);
+    await a.client.from("brand_kits").delete().eq("user_id", b.id);
+    await a.client.from("music_tracks").update({ bytes: 1 }).eq("user_id", b.id);
+    await a.client.from("reservations").update({ status: "settled" }).eq("user_id", a.id);
+    // each of the writes above was refused for lack of permission, not merely aimed at rows it could not see
+    expect((await a.client.from("users").update({ balance_usd: 1000 }).eq("id", a.id)).error?.code).toBe("42501");
+    expect((await a.client.from("ledger").delete().eq("user_id", a.id)).error?.code).toBe("42501");
     expect((await a.client.from("runs").insert({ id: freshRunId(), user_id: a.id })).error).not.toBeNull();
     expect((await a.client.from("ledger").insert({ user_id: a.id, kind: "grant", amount_usd: 50, balance_after_usd: 50 })).error).not.toBeNull();
     expect((await a.client.from("reservations").insert({ user_id: a.id, run_id: RUN_A, kind: "generate", cap_usd: 0 })).error).not.toBeNull();
@@ -95,21 +102,26 @@ describe.skipIf(!supa)("tenancy in the database", () => {
       { id: RUN_A, user_id: a.id, state: "creating", charged_usd: 0 },
       { id: RUN_B, user_id: b.id, state: "creating", charged_usd: 0 },
     ]);
-    expect((await service().from("ledger").select("id").eq("user_id", a.id)).data).toHaveLength(1);
+    expect((await service().from("ledger").select("amount_usd").eq("user_id", a.id)).data).toEqual([{ amount_usd: 1 }]);
   });
 
   it("keeps the money functions for the worker: a user cannot settle, grant or set a run's state", async () => {
     await grant(a, 1);
     await run(a, RUN_A);
     const { data: reservation } = await reserve(a, RUN_A, 1);
+    const anon = createClient(s.url, s.anonKey, { auth: { persistSession: false } });
     for (const [name, args] of [
       ["settle", { p_reservation_id: reservation, p_run_total_usd: 0 }],
       ["grant_credit", { p_email: a.email, p_amount_usd: 100, p_note: "" }],
       ["set_run_state", { p_run_id: RUN_A, p_state: "done" }],
     ] as const) {
-      expect((await a.client.rpc(name, args)).error, name).not.toBeNull();
+      // 42501: permission denied — refused for who is asking, not for what was asked
+      expect((await a.client.rpc(name, args)).error?.code, name).toBe("42501");
+      expect((await anon.rpc(name, args)).error?.code, `${name} (not signed in)`).toBe("42501");
     }
     expect(await balance(a)).toBe(0);
+    expect((await service().from("runs").select("state").eq("id", RUN_A).single()).data).toEqual({ state: "creating" });
+    expect((await service().from("reservations").select("status").eq("id", reservation).single()).data).toEqual({ status: "open" });
   });
 
   it("reserves a cap out of the balance and writes the ledger", async () => {
@@ -155,18 +167,13 @@ describe.skipIf(!supa)("tenancy in the database", () => {
 
   it("cannot be raced into spending the same credit twice", async () => {
     await grant(a, 1);
-    await service().from("settings").update({ max_user_jobs: 50 }).eq("only_row", true);
-    try {
-      const ids = Array.from({ length: 12 }, () => freshRunId());
-      for (const id of ids) await run(a, id);
-      // twelve tabs at once, each asking for 0.3 of a balance of 1
-      const results = await Promise.all(ids.map((id) => reserve(a, id, 0.3)));
-      expect(results.filter((r) => !r.error)).toHaveLength(3);
-      expect(results.filter((r) => r.error).map((r) => r.error!.message)).toEqual(Array(9).fill("insufficient_credit"));
-      expect(await balance(a)).toBe(0.1);
-    } finally {
-      await service().from("settings").update({ max_user_jobs: 2 }).eq("only_row", true);
-    }
+    const ids = Array.from({ length: 12 }, () => freshRunId());
+    for (const id of ids) await run(a, id);
+    // twelve tabs at once, each asking for 0.6 of a balance of 1: one gets it
+    const results = await Promise.all(ids.map((id) => reserve(a, id, 0.6)));
+    expect(results.filter((r) => !r.error)).toHaveLength(1);
+    expect(results.filter((r) => r.error).map((r) => r.error!.message)).toEqual(Array(11).fill("insufficient_credit"));
+    expect(await balance(a)).toBe(0.4);
   });
 
   it("settles at the real cost, returns the rest, and does nothing the second time", async () => {
@@ -207,6 +214,45 @@ describe.skipIf(!supa)("tenancy in the database", () => {
     expect(await balance(a)).toBe(-0.2);
     // in debt: nothing paid can be started until it is topped up
     expect((await reserve(a, RUN_A, 0)).error?.message).toBe("insufficient_credit");
+  });
+
+  it("never settles on a total that is missing or impossible: the reservation stays open", async () => {
+    await grant(a, 1);
+    await run(a, RUN_A);
+    const id = (await reserve(a, RUN_A, 0.5)).data as string;
+    for (const total of [null, "NaN", -1, "Infinity"]) {
+      expect((await service().rpc("settle", { p_reservation_id: id, p_run_total_usd: total })).error, String(total)).not.toBeNull();
+    }
+    expect(await balance(a)).toBe(0.5);
+    expect((await service().from("reservations").select("status").eq("id", id).single()).data).toEqual({ status: "open" });
+    // and no amount that is not a number ever reaches a balance
+    for (const amount of ["NaN", "Infinity", 0, null]) {
+      expect((await service().rpc("grant_credit", { p_email: a.email, p_amount_usd: amount })).error, String(amount)).not.toBeNull();
+    }
+    expect((await reserve(a, RUN_A, "NaN" as unknown as number)).error).not.toBeNull();
+    expect(await balance(a)).toBe(0.5);
+  });
+
+  it("limits what one account can register without spending anything", async () => {
+    // twenty runs that never started is the limit: the twenty-first is refused until one of them has
+    const ids = Array.from({ length: 21 }, () => freshRunId());
+    const made = await Promise.all(ids.map((id) => a.client.rpc("create_run", { p_id: id, p_topic: "x" })));
+    expect(made.filter((r) => !r.error)).toHaveLength(20);
+    expect(made.filter((r) => r.error).map((r) => r.error!.message)).toEqual(["too_many_runs"]);
+    const started = ids.find((_, i) => !made[i].error)!;
+    await service().rpc("set_run_state", { p_run_id: started, p_state: "draft" });
+    expect((await a.client.rpc("create_run", { p_id: freshRunId(), p_topic: "x" })).error).toBeNull();
+    // b is not affected by a's count
+    expect((await b.client.rpc("create_run", { p_id: freshRunId(), p_topic: "x" })).error).toBeNull();
+  });
+
+  it("follows an account's address when it changes, so credit goes to whoever signs in with it now", async () => {
+    const moved = `moved-${a.id.slice(0, 8)}@example.test`;
+    expect((await service().auth.admin.updateUserById(a.id, { email: moved, email_confirm: true })).error).toBeNull();
+    expect((await service().rpc("grant_credit", { p_email: a.email, p_amount_usd: 1 })).error?.message).toBe("not_found");
+    expect((await service().rpc("grant_credit", { p_email: `  ${moved.toUpperCase()} `, p_amount_usd: 1 })).data).toBe(1);
+    expect(await balance(a)).toBe(1);
+    expect((await service().rpc("grant_credit", { p_email: "", p_amount_usd: 1 })).error?.message).toBe("not_found");
   });
 
   it("grants credit by email, and only to an account that exists", async () => {

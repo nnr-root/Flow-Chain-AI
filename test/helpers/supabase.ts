@@ -15,10 +15,13 @@ export function localSupabase(): LocalSupabase | null {
     const value = (name: string) => new RegExp(`^${name}="?([^"\n]+)"?$`, "m").exec(out)?.[1];
     const [url, anonKey, serviceKey] = [value("API_URL"), value("ANON_KEY"), value("SERVICE_ROLE_KEY")];
     // only ever a stack on this machine
-    found = url && anonKey && serviceKey && /^http:\/\/(127\.0\.0\.1|localhost):/.test(url) ? { url, anonKey, serviceKey } : null;
+    const local = !!url && URL.canParse(url) && ["127.0.0.1", "localhost"].includes(new URL(url).hostname) && new URL(url).protocol === "http:";
+    found = local && url && anonKey && serviceKey ? { url, anonKey, serviceKey } : null;
   } catch {
     found = null;
   }
+  // `npm run test:db` exists to test the database: there, a stack that is not running is a failure, not a skip
+  if (!found && process.env.REQUIRE_SUPABASE) throw new Error("the local Supabase stack is not running: start it with `npm run db:start`");
   return found;
 }
 
@@ -33,7 +36,8 @@ let counter = 0;
 
 /** A confirmed account and a client signed in as it: what a user's own browser, or their own script, can do. */
 export async function newUser(s: LocalSupabase, name = "user"): Promise<TestUser> {
-  const email = `${name}-${Date.now().toString(36)}-${++counter}@example.test`;
+  // test files run side by side in processes of their own: the counter alone would collide
+  const email = `${name}-${Date.now().toString(36)}-${++counter}-${Math.random().toString(36).slice(2, 8)}@example.test`;
   const password = `pw-${Math.random().toString(36).slice(2)}-A1!`;
   const admin = serviceClient(s);
   const { data, error } = await admin.auth.admin.createUser({ email, password, email_confirm: true });
