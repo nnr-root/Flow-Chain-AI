@@ -164,10 +164,42 @@ The studio uses these CLI commands, which also work on their own:
 | `reroll … --budget <usd>` | a reroll that spends up to an amount without asking |
 | `resume … --cap <usd>`, `reroll … --cap <usd>` | stops the command when what it has spent plus what is still planned would exceed the amount |
 
+## Studio on a server
+
+One server runs the studio for you alone, over HTTPS behind one login: a proxy (Caddy), the web app, **one
+worker** that takes jobs from a queue (Redis) and runs the CLI for each, and Redis. Jobs wait their turn: two
+generations run at once by default, the rest show their place in line. A job is never retried on its own — a
+failed or interrupted run waits for you to press Resume, so nothing is bought twice.
+
+Once, by hand: rent a server (4 vCPU, 8 GB RAM, Ubuntu or Debian, your ssh key for `root`), point a DNS name
+at it, then `cp deploy/server.env.example deploy/server.env` and fill in `SERVER_HOST` and `STUDIO_HOST`. The
+provider keys are taken from your `.env`.
+
+| Command | Does |
+|---|---|
+| `npm run server:setup` | installs Docker if missing, creates `/opt/flowchain`, writes the settings and keys, makes the login password (shown once), turns on the nightly backup if `BACKUP_BUCKET` is set, then deploys |
+| `npm run server:deploy` | copies the last commit to the server, builds, restarts and waits until the studio answers; a running job gets up to 30 minutes to finish first |
+| `npm run server:backup` | copies runs, brand kits and uploads to the backup bucket now |
+
+`npm run server:setup -- --new-password` replaces the login. Run setup again after changing a key in `.env` or
+a setting in `deploy/server.env`.
+
+On the server the web app holds no provider keys and never runs the CLI; only the worker does. The data is in
+`/opt/flowchain/data` (`runs/`, `brand-kits/`, `uploads/`): a run made there is an ordinary run folder. The
+backup copies new and changed files and never deletes from the bucket. If the worker is down, the studio says
+so and refuses to start paid work instead of queueing it.
+
+Locally nothing changes: without `REDIS_URL`, `npm run web` starts jobs itself as before. To try the queue on
+your machine: `redis-server` in one terminal, then `REDIS_URL=redis://127.0.0.1:6379 npm run worker` and
+`REDIS_URL=redis://127.0.0.1:6379 npm run web`.
+
 ## Tests
 
 `npm test` runs unit, ffmpeg, Remotion (headless Chrome), fake-provider pipeline and studio server tests offline
 (about 2–3 minutes). `npm run typecheck` runs `tsc` for the pipeline and the studio. `npm run test:e2e` builds the
 studio and drives it in a browser against fixture runs and a stand-in CLI (run `npx playwright install chromium`
-once); it never reaches a provider. The RunPod worker's Python tests: `npm run setup:worker` once,
+once); it never reaches a provider. `npm run test:queue` runs the queue and worker against a
+throwaway Redis (needs `redis-server` on the PATH; these tests are skipped without it). `npm run test:stack` builds
+the server's images and drives the whole Compose stack through the proxy's login with the stand-in CLI (needs
+Docker; the first build takes several minutes). The RunPod worker's Python tests: `npm run setup:worker` once,
 then `npm run test:worker`.
