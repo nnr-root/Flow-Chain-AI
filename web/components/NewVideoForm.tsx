@@ -2,6 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { errorText, getJson, sendForm, sendJson } from "@/lib/api";
+import { CreditNote, tooLittle, useBalance } from "@/lib/balance";
 import type { StudioHealth } from "@/server/jobs";
 import type { KitSummary, Track } from "@/server/library";
 import { Button, ErrorNote, Field, Panel, Segmented } from "./ui";
@@ -23,6 +24,9 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // with accounts a draft holds a little credit for the script
+  const balance = useBalance();
+  const DRAFT_HOLD_USD = 0.02;
   const set = <K extends keyof typeof f>(key: K, value: (typeof f)[K]) => setF((old) => ({ ...old, [key]: value }));
   const missing = [...health.missing.always, ...health.missing[f.provider]];
   const offline = health.queue.mode === "queue" && !(health.queue.redis && health.queue.worker);
@@ -207,8 +211,9 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
       </details>
 
       <ErrorNote>{error}</ErrorNote>
+      <CreditNote balance={balance} needUsd={DRAFT_HOLD_USD} />
       <div className="flex items-center gap-3">
-        <Button type="submit" tone="primary" data-testid="create-draft" disabled={busy || offline || missing.length > 0 || !f.topic.trim()}>
+        <Button type="submit" tone="primary" data-testid="create-draft" disabled={busy || offline || missing.length > 0 || !f.topic.trim() || tooLittle(balance, DRAFT_HOLD_USD)}>
           {busy ? "Writing the script…" : "Create draft — about $0.006"}
         </Button>
         <span className="text-xs text-dim" data-testid="create-note">

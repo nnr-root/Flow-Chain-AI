@@ -68,7 +68,7 @@ describe("a studio without accounts", () => {
     for (const handler of [login, signup, reset, logout]) {
       expect((await handler(request("/api/auth/x", { json: { email: "a@example.test", password: "password-1" } }), undefined)).status).toBe(404);
     }
-    expect((await accountRoute(request("/api/account"), undefined)).status).toBe(404);
+    expect(await (await accountRoute(request("/api/account"), undefined)).json()).toEqual({ account: null, ledger: [] });
     expect(roots().runs).toBe(studio.runs);
   });
 });

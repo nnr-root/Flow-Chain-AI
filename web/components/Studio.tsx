@@ -5,6 +5,7 @@ import type { SceneStatus } from "@src/studio/status";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type ActionKind, afterRefusal } from "@/lib/approval";
 import { ApiFailure, errorText, sendJson, usd } from "@/lib/api";
+import { CreditNote, tooLittle, useBalance } from "@/lib/balance";
 import { controlsOf, type LookControls, pendingLook } from "@/lib/look";
 import { encodeLookToken } from "@/lib/look-token";
 import type { KitSummary } from "@/server/library";
@@ -43,6 +44,8 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
   const { status, state, job } = view;
   const scripted = status?.runSteps.find((s) => s.stage === "script")?.status === "done";
   const working = state === "running" || state === "creating" || state === "queued";
+  // with accounts: what the user may still spend (asked again when a job starts or ends)
+  const balance = useBalance(state);
 
   // live updates: the run whenever its folder changes, and new lines of the job's output
   useEffect(() => {
@@ -211,9 +214,10 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
           {state === "draft" && (
             <div className="space-y-3">
               <p className="text-sm text-dim">Only the script is bought. Check the preview, set each scene to a clip or a still below, then generate.</p>
-              <Button tone="primary" data-testid="generate" onClick={generate} disabled={busy || !estimate}>
+              <Button tone="primary" data-testid="generate" onClick={generate} disabled={busy || !estimate || tooLittle(balance, estimate?.totalUsd)}>
                 {estimate ? `Generate video — up to ${usd(estimate.totalUsd)}` : "Pricing…"}
               </Button>
+              <CreditNote balance={balance} needUsd={estimate?.totalUsd} />
             </div>
           )}
           {RESUMABLE.includes(state) && (
@@ -230,7 +234,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
                 </p>
               ))}
               <div className="flex flex-wrap gap-2">
-                <Button tone="primary" data-testid="generate" onClick={generate} disabled={busy || !estimate}>
+                <Button tone="primary" data-testid="generate" onClick={generate} disabled={busy || !estimate || tooLittle(balance, estimate?.totalUsd)}>
                   {estimate ? `${state === "needs_approval" ? "Approve and continue" : "Resume"} — up to ${usd(estimate.totalUsd)}` : "Pricing…"}
                 </Button>
                 {view.staleLock && <Button onClick={unlock} disabled={busy}>Clear the stale lock</Button>}
