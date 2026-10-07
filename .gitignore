@@ -15,3 +15,5 @@ web/test-results/
 web/.e2e/
 deploy/server.env
 deploy/data/
+supabase/.temp/
+supabase/.branches/
