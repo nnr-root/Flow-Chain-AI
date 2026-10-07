@@ -119,30 +119,52 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     expect((await calls(studio)).map((call) => call[1])).toEqual([a, b, c]);
   });
 
-  it("the live feed follows a run through the line: queued, working, ended, though no file changes while it waits", async () => {
-    await stub(studio, "_behave.json", { sleepMs: 1000 });
+  it("the live feed follows a run up the line and through its job, though nothing in its folder changes while it waits", async () => {
+    await stub(studio, "_behave.json", { sleepMs: 6000 });
     await worker({ WORKER_CONCURRENCY: "1" });
-    const [a, b] = [nextRunId(), nextRunId()];
-    await saveRun(studio, draftManifest(b));
+    const [a, b, c] = [nextRunId(), nextRunId(), nextRunId()];
+    await saveRun(studio, draftManifest(c));
     await startJob(a, "generate", ["resume", a]);
-    await until(async () => (await state(a)) === "running");
+    await until(async () => (await calls(studio)).length === 1);
+    await new Promise((r) => setTimeout(r, 500)); // a's CLI has read how to behave by now
+    await stub(studio, "_behave.json", {}); // the later jobs end at once
     await startJob(b, "generate", ["resume", b]);
+    await startJob(c, "generate", ["resume", c]);
 
-    const abort = new AbortController();
-    const reader = runEvents(b, abort.signal, { heartbeatMs: 60_000 }).getReader();
-    const seen: string[] = [];
-    const decoder = new TextDecoder();
-    const deadline = Date.now() + 20_000;
-    while (!seen.includes("ended") && Date.now() < deadline) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      for (const m of decoder.decode(value).matchAll(/^event: run\ndata: (.*)$/gm)) {
-        const job = (JSON.parse(m[1]) as { job: { state: string } | null }).job;
-        if (job && seen.at(-1) !== job.state) seen.push(job.state);
-      }
+    /** What a feed of run c reports, as "state" or "queued:<position>", without repeats. */
+    const follow = (opts: { pollMs?: number }) => {
+      const abort = new AbortController();
+      const seen: string[] = [];
+      const reader = runEvents(c, abort.signal, { heartbeatMs: 60_000, ...opts }).getReader();
+      const decoder = new TextDecoder();
+      void (async () => {
+        for (;;) {
+          const { value, done } = await reader.read().catch(() => ({ value: undefined, done: true }));
+          if (done || !value) return;
+          for (const m of decoder.decode(value).matchAll(/^event: run\ndata: (.*)$/gm)) {
+            const job = (JSON.parse(m[1]) as { job: { state: string; position?: number } | null }).job;
+            const step = job ? (job.state === "queued" ? `queued:${job.position}` : job.state) : "none";
+            if (seen.at(-1) !== step) seen.push(step);
+          }
+        }
+      })();
+      return { seen, stop: () => abort.abort() };
+    };
+    const polling = follow({}); // the queue's default: every 2 s
+    const watchingOnly = follow({ pollMs: 0 });
+    try {
+      await until(() => polling.seen.includes("queued:2") && watchingOnly.seen.includes("queued:2"));
+      // b leaves the line: a change in Redis alone, which no file in c's folder announces
+      await stopJob(b);
+      await until(() => polling.seen.includes("queued:1"), 5000);
+      expect(watchingOnly.seen).toEqual(["queued:2"]);
+      await until(() => polling.seen.includes("ended"), 20_000);
+      // c's own job is over in an instant here, so "running" may be too brief to be reported
+      expect(polling.seen.filter((step) => step !== "running")).toEqual(["queued:2", "queued:1", "ended"]);
+    } finally {
+      polling.stop();
+      watchingOnly.stop();
     }
-    abort.abort();
-    expect(seen).toEqual(["queued", "running", "ended"]);
   });
 
   it("stop takes a waiting job out of the line, and ends a running one through the worker", async () => {
@@ -288,5 +310,30 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     expect((await calls(studio)).map((call) => call[1])).toEqual([a, b]);
     expect(workers[0].child.exitCode).toBeNull(); // the same worker, still running
     expect(workers[0].output()).toContain("took it again");
+  });
+
+  it("a job that outlives a long Redis outage still reads working, cannot be started twice and can be stopped", async () => {
+    await stub(studio, "_behave.json", { sleepMs: 60_000 });
+    const w = await worker({ WORKER_CONCURRENCY: "1" });
+    const a = nextRunId();
+    await startJob(a, "generate", ["resume", a]);
+    await until(async () => (await calls(studio)).length === 1);
+
+    // away for longer than the guard (1.5 s) and the queue's lock on the job (1 s): the queue's stall check
+    // then takes the job for dead, while its CLI is working
+    await redis.stop();
+    await new Promise((r) => setTimeout(r, 2500));
+    await redis.start();
+    await until(() => w.output().includes("took it again"), 30_000);
+    await until(async () => (await admin.lrange(`bull:${QUEUES.runs}:active`, 0, -1)).length === 0, 30_000);
+
+    const seen = () => state(a).catch(() => undefined); // the web's connection may still be coming back
+    await until(async () => (await seen()) === "running", 30_000);
+    await expect(startJob(a, "generate", ["resume", a])).rejects.toMatchObject({ code: "job_active" });
+    await stopJob(a);
+    await until(async () => (await seen()) === "stopped");
+    expect(await inRedis(a)).toBe(false);
+    expect(await calls(studio)).toHaveLength(1); // one CLI, ever
+    expect(w.child.exitCode).toBeNull();
   });
 });

@@ -7,6 +7,11 @@ export const QUEUES = { runs: "flowchain-runs", quick: "flowchain-quick" } as co
 export const KEYS = {
   /** Held by the one worker and renewed while it lives: the single-worker guard and its heartbeat. */
   worker: "flowchain:worker",
+  /**
+   * The run ids whose CLI the worker has running right now (a JSON list), rewritten with every renewal of the
+   * guard. After a long Redis outage the queue can forget a job that is still working; the worker does not.
+   */
+  held: "flowchain:worker:runs",
   /** Pub/sub channel: a run id whose running job should be stopped. */
   cancel: "flowchain:cancel",
 } as const;

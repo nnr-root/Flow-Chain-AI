@@ -121,7 +121,10 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     }
   };
 
+  /** Tells the web which runs are being worked on, whatever the queue's own records say. */
+  const publishHeld = () => redis.set(KEYS.held, JSON.stringify([...new Set([...active.keys(), ...starting])]), "PX", guardTtl);
   const renew = async () => {
+    await publishHeld();
     if ((await redis.eval(RENEW, 1, KEYS.worker, id, String(guardTtl))) !== 0) return;
     // The guard ran out, which is what a Redis outage longer than its lifetime does. If nobody took it meanwhile
     // this is still the one worker: take it again and carry on, so the jobs that are running finish.
@@ -160,11 +163,15 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     let started: { job: Job; child: ChildProcess };
     try {
       started = await spawnCli(runId, kind, args, approvedUsd);
+    } catch (err) {
+      stopAfterStart.delete(runId);
+      throw err;
     } finally {
       starting.delete(runId);
     }
     const { job: record, child } = started;
     active.set(runId, { record, child, dir });
+    publishHeld().catch(() => {});
     log(`worker: ${kind} ${runId} started (pid ${record.pid})`);
     try {
       if (stopAfterStart.delete(runId)) await stopProcess(dir, record).catch(() => {});
@@ -172,6 +179,7 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       if (child.exitCode === null && child.signalCode === null) await new Promise<void>((done) => child.once("exit", () => done()));
     } finally {
       active.delete(runId);
+      publishHeld().catch(() => {});
     }
     const exitCode = exitCodeOf(dir) ?? null;
     const stopped = readJobRecord(dir)?.stoppedAt !== undefined;
@@ -218,10 +226,14 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
         signalAll("SIGTERM");
         // a CLI that ignores the request is killed, so the shutdown always ends
         const kill = setTimeout(() => signalAll("SIGKILL"), KILL_AFTER_MS);
-        await drained.catch(() => {});
+        // bounded: with Redis away the queue cannot be told how the jobs ended, and would wait for ever
+        let giveUp: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([drained.catch(() => {}), new Promise((r) => (giveUp = setTimeout(r, KILL_AFTER_MS + 5000)))]);
+        clearTimeout(giveUp);
         clearTimeout(kill);
       }
       clearInterval(renewal);
+      await redis.del(KEYS.held).catch(() => {});
       await redis.eval(RELEASE, 1, KEYS.worker, id).catch(() => {});
       subscriber.disconnect();
       redis.disconnect();

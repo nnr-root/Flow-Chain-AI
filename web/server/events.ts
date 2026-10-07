@@ -64,7 +64,7 @@ export function runEvents(
           await handle.close();
         }
       };
-      const sendRun = async () => {
+      const readAndSend = async () => {
         try {
           const view = await readRun(runId);
           const text = JSON.stringify(view);
@@ -77,6 +77,10 @@ export function runEvents(
           // mid-write or not created yet: the next change tries again
         }
       };
+      // one at a time: the watcher, the heartbeat and the poll may ask together, and two reads of the log at
+      // once would send the same new lines twice
+      let sending: Promise<void> = Promise.resolve();
+      const sendRun = () => (sending = sending.then(readAndSend));
 
       if (signal.aborted) return close();
       signal.addEventListener("abort", close);

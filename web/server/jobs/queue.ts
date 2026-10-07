@@ -72,6 +72,18 @@ async function reach<T>(work: () => Promise<T>): Promise<T> {
 
 const workerAlive = async (redis: Redis): Promise<boolean> => (await redis.exists(KEYS.worker)) === 1;
 
+/** Whether the worker says it has this run's CLI running. It knows even when the queue has lost track of the job. */
+async function heldByWorker(redis: Redis, runId: string): Promise<boolean> {
+  // only a living worker's word counts: a killed one leaves its list behind for a moment
+  const [alive, raw] = await redis.mget(KEYS.worker, KEYS.held);
+  if (!alive || !raw) return false;
+  try {
+    return (JSON.parse(raw) as string[]).includes(runId);
+  } catch {
+    return false;
+  }
+}
+
 async function requireWorker(redis: Redis): Promise<void> {
   if (!(await workerAlive(redis))) {
     throw new ApiError("worker_offline", "the worker is offline", "nothing was started; it picks up again when the worker is back");
@@ -99,6 +111,12 @@ async function position(runs: Queue<RunJobData>, runId: string): Promise<number>
  */
 async function view(e: Ends, runId: string): Promise<JobView | null> {
   const dir = runFolder(runId);
+  // The worker's own word comes first: a CLI it has running is running, also when a long Redis outage made the
+  // queue put the job back in line or forget it. Its exit code on disk is the one thing that is newer still.
+  if (await heldByWorker(e.redis, runId)) {
+    const record = readJobRecord(dir);
+    if (record && exitCodeOf(dir) === undefined) return { ...record, state: "running" };
+  }
   const q = await e.runs.getJob(runId);
   if (q) {
     const state = await q.getState();
@@ -107,8 +125,10 @@ async function view(e: Ends, runId: string): Promise<JobView | null> {
     if (state === "active" && (await workerAlive(e.redis))) {
       // the worker writes job.json when it starts the CLI; until then the queue's own record stands in
       const record = readJobRecord(dir);
-      const mine = record && record.startedAt >= q.data.enqueuedAt ? record : fromQueue(q);
-      return { ...mine, state: "running" };
+      if (!record || record.startedAt < q.data.enqueuedAt) return { ...fromQueue(q), state: "running" };
+      // it ended and the queue has not been told yet (Redis was away at that moment)
+      const code = exitCodeOf(dir);
+      return code === undefined ? { ...record, state: "running" } : { ...record, state: "ended", exitCode: code };
     }
     if (state === "waiting" || state === "prioritized" || state === "delayed" || state === "waiting-children") {
       return { ...fromQueue(q), state: "queued", position: await position(e.runs, runId) };
@@ -136,7 +156,7 @@ export function queueRunner(url: string): JobRunner {
         const e = await ends(url);
         await requireWorker(e.redis);
         const taken = () => new ApiError("job_active", `run ${runId} is already queued or working`, "wait for it to finish, or stop it first");
-        if (await e.runs.getJob(runId)) throw taken();
+        if ((await heldByWorker(e.redis, runId)) || (await e.runs.getJob(runId))) throw taken();
         const token = randomUUID();
         const added = await e.runs.add(kind, { runId, kind, args, approvedUsd, enqueuedAt: new Date().toISOString(), token }, { ...JOB_OPTIONS, jobId: runId });
         // Two requests at once: the queue keeps the first job for an id and quietly ignores the second `add`, so
@@ -150,22 +170,35 @@ export function queueRunner(url: string): JobRunner {
       reach(async () => {
         runFolder(runId);
         const e = await ends(url);
+        const gone = () => new ApiError("not_found", `run ${runId} has no running job`);
+        const finished = (s: string | undefined) => s === "completed" || s === "failed" || s === "unknown";
         const q = await e.runs.getJob(runId);
-        const state = q ? await q.getState() : undefined;
-        if (!q || state === "completed" || state === "failed" || state === "unknown") throw new ApiError("not_found", `run ${runId} has no running job`);
-        if (state !== "active") {
-          try {
-            await q.remove();
-            return { ...fromQueue(q), stoppedAt: new Date().toISOString(), state: "stopped" };
-          } catch (err) {
-            // the worker took the job between the two calls: it is working now, and is stopped as such
-            if ((await q.getState()) !== "active") throw err;
+        // a CLI the worker has running is stopped through the worker, whatever the queue says of its job
+        const held = await heldByWorker(e.redis, runId);
+        if (!held) {
+          const state = q ? await q.getState() : undefined;
+          if (!q || finished(state)) throw gone();
+          if (state !== "active") {
+            try {
+              await q.remove();
+              return { ...fromQueue(q), stoppedAt: new Date().toISOString(), state: "stopped" };
+            } catch (err) {
+              // the worker took the job between the two calls: it is working now, and is stopped as such
+              const now = await q.getState();
+              if (finished(now)) throw gone();
+              if (now !== "active") throw err;
+            }
           }
         }
-        // the worker that holds the job ends its process group and records that it was stopped
+        // the worker ends the job's process group and records that it was stopped
         const listeners = await e.redis.publish(KEYS.cancel, runId);
         if (listeners === 0) throw new ApiError("worker_offline", "the worker is offline", "the job could not be told to stop; it is not running if the worker is down");
-        return (await view(e, runId)) ?? { ...fromQueue(q), state: "running" };
+        // a record the queue put back in line while the CLI worked would only be handed out again
+        if (held && q) await q.remove().catch(() => {});
+        const seen = await view(e, runId);
+        if (seen) return seen;
+        if (q) return { ...fromQueue(q), state: "running" };
+        throw gone();
       }),
 
     view: (runId) => reach(async () => view(await ends(url), runId)),

@@ -131,7 +131,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
   const start = async (action: string, body: unknown) => {
     const { job: started } = await sendJson<{ job: JobView }>(`/api/runs/${id}/${action}`, body);
     // unless the stream was faster: what it says about this job (even that it already ended) is newer than the answer
-    setView((v) => (v.job?.id === started.id ? v : { ...v, job: started, state: "running" }));
+    setView((v) => (v.job?.id === started.id ? v : { ...v, job: started, state: started.state === "queued" ? "queued" : "running" }));
   };
   const setMode = (scene: number, mode: Mode) =>
     act(async () => {
@@ -184,7 +184,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
           </>
         ) : (
           <div className="grid aspect-[9/16] place-items-center rounded-xl border border-line bg-panel text-sm text-dim">
-            {previewError || (working ? "Writing the script…" : "No preview yet")}
+            {previewError || (state === "queued" ? "Waiting in line…" : working ? "Writing the script…" : "No preview yet")}
           </div>
         )}
         {state === "done" && (

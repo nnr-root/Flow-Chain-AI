@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { errorText, sendForm, sendJson } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { errorText, getJson, sendForm, sendJson } from "@/lib/api";
 import type { StudioHealth } from "@/server/jobs";
 import type { KitSummary, Track } from "@/server/library";
 import { Button, ErrorNote, Field, Panel, Segmented } from "./ui";
@@ -12,8 +12,9 @@ const CAPTION_STYLES = ["preset", "hormozi", "mrbeast", "minimalist"];
 const TRANSITIONS = ["auto", "cut", "fade", "dissolve", "blur", "zoom", "glitch"];
 const PROVIDER_NOTE = { fal: "fal.ai: no setup, about $1.35–2.35 for four scenes", runpod: "your RunPod endpoints: about $0.27 for four scenes" };
 
-export function NewVideoForm({ health, kits, tracks: initialTracks, presets }: { health: StudioHealth; kits: KitSummary[]; tracks: Track[]; presets: PresetCard[] }) {
+export function NewVideoForm({ health: initialHealth, kits, tracks: initialTracks, presets }: { health: StudioHealth; kits: KitSummary[]; tracks: Track[]; presets: PresetCard[] }) {
   const router = useRouter();
+  const [health, setHealth] = useState(initialHealth);
   const [tracks, setTracks] = useState(initialTracks);
   const [f, setF] = useState({
     topic: "", aspect: "9:16", scenes: 4, style: "auto", motion: "auto", provider: health.defaults.provider as "fal" | "runpod",
@@ -25,6 +26,23 @@ export function NewVideoForm({ health, kits, tracks: initialTracks, presets }: {
   const set = <K extends keyof typeof f>(key: K, value: (typeof f)[K]) => setF((old) => ({ ...old, [key]: value }));
   const missing = [...health.missing.always, ...health.missing[f.provider]];
   const offline = health.queue.mode === "queue" && !(health.queue.redis && health.queue.worker);
+
+  // A page loaded while the worker was away knows neither its keys nor its defaults: ask again until it is
+  // back, so the form opens up by itself instead of staying shut until a reload.
+  useEffect(() => {
+    if (!offline) return;
+    const timer = setInterval(() => {
+      getJson<StudioHealth>("/api/health").then(
+        (now) => {
+          if (now.queue.mode === "queue" && !(now.queue.redis && now.queue.worker)) return;
+          setHealth(now);
+          setF((old) => ({ ...old, provider: now.defaults.provider as "fal" | "runpod", budgetUsd: now.defaults.budgetUsd }));
+        },
+        () => {},
+      );
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [offline]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -187,7 +205,9 @@ export function NewVideoForm({ health, kits, tracks: initialTracks, presets }: {
         <Button type="submit" tone="primary" data-testid="create-draft" disabled={busy || offline || missing.length > 0 || !f.topic.trim()}>
           {busy ? "Writing the script…" : "Create draft — about $0.006"}
         </Button>
-        <span className="text-xs text-dim">Buys only the script. You preview and price the rest before generating.</span>
+        <span className="text-xs text-dim" data-testid="create-note">
+          {offline ? "The worker is offline: nothing can be started until it is back." : "Buys only the script. You preview and price the rest before generating."}
+        </span>
       </div>
     </form>
   );

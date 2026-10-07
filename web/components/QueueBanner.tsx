@@ -15,14 +15,14 @@ export function QueueBanner() {
       getJson<StudioHealth>("/api/health").then(
         ({ queue }) => {
           if (gone) return;
-          setProblem(
-            queue.mode !== "queue" ? "" : !queue.redis ? "The job queue is unavailable." : !queue.worker ? "The worker is offline." : "",
-          );
+          // a studio that starts its own jobs has no queue to watch
+          if (queue.mode !== "queue") return clearInterval(timer);
+          setProblem(!queue.redis ? "The job queue is unavailable." : !queue.worker ? "The worker is offline." : "");
         },
         () => {},
       );
-    void check();
     const timer = setInterval(check, 15_000);
+    void check();
     return () => {
       gone = true;
       clearInterval(timer);
