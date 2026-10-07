@@ -7,7 +7,7 @@ import type { Redis } from "ioredis";
 import { RUN_ID } from "@src/studio/commands";
 import { health, roots } from "../server/config";
 import {
-  consumerConnection, KEYS, type QuickJobData, type QuickJobResult, QUEUES, type RunJobData, type RunJobResult,
+  consumerConnection, KEYS, type QuickJobData, type QuickJobResult, QUEUES, refusal, type RunJobData, type RunJobResult,
 } from "../server/jobs/redis";
 import { exitCodeOf, readJobRecord, runFolder, runShort, spawnCli, stopProcess } from "../server/jobs/run-cli";
 import { type Job, LOCK_FILE } from "../server/jobs/types";
@@ -158,12 +158,17 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   const runJob = async (job: QueueJob<RunJobData>): Promise<RunJobResult> => {
     const { runId, kind, args, approvedUsd } = job.data;
     const dir = runFolder(runId);
+    const refused = refusal("runs", args);
+    if (refused) throw new Error(refused);
     // After a long Redis outage the queue can lose track of a job whose CLI is still working and hand the run
     // out again. One CLI per run, whatever the queue believes.
     if (active.has(runId) || starting.has(runId)) throw new Error(`run ${runId} is still being worked on by this worker`);
     starting.add(runId);
     let started: { job: Job; child: ChildProcess };
     try {
+      // This worker runs every CLI there is, and none is running for this run: a lock in its folder was left by
+      // one that was killed outright (out of memory, say), and would refuse this job and every later one.
+      await rm(join(dir, LOCK_FILE), { force: true });
       started = await spawnCli(runId, kind, args, approvedUsd);
     } catch (err) {
       stopAfterStart.delete(runId);
@@ -180,6 +185,8 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       // the CLI may have ended while its record was being written: then there is no exit event left to wait for
       if (child.exitCode === null && child.signalCode === null) await new Promise<void>((done) => child.once("exit", () => done()));
     } finally {
+      // the CLI is gone; if it could not remove its own lock, the run must not stay shut because of it
+      await rm(join(dir, LOCK_FILE), { force: true }).catch(() => {});
       active.delete(runId);
       publishHeld().catch(() => {});
     }
@@ -190,8 +197,12 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     return { exitCode, ...(stopped ? { stopped } : {}) };
   };
 
-  const runQuick = async (job: QueueJob<QuickJobData>): Promise<QuickJobResult> =>
-    job.name === "health" ? { stdout: JSON.stringify(health()) } : { stdout: await runShort(job.data.args) };
+  const runQuick = async (job: QueueJob<QuickJobData>): Promise<QuickJobResult> => {
+    if (job.name === "health") return { stdout: JSON.stringify(health()) };
+    const refused = refusal("quick", job.data.args);
+    if (refused) throw new Error(refused);
+    return { stdout: await runShort(job.data.args) };
+  };
 
   const common = { maxStalledCount: 0, stalledInterval: lockMs, lockDuration: lockMs };
   const runs = new Worker<RunJobData, RunJobResult>(QUEUES.runs, runJob, { ...common, connection: consumerConnection(opts.redisUrl), concurrency: opts.concurrency ?? 2 });
@@ -217,8 +228,9 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     (closing ??= (async () => {
       const drainMs = opts.drainMs ?? 30 * 60_000;
       log(`worker: shutting down; waiting up to ${Math.round(drainMs / 1000)} s for ${active.size} running job(s)`);
-      // stop taking jobs, let the running ones finish
-      const drained = Promise.all([runs.close(), quick.close()]);
+      // Stop taking jobs and let the running ones finish. Quick questions are answered until then: the studio
+      // goes on showing prices and which keys are set, and its health check does not fail for the length of a drain.
+      const drained = runs.close();
       let timer: ReturnType<typeof setTimeout> | undefined;
       const finished = await Promise.race([drained.then(() => true), new Promise<boolean>((r) => (timer = setTimeout(() => r(false), drainMs)))]);
       clearTimeout(timer);
@@ -234,6 +246,9 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
         clearTimeout(giveUp);
         clearTimeout(kill);
       }
+      let slow: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([quick.close().catch(() => {}), new Promise((r) => (slow = setTimeout(r, 5000)))]);
+      clearTimeout(slow);
       clearInterval(renewal);
       // with Redis away these would wait for it to come back; both keys expire by themselves
       const released = (async () => {

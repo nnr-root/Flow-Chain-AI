@@ -12,8 +12,10 @@ import type { Job, JobRunner, JobView, StudioHealth } from "./types";
 /** What a studio that cannot reach its worker says about keys: nothing is known, so nothing is called missing. */
 const UNKNOWN: Health = { missing: { always: [], fal: [], runpod: [] }, defaults: { provider: "fal", budgetUsd: 3 } };
 const HEALTH_TTL_MS = 5000;
+/** Shorter than the container health check's own limit (5 s): an unanswered question must not fail that check. */
+const HEALTH_WAIT_MS = 3000;
 
-type Ends = { redis: Redis; runs: Queue<RunJobData>; quick: Queue<QuickJobData, QuickJobResult>; quickEvents: QueueEvents; health?: { at: number; value: Health } };
+type Ends = { redis: Redis; runs: Queue<RunJobData>; quick: Queue<QuickJobData, QuickJobResult>; quickEvents: QueueEvents; health?: { at: number; value?: Health; failed?: boolean } };
 
 /** One set of connections per process, also across a dev-server recompile. */
 const ENDS = Symbol.for("flowchain.studio.queue");
@@ -253,11 +255,14 @@ export function queueRunner(url: string): JobRunner {
       if (!worker) return { ...UNKNOWN, queue: { mode: "queue", redis: true, worker: false } };
       if (!e.health || Date.now() - e.health.at > HEALTH_TTL_MS) {
         try {
-          e.health = { at: Date.now(), value: JSON.parse((await ask(e, "health", { args: [] }, 10_000)).stdout) as Health };
+          e.health = { at: Date.now(), value: JSON.parse((await ask(e, "health", { args: [] }, HEALTH_WAIT_MS)).stdout) as Health };
         } catch {
-          return { ...UNKNOWN, queue: { mode: "queue", redis: true, worker: false } };
+          // remembered like an answer, so a worker that does not answer is not asked again by every request;
+          // what it said last still holds while it lives (its keys do not change without a restart)
+          e.health = { at: Date.now(), value: e.health?.value, failed: true };
         }
       }
+      if (!e.health.value) return { ...UNKNOWN, queue: { mode: "queue", redis: true, worker: false } };
       return { ...e.health.value, queue: { mode: "queue", redis: true, worker: true } };
     },
 

@@ -202,6 +202,8 @@ export function upScript(cfg: ServerConfig): string {
     composeCommand(cfg, "up", "-d", "--build", "--remove-orphans", "--wait", "--wait-timeout", "3600"),
     // the proxy's config file is mounted from the code that was just replaced: start it on the new one
     composeCommand(cfg, "restart", "proxy"),
+    // every build leaves the previous images behind, on the disk the runs need
+    "docker image prune -f >/dev/null",
     "",
   ].join("\n");
 }

@@ -8,6 +8,8 @@ export const repo = join(web, "..");
 export const data = join(web, ".e2e/stack");
 export const runs = join(data, "runs");
 export const PORT = 8088;
+/** The stack's public name in the test: not a loopback name, so the host rule is met the way a server meets it. */
+export const HOST = "studio.test";
 export const USER = "studio";
 /** Not a secret: this login protects a throwaway stack on this machine for the length of one test run. */
 export const PASSWORD = "stack-test-password";

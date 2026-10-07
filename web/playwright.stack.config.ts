@@ -1,5 +1,5 @@
 import { defineConfig } from "@playwright/test";
-import { PASSWORD, PORT, USER } from "./stack/stack";
+import { HOST, PASSWORD, PORT, USER } from "./stack/stack";
 
 /**
  * The whole deployment on this machine (`npm run test:stack`; needs Docker): the Compose stack is built and
@@ -16,9 +16,9 @@ export default defineConfig({
   globalTeardown: "./stack/teardown.ts",
   globalTimeout: 30 * 60_000,
   use: {
-    baseURL: `http://localhost:${PORT}`, viewport: { width: 1400, height: 1000 }, httpCredentials: { username: USER, password: PASSWORD },
+    baseURL: `http://${HOST}:${PORT}`, viewport: { width: 1400, height: 1000 }, httpCredentials: { username: USER, password: PASSWORD },
     // No sound card needed: with a real audio device Chromium paces playback by it, and when that device stalls
     // (a sleeping laptop, a CI machine without one) the Player waits at frame 0 for ever.
-    launchOptions: { args: ["--disable-audio-output"] },
+    launchOptions: { args: ["--disable-audio-output", `--host-resolver-rules=MAP ${HOST} 127.0.0.1`] },
   },
 });

@@ -140,6 +140,7 @@ describe("the commands run on the server", () => {
     expect(composeCommand(cfg, "ps")).toBe("docker compose --env-file /opt/flowchain/compose.env -f /opt/flowchain/app/deploy/compose.yaml ps");
     expect(upScript(cfg)).toContain("up -d --build --remove-orphans --wait --wait-timeout 3600\n");
     expect(upScript(cfg)).toContain("restart proxy\n");
+    expect(upScript(cfg)).toContain("docker image prune -f");
   });
 
   it("installs Docker only when it is missing and creates every data folder", () => {

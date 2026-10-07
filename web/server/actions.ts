@@ -17,10 +17,15 @@ type RerollTarget = { scene: number; stage: string };
 
 /** Buys the script for a new run and stops there. The keys the chosen provider needs must be set first. */
 export async function createDraft(input: NewVideo): Promise<{ runId: string; job: JobView }> {
-  const { missing } = await studioHealth();
+  const { missing, queue } = await studioHealth();
+  // with the queue the keys are the worker's: when it cannot be asked, nothing is known about them
+  if (queue.mode === "queue" && !(queue.redis && queue.worker)) {
+    throw new ApiError(queue.redis ? "worker_offline" : "queue_unavailable", queue.redis ? "the worker is offline" : "the job queue is unavailable", "nothing was started; try again in a moment");
+  }
   const unset = [...missing.always, ...missing[input.provider]];
   if (unset.length > 0) {
-    throw new ApiError("missing_keys", `not set in .env: ${unset.join(", ")}`, "add them to .env in the repository, then try again");
+    const where = queue.mode === "queue" ? "set them in .env or deploy/server.env and run npm run server:setup again" : "add them to .env in the repository, then try again";
+    throw new ApiError("missing_keys", `${queue.mode === "queue" ? "the worker has no" : "not set in .env:"} ${unset.join(", ")}`, where);
   }
   if (input.brandKit && !existsSync(kitDir(input.brandKit))) throw new ApiError("validation", `brandKit: no kit "${input.brandKit}"`);
   if (input.music && !existsSync(musicPath(input.music))) throw new ApiError("validation", `music: no track ${input.music}`);

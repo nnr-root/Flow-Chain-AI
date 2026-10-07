@@ -188,7 +188,8 @@ deploy is cut off (the laptop sleeps, the connection drops), run it again; it pi
 
 On the server the web app holds no provider keys and never runs the CLI; only the worker does. The data is in
 `/opt/flowchain/data` (`runs/`, `brand-kits/`, `uploads/`): a run made there is an ordinary run folder. The
-backup copies new and changed files and never deletes from the bucket. If the worker is down, the studio says
+backup copies new and changed files and never deletes from the bucket. How many jobs run at once is
+`WORKER_CONCURRENCY` in `deploy/server.env` there (`STUDIO_MAX_JOBS` applies to `npm run web` only). If the worker is down, the studio says
 so and refuses to start paid work instead of queueing it.
 
 Locally nothing changes: without `REDIS_URL`, `npm run web` starts jobs itself as before. To try the queue on

@@ -1,7 +1,8 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import { PORT, runs } from "./stack";
+import { request } from "node:http";
+import { HOST, PASSWORD, PORT, runs, USER } from "./stack";
 
 const DONE_ID = "20261006-120000-e2e001";
 const DRAFT_ID = "20261006-120100-e2e002";
@@ -12,22 +13,38 @@ const calls = (): string[][] => {
   return readFileSync(file, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l) as string[]);
 };
 
-test("nothing answers without the login: pages, the API and media", async () => {
-  // plain fetch: nothing here may borrow the login the browser tests are configured with
-  const base = `http://localhost:${PORT}`;
-  for (const path of ["/", "/api/health", `/api/runs/${DONE_ID}`, `/api/runs/${DONE_ID}/files/final.mp4`]) {
-    expect((await fetch(base + path)).status, path).toBe(401);
+/** A request to the proxy as a client on the internet would send it: any Host name, with or without the login. */
+function get(path: string, opts: { host?: string; login?: string } = {}): Promise<{ status: number; body: string }> {
+  return new Promise((done, fail) => {
+    const headers: Record<string, string> = { host: `${opts.host ?? HOST}:${PORT}` };
+    if (opts.login) headers.authorization = `Basic ${Buffer.from(opts.login).toString("base64")}`;
+    request({ host: "127.0.0.1", port: PORT, path, headers }, (res) => {
+      let body = "";
+      res.on("data", (chunk: Buffer) => (body += chunk.toString()));
+      res.on("end", () => done({ status: res.statusCode ?? 0, body }));
+    })
+      .on("error", fail)
+      .end();
+  });
+}
+const LOGIN = `${USER}:${PASSWORD}`;
+
+test("nothing answers without the login, and with it only the studio's own name is answered", async () => {
+  for (const path of ["/", "/api/health", `/api/runs/${DONE_ID}`, `/api/runs/${DONE_ID}/files/final.mp4`, `/api/runs/${DONE_ID}/events`]) {
+    expect((await get(path)).status, path).toBe(401);
   }
-  const wrong = await fetch(`${base}/`, { headers: { authorization: `Basic ${Buffer.from("studio:nope").toString("base64")}` } });
-  expect(wrong.status).toBe(401);
+  expect((await get("/", { login: `${USER}:nope` })).status).toBe(401);
+  // behind the login the app's own guard still stands: the configured public name, and no other
+  expect((await get("/api/health", { login: LOGIN })).status).toBe(200);
+  for (const path of ["/", "/api/health"]) expect((await get(path, { login: LOGIN, host: "other.example" })).status, path).toBe(403);
 });
 
-test("behind the login the studio works through the queue: a job waits its turn, runs in the worker and the page follows it", async ({ page, request }) => {
+test("behind the login the studio works through the queue: a job waits its turn, runs in the worker and the page follows it", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
 
   // the web container holds no keys: it learns from the worker which are set, and that the worker is there
-  const health = await (await request.get("/api/health")).json();
+  const health = JSON.parse((await get("/api/health", { login: LOGIN })).body);
   expect(health.queue).toEqual({ mode: "queue", redis: true, worker: true });
   expect(health.missing).toEqual({ always: [], fal: [], runpod: expect.any(Array) });
 

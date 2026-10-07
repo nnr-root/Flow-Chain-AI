@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { compose, composeEnv, data, PASSWORD, PORT, repo, runs, USER, web } from "./stack";
+import { compose, composeEnv, data, HOST, PASSWORD, PORT, repo, runs, USER, web } from "./stack";
 
 /**
  * Brings up the real Compose stack on this machine — proxy with the login, web, worker, Redis — over a fixture
@@ -43,8 +43,8 @@ async function up(): Promise<void> {
   writeFileSync(
     join(data, "compose.env"),
     [
-      "STUDIO_HOST=localhost",
-      "STUDIO_SITE=:80", // plain HTTP, any host name: the test reaches it as localhost:<port>
+      `STUDIO_HOST=${HOST}`,
+      "STUDIO_SITE=:80", // plain HTTP on a port; the browser is told that the public name is this machine
       `STUDIO_USER=${USER}`,
       `STUDIO_PASSWORD_HASH='${hash}'`, // single quotes: a bcrypt hash is full of $ signs
       `DATA_DIR=${data}`,

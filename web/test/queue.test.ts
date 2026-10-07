@@ -6,6 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { cliJson, cliText, JOB_FILE, runner, startJob, stopJob, studioHealth, viewJob } from "@/server/jobs";
 import { closeQueue } from "@/server/jobs/queue";
 import { KEYS, QUEUES } from "@/server/jobs/redis";
+import { createDraft } from "@/server/actions";
 import { runEvents } from "@/server/events";
 import { readRun } from "@/server/runs";
 import { calls, draftManifest, nextRunId, saveRun, stub, until, useStudio } from "./helpers";
@@ -229,6 +230,43 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     expect(await ended(id)).toMatchObject({ exitCode: 0 });
   });
 
+  it("a lock left by a CLI that was killed outright does not shut the run: the worker runs every CLI there is", async () => {
+    await stub(studio, "_behave.json", { sleepMs: 1500 });
+    await worker();
+    const id = nextRunId();
+    await startJob(id, "generate", ["resume", id]);
+    await until(async () => (await calls(studio)).length === 1);
+    const { pid } = JSON.parse(await readFile(join(studio.runs, id, JOB_FILE), "utf8"));
+    // the CLI takes its lock, then dies without a chance to remove it; the worker lives on
+    await writeFile(join(studio.runs, id, ".lock"), `${pid}\n`);
+    process.kill(-pid, "SIGKILL");
+    await until(async () => (await state(id)) === "interrupted");
+    await until(() => !existsSync(join(studio.runs, id, ".lock")));
+
+    // and one found at the start of a job (left while no job of the run was running) is cleared as well
+    await stub(studio, "_behave.json", {});
+    await writeFile(join(studio.runs, id, ".lock"), "999999\n");
+    await startJob(id, "generate", ["resume", id]);
+    expect(await ended(id)).toMatchObject({ exitCode: 0 });
+    expect(existsSync(join(studio.runs, id, ".lock"))).toBe(false);
+  });
+
+  it("while it lets its jobs finish at a shutdown, the worker still answers quick questions", async () => {
+    await stub(studio, "_behave.json", { sleepMs: 4000 });
+    const w = await worker();
+    const id = nextRunId();
+    await startJob(id, "generate", ["resume", id]);
+    await until(async () => (await calls(studio)).length === 1);
+    const stopping = w.stop();
+    workers = [];
+    await until(() => w.output().includes("shutting down"));
+    const t0 = Date.now();
+    expect((await studioHealth()).queue).toEqual({ mode: "queue", redis: true, worker: true });
+    expect(Date.now() - t0).toBeLessThan(3000);
+    expect(await stopping).toBe(0);
+    expect(await viewJob(id)).toMatchObject({ state: "ended", exitCode: 0 });
+  });
+
   it("free, short commands go through the quick queue and come back with the CLI's output or its error", async () => {
     await worker();
     await stub(studio, "_plan.json", { items: [{ stage: "tts", scene: 1, costUsd: 0.02 }], totalUsd: 0.02 });
@@ -247,6 +285,9 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     const id = nextRunId();
     await expect(startJob(id, "generate", ["resume", id])).rejects.toMatchObject({ code: "worker_offline" });
     await expect(cliText(["plan", id, "--json"])).rejects.toMatchObject({ code: "worker_offline" });
+    // a new video is refused for that reason too, not waved through because no key is known to be missing
+    const video = { topic: "t", aspect: "9:16", scenes: 4, style: "auto", motion: "auto", provider: "fal", budgetUsd: 3, captionStyle: "preset", transition: "auto", musicGain: 0.35, sfxGain: 0.6, sfx: true, hook: { mode: "gemini" } };
+    await expect(createDraft(video as Parameters<typeof createDraft>[0])).rejects.toMatchObject({ code: "worker_offline" });
     expect(await inRedis(id)).toBe(false);
     expect(await admin.keys("bull:*:[0-9]*")).toEqual([]);
   });

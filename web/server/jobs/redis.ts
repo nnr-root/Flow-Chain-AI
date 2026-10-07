@@ -30,6 +30,22 @@ export type RunJobResult = { exitCode: number | null; stopped?: boolean };
 export type QuickJobData = { args: string[] };
 export type QuickJobResult = { stdout: string };
 
+/**
+ * What the worker agrees to run, whoever put the job in Redis: the commands the studio sends and no others.
+ * The provider keys live with the worker, so it does not take the web's word that a job is one of these.
+ * Returns why a job is refused, or nothing when it may run.
+ */
+export function refusal(queue: keyof typeof QUEUES, args: unknown): string | undefined {
+  if (!Array.isArray(args) || args.length === 0 || !args.every((a) => typeof a === "string")) return "the job has no command";
+  const [command] = args as string[];
+  if (queue === "quick") return ["plan", "draft-modes", "look"].includes(command) ? undefined : `"${command}" is not a quick command`;
+  // a draft buys only the script and says so with --yes; everything else spends up to an approved amount and must stop to ask
+  if (command === "run") return args.includes("--draft") ? undefined : "a run may only be started as a draft";
+  if (command === "rerender") return undefined;
+  if (command === "resume" || command === "reroll") return args.includes("--yes") ? `"${command}" may not be started with --yes` : undefined;
+  return `"${command}" is not a job command`;
+}
+
 /** How long the web waits for a quick job before telling the user the worker is busy or offline. */
 export const QUICK_WAIT_MS = 60_000;
 
