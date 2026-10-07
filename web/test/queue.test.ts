@@ -158,12 +158,21 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     process.kill(-pid, "SIGKILL");
     await first.exited;
 
+    // with no worker alive the run does not go on reading "working", whatever Redis still has on record,
+    // and a stop has nobody to tell
+    await until(async () => (await admin.exists(KEYS.worker)) === 0);
+    expect(await inRedis(id)).toBe(true);
+    expect(await state(id)).toBe("interrupted");
+    await expect(stopJob(id)).rejects.toMatchObject({ code: "worker_offline" });
+
     await stub(studio, "_behave.json", {});
     const second = await worker();
+    // the next worker removes what the dead one left before it takes a job: the run is free at once
+    expect(second.output()).toContain(`removed the jobs a dead worker left of ${id}`);
     expect(second.output()).toContain(`cleared stale locks of ${id}`);
     expect(existsSync(join(studio.runs, id, ".lock"))).toBe(false);
-    await until(async () => (await state(id)) === "interrupted");
-    await until(async () => !(await inRedis(id)));
+    expect(await inRedis(id)).toBe(false);
+    expect(await state(id)).toBe("interrupted");
     await new Promise((r) => setTimeout(r, 1500));
     expect(await calls(studio)).toHaveLength(1); // not re-run
     // resumable: the user's next action is a new job
@@ -237,6 +246,8 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     expect(Date.now() - t0).toBeLessThan(5000);
     expect((await studioHealth()).queue).toEqual({ mode: "queue", redis: false, worker: false });
 
+    // away for longer than the worker's guard lives (1.5 s here): the worker takes the guard again and carries on
+    await new Promise((r) => setTimeout(r, 2500));
     await redis.start();
     // the running job recorded its result on disk whatever Redis did; the waiting one is taken once Redis is back
     await until(async () => (await calls(studio)).length === 2, 30_000);
@@ -248,5 +259,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
       }
     }, 30_000);
     expect((await calls(studio)).map((call) => call[1])).toEqual([a, b]);
+    expect(workers[0].child.exitCode).toBeNull(); // the same worker, still running
+    expect(workers[0].output()).toContain("took it again");
   });
 });

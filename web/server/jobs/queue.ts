@@ -102,7 +102,9 @@ async function view(e: Ends, runId: string): Promise<JobView | null> {
   const q = await e.runs.getJob(runId);
   if (q) {
     const state = await q.getState();
-    if (state === "active") {
+    // "active" is only what the worker last told Redis. With no worker alive nothing is being worked on: the
+    // run folder says how far the job got, and the next worker removes this record before it takes a job.
+    if (state === "active" && (await workerAlive(e.redis))) {
       // the worker writes job.json when it starts the CLI; until then the queue's own record stands in
       const record = readJobRecord(dir);
       const mine = record && record.startedAt >= q.data.enqueuedAt ? record : fromQueue(q);
@@ -151,13 +153,19 @@ export function queueRunner(url: string): JobRunner {
         const q = await e.runs.getJob(runId);
         const state = q ? await q.getState() : undefined;
         if (!q || state === "completed" || state === "failed" || state === "unknown") throw new ApiError("not_found", `run ${runId} has no running job`);
-        if (state === "active") {
-          // the worker that holds the job ends its process group and records that it was stopped
-          await e.redis.publish(KEYS.cancel, runId);
-          return (await view(e, runId)) ?? { ...fromQueue(q), state: "running" };
+        if (state !== "active") {
+          try {
+            await q.remove();
+            return { ...fromQueue(q), stoppedAt: new Date().toISOString(), state: "stopped" };
+          } catch (err) {
+            // the worker took the job between the two calls: it is working now, and is stopped as such
+            if ((await q.getState()) !== "active") throw err;
+          }
         }
-        await q.remove();
-        return { ...fromQueue(q), stoppedAt: new Date().toISOString(), state: "stopped" };
+        // the worker that holds the job ends its process group and records that it was stopped
+        const listeners = await e.redis.publish(KEYS.cancel, runId);
+        if (listeners === 0) throw new ApiError("worker_offline", "the worker is offline", "the job could not be told to stop; it is not running if the worker is down");
+        return (await view(e, runId)) ?? { ...fromQueue(q), state: "running" };
       }),
 
     view: (runId) => reach(async () => view(await ends(url), runId)),
@@ -190,10 +198,12 @@ export function queueRunner(url: string): JobRunner {
       }
       if (!worker) return { ...UNKNOWN, queue: { mode: "queue", redis: true, worker: false } };
       if (!e.health || Date.now() - e.health.at > HEALTH_TTL_MS) {
+        let job: QueueJob<QuickJobData, QuickJobResult> | undefined;
         try {
-          const job = await e.quick.add("health", { args: [] }, JOB_OPTIONS);
+          job = await e.quick.add("health", { args: [] }, JOB_OPTIONS);
           e.health = { at: Date.now(), value: JSON.parse((await job.waitUntilFinished(e.quickEvents, 10_000)).stdout) as Health };
         } catch {
+          await job?.remove().catch(() => {}); // an unanswered question is not left in line
           return { ...UNKNOWN, queue: { mode: "queue", redis: true, worker: false } };
         }
       }

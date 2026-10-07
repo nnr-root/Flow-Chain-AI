@@ -2,7 +2,7 @@ import type { ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { type Job as QueueJob, Worker } from "bullmq";
+import { type Job as QueueJob, Queue, Worker } from "bullmq";
 import type { Redis } from "ioredis";
 import { RUN_ID } from "@src/studio/commands";
 import { health, roots } from "../server/config";
@@ -52,6 +52,34 @@ export async function sweepLocks(runsDir: string): Promise<string[]> {
   return cleared;
 }
 
+/**
+ * Removes the jobs a dead worker left marked as "being worked on". Like the lock sweep, only the single worker
+ * may do this and only before it takes a job: at that moment nothing is being worked on, whatever Redis says.
+ * Without it such a run would read "working" and refuse Resume until the queue's own stall check came round.
+ */
+export async function clearOrphans(redis: Redis): Promise<string[]> {
+  const cleared: string[] = [];
+  for (const name of [QUEUES.runs, QUEUES.quick]) {
+    const queue = new Queue(name, { connection: redis });
+    queue.on("error", () => {});
+    try {
+      for (const job of await queue.getActive()) {
+        if (!job.id) continue;
+        // the dead worker's lock on the job would refuse the removal until it expires
+        await redis.del(`${queue.toKey(job.id)}:lock`);
+        await job.remove();
+        if (name === QUEUES.runs) cleared.push(job.id);
+      }
+    } finally {
+      await queue.close();
+    }
+  }
+  return cleared;
+}
+
+/** How long a job that was told to end at shutdown gets before it is killed outright. */
+const KILL_AFTER_MS = 10_000;
+
 export type RunningWorker = { id: string; close: () => Promise<void> };
 
 /**
@@ -78,33 +106,70 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     }
     await new Promise((r) => setTimeout(r, 200));
   }
-  const renewal = setInterval(() => {
-    redis.eval(RENEW, 1, KEYS.worker, id, String(guardTtl)).then(
-      (kept) => {
-        if (kept === 0) {
-          // the guard expired and someone else may hold it: this worker must not go on as if it were alone
-          log("worker: lost the single-worker guard; exiting");
-          process.exit(1);
-        }
-      },
-      () => {}, // Redis is away: running jobs carry on and record their result on disk
-    );
-  }, Math.max(100, Math.floor(guardTtl / 3)));
-
-  const cleared = await sweepLocks(roots().runs);
-  if (cleared.length > 0) log(`worker: cleared stale locks of ${cleared.join(", ")}`);
-
   /** Jobs this worker is running, by run id. */
   const active = new Map<string, { record: Job; child: ChildProcess; dir: string }>();
+  /** Runs whose CLI is being started, and those among them that were told to stop meanwhile. */
+  const starting = new Set<string>();
+  const stopAfterStart = new Set<string>();
+  const signalAll = (signal: NodeJS.Signals) => {
+    for (const held of active.values()) {
+      try {
+        if (held.record.pid !== undefined) process.kill(-held.record.pid, signal);
+      } catch {
+        // already gone
+      }
+    }
+  };
+
+  const renew = async () => {
+    if ((await redis.eval(RENEW, 1, KEYS.worker, id, String(guardTtl))) !== 0) return;
+    // The guard ran out, which is what a Redis outage longer than its lifetime does. If nobody took it meanwhile
+    // this is still the one worker: take it again and carry on, so the jobs that are running finish.
+    if ((await redis.set(KEYS.worker, id, "PX", guardTtl, "NX")) === "OK") {
+      log("worker: the single-worker guard had expired; took it again");
+      return;
+    }
+    if ((await redis.get(KEYS.worker)) === id) return;
+    // another worker holds it and has cleared the locks: nothing of this one's may go on beside it
+    log("worker: lost the single-worker guard to another worker; ending running jobs and exiting");
+    signalAll("SIGTERM");
+    process.exit(1);
+  };
+  // one renewal at a time: while Redis is away they must not pile up and all answer at once when it is back
+  let renewing = false;
+  const renewal = setInterval(() => {
+    if (renewing) return;
+    renewing = true;
+    renew()
+      .catch(() => {}) // Redis is away: running jobs carry on and record their result on disk
+      .finally(() => (renewing = false));
+  }, Math.max(100, Math.floor(guardTtl / 3)));
+
+  const orphans = await clearOrphans(redis);
+  if (orphans.length > 0) log(`worker: removed the jobs a dead worker left of ${orphans.join(", ")}`);
+  const cleared = await sweepLocks(roots().runs);
+  if (cleared.length > 0) log(`worker: cleared stale locks of ${cleared.join(", ")}`);
 
   const runJob = async (job: QueueJob<RunJobData>): Promise<RunJobResult> => {
     const { runId, kind, args, approvedUsd } = job.data;
     const dir = runFolder(runId);
-    const { job: record, child } = await spawnCli(runId, kind, args, approvedUsd);
+    // After a long Redis outage the queue can lose track of a job whose CLI is still working and hand the run
+    // out again. One CLI per run, whatever the queue believes.
+    if (active.has(runId) || starting.has(runId)) throw new Error(`run ${runId} is still being worked on by this worker`);
+    starting.add(runId);
+    let started: { job: Job; child: ChildProcess };
+    try {
+      started = await spawnCli(runId, kind, args, approvedUsd);
+    } finally {
+      starting.delete(runId);
+    }
+    const { job: record, child } = started;
     active.set(runId, { record, child, dir });
     log(`worker: ${kind} ${runId} started (pid ${record.pid})`);
     try {
-      await new Promise<void>((done) => child.once("exit", () => done()));
+      if (stopAfterStart.delete(runId)) await stopProcess(dir, record).catch(() => {});
+      // the CLI may have ended while its record was being written: then there is no exit event left to wait for
+      if (child.exitCode === null && child.signalCode === null) await new Promise<void>((done) => child.once("exit", () => done()));
     } finally {
       active.delete(runId);
     }
@@ -126,9 +191,13 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   await subscriber.subscribe(KEYS.cancel);
   subscriber.on("message", (_channel, runId) => {
     const held = active.get(runId);
-    if (!held) return;
+    if (!held) {
+      // asked to stop while its CLI is being started: stop it as soon as it is
+      if (starting.has(runId)) stopAfterStart.add(runId);
+      return;
+    }
     log(`worker: stopping ${runId}`);
-    void stopProcess(held.dir, held.record);
+    stopProcess(held.dir, held.record).catch((err: Error) => log(`worker: could not stop ${runId}: ${err.message}`));
   });
   await Promise.all([runs.waitUntilReady(), quick.waitUntilReady()]);
   log(`worker ${id}: ready (runs ×${opts.concurrency ?? 2}, quick ×4)`);
@@ -145,15 +214,12 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       clearTimeout(timer);
       if (!finished) {
         // out of time: end what is left. No stoppedAt is recorded, so these runs read "interrupted" and can be resumed.
-        for (const [runId, held] of active) {
-          log(`worker: ending ${runId} (not finished in time)`);
-          try {
-            if (held.record.pid !== undefined) process.kill(-held.record.pid, "SIGTERM");
-          } catch {
-            // already gone
-          }
-        }
-        await Promise.allSettled([runs.close(true), quick.close(true)]);
+        for (const runId of active.keys()) log(`worker: ending ${runId} (not finished in time)`);
+        signalAll("SIGTERM");
+        // a CLI that ignores the request is killed, so the shutdown always ends
+        const kill = setTimeout(() => signalAll("SIGKILL"), KILL_AFTER_MS);
+        await drained.catch(() => {});
+        clearTimeout(kill);
       }
       clearInterval(renewal);
       await redis.eval(RELEASE, 1, KEYS.worker, id).catch(() => {});
