@@ -2,17 +2,22 @@ import { existsSync } from "node:fs";
 import { newRunId } from "@src/manifest/store";
 import type { PlanJson } from "@src/studio/commands";
 import { statusOf } from "@src/studio/status";
-import { health } from "./config";
 import { ApiError } from "./http";
-import { cliJson, cliText, type JobView, readJob, startJob } from "./jobs";
-import { requireManifest, runDir } from "./runs";
+import { cliJson, cliText, type JobView, startJob, studioHealth, viewJob } from "./jobs";
+import { requireManifest } from "./runs";
 import { draftArgs, kitDir, type Look, modesArg, musicPath, type NewVideo, rerenderArgs } from "./schemas";
+
+/** The run has a job that is running or waiting its turn. */
+async function busy(runId: string): Promise<boolean> {
+  const state = (await viewJob(runId))?.state;
+  return state === "running" || state === "queued";
+}
 
 type RerollTarget = { scene: number; stage: string };
 
 /** Buys the script for a new run and stops there. The keys the chosen provider needs must be set first. */
 export async function createDraft(input: NewVideo): Promise<{ runId: string; job: JobView }> {
-  const { missing } = health();
+  const { missing } = await studioHealth();
   const unset = [...missing.always, ...missing[input.provider]];
   if (unset.length > 0) {
     throw new ApiError("missing_keys", `not set in .env: ${unset.join(", ")}`, "add them to .env in the repository, then try again");
@@ -38,7 +43,7 @@ export async function setModes(runId: string, modes: Array<1 | 2 | null>): Promi
   const m = await requireManifest(runId);
   if (!statusOf(m).draft) throw new ApiError("not_draft", "media was already bought for this run, so its modes are fixed");
   if (m.request.modes) throw new ApiError("not_draft", "this run was created with fixed modes");
-  if (readJob(runDir(runId))?.state === "running") throw new ApiError("job_active", `run ${runId} is working`);
+  if (await busy(runId)) throw new ApiError("job_active", `run ${runId} is working`);
   await cliJson(["draft-modes", runId, "--modes", modesArg(modes), "--json"]);
   return price(runId);
 }
@@ -80,7 +85,7 @@ export async function reroll(runId: string, target: RerollTarget, approvedUsd: n
 export async function saveLook(runId: string, look: Look): Promise<void> {
   await requireManifest(runId);
   if (look.brandKit && !existsSync(kitDir(look.brandKit))) throw new ApiError("validation", `brandKit: no kit "${look.brandKit}"`);
-  if (readJob(runDir(runId))?.state === "running") throw new ApiError("job_active", `run ${runId} is working`);
+  if (await busy(runId)) throw new ApiError("job_active", `run ${runId} is working`);
   await cliText(rerenderArgs(runId, look, "look"));
 }
 

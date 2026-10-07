@@ -1,0 +1,26 @@
+import { localRunner } from "./local";
+import type { JobKind, JobRunner, JobView, StudioHealth } from "./types";
+
+export { hasStaleLock, liveJobs, readJob } from "./local";
+export { childEnv, logTail } from "./run-cli";
+export * from "./types";
+
+/** The runner in use. */
+export function runner(): JobRunner {
+  return localRunner;
+}
+
+export const startJob = (runId: string, kind: JobKind, args: string[], approvedUsd?: number): Promise<JobView> =>
+  runner().start(runId, kind, args, approvedUsd);
+export const stopJob = (runId: string): Promise<JobView> => runner().stop(runId);
+export const viewJob = (runId: string): Promise<JobView | null> => runner().view(runId);
+export const clearStaleLock = (runId: string): Promise<void> => runner().clearStaleLock(runId);
+export const studioHealth = (): Promise<StudioHealth> => runner().health();
+
+/** Runs a free, short CLI command to its end and returns what it printed. */
+export const cliText = (args: string[]): Promise<string> => runner().cliText(args);
+
+/** Runs a free, short CLI command (plan, draft-modes) and returns its JSON output. */
+export async function cliJson<T>(args: string[]): Promise<T> {
+  return JSON.parse(await cliText(args)) as T;
+}

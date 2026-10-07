@@ -24,6 +24,9 @@ describe("run state", () => {
     expect(stateOf(draft, null)).toBe("draft");
     expect(stateOf(draft, job({ state: "ended", exitCode: 0 }))).toBe("draft");
     expect(stateOf(draft, job({ state: "running" }))).toBe("running");
+    // waiting in the queue's line: before the manifest exists (a draft being created) and after
+    expect(stateOf(null, job({ state: "queued", position: 2 }))).toBe("queued");
+    expect(stateOf(finished, job({ state: "queued", position: 1 }))).toBe("queued");
     expect(stateOf(draft, job({ state: "ended", exitCode: 2 }))).toBe("needs_approval");
     expect(stateOf(draft, job({ state: "interrupted" }))).toBe("interrupted");
     expect(stateOf(finished, null)).toBe("done");

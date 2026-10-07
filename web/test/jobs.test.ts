@@ -3,11 +3,24 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { maxJobs } from "@/server/config";
-import { childEnv, clearStaleLock, cliJson, JOB_EXIT, JOB_FILE, JOB_LOG, liveJobs, logTail, readJob, startJob, stopJob } from "@/server/jobs";
+import {
+  childEnv, clearStaleLock, cliJson, JOB_EXIT, JOB_FILE, JOB_LOG, liveJobs, logTail, readJob, runner, startJob, stopJob, studioHealth, viewJob,
+} from "@/server/jobs";
 import { calls, nextRunId, stub, until, useStudio } from "./helpers";
 
 const studio = useStudio();
 const ended = (dir: string) => until(() => (readJob(dir)?.state !== "running" ? readJob(dir) : null));
+
+describe("the runner", () => {
+  it("is the local one without a Redis address: the CLI is this server's own child and nothing is queued", async () => {
+    expect(runner().mode).toBe("local");
+    expect((await studioHealth()).queue).toEqual({ mode: "local" });
+    const id = nextRunId();
+    expect(await viewJob(id)).toBeNull();
+    expect((await startJob(id, "generate", ["resume", id])).state).toBe("running");
+    await until(async () => (await viewJob(id))?.state === "ended");
+  });
+});
 
 describe("jobs", () => {
   it("starts the CLI detached with the run's arguments, logs its output and records how it ended", async () => {
@@ -74,7 +87,7 @@ describe("jobs", () => {
     expect(existsSync(join(dir, JOB_EXIT))).toBe(false);
     await until(() => {
       try {
-        process.kill(job.pid, 0);
+        process.kill(job.pid!, 0);
         return false;
       } catch {
         return true;

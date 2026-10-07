@@ -10,9 +10,9 @@ import { buildDraftProps, type LookFlags, previewProps } from "@src/studio/props
 import { type RunStatus, statusOf } from "@src/studio/status";
 import { roots } from "./config";
 import { ApiError } from "./http";
-import { hasStaleLock, type JobView, readJob } from "./jobs";
+import { type JobView, runner, viewJob } from "./jobs";
 
-export type RunState = "creating" | "draft" | "running" | "needs_approval" | "failed" | "interrupted" | "done" | "incomplete";
+export type RunState = "creating" | "draft" | "queued" | "running" | "needs_approval" | "failed" | "interrupted" | "done" | "incomplete";
 
 export type RunView = {
   runId: string;
@@ -33,6 +33,7 @@ export function runDir(runId: string): string {
 /** Derived from the manifest and the last job; never stored (spec §3.3). */
 export function stateOf(m: Manifest | null, job: JobView | null): RunState {
   if (job?.state === "running") return "running";
+  if (job?.state === "queued") return "queued";
   if (!m) return job ? "failed" : "creating";
   if (job?.state === "interrupted") return "interrupted";
   // exit code 2 is the CLI's "the estimate was not confirmed": the plan exceeded what was approved
@@ -52,11 +53,12 @@ export async function readManifest(runId: string): Promise<Manifest | null> {
 }
 
 export async function readRun(runId: string): Promise<RunView> {
-  const dir = runDir(runId);
-  const job = readJob(dir);
+  runDir(runId);
+  const job = await viewJob(runId);
   const manifest = await readManifest(runId);
   if (!manifest && !job) throw new ApiError("not_found", `no run ${runId}`);
-  return { runId, state: stateOf(manifest, job), job, staleLock: hasStaleLock(dir, job), ...(manifest ? { status: statusOf(manifest) } : {}) };
+  const staleLock = await runner().staleLock(runId, job);
+  return { runId, state: stateOf(manifest, job), job, staleLock, ...(manifest ? { status: statusOf(manifest) } : {}) };
 }
 
 /** A run that must have a manifest (every action but watching a draft being created). */

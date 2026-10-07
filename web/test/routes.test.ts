@@ -39,6 +39,7 @@ describe("reads", () => {
         runpod: ["RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"],
       },
       defaults: { provider: "runpod", budgetUsd: 5 },
+      queue: { mode: "local" },
     });
     expect(text).not.toContain("secret");
   });
