@@ -1,13 +1,16 @@
 import { localRunner } from "./local";
+import { queueRunner } from "./queue";
+import { redisUrl } from "./redis";
 import type { JobKind, JobRunner, JobView, StudioHealth } from "./types";
 
 export { hasStaleLock, liveJobs, readJob } from "./local";
 export { childEnv, logTail } from "./run-cli";
 export * from "./types";
 
-/** The runner in use. */
+/** The runner in use: the queue when a Redis address is configured (the server), otherwise this process's own children. */
 export function runner(): JobRunner {
-  return localRunner;
+  const url = redisUrl();
+  return url ? queueRunner(url) : localRunner;
 }
 
 export const startJob = (runId: string, kind: JobKind, args: string[], approvedUsd?: number): Promise<JobView> =>
