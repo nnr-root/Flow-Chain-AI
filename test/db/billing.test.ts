@@ -256,6 +256,61 @@ describe.skipIf(!supa)("billing in the database", () => {
     }
   });
 
+  it("lets what a job hands back after its month pay a debt before it expires, and takes credit that is merely out for no debt", async () => {
+    // credit taken back by hand while the month's credit is out with a job: as without a job, it comes off what
+    // could expire, and the month's end takes only the rest
+    const sub = unique("sub");
+    await month(a, 10, { sub });
+    const held = await reserve(a, await run(a), 10);
+    await rpc("grant_credit", { p_email: a.email, p_amount_usd: -5, p_note: "taken back" });
+    await rpc("end_subscription", { p_event_id: unique("evt"), p_user_id: a.id, p_subscription_id: sub });
+    await settle(held, 0);
+    expect(await account(a)).toEqual({ balance: 0, plan: 0, period: 2 });
+    expect((await kinds(a)).slice(-2)).toEqual(["settle 10 → 5", "expire -5 → 0"]);
+
+    // A balance below zero is not a debt while another job holds what covers it. A top-up is held by one job,
+    // the month by another; the top-up is refunded; the month ends; neither job spends anything. Nothing is
+    // left, whichever settles first — never the top-up's 6 that were given back to the customer.
+    for (const monthFirst of [true, false]) {
+      const u = await newUser(s, "out");
+      const [charge, plan] = [unique("ch"), unique("sub")];
+      await topup(u, 6, { paid: 12, charge });
+      await month(u, 10, { sub: plan });
+      const ofMonth = await reserve(u, await run(u), 10);
+      const ofTopup = await reserve(u, await run(u), 6);
+      await rpc("refund_payment", { p_event_id: unique("evt"), p_charge_id: charge, p_refunded_usd: 12 });
+      await rpc("end_subscription", { p_event_id: unique("evt"), p_user_id: u.id, p_subscription_id: plan });
+      for (const job of monthFirst ? [ofMonth, ofTopup] : [ofTopup, ofMonth]) await settle(job, 0);
+      expect(await account(u), monthFirst ? "the month's job first" : "the top-up's job first").toEqual({ balance: 0, plan: 0, period: 2 });
+    }
+  });
+
+  it("notes a refund against jobs only for credit that is out with them", async () => {
+    const owed = async (u: TestUser) => (await db().from("plan_refunds_out").select("owed_usd").eq("user_id", u.id)).data!.map((r) => Number(r.owed_usd));
+    // the month was spent and settled before it was refunded: a plain debt, nothing is out
+    const charge = unique("ch");
+    await month(a, 10, { paid: 20, charge });
+    await settle(await reserve(a, await run(a), 10), 10);
+    await rpc("refund_payment", { p_event_id: unique("evt"), p_charge_id: charge, p_refunded_usd: 20 });
+    expect(await account(a)).toEqual({ balance: -10, plan: 0, period: 1 });
+    expect(await owed(a)).toEqual([]);
+
+    // 4 at hand and 6 out: a full refund takes the 4, and notes 6 — not 10 — against the job; a refund reported
+    // again with the same total notes nothing more
+    const bCharge = unique("ch");
+    await month(b, 10, { paid: 20, charge: bCharge });
+    const job = await reserve(b, await run(b), 6);
+    await rpc("refund_payment", { p_event_id: unique("evt"), p_charge_id: bCharge, p_refunded_usd: 10 });
+    expect(await owed(b)).toEqual([1]); // half: 5 taken, 4 of them at hand
+    await rpc("refund_payment", { p_event_id: unique("evt"), p_charge_id: bCharge, p_refunded_usd: 20 });
+    await rpc("refund_payment", { p_event_id: unique("evt"), p_charge_id: bCharge, p_refunded_usd: 20 });
+    expect(await owed(b)).toEqual([6]);
+    // the job spends 2 of its 6: the 4 it hands back were refunded already, and do not return as plan credit
+    await settle(job, 2);
+    expect(await account(b)).toEqual({ balance: -2, plan: 0, period: 1 });
+    expect(await owed(b)).toEqual([2]);
+  });
+
   it("ends every way a refunded month can go with two jobs out at what a plain sum says", async () => {
     // Every combination of: other credit or none; how much each job holds; how much of the month is refunded;
     // whether the month then ends, is followed by another, or goes on; what each job spends; which settles
@@ -425,6 +480,8 @@ describe.skipIf(!supa)("billing in the database", () => {
     expect((await a.client.from("subscriptions").update({ plan: "pro" }).eq("user_id", a.id)).error?.code).toBe("42501");
     expect((await a.client.from("users").update({ plan_credit_usd: 0, balance_usd: 99 }).eq("id", a.id)).error?.code).toBe("42501");
     expect((await a.client.from("stripe_events").select("*")).error?.code).toBe("42501");
+    expect((await a.client.from("plan_refunds_out").select("*")).error?.code).toBe("42501");
+    expect((await a.client.from("plan_refunds_out").insert({ user_id: a.id, plan_period: 0, owed_usd: 99 })).error?.code).toBe("42501");
     // their own, and nobody else's
     expect((await a.client.from("payments").select("user_id")).data).toEqual([{ user_id: a.id }]);
     expect((await a.client.from("payments").select("*").eq("user_id", b.id)).data).toEqual([]);

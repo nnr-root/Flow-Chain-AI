@@ -140,7 +140,9 @@ end $$;
 -- The charge consumes the reservation's plan part first. What is left of that part is first set against what
 -- a refund already took back of that month's credit while it was out (`plan_refunds_out`). The rest goes back
 -- to plan credit when its month is still the current one; after the month has ended it expires — but, like
--- all expiry, never beyond what is there: it does not take the balance below zero.
+-- all expiry, never beyond what is there. "What is there" counts what the user's other jobs are still holding:
+-- credit that is out is not a debt. (Counting all of it errs against the user, never for them: a job that then
+-- spends its hold leaves less than was assumed, and nothing is given back for that.)
 create or replace function public.settle(p_reservation_id uuid, p_run_total_usd numeric) returns numeric
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -153,6 +155,7 @@ declare
   v_plan_left numeric(12, 4);
   v_owed numeric(12, 4);
   v_returned numeric(12, 4);
+  v_out numeric(12, 4);
 begin
   if p_run_total_usd is null or p_run_total_usd = 'NaN' or p_run_total_usd < 0 or p_run_total_usd > 100000 then
     raise exception 'invalid_amount';
@@ -178,7 +181,9 @@ begin
   else
     update public.users set balance_usd = balance_usd + r.cap_usd - v_charge
       where id = r.user_id returning balance_usd into v_returned;
-    v_plan_left := least(v_plan_left, greatest(v_returned, 0));
+    -- (read, not locked: another job's settling or a new reservation waits for the user's row, held here)
+    select coalesce(sum(cap_usd), 0) into v_out from public.reservations where user_id = r.user_id and status = 'open' and id <> r.id;
+    v_plan_left := least(v_plan_left, greatest(v_returned + v_out, 0));
     update public.users set balance_usd = balance_usd - v_plan_left where id = r.user_id returning balance_usd into v_balance;
   end if;
   update public.runs set charged_usd = greatest(charged_usd, v_total), updated_at = now() where id = r.run_id;
