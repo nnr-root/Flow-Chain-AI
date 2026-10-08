@@ -224,7 +224,8 @@ single-user app described above.
   `settings` table holds the rest: two paid jobs at once per account (`max_user_jobs`), twenty videos a day
   that are created and never started (`max_unstarted_runs`), twenty brand kits and fifty tracks (with or
   without a bucket). An upload is read only up to its limit, and the proxy passes on no request above 40 MB.
-  Signing in, signing up and asking for a reset are limited to ten attempts in five minutes per visitor.
+  Signing in, signing up and asking for a reset are each limited to twenty attempts in five minutes per
+  visitor. Kits and tracks cannot be removed in the studio yet, so their limits are per account for good.
 
 Once, by hand:
 

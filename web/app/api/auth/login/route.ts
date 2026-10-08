@@ -4,7 +4,7 @@ import { limitAttempts } from "@/server/limits";
 
 export const dynamic = "force-dynamic";
 export const POST = route({ write: true, public: true }, async (req) => {
-  limitAttempts(req, "auth");
+  limitAttempts(req, "login");
   await signIn(await body(req));
   return json({ ok: true });
 });

@@ -48,11 +48,12 @@ export function clientOf(req: Request): string {
 }
 
 /**
- * At most `max` attempts per client in `windowMs`. Signing in, signing up and asking for a reset all reach the
+ * At most `max` attempts of one kind per client in `windowMs` (twenty in five minutes: several people behind
+ * one address still get in, a guessing script does not get far). Signing in, signing up and asking for a reset all reach the
  * accounts service from this server's one address, where its own limits count every visitor together: without
  * a limit per client here, one visitor's wrong guesses would lock everybody out.
  */
-export function limitAttempts(req: Request, what: string, max = 10, windowMs = 5 * 60_000, now = Date.now()): void {
+export function limitAttempts(req: Request, what: string, max = 20, windowMs = 5 * 60_000, now = Date.now()): void {
   const key = `${what}:${clientOf(req)}`;
   const current = attempts.get(key);
   const window = current && current.resetAt > now ? current : { count: 0, resetAt: now + windowMs };

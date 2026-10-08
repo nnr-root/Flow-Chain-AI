@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadManifest } from "../../src/manifest/store.js";
+import { loadManifest, saveManifest } from "../../src/manifest/store.js";
 import { withExpectedSpend } from "../../src/stages/inflight.js";
 import type { RunContext } from "../../src/stages/types.js";
 import { makeTestContext } from "../helpers/context.js";
@@ -20,6 +20,11 @@ describe("a provider call that is paid for when it answers", () => {
     });
     expect(answer).toBe("audio");
     expect(during).toEqual({ "tts:0": 0.03 });
+    // Gone from memory, and from disk with the caller's next save — the one that writes the ledger entry — so no
+    // state on disk has the call in neither place.
+    expect(run.manifest.inFlight).toBeUndefined();
+    expect((await loadManifest(run.dir)).inFlight).toEqual({ "tts:0": 0.03 });
+    await saveManifest(run.dir, run.manifest);
     expect((await loadManifest(run.dir)).inFlight).toBeUndefined();
   });
 
@@ -36,10 +41,12 @@ describe("a provider call that is paid for when it answers", () => {
     // an earlier process got as far as sending the request
     run.manifest.inFlight = { "tts:0": 0.03, "tts:1": 0.02 };
     await withExpectedSpend(run, "tts:0", 0.03, async () => "audio");
+    await saveManifest(run.dir, run.manifest);
     let saved = await loadManifest(run.dir);
     expect(saved.abandonedUsd).toBe(0.03);
     expect(saved.inFlight).toEqual({ "tts:1": 0.02 }); // the other scene's is still to be dealt with
     await withExpectedSpend(run, "tts:1", 0.02, async () => "audio");
+    await saveManifest(run.dir, run.manifest);
     saved = await loadManifest(run.dir);
     expect(saved.abandonedUsd).toBe(0.05);
     expect(saved.inFlight).toBeUndefined();

@@ -251,7 +251,7 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
     // every sign-in reaches the accounts service from this server's one address: the studio counts per visitor itself
     const from = (address: string, password: string) =>
       login(request("/api/auth/login", { json: { email: a.email, password }, headers: { "x-forwarded-for": `198.51.100.7, ${address}` } }), undefined);
-    for (let i = 0; i < 10; i++) expect((await from("203.0.113.5", "not-the-password")).status).toBe(401);
+    for (let i = 0; i < 20; i++) expect((await from("203.0.113.5", "not-the-password")).status).toBe(401);
     const locked = await from("203.0.113.5", a.password);
     expect([locked.status, await code(locked)]).toEqual([429, "busy"]);
     // what a client claims in front of the proxy's own entry does not change who it is

@@ -30,8 +30,9 @@ function unavailable(err: unknown): ApiError {
 
 /** What the database says when an account has as many kits or tracks as one may have. */
 const FULL: Record<string, string> = {
-  too_many_brand_kits: "you have as many brand kits as one account may have; remove one first",
-  too_many_tracks: "you have as many tracks as one account may have; remove one first",
+  // there is no way to remove one in the studio yet, so the message does not send anyone looking for it
+  too_many_brand_kits: "you have as many brand kits as one account may have",
+  too_many_tracks: "you have as many tracks as one account may have",
 };
 const refused = (message: string): ApiError | null => (FULL[message] ? new ApiError("validation", FULL[message]) : null);
 
