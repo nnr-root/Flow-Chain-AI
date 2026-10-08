@@ -5,12 +5,14 @@ import { LOGIN_MISSING, loginMissing, multiTenant } from "@/lib/supabase/setting
 export type ErrorCode =
   | "validation" | "not_found" | "job_active" | "busy" | "estimate_changed" | "not_draft" | "missing_keys"
   | "forbidden_origin" | "queue_unavailable" | "worker_offline" | "internal"
-  | "unauthenticated" | "insufficient_credit" | "too_many_jobs" | "storage_unavailable";
+  | "unauthenticated" | "insufficient_credit" | "too_many_jobs" | "storage_unavailable"
+  | "billing_unavailable" | "already_subscribed";
 
 const STATUS: Record<ErrorCode, number> = {
   validation: 400, not_found: 404, job_active: 409, busy: 429, estimate_changed: 409, not_draft: 409,
   missing_keys: 400, forbidden_origin: 403, queue_unavailable: 503, worker_offline: 503, internal: 500,
   unauthenticated: 401, insufficient_credit: 402, too_many_jobs: 429, storage_unavailable: 503,
+  billing_unavailable: 503, already_subscribed: 409,
 };
 
 /** An error the client is meant to see; anything else becomes a generic 500. */
@@ -64,10 +66,13 @@ type Handler<C> = (req: Request, ctx: C) => Promise<Response> | Response;
  * touches is the user's own. Every thrown error becomes the one error shape. The handler it returns carries
  * its `write` value (not enumerable), so a test can check every route file's label.
  */
-export function route<C>(opts: { write: boolean; public?: boolean }, handler: Handler<C>): Handler<C> {
+export function route<C>(opts: { write: boolean; public?: boolean; external?: boolean }, handler: Handler<C>): Handler<C> {
   const wrapped: Handler<C> = async (req, ctx) => {
     try {
-      guard(req, opts);
+      // `external`: a write that comes from outside the studio's own pages by design (a payment provider's
+      // webhook). It is not a page's request, so the same-origin rule does not apply; its handler must prove
+      // where it comes from by other means (a signature) before it does anything.
+      guard(req, { write: opts.write && !opts.external });
       // meant to have accounts and has none: nothing is answered, the health check included, so a deploy fails loudly
       if (loginMissing()) return new Response(JSON.stringify({ error: { code: "internal", message: LOGIN_MISSING } }), { status: 503, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
       if (!multiTenant()) return await handler(req, ctx);
