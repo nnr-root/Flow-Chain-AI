@@ -1,7 +1,9 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { expect, type Page, test } from "@playwright/test";
+import { freshComparisons } from "../lib/site/calculator";
 import { data } from "../playwright.accounts.config";
 
 const DRAFT_ID = "20261006-120100-e2e002";
@@ -96,6 +98,28 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await expect(page.getByTestId("feature-cues")).toContainText("an impact at 0:00.0");
   await page.getByTestId("feature-sfx").click();
   await expect(feature).toHaveAttribute("data-sounds", "0");
+  // What a month would cost: worked out from what is on sale (here a $19 plan for $12 of credit and a $10
+  // top-up for $6) and from what the videos above really used. Twenty videos on our own GPU use about $5.46:
+  // the top-up covers them, and is cheaper than the plan.
+  await expect(page.getByTestId("calc-videos")).toHaveText("20");
+  await expect(page.getByTestId("calc-answer")).toHaveText("$10.00 for the month, which is $0.50 a video.");
+  await expect(page.getByTestId("calc-buy")).toContainText("Top-up $10 ($10.00): $6.00 of credit, enough for about 21 such videos");
+  // forty use about $10.92: the plan's $12
+  await page.getByLabel("Videos a month").fill("40");
+  await expect(page.getByTestId("calc-answer")).toHaveText("$19.00 for the month, which is $0.48 a video.");
+  await expect(page.getByTestId("calc-buy")).toContainText("Starter ($19.00 a month)");
+  // other companies' prices are shown with where they were read, and only against the clips they sell
+  // (which of them are still fresh enough to show depends on the day this runs: none, after ninety days,
+  // and then the whole table is gone rather than out of date)
+  const fresh = freshComparisons(JSON.parse(readFileSync(fileURLToPath(new URL("../content/comparison.json", import.meta.url)), "utf8")), new Date());
+  const rows = page.getByTestId("calc-row-other");
+  await expect(rows).toHaveCount(fresh.length);
+  if (fresh.length > 0) {
+    await expect(rows.first().getByRole("link")).toHaveAttribute("href", fresh[0].source);
+    await expect(page.getByTestId("calc-others")).toContainText("Clips only.");
+    await expect(page.getByTestId("calc-others")).toContainText(`stated them on ${fresh.map((c) => c.checkedOn).sort()[0]}`);
+    await expect(page.getByTestId("calc-row-ours")).toContainText("$19.00");
+  } else await expect(page.getByTestId("calc-others")).toHaveCount(0);
   // a video on the shelf is played in the Stage at the top
   await page.getByTestId("shelf-play-robot-painter").click();
   await expect(player).toHaveAttribute("data-slug", "robot-painter");
@@ -103,6 +127,7 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   expect((await page.request.get("/showcase/clockmaker/props.json")).status()).toBe(200);
   const site = await page.evaluate(() => ({ background: getComputedStyle(document.body).backgroundColor, heading: getComputedStyle(document.querySelector("h1")!).fontFamily, text: getComputedStyle(document.body).fontFamily }));
   expect(site.background).toBe("rgb(244, 239, 230)");
+  await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector("h1")!).fontFamily)).toMatch(/fraunces/i);
   expect(site.heading).toMatch(/fraunces/i);
   expect(site.text).toMatch(/schibsted/i);
   // the typefaces are the page's own files, and they arrived

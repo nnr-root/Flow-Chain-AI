@@ -1,14 +1,32 @@
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { SiteNav } from "@/components/site/SiteNav";
+import { Calculator, type Engine } from "@/components/site/Calculator";
 import { FeatureStage } from "@/components/site/FeatureStage";
 import { LiveStage } from "@/components/site/LiveStage";
 import { MakingStrip } from "@/components/site/MakingStrip";
 import { Shelf } from "@/components/site/Shelf";
-import { billingOn } from "@/lib/billing";
+import comparison from "@/content/comparison.json";
+import { billingOn, type CatalogueItem } from "@/lib/billing";
+import { freshComparisons, mean } from "@/lib/site/calculator";
+import type { Showcase } from "@/lib/site/showcases";
+import { catalogue } from "@/server/billing/catalogue";
 import { SHOWCASES } from "@/lib/site/showcases";
 import { accountsOnly, headerAccount } from "@/server/page";
 
 export const dynamic = "force-dynamic";
+
+/** The showcase videos as the calculator's two ways of making pictures, each with what its videos really used. */
+function enginesOf(showcases: Showcase[]): Engine[] {
+  const group = (id: string, name: string, of: Showcase[]): Engine[] =>
+    of.length === 0 ? [] : [{
+      id, name, videos: of.length,
+      models: `${of[0].receipt.engines.pictures.replace(/, on .*/, "")} and ${of[0].receipt.engines.clips.replace(/, on .*/, "")}`,
+      creditPerVideoUsd: mean(of.map((s) => s.receipt.totalUsd)),
+      clipSeconds: mean(of.map((s) => s.making.scenes.filter((scene) => scene.kind === "clip").reduce((sum, scene) => sum + scene.seconds, 0))),
+    }];
+  const own = showcases.filter((s) => /our own GPU/.test(s.receipt.engines.clips));
+  return [...group("own", "Our own GPU", own), ...group("hosted", "Hosted models", showcases.filter((s) => !own.includes(s)))];
+}
 
 /**
  * The landing page (Phase 4 spec §5). A visitor without a session who asks for `/` is shown this page at that
@@ -21,6 +39,11 @@ export default async function Page() {
   const hero = SHOWCASES[0];
   // the features are shown on a video that was made with a brand kit
   const branded = SHOWCASES.find((s) => s.looks.brand !== null) ?? hero;
+  // what is on sale, from Stripe; without it (payments off, or Stripe away) the page simply has no prices on it
+  const items: CatalogueItem[] = sells ? await catalogue().catch(() => []) : [];
+  const today = new Date();
+  const others = freshComparisons(comparison, today);
+  const asOf = others.map((c) => c.checkedOn).sort()[0] ?? "";
   return (
     <div data-testid="landing">
       <SiteNav signedIn={signedIn} sells={sells} />
@@ -57,6 +80,13 @@ export default async function Page() {
           <p className="mt-5 max-w-[40rem] text-[1.1rem] text-graphite">Nobody has reviewed Flow Chain yet, so here is the work itself, with the receipts.</p>
           <div className="mt-12"><Shelf showcases={SHOWCASES} /></div>
         </section>
+
+        {items.length > 0 && (
+          <section className="mt-28" aria-labelledby="calculator-title">
+            <h2 id="calculator-title" className="display max-w-[50rem] text-[clamp(2rem,1.2rem+3.2vw,3.5rem)] leading-[1.02] tracking-[-0.025em]">What your month would cost</h2>
+            <div className="mt-12"><Calculator items={items} engines={enginesOf(SHOWCASES)} others={others} asOf={asOf} /></div>
+          </section>
+        )}
       </main>
       <SiteFooter sells={sells} />
     </div>

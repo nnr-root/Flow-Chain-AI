@@ -1,0 +1,46 @@
+[
+  {
+    "name": "Luma",
+    "plan": "Plus",
+    "planUsdPerMonth": 30,
+    "creditsPerMonth": 10000,
+    "model": "Ray 3.14",
+    "resolution": "540p",
+    "creditsPerSecond": 10,
+    "source": "https://lumalabs.ai/pricing",
+    "checkedOn": "2026-10-08"
+  },
+  {
+    "name": "Luma",
+    "plan": "Plus",
+    "planUsdPerMonth": 30,
+    "creditsPerMonth": 10000,
+    "model": "Ray 3.14",
+    "resolution": "720p",
+    "creditsPerSecond": 20,
+    "source": "https://lumalabs.ai/pricing",
+    "checkedOn": "2026-10-08"
+  },
+  {
+    "name": "Runway",
+    "plan": "Standard",
+    "planUsdPerMonth": 15,
+    "creditsPerMonth": 625,
+    "model": "Gen-4 Turbo",
+    "resolution": "",
+    "creditsPerSecond": 6,
+    "source": "https://runway.com/pricing",
+    "checkedOn": "2026-10-08"
+  },
+  {
+    "name": "Runway",
+    "plan": "Standard",
+    "planUsdPerMonth": 15,
+    "creditsPerMonth": 625,
+    "model": "Gen-4.5",
+    "resolution": "",
+    "creditsPerSecond": 12,
+    "source": "https://runway.com/pricing",
+    "checkedOn": "2026-10-08"
+  }
+]
