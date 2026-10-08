@@ -65,7 +65,8 @@ export async function checkout(req: Request, input: unknown): Promise<{ url: str
       customer,
       client_reference_id: user.id,
       line_items: [{ price: item.priceId, quantity: 1 }],
-      success_url: `${origin}/account?paid=1`,
+      // when this purchase began: the account page then knows which payment the visitor is waiting for
+      success_url: `${origin}/account?paid=${Date.now()}`,
       cancel_url: `${origin}/pricing`,
     });
     if (!session.url) throw new Error("Stripe returned no checkout address");
@@ -87,6 +88,13 @@ export async function portal(req: Request): Promise<{ url: string }> {
   } catch (err) {
     throw err instanceof StripeError || !(err instanceof ApiError) ? unavailable(err) : err;
   }
+}
+
+/** When the user's latest payment was recorded, or null. */
+export async function lastPaymentAt(): Promise<string | null> {
+  const { data, error } = await userDb().from("payments").select("created_at").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data?.created_at as string | undefined) ?? null;
 }
 
 export type BillingView = { plan: PlanView | null; planCreditUsd: number; payments: PaymentView[] };

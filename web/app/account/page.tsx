@@ -4,7 +4,7 @@ import { ManageBilling } from "@/components/Pricing";
 import { SignOut } from "@/components/SignOut";
 import { Panel } from "@/components/ui";
 import { usd } from "@/lib/api";
-import { billingOn, LIVE } from "@/lib/billing";
+import { arrivedSince, billingOn, LIVE, purchaseTime } from "@/lib/billing";
 import { account, ledger } from "@/server/auth";
 import { billingView } from "@/server/billing/actions";
 import { accountsOnly, forUser } from "@/server/page";
@@ -20,19 +20,20 @@ const QUIET = ["reserve", "purchase", "refund"];
 const STATUS: Record<string, string> = { active: "Active", trialing: "Trial", past_due: "Payment failed — Stripe is retrying", canceled: "Ended", unpaid: "Unpaid", incomplete: "Waiting for the first payment", incomplete_expired: "Ended", paused: "Paused" };
 const day = (iso: string) => new Date(iso).toISOString().slice(0, 10);
 const minute = (iso: string) => new Date(iso).toISOString().slice(0, 16).replace("T", " ");
-/** A payment made in the last few minutes: the visitor who just came back from Stripe is looking at it. */
-const RECENT_MS = 5 * 60_000;
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ paid?: string }> }) {
   accountsOnly();
   const sells = billingOn();
-  const { me, rows, billing } = await forUser(async () => ({ me: await account(), rows: await ledger(), billing: sells ? await billingView() : null }));
-  const paid = sells && (await searchParams).paid === "1";
-  const plan = billing?.plan && billing.plan.status !== "canceled" ? billing.plan : null;
+  // the account itself must open whatever becomes of the billing panels (a database that is behind, say): signing
+  // out and the balance are here
+  const { me, rows, billing } = await forUser(async () => ({ me: await account(), rows: await ledger(), billing: sells ? await billingView().catch(() => null) : null }));
+  // came back from Stripe: which purchase the note is about (nothing for an old address or a made-up one)
+  const since = sells ? purchaseTime((await searchParams).paid) : null;
+  const plan = billing?.plan && !["canceled", "incomplete_expired"].includes(billing.plan.status) ? billing.plan : null;
   const planCredit = Math.max(Math.min(billing?.planCreditUsd ?? 0, me.balanceUsd), 0);
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      {paid && billing && <PaidNote balanceUsd={me.balanceUsd} confirmed={billing.payments.some((p) => Date.now() - new Date(p.at).getTime() < RECENT_MS)} />}
+      {since !== null && billing && <PaidNote since={since} confirmed={billing.payments.some((p) => arrivedSince(p.at, since))} />}
       <Panel title="Account" aside={<SignOut />}>
         <p className="text-sm text-dim">{me.email}</p>
         <p className="mt-2 text-3xl font-semibold" data-testid="balance">{usd(me.balanceUsd)}</p>

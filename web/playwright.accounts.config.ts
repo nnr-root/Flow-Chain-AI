@@ -72,7 +72,7 @@ export default defineConfig({
       timeout: 60_000,
       reuseExistingServer: false,
       stdout: "ignore",
-      env: { STRIPE_SECRET_KEY: shared.STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET, FAKE_STRIPE_PORT: String(STRIPE_PORT), FAKE_STRIPE_DELIVER_TO: `http://127.0.0.1:${PORT}/api/stripe/webhook` },
+      env: { STRIPE_SECRET_KEY: shared.STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET, FAKE_STRIPE_PORT: String(STRIPE_PORT), FAKE_STRIPE_DELIVER_TO: `http://127.0.0.1:${PORT}/api/stripe/webhook`, FAKE_STRIPE_DELIVER_AFTER_MS: "1500" },
     },
     {
       // The worker first, in the background (it has no port to wait for), then the built studio. The worker alone

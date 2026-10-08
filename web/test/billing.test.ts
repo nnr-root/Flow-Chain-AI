@@ -101,14 +101,14 @@ describe.skipIf(!supa || !hasRedisServer())("payments", () => {
   it("turns a paid top-up into credit, once, for the user who bought it", async () => {
     await worker();
     // the pages learn with the balance that credit can be bought here
-    expect(await (await accountRoute(as(aCookie, "/api/account"), undefined)).json()).toEqual({ account: { email: a.email, balanceUsd: 0 }, ledger: [], billing: true });
+    expect(await (await accountRoute(as(aCookie, "/api/account"), undefined)).json()).toEqual({ account: { email: a.email, balanceUsd: 0 }, ledger: [], billing: true, paidAt: null });
     const { status, sessionId } = await buy(aCookie, topup);
     expect(status).toBe(200);
     // the customer is the worker's creation, tagged with whose it is, and recorded
     const session = stripe.sessions.get(sessionId!)!;
     expect(stripe.customers.get(session.customer)!.metadata).toEqual({ user_id: a.id, studio: "flowchain" });
     expect((await account(a)).customer).toBe(session.customer);
-    expect(session).toMatchObject({ mode: "payment", client_reference_id: a.id, success_url: "http://127.0.0.1:3131/account?paid=1", cancel_url: "http://127.0.0.1:3131/pricing" });
+    expect(session).toMatchObject({ mode: "payment", client_reference_id: a.id, success_url: expect.stringMatching(/^http:\/\/127\.0\.0\.1:3131\/account\?paid=\d{13}$/), cancel_url: "http://127.0.0.1:3131/pricing" });
     // nothing is granted for opening a checkout
     expect((await account(a)).balance).toBe(0);
 

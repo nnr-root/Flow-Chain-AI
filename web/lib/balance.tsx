@@ -3,13 +3,16 @@ import { useEffect, useState } from "react";
 import { getJson, usd } from "./api";
 
 /**
+ * Whether this studio sells credit: learned with the balance and the same for everyone, so kept once for the page.
+ * It is set before the balance is, and `CreditNote` shows nothing until there is a balance.
+ */
+let sells = false;
+
+/**
  * The signed-in user's credit, or null where it does not apply (a studio without accounts) or is not known yet.
  * Asked again whenever `when` changes (a job starting or ending changes the balance) and when the window is
  * looked at again (credit may have been added meanwhile).
  */
-/** Whether this studio sells credit: learned with the balance, and the same for everyone, so kept once for the page. */
-let sells = false;
-
 export function useBalance(when: unknown = ""): number | null {
   const [balance, setBalance] = useState<number | null>(null);
   useEffect(() => {

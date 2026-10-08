@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { execa } from "execa";
+import { stripeSettings } from "../src/billing/stripe.js";
 import {
   BACKUP_UNIT, backupEnv, backupScript, backupUnits, composeEnv, composeEnvText, dockerEnvText, generatePassword, paths,
   prepareScript, serverConfig, type ServerConfig, shellQuote, unpackScript, upScript,
@@ -86,7 +87,7 @@ async function setup(cfg: ServerConfig, newPassword: boolean): Promise<void> {
   if (cfg.accounts) {
     console.log("This studio has accounts (SUPABASE_URL): visitors sign in at the studio, and the proxy asks for no login.");
     if (!cfg.worker.STUDIO_BUCKET) console.warn("Warning: STUDIO_BUCKET is not set: runs and uploads will exist on the server's disk only.");
-    if (cfg.billing) console.log(`This studio takes payments through Stripe (${cfg.worker.STRIPE_SECRET_KEY.startsWith("sk_live_") ? "LIVE mode" : "test mode"}).`);
+    if (cfg.billing) console.log(`This studio takes payments through Stripe (${stripeSettings(cfg.worker)?.live ? "LIVE mode" : "test mode"}).`);
   } else {
     hash = newPassword ? undefined : stored.STUDIO_PASSWORD_HASH;
     if (!hash) {

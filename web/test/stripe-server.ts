@@ -12,6 +12,8 @@ const need = (name: string): string => {
 
 const stripe = await startStripe({
   port: Number(need("FAKE_STRIPE_PORT")), secretKey: need("STRIPE_SECRET_KEY"), webhookSecret: need("STRIPE_WEBHOOK_SECRET"), deliverTo: need("FAKE_STRIPE_DELIVER_TO"),
+  // the browser comes back first and the studio is told a moment later, as with the real thing
+  deliverAfterMs: Number(process.env.FAKE_STRIPE_DELIVER_AFTER_MS ?? 0),
 });
 stripe.addPrice({ key: "starter", kind: "plan", priceUsd: 19, creditUsd: 12, name: "Starter" });
 stripe.addPrice({ key: "topup-10", kind: "topup", priceUsd: 10, creditUsd: 6, name: "Top-up $10" });

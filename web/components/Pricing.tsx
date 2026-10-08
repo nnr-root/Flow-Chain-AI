@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { errorText, sendJson, usd } from "@/lib/api";
 import type { CatalogueItem, PlanView } from "@/lib/billing";
 import { LIVE } from "@/lib/billing";
@@ -9,6 +9,14 @@ import { Button, ErrorNote, Panel } from "./ui";
 function useStripePage() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  // back from Stripe with the browser's back button: the page is as it was left, and must be usable again
+  useEffect(() => {
+    const restored = (e: PageTransitionEvent) => {
+      if (e.persisted) setBusy("");
+    };
+    window.addEventListener("pageshow", restored);
+    return () => window.removeEventListener("pageshow", restored);
+  }, []);
   const go = (what: string, url: string, body: unknown = {}) => {
     setBusy(what);
     setError("");

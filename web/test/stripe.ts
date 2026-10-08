@@ -78,7 +78,7 @@ const read = (req: IncomingMessage): Promise<string> =>
   });
 
 /** `port`, the keys and `deliverTo` are given when the stand-in runs as a process of its own (the browser test). */
-export async function startStripe(opts: { port?: number; secretKey?: string; webhookSecret?: string; deliverTo?: string } = {}): Promise<FakeStripe> {
+export async function startStripe(opts: { port?: number; secretKey?: string; webhookSecret?: string; deliverTo?: string; deliverAfterMs?: number } = {}): Promise<FakeStripe> {
   const secretKey = opts.secretKey ?? `sk_test_${Math.random().toString(36).slice(2)}`;
   const webhookSecret = opts.webhookSecret ?? `whsec_${Math.random().toString(36).slice(2)}`;
   const customers = new Map<string, Obj>();
@@ -211,11 +211,17 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
     if (pay) {
       const session = sessions.get(pay[1]);
       if (!session) return missing("session");
-      for (const event of stripe.completeCheckout(pay[1])) {
-        if (!stripe.deliverTo) continue;
-        const { body, signature } = stripe.signed(event);
-        await fetch(stripe.deliverTo, { method: "POST", headers: { "content-type": "application/json", "stripe-signature": signature }, body }).catch(() => {});
-      }
+      const deliver = async () => {
+        for (const event of stripe.completeCheckout(pay[1])) {
+          if (!stripe.deliverTo) continue;
+          const { body, signature } = stripe.signed(event);
+          await fetch(stripe.deliverTo, { method: "POST", headers: { "content-type": "application/json", "stripe-signature": signature }, body }).catch(() => {});
+        }
+      };
+      // As at Stripe, the browser is usually back before the studio has been told: with `deliverAfterMs` the
+      // webhooks follow the redirect by that long.
+      if (opts.deliverAfterMs) setTimeout(() => void deliver(), opts.deliverAfterMs);
+      else await deliver();
       res.writeHead(303, { location: session.success_url });
       return res.end();
     }
@@ -224,7 +230,10 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
       return res.end("<h1>Stand-in customer portal</h1>");
     }
 
-    requests.push(`${req.method} ${url.pathname}`);
+    // (the listings setup reads are recorded with their query: whether it asked for the active ones matters)
+    requests.push(`${req.method} ${url.pathname}${req.method === "GET" && /^\/v1\/(prices|products)$/.test(url.pathname) && url.searchParams.has("active") ? `?active=${url.searchParams.get("active")}` : ""}`);
+    // archived objects are listed too unless the active ones are asked for, as at Stripe
+    const listed = (all: Iterable<Obj>): Obj[] => [...all].filter((o) => !url.searchParams.has("active") || String(o.active) === url.searchParams.get("active"));
     if (req.headers.authorization !== `Bearer ${secretKey}`) return send(401, { error: { message: "Invalid API Key provided" } });
     if (!req.headers["stripe-version"]) return send(400, { error: { message: "the studio must name the API version it speaks" } });
     const form = req.method === "POST" ? parseForm(text) : {};
@@ -243,7 +252,7 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
     if (found) return customers.has(found) ? send(200, customers.get(found)) : missing("customer");
 
     if (req.method === "GET" && url.pathname === "/v1/prices") {
-      return send(200, { object: "list", has_more: false, data: [...prices.values()].filter((p) => p.active) });
+      return send(200, { object: "list", has_more: false, data: listed(prices.values()) });
     }
     if (req.method === "POST" && url.pathname === "/v1/checkout/sessions") {
       const price = prices.get(form.line_items?.[0]?.price);
@@ -275,7 +284,7 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
     // what setup does: products, prices, the portal's configuration, the webhook endpoint
     const list = (form: unknown): string[] => Object.values((form ?? {}) as Record<string, string>);
     if (req.method === "GET" && url.pathname === "/v1/products") {
-      return send(200, { object: "list", has_more: false, data: [...products.values()].filter((p) => p.active) });
+      return send(200, { object: "list", has_more: false, data: listed(products.values()) });
     }
     if (req.method === "POST" && url.pathname === "/v1/products") {
       const product = { id: id("prod"), object: "product", active: true, name: form.name, metadata: form.metadata ?? {} };

@@ -25,7 +25,12 @@ export type StripeSettings = { secretKey: string; apiBase: string; live: boolean
 export function stripeSettings(env: Record<string, string | undefined> = process.env): StripeSettings | null {
   const secretKey = env.STRIPE_SECRET_KEY?.trim();
   if (!secretKey) return null;
-  return { secretKey, apiBase: (env.STRIPE_API_BASE?.trim() || "https://api.stripe.com").replace(/\/$/, ""), live: /^(sk|rk)_live_/.test(secretKey) };
+  return {
+    secretKey,
+    apiBase: (env.STRIPE_API_BASE?.trim() || "https://api.stripe.com").replace(/\/$/, ""),
+    // only a key that says "test" is a test key: a restricted live key, or one mistyped, is never taken for one
+    live: !/^(sk|rk)_test_/.test(secretKey),
+  };
 }
 
 export class StripeError extends Error {

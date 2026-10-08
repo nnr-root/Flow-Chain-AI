@@ -17,6 +17,7 @@ export default async function Page() {
     return <p className="mx-auto max-w-4xl text-sm text-dim" data-testid="pricing-unavailable">Prices are not available right now. Try again in a moment.</p>;
   }
   const me = await headerAccount();
-  const plan = me ? await forUser(currentPlan) : null;
+  // what is on sale can be shown without knowing the visitor's plan
+  const plan = me ? await forUser(currentPlan).catch(() => null) : null;
   return <Pricing items={items} signedIn={!!me} plan={plan} />;
 }

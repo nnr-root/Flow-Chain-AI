@@ -135,8 +135,11 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
 
   // a top-up: to Stripe's page (the stand-in pays at once) and back, with the credit already there
   await page.getByTestId("buy-topup-10").click();
-  await expect(page).toHaveURL(/\/account\?paid=1$/, { timeout: 30_000 });
-  await expect(page.getByTestId("paid-note")).toHaveAttribute("data-state", "confirmed");
+  await expect(page).toHaveURL(/\/account\?paid=\d{13}$/, { timeout: 30_000 });
+  // the browser is back before Stripe has told the studio: the page says so, and brings the credit in when it comes
+  await expect(page.getByTestId("paid-note")).toHaveAttribute("data-state", "waiting");
+  await expect(page.getByTestId("balance")).toHaveText("$0.00");
+  await expect(page.getByTestId("paid-note")).toHaveAttribute("data-state", "confirmed", { timeout: 20_000 });
   await expect(page.getByTestId("balance")).toHaveText("$6.00");
   await expect(page.getByTestId("payments").locator("tbody tr")).toHaveCount(1);
   await expect(page.getByTestId("payments")).toContainText("Top-up");
@@ -148,7 +151,10 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
   // a plan: a month's credit beside the top-up's, told apart
   await page.goto("/pricing");
   await page.getByTestId("buy-starter").click();
-  await expect(page).toHaveURL(/\/account\?paid=1$/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/account\?paid=\d{13}$/, { timeout: 30_000 });
+  // a payment made a moment ago (the top-up) is not this one: the page waits for the plan's
+  await expect(page.getByTestId("paid-note")).toHaveAttribute("data-state", "waiting");
+  await expect(page.getByTestId("paid-note")).toHaveAttribute("data-state", "confirmed", { timeout: 20_000 });
   await expect(page.getByTestId("balance")).toHaveText("$18.00");
   await expect(page.getByTestId("balance-split")).toContainText("$12.00 from your plan, to use by ");
   await expect(page.getByTestId("balance-split")).toContainText("$6.00 that does not expire");
@@ -161,6 +167,11 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
   await expect(page.getByTestId("buy-topup-10")).toBeVisible();
   await page.getByTestId("manage-billing").click();
   await expect(page.getByRole("heading", { name: "Stand-in customer portal" })).toBeVisible();
+
+  // an old address with the note's mark, or a made-up one, shows no note
+  await page.goto("/account?paid=1");
+  await expect(page.getByTestId("balance")).toHaveText("$18.00");
+  await expect(page.getByTestId("paid-note")).toHaveCount(0);
 
   // A bought nothing and sees nothing of it
   await page.goto("/account");

@@ -24,6 +24,8 @@ describe("billing/plans.json", () => {
     [file([{ ...starter, creditUsd: 20 }]), "more than it costs"],
     [file([{ ...starter, monthlyUsd: 19.999 }]), "plans.0.monthlyUsd"],
     [file([{ ...starter, monthlyUsd: 0 }]), "plans.0.monthlyUsd"],
+    [file([{ ...starter, monthlyUsd: 19.0000001 }]), "plans.0.monthlyUsd"],
+    [file([{ ...starter, monthlyUsd: 0.3, creditUsd: 0.2 }]), "plans.0.monthlyUsd"],
     [file([{ ...starter, key: "Starter Plan" }]), "plans.0.key"],
     [file([{ ...starter, yearlyUsd: 190 }]), "plans.0"],
     [JSON.stringify({ plans: [starter] }), "topups"],
@@ -82,6 +84,14 @@ describe("what setup would change in Stripe", () => {
     ]);
   });
 
+  it("keeps the first of two products with one key, and comes to rest", () => {
+    const twice: Listing = { products: [...inPlace.products, { id: "prod_s2", key: "starter", name: "Starter" }], prices: inPlace.prices };
+    expect(planSetup(wanted, twice)).toEqual([{ do: "archive-product", key: "starter", productId: "prod_s2" }]);
+    // a price that sits on the second product is replaced by one on the first
+    const astray: Listing = { products: twice.products, prices: [{ ...inPlace.prices[0], productId: "prod_s2" }, inPlace.prices[1]] };
+    expect(planSetup(wanted, astray).map((s) => s.do)).toEqual(["create-price", "archive-price", "archive-product"]);
+  });
+
   it("says each step in words, and tells Stripe what a price grants", () => {
     const steps = planSetup(wanted, { products: [], prices: [] });
     expect(steps.map(describeStep)).toEqual([
@@ -103,17 +113,18 @@ describe("the webhook endpoint", () => {
   const endpoint = (over: Partial<Endpoint> = {}): Endpoint => ({ id: "we_1", url, status: "enabled", enabled_events: ["charge.refunded", "invoice.paid"], api_version: "2024-06-20", ...over });
 
   it("is created when there is none, and kept when it is right and its secret is here", () => {
-    expect(planWebhook([], url, events, "2024-06-20", false)).toEqual({ remove: [], create: true });
-    expect(planWebhook([endpoint(), endpoint({ id: "we_other", url: "https://other.example.com/hook" })], url, events, "2024-06-20", true)).toEqual({ keep: "we_1", remove: [], create: false });
+    expect(planWebhook([], url, events, "2024-06-20", undefined)).toEqual({ remove: [], create: true });
+    expect(planWebhook([endpoint(), endpoint({ id: "we_other", url: "https://other.example.com/hook" })], url, events, "2024-06-20", "we_1")).toEqual({ keep: "we_1", remove: [], create: false });
   });
 
   it.each([
-    ["its secret is not on this machine", endpoint(), false],
-    ["it listens for other events", endpoint({ enabled_events: ["invoice.paid"] }), true],
-    ["it speaks another version", endpoint({ api_version: null }), true],
-    ["it is switched off", endpoint({ status: "disabled" }), true],
-  ])("is replaced when %s", (_why, existing, haveSecret) => {
-    expect(planWebhook([existing], url, events, "2024-06-20", haveSecret)).toEqual({ remove: ["we_1"], create: true });
+    ["its secret is not on this machine", endpoint(), undefined],
+    ["the secret on this machine is another endpoint's (the other mode's, say)", endpoint(), "we_live"],
+    ["it listens for other events", endpoint({ enabled_events: ["invoice.paid"] }), "we_1"],
+    ["it speaks another version", endpoint({ api_version: null }), "we_1"],
+    ["it is switched off", endpoint({ status: "disabled" }), "we_1"],
+  ])("is replaced when %s", (_why, existing, secretOf) => {
+    expect(planWebhook([existing], url, events, "2024-06-20", secretOf)).toEqual({ remove: ["we_1"], create: true });
   });
 
   it("is addressed at the studio's public name", () => {
@@ -129,5 +140,7 @@ describe("writing the signing secret to .env", () => {
     expect(withEnvValue("", "STRIPE_WEBHOOK_SECRET", "whsec_new")).toBe("STRIPE_WEBHOOK_SECRET=whsec_new\n");
     expect(withEnvValue("# STRIPE_WEBHOOK_SECRET=x\n", "STRIPE_WEBHOOK_SECRET", "whsec_new")).toBe("# STRIPE_WEBHOOK_SECRET=x\nSTRIPE_WEBHOOK_SECRET=whsec_new\n");
     expect(() => withEnvValue("", "STRIPE_WEBHOOK_SECRET", "a b\nC=1")).toThrow("cannot carry");
+    // two lines of the name: the later one would be the one read, so there is one afterwards
+    expect(withEnvValue("STRIPE_WEBHOOK_SECRET=a\nB=2\nSTRIPE_WEBHOOK_SECRET=b\n", "STRIPE_WEBHOOK_SECRET", "whsec_new")).toBe("STRIPE_WEBHOOK_SECRET=whsec_new\nB=2\n");
   });
 });

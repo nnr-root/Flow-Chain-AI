@@ -4,7 +4,8 @@ import { z } from "zod";
 
 const Key = z.string().regex(/^[a-z0-9][a-z0-9-]{0,39}$/, "a short name in lower-case letters, digits and dashes");
 // whole cents, and credit to the cent: what Stripe charges and what the ledger keeps both stay exact
-const Usd = z.number().positive().max(10_000).refine((n) => Number.isInteger(Math.round(n * 1e6) / 1e4), "at most two decimals");
+// (and at least Stripe's smallest charge)
+const Usd = z.number().min(0.5).max(10_000).refine((n) => Math.abs(n * 100 - Math.round(n * 100)) < 1e-6, "at most two decimals");
 const Name = z.string().trim().min(1).max(80);
 
 const PlansFile = z.object({
@@ -82,8 +83,11 @@ export function planSetup(wanted: Wanted[], existing: Listing): Step[] {
   for (const price of existing.prices) {
     if (!keys.has(price.key)) archive.push({ do: "archive-price", key: price.key, priceId: price.id, why: "no longer in billing/plans.json" });
   }
+  const first = new Set<string>();
   for (const product of existing.products) {
-    if (!keys.has(product.key)) archive.push({ do: "archive-product", key: product.key, productId: product.id });
+    // a product no longer listed, or a second one for the same key (the first is the one prices are kept on)
+    if (!keys.has(product.key) || first.has(product.key)) archive.push({ do: "archive-product", key: product.key, productId: product.id });
+    first.add(product.key);
   }
   return [...steps, ...archive];
 }
@@ -102,7 +106,7 @@ export function describeStep(step: Step): string {
     case "archive-price":
       return `archive the price ${step.priceId} of ${step.key} (${step.why})`;
     case "archive-product":
-      return `archive the product ${step.key} (no longer in billing/plans.json)`;
+      return `archive the product ${step.productId} of ${step.key} (no longer in billing/plans.json, or a second copy)`;
   }
 }
 
@@ -122,11 +126,12 @@ export type Endpoint = { id: string; url: string; status: string; enabled_events
 /**
  * What to do about the webhook endpoint. Its signing secret is shown only when it is created, so an endpoint
  * whose secret this machine does not have is of no use: it is replaced. So is one that listens for other events
- * or speaks another API version.
+ * or speaks another API version. `secretOf` is the id of the endpoint the secret in `.env` belongs to (written
+ * beside it): a secret is of one endpoint — not of another account's, or the other mode's, at the same address.
  */
-export function planWebhook(endpoints: Endpoint[], url: string, events: readonly string[], apiVersion: string, haveSecret: boolean): { keep?: string; remove: string[]; create: boolean } {
+export function planWebhook(endpoints: Endpoint[], url: string, events: readonly string[], apiVersion: string, secretOf: string | undefined): { keep?: string; remove: string[]; create: boolean } {
   const ours = endpoints.filter((e) => e.url === url);
-  const good = (e: Endpoint) => haveSecret && e.status === "enabled" && e.api_version === apiVersion && [...e.enabled_events].sort().join() === [...events].sort().join();
+  const good = (e: Endpoint) => e.id === secretOf && e.status === "enabled" && e.api_version === apiVersion && [...e.enabled_events].sort().join() === [...events].sort().join();
   const keep = ours.find(good);
   return { ...(keep ? { keep: keep.id } : {}), remove: ours.filter((e) => e !== keep).map((e) => e.id), create: !keep };
 }
@@ -144,11 +149,12 @@ export function webhookUrl(studioHost: string | undefined): string {
 export function withEnvValue(text: string, name: string, value: string): string {
   if (!/^[A-Za-z0-9_]+$/.test(value)) throw new Error(`${name} has a value an env file cannot carry`);
   const line = `${name}=${value}`;
+  const is = new RegExp(`^\\s*(export\\s+)?${name}\\s*=`);
   const lines = text.split("\n");
-  const at = lines.findIndex((l) => new RegExp(`^\\s*(export\\s+)?${name}\\s*=`).test(l));
+  const at = lines.findIndex((l) => is.test(l));
   if (at >= 0) {
-    lines[at] = line;
-    return lines.join("\n");
+    // a second line of the same name further down would be the one that counts: there is to be one
+    return lines.map((l, i) => (i === at ? line : l)).filter((l, i) => i <= at || !is.test(l)).join("\n");
   }
   return `${text}${text === "" || text.endsWith("\n") ? "" : "\n"}${line}\n`;
 }

@@ -287,19 +287,25 @@ nothing below exists and credit is granted by hand as before.
   Plan credit is spent first. The account page shows both, the plan, and every payment with its receipt.
 - **Buying.** `/pricing` shows what is on sale (anyone may read it). A button there opens Stripe's own
   checkout page; the studio never sees a card. "Manage subscription" on the account page opens Stripe's portal:
-  cancelling ends the plan with the month that was paid for, and a change of plan starts with the next month.
+  cancelling ends the plan with the month that was paid for, and a change of plan starts with the next month
+  (the account page shows the new plan's name at once; its price and credit begin with the next invoice).
 - **Refunds.** A refund or a dispute in Stripe takes back the credit that payment granted, in proportion. If it
-  was already spent the balance goes below zero, and nothing paid starts until it is topped up.
+  was already spent the balance goes below zero, and nothing paid starts until it is topped up. Refunding a
+  past month of a plan takes its share out of what the user has now, whether or not that month's credit was
+  used: grant it back (`npm run studio:grant`) if that is not what you meant.
 
 Once:
 
-1. In Stripe (begin in test mode), copy the secret key to `.env` as `STRIPE_SECRET_KEY`.
+1. In Stripe (begin in test mode), copy the secret key to `.env` as `STRIPE_SECRET_KEY`. `STUDIO_HOST` must
+   be set in `deploy/server.env`: it is where Stripe will send its confirmations.
 2. Edit `billing/plans.json` if the defaults are not what you sell.
 3. `npm run stripe:setup` shows what it would create in Stripe and asks before doing it: the products and
    prices, the portal's settings, and the webhook endpoint for `https://<STUDIO_HOST>/api/stripe/webhook`,
-   whose signing secret it writes to `.env`. Run it again whenever `plans.json` changes: a changed price is
-   archived and a new one made, and someone subscribed at the old price keeps it until they change plan. With
-   a live key it insists on `-- --live`.
+   whose signing secret it writes to `.env` (with the endpoint's id, `STRIPE_WEBHOOK_ENDPOINT`, so that a
+   secret is never taken for another endpoint's). Run it again whenever `plans.json` changes, and after
+   switching between a test key and a live one: a changed price is archived and a new one made, and someone
+   subscribed at the old price keeps it until they change plan. With any key that is not a test key it insists
+   on `-- --live`; without a terminal it needs `-- --yes`.
 4. `npm run db:migrate`, then `npm run server:setup`. Both the web app and the worker get the Stripe key; only
    the web app gets the webhook's signing secret.
 
@@ -313,8 +319,10 @@ starts) the worker asks Stripe for the last three days' events and fulfils any t
 What to know:
 
 - The Stripe secret key is in the web app as well as the worker, because the web app opens the checkout and
-  portal pages. Someone who took over the web app could use it against your Stripe account, but still could
-  not add credit in the studio.
+  portal pages. Someone who took over the web app could use it against your Stripe account (read customers,
+  refund, change prices). In the studio they still could not add credit directly; they could change what a
+  price says it grants, and the worker never grants more than was paid, so the most that buys is credit at
+  cost. A restricted key for the web app is not set up by this version.
 - Tax is not handled: prices are charged as listed. Turn on Stripe Tax and add what your country requires
   before selling for real.
 - Only cards and other methods that confirm at once are tested. A payment that confirms days later is

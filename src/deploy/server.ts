@@ -14,7 +14,7 @@ const COMPOSE_OWNED = [
   "STUDIO_SITE", "STUDIO_PASSWORD_HASH", "DATA_DIR", "WORKER_ENV_FILE", "WEB_ENV_FILE", "CADDYFILE", "STUDIO_AUTH", "NODE_ENV",
 ];
 /** What stays on the owner's machine: the keys to the database itself, which nothing on the server needs. */
-const OWNER_ONLY = ["SUPABASE_DB_URL", "SUPABASE_DB_PASSWORD", "SUPABASE_ACCESS_TOKEN"];
+const OWNER_ONLY = ["SUPABASE_DB_URL", "SUPABASE_DB_PASSWORD", "SUPABASE_ACCESS_TOKEN", "STRIPE_WEBHOOK_ENDPOINT"];
 /** Where a test's stand-in Stripe is: the server only ever talks to the real one. */
 const TEST_ONLY = ["STRIPE_API_BASE"];
 /**

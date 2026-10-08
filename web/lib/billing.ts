@@ -22,5 +22,23 @@ export type CatalogueItem = {
 export type PlanView = { plan: string; status: string; periodEnd: string | null; cancelAtPeriodEnd: boolean };
 export type PaymentView = { id: string; kind: "plan" | "topup"; plan: string | null; paidUsd: number; creditUsd: number; refundedUsd: number; invoiceUrl: string | null; at: string };
 
+/**
+ * Whether a payment recorded at `paidAt` belongs to a purchase that began at `since` (the time in the address the
+ * visitor came back to): it was recorded after the checkout was opened. No slack: a payment made a moment before
+ * this purchase began must not pass for it, and paying takes longer than two clocks differ. An address older than
+ * an hour is a bookmark, not a purchase, and `purchaseTime` says so.
+ */
+export function arrivedSince(paidAt: string | null | undefined, since: number): boolean {
+  const at = paidAt ? Date.parse(paidAt) : Number.NaN;
+  return Number.isFinite(at) && at >= since;
+}
+
+/** The `paid` of `/account?paid=<ms>`: when the purchase began, or null when it says nothing usable or is old. */
+export function purchaseTime(paid: string | undefined, now = Date.now()): number | null {
+  if (!paid || !/^\d{13}$/.test(paid)) return null;
+  const since = Number(paid);
+  return since <= now + 60_000 && now - since < 3600_000 ? since : null;
+}
+
 /** Subscription states in which the user has a plan (and may not buy a second one). */
 export const LIVE = ["active", "trialing", "past_due"];

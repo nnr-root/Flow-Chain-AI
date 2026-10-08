@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { describe, expect, it } from "vitest";
 import { API_VERSION, creditOf, formEncode, pathId, signWebhook, StripeApi, stripeSettings, usdOf, verifyWebhook } from "@src/billing/stripe";
+import { arrivedSince, purchaseTime } from "@/lib/billing";
 import { catalogueItem } from "@/server/billing/catalogue";
 
 describe("a webhook's signature", () => {
@@ -31,6 +32,19 @@ describe("a webhook's signature", () => {
     for (const other of ["not json", JSON.stringify({ id: "../../etc" }), JSON.stringify({ type: "x" })]) {
       expect(() => verifyWebhook(other, signWebhook(other, secret, at), secret, at)).toThrow("signature is not valid");
     }
+  });
+});
+
+describe("the note for a visitor who comes back from paying", () => {
+  const now = Date.parse("2026-10-08T12:00:00Z");
+  it("is about a purchase that began within the hour, as the address says", () => {
+    expect(purchaseTime(String(now - 5000), now)).toBe(now - 5000);
+    for (const not of [undefined, "", "1", "abc", String(now - 3600_001), String(now + 120_000), `${now}0`, `${now} `]) expect(purchaseTime(not, now)).toBeNull();
+  });
+  it("counts a payment recorded since that purchase began, not one from before it", () => {
+    expect(arrivedSince("2026-10-08T12:00:07Z", now)).toBe(true);
+    expect(arrivedSince("2026-10-08T11:59:55Z", now)).toBe(false);
+    for (const nothing of [null, undefined, "", "not a time"]) expect(arrivedSince(nothing, now)).toBe(false);
   });
 });
 
