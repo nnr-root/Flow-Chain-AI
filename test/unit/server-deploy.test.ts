@@ -21,6 +21,8 @@ describe("serverConfig", () => {
       studioHost: "studio.example.com",
       studioUser: "studio",
       worker: { GEMINI_API_KEY: "g", FAL_KEY: "f" },
+      accounts: false,
+      web: {},
     });
   });
 
@@ -75,6 +77,40 @@ describe("serverConfig", () => {
   });
 });
 
+describe("a studio with accounts", () => {
+  const supabase = { SUPABASE_URL: "https://abc.supabase.co", SUPABASE_ANON_KEY: "public", SUPABASE_SERVICE_ROLE_KEY: "service" };
+  const r2 = { R2_ACCOUNT_ID: "acc", R2_ACCESS_KEY_ID: "id", R2_SECRET_ACCESS_KEY: "secret" };
+
+  it("gives the web app the public key and the bucket, and keeps every key that can spend or settle with the worker", () => {
+    const cfg = serverConfig(base, { ...supabase, ...r2, STUDIO_BUCKET: "studio", GEMINI_API_KEY: "g", FAL_KEY: "f", RUNPOD_API_KEY: "r", STUDIO_USER_JOBS: "3" });
+    expect(cfg.accounts).toBe(true);
+    expect(cfg.web).toEqual({ SUPABASE_URL: supabase.SUPABASE_URL, SUPABASE_ANON_KEY: "public", STUDIO_USER_JOBS: "3", STUDIO_BUCKET: "studio", ...r2 });
+    for (const secret of ["SUPABASE_SERVICE_ROLE_KEY", "GEMINI_API_KEY", "FAL_KEY", "RUNPOD_API_KEY"]) {
+      expect(cfg.web).not.toHaveProperty(secret);
+      expect(cfg.worker).toHaveProperty(secret);
+    }
+    // without a bucket the web app has no use for the R2 keys either
+    expect(serverConfig(base, { ...supabase, ...r2 }).web).toEqual({ SUPABASE_URL: supabase.SUPABASE_URL, SUPABASE_ANON_KEY: "public" });
+  });
+
+  it("puts the proxy without a login in front, because the studio asks every visitor itself", () => {
+    const cfg = serverConfig(base, supabase);
+    expect(composeEnv(cfg)).toEqual({
+      STUDIO_HOST: "studio.example.com",
+      CADDYFILE: "Caddyfile.accounts",
+      DATA_DIR: "/opt/flowchain/data",
+      WORKER_ENV_FILE: "/opt/flowchain/worker.env",
+      WEB_ENV_FILE: "/opt/flowchain/web.env",
+    });
+  });
+
+  it("refuses half a project: both of its keys or none", () => {
+    expect(() => serverConfig(base, { SUPABASE_URL: "https://abc.supabase.co", SUPABASE_ANON_KEY: "public" })).toThrow("SUPABASE_SERVICE_ROLE_KEY is not");
+    expect(() => serverConfig(base, { SUPABASE_URL: "https://abc.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service" })).toThrow("SUPABASE_ANON_KEY is not");
+    expect(serverConfig(base, { SUPABASE_ANON_KEY: "public" }).accounts).toBe(false);
+  });
+});
+
 describe("the files written on the server", () => {
   const cfg = serverConfig({ ...base, WORKER_CONCURRENCY: "3" }, { GEMINI_API_KEY: "g" });
   const hash = "$2a$14$abcdefghijklmnopqrstuuK1Zx0Yw9vU8tS7rQ6pO5nM4lK3jI2hG";
@@ -83,12 +119,15 @@ describe("the files written on the server", () => {
     const values = composeEnv(cfg, hash);
     expect(values).toEqual({
       STUDIO_HOST: "studio.example.com",
+      CADDYFILE: "Caddyfile",
       STUDIO_USER: "studio",
       STUDIO_PASSWORD_HASH: hash,
       DATA_DIR: "/opt/flowchain/data",
       WORKER_ENV_FILE: "/opt/flowchain/worker.env",
+      WEB_ENV_FILE: "/opt/flowchain/web.env",
       WORKER_CONCURRENCY: "3",
     });
+    expect(() => composeEnv(cfg)).toThrow("needs the proxy's login");
     expect(parseEnv(composeEnvText(values))).toEqual(values);
     expect(composeEnvText({ A: "x$y z#1" })).toBe("A='x$y z#1'\n");
   });

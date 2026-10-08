@@ -40,6 +40,7 @@ async function up(): Promise<void> {
   // names the worker's key check looks for; the stand-in CLI never uses a value
   const keys = ["GEMINI_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "FAL_KEY"];
   writeFileSync(join(data, "worker.env"), keys.map((k) => `${k}=stack-test\n`).join(""));
+  writeFileSync(join(data, "web.env"), "");
   writeFileSync(
     join(data, "compose.env"),
     [
@@ -49,15 +50,24 @@ async function up(): Promise<void> {
       `STUDIO_PASSWORD_HASH='${hash}'`, // single quotes: a bcrypt hash is full of $ signs
       `DATA_DIR=${data}`,
       `WORKER_ENV_FILE=${join(data, "worker.env")}`,
+      `WEB_ENV_FILE=${join(data, "web.env")}`,
+      "CADDYFILE=Caddyfile",
       `STACK_PORT=${PORT}`,
       "",
     ].join("\n"),
   );
   // the files as a server gets them: a host name (so a certificate would be asked for), no test overrides
-  const production = { ...composeEnv(), STUDIO_HOST: "studio.example.com", STUDIO_USER: USER, STUDIO_PASSWORD_HASH: hash, WORKER_ENV_FILE: join(data, "worker.env") };
+  const production = { ...composeEnv(), STUDIO_HOST: "studio.example.com", STUDIO_USER: USER, STUDIO_PASSWORD_HASH: hash, WORKER_ENV_FILE: join(data, "worker.env"), WEB_ENV_FILE: join(data, "web.env"), CADDYFILE: "Caddyfile" };
   execFileSync("docker", ["compose", "-f", join(repo, "deploy/compose.yaml"), "config", "--quiet"], { cwd: repo, env: production, stdio: ["ignore", "inherit", "inherit"] });
   sh("docker", ["run", "--rm", "-e", "STUDIO_SITE=studio.example.com", "-e", `STUDIO_USER=${USER}`, "-e", `STUDIO_PASSWORD_HASH=${hash}`,
     "-v", `${join(repo, "deploy/Caddyfile")}:/etc/caddy/Caddyfile:ro`, "caddy:2", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]);
+  // and as a server with accounts gets them: the other proxy file, no proxy login
+  execFileSync("docker", ["compose", "-f", join(repo, "deploy/compose.yaml"), "config", "--quiet"], {
+    cwd: repo, stdio: ["ignore", "inherit", "inherit"],
+    env: { ...composeEnv(), STUDIO_HOST: "studio.example.com", WORKER_ENV_FILE: join(data, "worker.env"), WEB_ENV_FILE: join(data, "web.env"), CADDYFILE: "Caddyfile.accounts" },
+  });
+  sh("docker", ["run", "--rm", "-e", "STUDIO_SITE=studio.example.com",
+    "-v", `${join(repo, "deploy/Caddyfile.accounts")}:/etc/caddy/Caddyfile:ro`, "caddy:2", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]);
   sh("docker", [...compose, "up", "-d", "--build", "--wait", "--wait-timeout", "600"]);
   // the proxy has no health check of its own (every path asks for the login), so wait for it to ask
   const deadline = Date.now() + 60_000;

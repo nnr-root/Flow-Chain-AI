@@ -11,7 +11,16 @@ const DEPLOY_KEYS = [
 /** Set by the Compose file for the server's own layout: a local value must never reach the worker. */
 const COMPOSE_OWNED = [
   "RUNS_DIR", "BRAND_KITS_DIR", "STUDIO_UPLOADS_DIR", "REDIS_URL", "FLOWCHAIN_CLI", "FLOWCHAIN_ROOT",
-  "STUDIO_SITE", "STUDIO_PASSWORD_HASH", "DATA_DIR", "WORKER_ENV_FILE", "NODE_ENV",
+  "STUDIO_SITE", "STUDIO_PASSWORD_HASH", "DATA_DIR", "WORKER_ENV_FILE", "WEB_ENV_FILE", "CADDYFILE", "NODE_ENV",
+];
+/**
+ * What the web app gets in a studio with accounts: where the accounts live, their PUBLIC key, and the bucket.
+ * Everything else — the provider keys, and above all the service-role key that settles credit — is the worker's alone.
+ */
+const WEB_KEYS = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "STUDIO_USER_JOBS"];
+const WEB_BUCKET_KEYS = [
+  "STUDIO_BUCKET", "STUDIO_S3_ENDPOINT", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
+  "STUDIO_R2_ACCOUNT_ID", "STUDIO_R2_ACCESS_KEY_ID", "STUDIO_R2_SECRET_ACCESS_KEY",
 ];
 
 export type BackupConfig = { bucket: string; accountId: string; accessKeyId: string; secretAccessKey: string };
@@ -25,6 +34,10 @@ export type ServerConfig = {
   concurrency?: number;
   /** The worker's environment: the provider keys and settings. */
   worker: Record<string, string>;
+  /** A studio with accounts (`SUPABASE_URL`): visitors sign in at the studio itself, and the proxy has no login. */
+  accounts: boolean;
+  /** The web app's environment: empty without accounts. */
+  web: Record<string, string>;
   /** Absent when no backup bucket is set. */
   backup?: BackupConfig;
 };
@@ -82,10 +95,20 @@ export function serverConfig(serverEnv: Record<string, string>, localEnv: Record
     if (!/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket)) throw new Error(`BACKUP_BUCKET is not a bucket name: "${bucket}"`);
     backup = { bucket, accountId: part("R2_ACCOUNT_ID"), accessKeyId: part("R2_ACCESS_KEY_ID"), secretAccessKey: part("R2_SECRET_ACCESS_KEY") };
   }
+  const accounts = !!worker.SUPABASE_URL;
+  const web: Record<string, string> = {};
+  if (accounts) {
+    for (const name of ["SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"]) {
+      if (!worker[name]) throw new Error(`SUPABASE_URL is set but ${name} is not: a studio with accounts needs both of the project's keys`);
+    }
+    for (const name of [...WEB_KEYS, ...(worker.STUDIO_BUCKET ? WEB_BUCKET_KEYS : [])]) {
+      if (worker[name]) web[name] = worker[name];
+    }
+  }
   return {
     target: `${user}@${host}`, dir, studioHost, studioUser,
     ...(rawConcurrency ? { concurrency: Number(rawConcurrency) } : {}),
-    worker,
+    worker, accounts, web,
     ...(backup ? { backup } : {}),
   };
 }
@@ -95,7 +118,7 @@ export function paths(cfg: ServerConfig) {
   const at = (...parts: string[]) => posix.join(cfg.dir, ...parts);
   return {
     app: at("app"), data: at("data"), archive: at("app.tar"),
-    composeEnv: at("compose.env"), workerEnv: at("worker.env"), backupEnv: at("backup.env"), backupScript: at("backup.sh"),
+    composeEnv: at("compose.env"), workerEnv: at("worker.env"), webEnv: at("web.env"), backupEnv: at("backup.env"), backupScript: at("backup.sh"),
     composeFile: at("app/deploy/compose.yaml"),
   };
 }
@@ -131,15 +154,19 @@ export function dockerEnvText(values: Record<string, string>): string {
     .join("");
 }
 
-/** The stack's own settings: what `deploy/compose.yaml` interpolates. */
-export function composeEnv(cfg: ServerConfig, passwordHash: string): Record<string, string> {
+/**
+ * The stack's own settings: what `deploy/compose.yaml` interpolates. Without accounts the proxy asks for the one
+ * login (`passwordHash`); with them it has none and the studio asks every visitor to sign in.
+ */
+export function composeEnv(cfg: ServerConfig, passwordHash?: string): Record<string, string> {
   const p = paths(cfg);
+  if (!cfg.accounts && !passwordHash) throw new Error("a studio without accounts needs the proxy's login");
   return {
     STUDIO_HOST: cfg.studioHost,
-    STUDIO_USER: cfg.studioUser,
-    STUDIO_PASSWORD_HASH: passwordHash,
+    ...(cfg.accounts ? { CADDYFILE: "Caddyfile.accounts" } : { CADDYFILE: "Caddyfile", STUDIO_USER: cfg.studioUser, STUDIO_PASSWORD_HASH: passwordHash! }),
     DATA_DIR: p.data,
     WORKER_ENV_FILE: p.workerEnv,
+    WEB_ENV_FILE: p.webEnv,
     ...(cfg.concurrency ? { WORKER_CONCURRENCY: String(cfg.concurrency) } : {}),
   };
 }

@@ -25,10 +25,12 @@ services:
       - "${PROXY_HTTPS_PORT:-443}:443"
     environment:
       STUDIO_SITE: ${STUDIO_SITE:-${STUDIO_HOST:?set STUDIO_HOST to the studio's public host name}}
-      STUDIO_USER: ${STUDIO_USER:?set STUDIO_USER}
-      STUDIO_PASSWORD_HASH: ${STUDIO_PASSWORD_HASH:?set STUDIO_PASSWORD_HASH (caddy hash-password)}
+      # the proxy's own login, for a studio without accounts (with them, CADDYFILE is Caddyfile.accounts and these are unused)
+      STUDIO_USER: ${STUDIO_USER:-}
+      STUDIO_PASSWORD_HASH: ${STUDIO_PASSWORD_HASH:-}
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # which of the two is written by server:setup; never guessed, so a studio cannot come up without a login by accident
+      - ./${CADDYFILE:?set CADDYFILE to Caddyfile (the proxy asks for the login) or Caddyfile.accounts (the studio does)}:/etc/caddy/Caddyfile:ro
       - ${DATA_DIR:-./data}/caddy:/data
     depends_on:
       web:
@@ -45,6 +47,9 @@ services:
     environment:
       <<: *data
       STUDIO_HOST: ${STUDIO_HOST:?set STUDIO_HOST to the studio's public host name}
+    # with accounts: where they live and the bucket's keys; never a provider key, never the key that settles credit
+    env_file:
+      - ${WEB_ENV_FILE:?set WEB_ENV_FILE to the web app's settings file (it may be empty)}
     volumes:
       # the web app reads runs and writes only what is uploaded in the studio
       - ${DATA_DIR:-./data}/runs:/data/runs:ro
@@ -55,7 +60,7 @@ services:
         condition: service_healthy
     networks: [front, back]
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3131/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3131/api/ping').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 12

@@ -23,6 +23,8 @@
     "db:start": "supabase start -x studio,imgproxy,edge-runtime,logflare,vector,realtime,storage-api,postgres-meta,supavisor",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
+    "db:migrate": "tsx scripts/studio-admin.ts migrate",
+    "studio:grant": "tsx scripts/studio-admin.ts grant",
     "test:db": "REQUIRE_SUPABASE=1 vitest run test/db",
     "server:setup": "tsx scripts/server.ts setup",
     "server:deploy": "tsx scripts/server.ts deploy",

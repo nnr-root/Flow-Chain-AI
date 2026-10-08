@@ -67,6 +67,7 @@ async function setup(cfg: ServerConfig, newPassword: boolean): Promise<void> {
   const p = paths(cfg);
   // everything that can be refused is checked before the server is touched
   const workerEnvText = composeEnvText(cfg.worker);
+  const webEnvText = composeEnvText(cfg.web);
   const backupEnvText = cfg.backup ? dockerEnvText(backupEnv(cfg.backup)) : "";
   const names = Object.keys(cfg.worker).sort();
   if (names.length === 0) console.warn("Warning: no provider keys or settings were found in .env or deploy/server.env; the worker will not be able to generate anything.");
@@ -76,13 +77,19 @@ async function setup(cfg: ServerConfig, newPassword: boolean): Promise<void> {
 
   // the login: made once, and kept across later setups unless a new one is asked for
   const stored = parseEnv(await remoteText(cfg, `cat ${shellQuote(p.composeEnv)} 2>/dev/null || true`)) as Record<string, string>;
-  let hash = newPassword ? undefined : stored.STUDIO_PASSWORD_HASH;
+  let hash: string | undefined;
   let password: string | undefined;
-  if (!hash) {
-    password = generatePassword();
-    // hashed on the server, read from stdin: the password is never on a command line
-    hash = (await remoteText(cfg, "docker run --rm -i caddy:2 caddy hash-password", `${password}\n`)).trim().split("\n").at(-1) ?? "";
-    if (!hash.startsWith("$2")) throw new Error("could not hash the login password on the server");
+  if (cfg.accounts) {
+    console.log("This studio has accounts (SUPABASE_URL): visitors sign in at the studio, and the proxy asks for no login.");
+    if (!cfg.worker.STUDIO_BUCKET) console.warn("Warning: STUDIO_BUCKET is not set: runs and uploads will exist on the server's disk only.");
+  } else {
+    hash = newPassword ? undefined : stored.STUDIO_PASSWORD_HASH;
+    if (!hash) {
+      password = generatePassword();
+      // hashed on the server, read from stdin: the password is never on a command line
+      hash = (await remoteText(cfg, "docker run --rm -i caddy:2 caddy hash-password", `${password}\n`)).trim().split("\n").at(-1) ?? "";
+      if (!hash.startsWith("$2")) throw new Error("could not hash the login password on the server");
+    }
   }
   await writeRemote(cfg, p.composeEnv, composeEnvText(composeEnv(cfg, hash)));
   // shown as soon as it is stored: if a later step fails, the login is not lost with it
@@ -90,6 +97,7 @@ async function setup(cfg: ServerConfig, newPassword: boolean): Promise<void> {
     console.log(`\nLogin — shown this once, keep it somewhere safe:\n  user      ${cfg.studioUser}\n  password  ${password}`);
     console.log("(npm run server:setup -- --new-password makes a new one.)\n");
   }
+  await writeRemote(cfg, p.webEnv, webEnvText);
   await writeRemote(cfg, p.workerEnv, workerEnvText);
   console.log("Wrote the stack's settings and the worker's keys.");
 
