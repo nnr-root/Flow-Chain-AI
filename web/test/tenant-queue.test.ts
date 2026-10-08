@@ -266,9 +266,14 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
       // the stand-in CLI does what the pipeline does when a new job replaces one in flight: the old one's cost is kept
       await behave(a, { pendingUsd, abandonedUsd, sleepMs: 30_000 });
       const before = (await jobCalls(a)).length;
+      const since = Date.now();
       expect((await generate(as(aCookie, `/api/runs/${id}/generate`, { json: { approvedUsd: 0.5 } }), params({ id }))).status).toBe(202);
       await until(async () => (await jobCalls(a)).length === before + 1);
-      await until(async () => JSON.parse(await readFile(join(folder(a), id, "manifest.json"), "utf8")).scenes[0].jobs?.clips?.expectedUsd === pendingUsd);
+      // (this command's own submit: the one before left the same expected cost in the manifest)
+      await until(async () => {
+        const clips = JSON.parse(await readFile(join(folder(a), id, "manifest.json"), "utf8")).scenes[0].jobs?.clips;
+        return clips?.expectedUsd === pendingUsd && new Date(clips.submittedAt).getTime() >= since;
+      });
       expect((await stop(as(aCookie, `/api/runs/${id}/job`, { method: "DELETE" }), params({ id }))).status).toBe(200);
       await until(async () => (await openReservations()) === 0);
     };

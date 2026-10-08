@@ -91,6 +91,13 @@ export const localRunner: JobRunner = {
   async restore() {},
   async ready() {},
   async release() {},
+  // payments need the worker: it alone may turn one into credit
+  async stripeEvent() {
+    throw new ApiError("billing_unavailable", "this studio takes no payments");
+  },
+  async stripeCustomer() {
+    throw new ApiError("billing_unavailable", "this studio takes no payments");
+  },
 
   async staleLock(runId, job) {
     return hasStaleLock(runFolder(runId), job);

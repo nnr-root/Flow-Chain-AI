@@ -17,6 +17,7 @@ import { readManifest, stateOf } from "../server/runs";
 import { objectStore } from "../server/store/s3";
 import { cleanCache, isStored, keys, restoreFolder, storeFolder } from "../server/store/sync";
 import { inScope, UUID } from "../server/tenant";
+import { billing } from "./billing";
 import { type Reservation, spendOf, tenantDb } from "./tenant";
 
 export type WorkerOptions = {
@@ -33,6 +34,8 @@ export type WorkerOptions = {
   reconcileMs?: number;
   /** Tests only (see `settleIdle`). */
   reconcileKnownUsersOnly?: boolean;
+  /** With billing: how often Stripe is asked for events no webhook brought (default hourly). */
+  catchUpMs?: number;
   log?: (message: string) => void;
 };
 
@@ -274,6 +277,19 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     return 0;
   };
 
+  // With billing: the one place a Stripe payment becomes credit.
+  const pay = db ? billing(log) : null;
+  /** Webhooks can be missed (the web was down for longer than Stripe retries): ask Stripe what happened lately. */
+  const catchUp = async (): Promise<void> => {
+    if (!pay) return;
+    try {
+      const done = await pay.catchUp();
+      if (done > 0) log(`worker: fulfilled ${done} Stripe event(s) no webhook had brought`);
+    } catch (err) {
+      log(`worker: could not ask Stripe for recent events: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  };
+
   /** After a job, however it ended: charge what the run really spent and record how the run stands. */
   const account = async (data: Pick<RunJobData, "runId" | "reservationId" | "userId">, dir: string, job: JobView | null): Promise<void> => {
     if (!db) return;
@@ -386,6 +402,13 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       const done = held && held.status === "open" && held.run_id === runId && held.user_id === job.data.userId ? await settleIdle(held) : false;
       return { stdout: done ? "released" : "" };
     }
+    if (job.name === "stripe-event" || job.name === "stripe-customer") {
+      if (!pay) throw new Error("this worker takes no payments (STRIPE_SECRET_KEY is not set)");
+      // The web passes on only an id. What the event says is asked of Stripe; whose customer it is, is asked of
+      // Stripe too. Nothing that reaches this worker through Redis can make credit out of nothing.
+      if (job.name === "stripe-event") return { stdout: await pay.fulfil(String(job.data.eventId ?? "")) };
+      return { stdout: await pay.customer(String(job.data.userId ?? "")) };
+    }
     const refused = refusal("quick", job.data.args);
     if (refused) throw new Error(refused);
     return asUser(job.data.userId, async () => ({ stdout: await runShort(job.data.args) }));
@@ -464,6 +487,8 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   const reconciler = db ? setInterval(() => void reconcile(), reconcileMs) : undefined;
   void clean();
   const cleaner = bucket ? setInterval(() => void clean(), 24 * 3600_000) : undefined;
+  void catchUp();
+  const catcher = pay ? setInterval(() => void catchUp(), opts.catchUpMs ?? 3600_000) : undefined;
   log(`worker ${id}: ready (runs ×${opts.concurrency ?? 2}, quick ×4${db ? ", with accounts" : ""})`);
 
   let closing: Promise<void> | undefined;
@@ -495,6 +520,7 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       clearInterval(renewal);
       clearInterval(reconciler);
       clearInterval(cleaner);
+      clearInterval(catcher);
       await line.close().catch(() => {});
       // with Redis away these would wait for it to come back; both keys expire by themselves
       const released = (async () => {

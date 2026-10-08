@@ -328,6 +328,30 @@ export function queueRunner(url: string): JobRunner {
       }
     },
 
+    // Not through reach(): what went wrong matters here (Stripe retries a webhook that was not fulfilled).
+    async stripeEvent(eventId) {
+      const e = await ends(url);
+      if (!(await workerAlive(e.redis))) throw new ApiError("worker_offline", "the worker is offline");
+      try {
+        return (await ask(e, "stripe-event", { args: [], eventId }, 25_000)).stdout;
+      } catch (err) {
+        throw new ApiError("billing_unavailable", "the payment could not be fulfilled yet", err instanceof Error ? err.message : String(err));
+      }
+    },
+
+    async stripeCustomer() {
+      const userId = currentUser()?.id;
+      if (!userId) throw new ApiError("unauthenticated", "sign in first");
+      const e = await ends(url);
+      if (!(await workerAlive(e.redis))) throw new ApiError("worker_offline", "the worker is offline", "nothing was started; try again in a moment");
+      try {
+        return (await ask(e, "stripe-customer", { args: [], userId }, 25_000)).stdout;
+      } catch (err) {
+        console.error("billing:", err instanceof Error ? err.message : String(err));
+        throw new ApiError("billing_unavailable", "payments are not available right now", "try again in a moment");
+      }
+    },
+
     restore: (runId) =>
       reach(async () => {
         runFolder(runId);

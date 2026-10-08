@@ -61,4 +61,8 @@ export interface JobRunner {
   ready(runId: string): Promise<void>;
   /** Credit was held (`reservationId`) for a job that then could not be queued: has it given back at once. Never throws. */
   release(runId: string, reservationId: string): Promise<void>;
+  /** Billing: has the worker fulfil a Stripe event (only its id travels); answers what was done. Throws when it could not be. */
+  stripeEvent(eventId: string): Promise<string>;
+  /** Billing: the signed-in user's Stripe customer, created by the worker when there is none. */
+  stripeCustomer(): Promise<string>;
 }
