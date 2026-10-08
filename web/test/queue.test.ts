@@ -201,7 +201,10 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     const id = nextRunId();
     await startJob(id, "generate", ["resume", id, "--budget", "1", "--cap", "1"]);
     await until(async () => (await calls(studio)).length === 1);
-    const { pid } = JSON.parse(await readFile(join(studio.runs, id, JOB_FILE), "utf8"));
+    // (the CLI can be running a moment before the worker has written down which process it is)
+    const record = async (): Promise<{ pid?: number }> => JSON.parse(await readFile(join(studio.runs, id, JOB_FILE), "utf8").catch(() => "{}"));
+    await until(async () => typeof (await record()).pid === "number");
+    const pid = (await record()).pid!;
     // the container dies: the worker and, with it, the CLI it started; the CLI's lock stays behind
     await writeFile(join(studio.runs, id, ".lock"), `${pid}\n`);
     first.child.kill("SIGKILL");

@@ -73,6 +73,14 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     if (!existsSync(file)) return [];
     return (await readFile(file, "utf8")).trim().split("\n").filter(Boolean).map((l) => JSON.parse(l) as string[]);
   };
+  /** a's run as its manifest reads now; nothing of it while the stand-in CLI is in the middle of writing the file. */
+  const manifestNow = async (id: string): Promise<{ scenes: Array<{ jobs?: { clips?: { expectedUsd?: number; submittedAt: string } } }> }> => {
+    try {
+      return JSON.parse(await readFile(join(folder(a), id, "manifest.json"), "utf8"));
+    } catch {
+      return { scenes: [{}] };
+    }
+  };
   const jobCalls = async (u: TestUser) => (await calls(u)).filter((c) => c[0] !== "plan");
   const balance = async (u: TestUser) => Number((await db().from("users").select("balance_usd").eq("id", u.id).single()).data!.balance_usd);
   const grant = async (u: TestUser, usd: number) => {
@@ -250,7 +258,7 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     // the stand-in CLI "submits" a $0.20 clip and then waits for it
     await behave(a, { pendingUsd: 0.2, sleepMs: 30_000 });
     expect((await generate(as(aCookie, `/api/runs/${id}/generate`, { json: { approvedUsd: 0.5 } }), params({ id }))).status).toBe(202);
-    await until(async () => JSON.parse(await readFile(join(folder(a), id, "manifest.json"), "utf8")).scenes[0].jobs?.clips?.expectedUsd === 0.2);
+    await until(async () => (await manifestNow(id)).scenes[0].jobs?.clips?.expectedUsd === 0.2);
     expect((await stop(as(aCookie, `/api/runs/${id}/job`, { method: "DELETE" }), params({ id }))).status).toBe(200);
     await until(async () => (await openReservations()) === 0);
     // the script the run already had, and the clip the provider will bill for: 1 − 0.0055 − 0.2
@@ -271,7 +279,7 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
       await until(async () => (await jobCalls(a)).length === before + 1);
       // (this command's own submit: the one before left the same expected cost in the manifest)
       await until(async () => {
-        const clips = JSON.parse(await readFile(join(folder(a), id, "manifest.json"), "utf8")).scenes[0].jobs?.clips;
+        const clips = (await manifestNow(id)).scenes[0].jobs?.clips;
         return clips?.expectedUsd === pendingUsd && new Date(clips.submittedAt).getTime() >= since;
       });
       expect((await stop(as(aCookie, `/api/runs/${id}/job`, { method: "DELETE" }), params({ id }))).status).toBe(200);
