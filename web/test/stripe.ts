@@ -25,6 +25,10 @@ export type FakeStripe = {
   /** The account's Customer Portal configurations, and the portal sessions the studio opened. */
   portalConfigurations: Obj[];
   portalSessions: Obj[];
+  /** What `npm run stripe:setup` creates: products, every price (archived ones too), webhook endpoints. */
+  products: Map<string, Obj>;
+  prices: Map<string, Obj>;
+  webhookEndpoints: Obj[];
   addPrice(p: { key: string; kind: "plan" | "topup"; priceUsd: number; creditUsd?: number; name?: string; metadata?: Record<string, string> }): string;
   /** The customer pays a Checkout session the studio created. Returns the events Stripe would send. */
   completeCheckout(sessionId: string): FakeEvent[];
@@ -82,6 +86,7 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
   const intents = new Map<string, Obj>();
   const events: FakeEvent[] = [];
   const requests: string[] = [];
+  const products = new Map<string, Obj>();
   const now = () => Math.floor(Date.now() / 1000);
 
   const emit = (type: string, object: Obj): FakeEvent => {
@@ -107,7 +112,7 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
   };
 
   const api: Omit<FakeStripe, "url" | "env" | "stop"> = {
-    secretKey, webhookSecret, events, customers, sessions, requests, portalConfigurations: [], portalSessions: [], deliverTo: opts.deliverTo,
+    secretKey, webhookSecret, events, customers, sessions, requests, portalConfigurations: [], portalSessions: [], products, prices, webhookEndpoints: [], deliverTo: opts.deliverTo,
     addPrice(p) {
       const priceId = id("price");
       prices.set(priceId, {
@@ -249,6 +254,66 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
     }
     if (req.method === "GET" && url.pathname === "/v1/billing_portal/configurations") {
       return send(200, { object: "list", has_more: false, data: stripe.portalConfigurations });
+    }
+
+    // what setup does: products, prices, the portal's configuration, the webhook endpoint
+    const list = (form: unknown): string[] => Object.values((form ?? {}) as Record<string, string>);
+    if (req.method === "GET" && url.pathname === "/v1/products") {
+      return send(200, { object: "list", has_more: false, data: [...products.values()].filter((p) => p.active) });
+    }
+    if (req.method === "POST" && url.pathname === "/v1/products") {
+      const product = { id: id("prod"), object: "product", active: true, name: form.name, metadata: form.metadata ?? {} };
+      products.set(product.id, product);
+      return send(200, product);
+    }
+    found = one(/^\/v1\/products\/([^/]+)$/);
+    if (found && req.method === "POST") {
+      const product = products.get(found);
+      if (!product) return missing("product");
+      if (form.name !== undefined) product.name = form.name;
+      if (form.active !== undefined) product.active = form.active === "true";
+      return send(200, product);
+    }
+    if (req.method === "POST" && url.pathname === "/v1/prices") {
+      const product = products.get(form.product);
+      if (!product) return missing("product");
+      const price = {
+        id: id("price"), object: "price", active: true, currency: form.currency, unit_amount: Number(form.unit_amount),
+        recurring: form.recurring ? { interval: form.recurring.interval } : null, metadata: form.metadata ?? {}, product,
+      };
+      prices.set(price.id, price);
+      return send(200, price);
+    }
+    found = one(/^\/v1\/prices\/([^/]+)$/);
+    if (found && req.method === "POST") {
+      const price = prices.get(found);
+      if (!price) return missing("price");
+      if (form.active !== undefined) price.active = form.active === "true";
+      return send(200, price);
+    }
+    found = one(/^\/v1\/billing_portal\/configurations\/([^/]+)$/);
+    if (req.method === "POST" && (found || url.pathname === "/v1/billing_portal/configurations")) {
+      const existing = stripe.portalConfigurations.find((c) => c.id === found);
+      if (found && !existing) return missing("configuration");
+      const configuration = Object.assign(existing ?? { id: id("bpc"), object: "billing_portal.configuration", active: true }, { features: form.features, metadata: form.metadata ?? {}, business_profile: form.business_profile });
+      if (!existing) stripe.portalConfigurations.push(configuration);
+      return send(200, configuration);
+    }
+    if (req.method === "GET" && url.pathname === "/v1/webhook_endpoints") {
+      // without their secrets: Stripe says a secret once, when the endpoint is made
+      return send(200, { object: "list", has_more: false, data: stripe.webhookEndpoints.map(({ secret: _secret, ...rest }) => rest) });
+    }
+    if (req.method === "POST" && url.pathname === "/v1/webhook_endpoints") {
+      const endpoint = { id: id("we"), object: "webhook_endpoint", url: form.url, status: "enabled", enabled_events: list(form.enabled_events), api_version: form.api_version ?? null, secret: `whsec_${id("s").replace(/_/g, "")}` };
+      stripe.webhookEndpoints.push(endpoint);
+      return send(200, endpoint);
+    }
+    found = one(/^\/v1\/webhook_endpoints\/([^/]+)$/);
+    if (found && req.method === "DELETE") {
+      const at = stripe.webhookEndpoints.findIndex((e) => e.id === found);
+      if (at < 0) return missing("webhook endpoint");
+      stripe.webhookEndpoints.splice(at, 1);
+      return send(200, { id: found, deleted: true });
     }
     for (const [pattern, store, what] of [
       [/^\/v1\/charges\/([^/]+)$/, charges, "charge"], [/^\/v1\/invoices\/([^/]+)$/, invoices, "invoice"], [/^\/v1\/subscriptions\/([^/]+)$/, subscriptions, "subscription"],

@@ -61,7 +61,7 @@ export class StripeApi {
     return this.settings.live;
   }
 
-  private async send<T>(method: "GET" | "POST", path: string, params?: Params, idempotencyKey?: string): Promise<T> {
+  private async send<T>(method: "GET" | "POST" | "DELETE", path: string, params?: Params, idempotencyKey?: string): Promise<T> {
     const query = method === "GET" && params ? `?${formEncode(params)}` : "";
     let res: Response;
     try {
@@ -90,6 +90,10 @@ export class StripeApi {
 
   post<T>(path: string, params: Params, idempotencyKey?: string): Promise<T> {
     return this.send<T>("POST", path, params, idempotencyKey);
+  }
+
+  delete<T>(path: string): Promise<T> {
+    return this.send<T>("DELETE", path);
   }
 
   /** Every object of a list, following its pages. */

@@ -1,0 +1,10 @@
+{
+  "plans": [
+    { "key": "starter", "name": "Starter", "monthlyUsd": 19, "creditUsd": 12 },
+    { "key": "pro", "name": "Pro", "monthlyUsd": 49, "creditUsd": 35 }
+  ],
+  "topups": [
+    { "key": "topup-10", "name": "Top-up $10", "priceUsd": 10, "creditUsd": 6 },
+    { "key": "topup-25", "name": "Top-up $25", "priceUsd": 25, "creditUsd": 16 }
+  ]
+}
