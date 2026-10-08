@@ -2,6 +2,7 @@
 import type { RenderProps } from "@src/media/remotion/props";
 import type { PlanJson } from "@src/studio/commands";
 import type { SceneStatus } from "@src/studio/status";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type ActionKind, afterRefusal } from "@/lib/approval";
 import { ApiFailure, errorText, sendJson, usd } from "@/lib/api";
@@ -44,8 +45,26 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
   const { status, state, job } = view;
   const scripted = status?.runSteps.find((s) => s.stage === "script")?.status === "done";
   const working = state === "running" || state === "creating" || state === "queued";
-  // with accounts: what the user may still spend (asked again when a job starts or ends)
-  const balance = useBalance(state);
+  // With accounts: what the user may still spend. A job starting or ending changes it, and the worker settles a
+  // moment after the run's state changes, so it is asked for at once and once more a little later; the header's
+  // figure (rendered on the server) is refreshed with it, so the page never shows two different balances.
+  const router = useRouter();
+  const [settled, setSettled] = useState(0);
+  const balance = useBalance(`${state}:${job?.id ?? ""}:${settled}`);
+  const firstState = useRef(true);
+  useEffect(() => {
+    if (firstState.current) {
+      firstState.current = false;
+      return;
+    }
+    router.refresh();
+    const later = setTimeout(() => {
+      setSettled((n) => n + 1);
+      router.refresh();
+    }, 3000);
+    return () => clearTimeout(later);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, job?.id]);
 
   // live updates: the run whenever its folder changes, and new lines of the job's output
   useEffect(() => {
