@@ -33,14 +33,36 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(String(e)));
 
-  // nothing of the studio without signing in
+  // Without a session the bare address shows the landing page, at that address — in its own light look, with
+  // its own typefaces, and nothing of the studio's header.
   await page.goto("/");
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/);
+  await expect(page.getByTestId("landing")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Type a topic. Get a finished short video.");
+  await expect(page.getByTestId("stage")).toBeVisible();
+  const site = await page.evaluate(() => ({ background: getComputedStyle(document.body).backgroundColor, heading: getComputedStyle(document.querySelector("h1")!).fontFamily, text: getComputedStyle(document.body).fontFamily }));
+  expect(site.background).toBe("rgb(244, 239, 230)");
+  expect(site.heading).toMatch(/fraunces/i);
+  expect(site.text).toMatch(/schibsted/i);
+  // the typefaces are the page's own files, and they arrived
+  expect(await page.evaluate(() => document.fonts.ready.then(() => [...document.fonts].filter((f) => f.status === "loaded").length))).toBeGreaterThanOrEqual(2);
+  await expect(page.getByText("Flow-Chain Studio")).toHaveCount(0);
+  // the way in: the account form, and from there the first video
+  await expect(page.locator('[data-cta="hero-signup"]')).toHaveAttribute("href", "/signup?next=%2Fnew");
+  await page.locator('[data-cta="hero-signup"]').click();
+  await expect(page).toHaveURL(/\/signup\?next=%2Fnew$/);
+  // house lights down: the studio's side is dark, and has nothing of the landing page's look
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(11, 13, 18)");
+  expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).not.toMatch(/schibsted|fraunces/i);
+  // nothing of the studio itself without signing in
   await page.goto("/runs/20261006-120000-e2e001");
   await expect(page).toHaveURL(/\/login\?next=%2Fruns%2F20261006-120000-e2e001$/);
   expect((await page.request.get("/api/runs")).status()).toBe(401);
 
   await signUp(page, A);
+  // with a session the same bare address is the studio
+  await page.goto("/");
+  await expect(page.getByTestId("landing")).toHaveCount(0);
   await expect(page.getByText("No videos yet.")).toBeVisible();
   await expect(page.getByTestId("header-balance")).toHaveText("$0.00");
 

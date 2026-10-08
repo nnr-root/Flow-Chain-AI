@@ -99,6 +99,14 @@ test("a reroll first saves the look being previewed, then starts capped at the c
   expect(all.slice(0, at)).toContainEqual(["look", DONE_ID, "--caption-style", "minimalist"]);
 });
 
+test("a studio without accounts has no landing page: the bare address is the studio, as ever", async ({ page }) => {
+  expect((await page.goto("/welcome"))!.status()).toBe(404);
+  await page.goto("/");
+  await expect(page.getByTestId("landing")).toHaveCount(0);
+  await expect(page.getByTestId("runs")).toBeVisible();
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(11, 13, 18)");
+});
+
 test("the server answers its loopback name only: a foreign Host is refused on pages, the API and static files", async ({ request }) => {
   const foreign = { host: "studio.evil.example:3132" };
   // a real static file of this build, to prove the check also stands in front of files Next serves by itself

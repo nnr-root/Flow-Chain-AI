@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+/*
+ * The marketing side's own look ("house lights up", Phase 4 spec §3): warm paper, ink, one signal colour.
+ * Nothing here is shared with the studio: its tokens are in (studio)/globals.css, and the two root layouts
+ * never load each other's file.
+ */
+@theme {
+  --color-paper: #f4efe6;
+  --color-ink: #14110f;
+  --color-stage: #0e0d0b;
+  --color-signal: #e8420a;
+  --color-graphite: #5b5f66;
+  --color-hairline: rgb(20 17 15 / 0.12);
+
+  --font-display: var(--font-fraunces), "Iowan Old Style", Georgia, serif;
+  --font-text: var(--font-schibsted), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Robert Bringhurst's classic scale, with a display step that follows the window */
+  --text-display: clamp(2.75rem, 1.2rem + 7.4vw, 8rem);
+  --text-display--line-height: 0.94;
+  --text-display--letter-spacing: -0.035em;
+}
+
+html { color-scheme: light; background: var(--color-paper); }
+body { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-text); font-size: 1.0625rem; line-height: 1.5; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+/* Fraunces at its largest optical size for display: the hairlines thin out and the letters tighten, as cut for a poster */
+.display { font-family: var(--font-display); font-variation-settings: "opsz" 144; font-weight: 380; font-feature-settings: "ss01"; text-wrap: balance; }
+/* every number: the same width, so columns of prices and timecodes line up */
+.figures { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid var(--color-signal); outline-offset: 3px; border-radius: 2px; }
+::selection { background: var(--color-ink); color: var(--color-paper); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}

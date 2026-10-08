@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { NextRequest } from "next/server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { GET as accountRoute } from "@/app/api/account/route";
 import { POST as login } from "@/app/api/auth/login/route";
@@ -89,6 +90,24 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
     process.env.REDIS_URL = redis.url;
     [a, b] = await Promise.all([newUser(s, "a"), newUser(s, "b")]);
     [aCookie, bCookie] = await Promise.all([cookiesOf(a), cookiesOf(b)]);
+  });
+
+  it("shows a visitor without a session the landing page at the bare address, and sends every other page to the login", async () => {
+    const { proxy } = await import("@/proxy");
+    const ask = (path: string, cookie?: string) => proxy(new NextRequest(`http://127.0.0.1:3131${path}`, { headers: { host: "127.0.0.1:3131", ...(cookie ? { cookie } : {}) } }));
+    const bare = (await ask("/"))!;
+    // shown in place: the address stays what the visitor typed
+    expect(new URL(bare.headers.get("x-middleware-rewrite")!).pathname).toBe("/welcome");
+    expect(bare.headers.get("location")).toBeNull();
+    expect(bare.headers.get("cache-control")).toBe("private, no-store");
+    const deep = (await ask("/runs/20261006-120000-e2e001"))!;
+    const to = new URL(deep.headers.get("location")!);
+    expect([deep.status, to.pathname + to.search]).toEqual([307, "/login?next=%2Fruns%2F20261006-120000-e2e001"]);
+    // the landing page under its own name, and the pages anyone may open, pass as they are
+    for (const open of ["/welcome", "/login", "/pricing"]) expect((await ask(open))!.headers.get("x-middleware-rewrite"), open).toBeNull();
+    // with a session the bare address is the studio: nothing is rewritten
+    const mine = (await ask("/", aCookie))!;
+    expect([mine.headers.get("x-middleware-rewrite"), mine.headers.get("location")]).toEqual([null, null]);
   });
 
   it("answers nobody who is not signed in, except on the sign-in routes", async () => {
