@@ -58,6 +58,8 @@ create table public.ledger (
   created_at timestamptz not null default now()
 );
 create index ledger_by_user on public.ledger (user_id, id desc);
+-- the day's welcome credit is added up on every sign-up and for every visitor of the landing page
+create index ledger_welcome on public.ledger (created_at) where kind = 'grant' and note = 'welcome';
 
 create table public.brand_kits (
   id uuid primary key default gen_random_uuid(),
@@ -85,7 +87,12 @@ create table public.settings (
   -- how much one user may register: runs a day that never got further than being created, brand kits, music tracks
   max_unstarted_runs integer not null default 20 check (max_unstarted_runs >= 1),
   max_brand_kits integer not null default 20 check (max_brand_kits >= 1),
-  max_music_tracks integer not null default 50 check (max_music_tracks >= 1)
+  max_music_tracks integer not null default 50 check (max_music_tracks >= 1),
+  -- Credit a new account starts with, once its address is confirmed: enough for a first script draft or two,
+  -- too little for a clip. 0 = none (the default). And the most that may be given away like this in a day, to
+  -- all new accounts together: a flood of sign-ups cannot cost more than this.
+  welcome_credit_usd numeric(12, 4) not null default 0 check (welcome_credit_usd >= 0 and welcome_credit_usd <= 5 and welcome_credit_usd <> 'NaN'),
+  welcome_daily_cap_usd numeric(12, 4) not null default 5 check (welcome_daily_cap_usd >= 0 and welcome_daily_cap_usd <> 'NaN')
 );
 insert into public.settings default values;
 
@@ -121,16 +128,74 @@ alter default privileges for role postgres in schema public revoke execute on fu
 alter default privileges for role postgres revoke execute on functions from public;
 
 -- ---------------------------------------------------------------------------------------------------------
--- A new account gets its row, with nothing to spend.
+-- A new account gets its row, with nothing to spend — or, where the owner has set one, a small welcome credit
+-- once its address is confirmed (an address nobody confirmed is nobody's, and gets nothing).
+
+-- The welcome credit itself: `p_amount` to this account, once, unless that would take what was given away in
+-- the last day past `p_cap`. Returns what was granted (0 when nothing was). Its two amounts are parameters so
+-- that it can be tested without changing a setting every other account shares.
+create function public.grant_welcome_credit(p_user_id uuid, p_amount numeric, p_cap numeric) returns numeric
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_amount numeric(12, 4) := round(p_amount, 4);
+  v_given numeric(12, 4);
+  v_balance numeric(12, 4);
+begin
+  if v_amount is null or v_amount = 'NaN' or v_amount <= 0 or v_amount > 5 or p_cap is null or p_cap = 'NaN' then return 0; end if;
+  -- one grant at a time (the settings row is the lock): the day's total cannot be raced past
+  perform 1 from public.settings for update;
+  perform 1 from public.users where id = p_user_id for update;
+  if not found then return 0; end if;
+  if exists (select 1 from public.ledger where user_id = p_user_id and kind = 'grant' and note = 'welcome') then return 0; end if;
+  select coalesce(sum(amount_usd), 0) into v_given from public.ledger
+    where kind = 'grant' and note = 'welcome' and created_at > now() - interval '1 day';
+  if v_given + v_amount > p_cap then return 0; end if;
+  update public.users set balance_usd = balance_usd + v_amount where id = p_user_id returning balance_usd into v_balance;
+  insert into public.ledger (user_id, kind, amount_usd, balance_after_usd, note) values (p_user_id, 'grant', v_amount, v_balance, 'welcome');
+  return v_amount;
+end $$;
+
+-- What a new account would be given right now: 0 when welcome credit is off or the day's cap is reached. The
+-- landing page asks this, to promise a free draft only when there is one. It tells nobody anything else.
+create function public.welcome_offer() returns numeric
+language sql stable security definer set search_path = '' as $$
+  select case
+    when s.welcome_credit_usd > 0 and (
+      select coalesce(sum(l.amount_usd), 0) from public.ledger l
+      where l.kind = 'grant' and l.note = 'welcome' and l.created_at > now() - interval '1 day'
+    ) + s.welcome_credit_usd <= s.welcome_daily_cap_usd then s.welcome_credit_usd
+    else 0::numeric end
+  from public.settings s;
+$$;
 
 create function public.handle_new_user() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
   insert into public.users (id, email) values (new.id, coalesce(new.email, ''));
+  if new.email_confirmed_at is not null then
+    -- a welcome that cannot be given must never stand in the way of the account itself
+    begin
+      perform public.grant_welcome_credit(new.id, s.welcome_credit_usd, s.welcome_daily_cap_usd) from public.settings s;
+    exception when others then null;
+    end;
+  end if;
   return new;
 end $$;
 create trigger on_auth_user_created after insert on auth.users
   for each row execute function public.handle_new_user();
+
+-- the address is confirmed later, by the emailed link: the welcome comes then
+create function public.handle_user_confirmed() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  begin
+    perform public.grant_welcome_credit(new.id, s.welcome_credit_usd, s.welcome_daily_cap_usd) from public.settings s;
+  exception when others then null;
+  end;
+  return new;
+end $$;
+create trigger on_auth_user_confirmed after update of email_confirmed_at on auth.users
+  for each row when (old.email_confirmed_at is null and new.email_confirmed_at is not null) execute function public.handle_user_confirmed();
 
 -- credit is granted by address, so the address here follows the one the account signs in with
 create function public.handle_user_email() returns trigger
@@ -331,5 +396,8 @@ grant execute on function
   public.register_track(text, text, bigint), public.remove_track(text)
   to authenticated;
 grant execute on function
-  public.settle(uuid, numeric), public.set_run_state(text, text, timestamptz), public.grant_credit(text, numeric, text)
+  public.settle(uuid, numeric), public.set_run_state(text, text, timestamptz), public.grant_credit(text, numeric, text),
+  public.grant_welcome_credit(uuid, numeric, numeric)
   to service_role;
+-- anyone, signed in or not: it says only whether a new account would be given something
+grant execute on function public.welcome_offer() to anon, authenticated;

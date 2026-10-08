@@ -20,8 +20,10 @@ const callback = (req: Request, next = "/") => `${siteOrigin(req)}/auth/callback
 
 /** Creates the account. With email confirmation on (production) the visitor must open the emailed link first. */
 export async function signUp(req: Request, input: unknown): Promise<{ confirm: boolean }> {
-  const { email, password } = Credentials.parse(input);
-  const { data, error } = await auth().signUp({ email, password, options: { emailRedirectTo: callback(req) } });
+  // `next`: where the visitor was heading (a first video from the landing page, say). The emailed link brings
+  // them back there; `callback` keeps it to a path on this site.
+  const { email, password, next } = Credentials.extend({ next: z.string().max(2000).optional() }).parse(input);
+  const { data, error } = await auth().signUp({ email, password, options: { emailRedirectTo: callback(req, next ?? "/") } });
   if (error) {
     // the same answer as for a new address: whether an address already has an account is nobody's business
     if (error.code === "user_already_exists" || error.code === "email_exists") return { confirm: true };

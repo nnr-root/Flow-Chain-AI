@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 /** The marketing side's header. `signedIn`: the visitor already has a session, so the way in is the studio itself. */
-export function SiteNav({ signedIn, sells }: { signedIn: boolean; sells: boolean }) {
+export function SiteNav({ signedIn, sells, free = false }: { signedIn: boolean; sells: boolean; free?: boolean }) {
   return (
     <header className="mx-auto flex max-w-[84rem] items-baseline gap-5 px-6 pt-7 sm:gap-8 sm:px-10">
       <Link href="/" className="display whitespace-nowrap text-[1.6rem] leading-none" style={{ fontWeight: 520 }}>Flow Chain</Link>
@@ -13,7 +13,7 @@ export function SiteNav({ signedIn, sells }: { signedIn: boolean; sells: boolean
         ) : (
           <>
             <a href="/login" className="underline-offset-4 hover:underline">Sign in</a>
-            <a href="/signup?next=%2Fnew" data-cta="nav-signup" className="hidden rounded-md bg-ink px-4 py-2 font-medium text-paper hover:bg-stage sm:inline-block">Create an account</a>
+            <a href="/signup?next=%2Fnew" data-cta="nav-signup" className="hidden rounded-md bg-ink px-4 py-2 font-medium text-paper hover:bg-stage sm:inline-block">{free ? "Make a free draft" : "Create an account"}</a>
           </>
         )}
       </nav>

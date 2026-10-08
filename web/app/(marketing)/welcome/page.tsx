@@ -5,11 +5,13 @@ import { FeatureStage } from "@/components/site/FeatureStage";
 import { LiveStage } from "@/components/site/LiveStage";
 import { MakingStrip } from "@/components/site/MakingStrip";
 import { Shelf } from "@/components/site/Shelf";
+import { TopicStart } from "@/components/site/TopicStart";
 import comparison from "@/content/comparison.json";
 import { billingOn, type CatalogueItem } from "@/lib/billing";
 import { freshComparisons, mean } from "@/lib/site/calculator";
 import type { Showcase } from "@/lib/site/showcases";
 import { catalogue } from "@/server/billing/catalogue";
+import { welcomeOffer } from "@/server/site/welcome";
 import { SHOWCASES } from "@/lib/site/showcases";
 import { accountsOnly, headerAccount } from "@/server/page";
 
@@ -36,6 +38,8 @@ export default async function Page() {
   accountsOnly();
   const signedIn = (await headerAccount()) !== null;
   const sells = billingOn();
+  // a new account is given credit for a first draft: only then does the page say "free"
+  const free = !signedIn && (await welcomeOffer()) > 0;
   const hero = SHOWCASES[0];
   // the features are shown on a video that was made with a brand kit
   const branded = SHOWCASES.find((s) => s.looks.brand !== null) ?? hero;
@@ -46,7 +50,7 @@ export default async function Page() {
   const asOf = others.map((c) => c.checkedOn).sort()[0] ?? "";
   return (
     <div data-testid="landing">
-      <SiteNav signedIn={signedIn} sells={sells} />
+      <SiteNav signedIn={signedIn} sells={sells} free={free} />
       <main className="mx-auto max-w-[84rem] px-6 sm:px-10">
         <LiveStage showcases={SHOWCASES}>
           <h1 className="display text-display">Type a topic. Get a finished short video.</h1>
@@ -54,14 +58,12 @@ export default async function Page() {
             Flow Chain writes the script, records the voice, generates the pictures and cuts the video to the words.
             You see what it will cost, and approve it, before anything is bought.
           </p>
-          <div className="mt-10 flex flex-wrap items-baseline gap-x-8 gap-y-4">
-            {signedIn ? (
-              <a href="/new" data-cta="hero-new" className="rounded-md bg-ink px-6 py-3.5 text-[1.05rem] font-medium text-paper hover:bg-stage">Make a video</a>
-            ) : (
-              <a href="/signup?next=%2Fnew" data-cta="hero-signup" className="rounded-md bg-ink px-6 py-3.5 text-[1.05rem] font-medium text-paper hover:bg-stage">Create an account</a>
-            )}
-            {sells && <a href="/pricing" data-cta="hero-pricing" className="underline decoration-hairline decoration-2 underline-offset-[6px] hover:decoration-ink">See pricing</a>}
-          </div>
+          <TopicStart signedIn={signedIn} free={free} />
+          {sells && (
+            <p className="mt-6">
+              <a href="/pricing" data-cta="hero-pricing" className="underline decoration-hairline decoration-2 underline-offset-[6px] hover:decoration-ink">See pricing</a>
+            </p>
+          )}
         </LiveStage>
 
         <section className="mt-24" aria-labelledby="making-title">

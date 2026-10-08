@@ -14,12 +14,12 @@ const CAPTION_STYLES = ["preset", "hormozi", "mrbeast", "minimalist"];
 const TRANSITIONS = ["auto", "cut", "fade", "dissolve", "blur", "zoom", "glitch"];
 const PROVIDER_NOTE = { fal: "fal.ai: no setup, about $1.35–2.35 for four scenes", runpod: "your RunPod endpoints: about $0.27 for four scenes" };
 
-export function NewVideoForm({ health: initialHealth, kits, tracks: initialTracks, presets }: { health: StudioHealth; kits: KitSummary[]; tracks: Track[]; presets: PresetCard[] }) {
+export function NewVideoForm({ health: initialHealth, kits, tracks: initialTracks, presets, topic = "" }: { health: StudioHealth; kits: KitSummary[]; tracks: Track[]; presets: PresetCard[]; topic?: string }) {
   const router = useRouter();
   const [health, setHealth] = useState(initialHealth);
   const [tracks, setTracks] = useState(initialTracks);
   const [f, setF] = useState({
-    topic: "", aspect: "9:16", scenes: 4, style: "auto", motion: "auto", provider: health.defaults.provider as "fal" | "runpod",
+    topic, aspect: "9:16", scenes: 4, style: "auto", motion: "auto", provider: health.defaults.provider as "fal" | "runpod",
     budgetUsd: health.defaults.budgetUsd, brandKit: "", music: "", musicGain: 0.35, hookMode: "gemini", hookText: "",
     sfx: true, sfxGain: 0.6, characters: "", seed: "", voiceId: "", captionStyle: "preset", transition: "auto",
   });

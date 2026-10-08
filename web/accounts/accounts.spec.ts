@@ -134,7 +134,8 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   expect(await page.evaluate(() => document.fonts.ready.then(() => [...document.fonts].filter((f) => f.status === "loaded").length))).toBeGreaterThanOrEqual(2);
   await expect(page.getByText("Flow-Chain Studio")).toHaveCount(0);
   // the way in: the account form, and from there the first video
-  await expect(page.locator('[data-cta="hero-signup"]')).toHaveAttribute("href", "/signup?next=%2Fnew");
+  // (nothing is given to new accounts in this studio, so nothing is promised: the button says what it does)
+  await expect(page.locator('[data-cta="hero-signup"]')).toHaveText("Create an account");
   await page.locator('[data-cta="hero-signup"]').click();
   await expect(page).toHaveURL(/\/signup\?next=%2Fnew$/);
   // house lights down: the studio's side is dark, and has nothing of the landing page's look
@@ -159,7 +160,7 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await expect(page.getByTestId("credit-note")).toContainText("you have $0.00");
 
   // the owner of the studio grants credit (npm run studio:grant does exactly this)
-  expect((await service.rpc("grant_credit", { p_email: A.email, p_amount_usd: 1, p_note: "welcome" })).error).toBeNull();
+  expect((await service.rpc("grant_credit", { p_email: A.email, p_amount_usd: 1, p_note: "a test's grant" })).error).toBeNull();
   // what the stand-in CLI finds in this user's own runs folder
   const mine = join(data, "runs", await userId(A.email));
   mkdirSync(mine, { recursive: true });
@@ -291,4 +292,53 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
   await expect(page.getByTestId("plan")).toHaveCount(0);
   await expect(page.getByTestId("ledger")).not.toContainText("Top-up bought");
   expect(errors).toEqual([]);
+});
+
+test("a visitor types a topic on the landing page, creates an account, and finds it written as a first draft, on the house", async ({ page }) => {
+  const C = { email: `cy-${stamp}@example.test`, password: "cy-password-1" };
+  const topic = "Why owls don't blink & other night facts: 100% true?";
+  // The owner turns welcome credit on. (One setting for the whole database: it is put back whatever happens, and
+  // the cap is raised for the while so that what earlier runs gave away today does not decide this test.)
+  const was = (await service.from("settings").select("welcome_credit_usd,welcome_daily_cap_usd").single()).data!;
+  expect((await service.from("settings").update({ welcome_credit_usd: 0.05, welcome_daily_cap_usd: 1000 }).eq("only_row", true)).error).toBeNull();
+  try {
+    await page.goto("/");
+    // now there is something to promise, and the page does
+    const start = page.locator('[data-cta="hero-signup"]');
+    await expect(start).toHaveText("Make a free draft");
+    await expect(page.getByTestId("topic-start")).toContainText("on us");
+    await page.getByTestId("hero-topic").fill(topic);
+    await start.click();
+    // (the sentence is in the address, by way of the account form; what arrives in the form is checked below)
+    await expect(page).toHaveURL(/\/signup\?next=%2Fnew%3Ftopic%3DWhy%2520owls/);
+
+    await page.getByLabel("Email").fill(C.email);
+    await page.getByLabel("Password").fill(C.password);
+    await page.getByRole("button", { name: "Create account" }).click();
+    // straight to the new-video form, with their own sentence in it, and five cents to draft it with
+    await expect(page).toHaveURL(/\/new\?topic=/, { timeout: 20_000 });
+    await expect(page.getByTestId("topic")).toHaveValue(topic);
+    await expect(page.getByTestId("header-balance")).toHaveText("$0.05");
+    expect(await balance(C.email)).toBe(0.05);
+
+    const mine = join(data, "runs", await userId(C.email));
+    mkdirSync(mine, { recursive: true });
+    copyFileSync(join(data, "fixtures/runs", DRAFT_ID, "manifest.json"), join(mine, "_draft-manifest.json"));
+    await expect(page.getByTestId("create-draft")).toBeEnabled({ timeout: 20_000 });
+    await page.getByTestId("create-draft").click();
+    await expect(page).toHaveURL(/\/runs\/\d{8}-\d{6}-[0-9a-f]{6}$/, { timeout: 30_000 });
+    await expect(page.locator("[data-state=draft]")).toBeVisible({ timeout: 30_000 });
+    // the draft was paid for out of the welcome, and what it did not use is still there
+    await expect.poll(() => balance(C.email), { timeout: 30_000 }).toBeLessThan(0.05);
+    expect(await balance(C.email)).toBeGreaterThan(0);
+    await page.goto("/account");
+    await expect(page.getByTestId("ledger")).toContainText("welcome");
+    // once: nothing more for signing in again
+    await page.getByTestId("sign-out").click();
+    await signIn(page, C);
+    expect(await balance(C.email)).toBeLessThan(0.05);
+  } finally {
+    await service.from("settings").update({ welcome_credit_usd: Number(was.welcome_credit_usd), welcome_daily_cap_usd: Number(was.welcome_daily_cap_usd) }).eq("only_row", true);
+  }
+  expect(Number((await service.from("settings").select("welcome_credit_usd").single()).data!.welcome_credit_usd)).toBe(0);
 });

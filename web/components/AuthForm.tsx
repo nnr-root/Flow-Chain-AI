@@ -24,7 +24,7 @@ export function AuthForm({ mode, next = "/", error: initialError = "" }: { mode:
     setBusy(true);
     setError("");
     try {
-      const answer = await sendJson<{ confirm?: boolean }>(ENDPOINT[mode], { ...(withEmail ? { email } : {}), ...(withPassword ? { password } : {}) });
+      const answer = await sendJson<{ confirm?: boolean }>(ENDPOINT[mode], { ...(withEmail ? { email } : {}), ...(withPassword ? { password } : {}), ...(mode === "signup" ? { next } : {}) });
       if (mode === "reset") return setNotice("If that address has an account, a reset link is on its way.");
       if (mode === "signup" && answer.confirm) return setNotice("Check your inbox: open the link we sent to finish creating your account.");
       // a full page load, so every part of the page is built for the signed-in user
@@ -64,7 +64,7 @@ export function AuthForm({ mode, next = "/", error: initialError = "" }: { mode:
       )}
       <p className="text-center text-xs text-dim">
         {mode === "login" && <><Link href="/signup" className="underline">Create an account</Link> · <Link href="/reset" className="underline">Forgot your password?</Link></>}
-        {mode === "signup" && <>Already have an account? <Link href="/login" className="underline">Sign in</Link></>}
+        {mode === "signup" && <>Already have an account? <Link href={next === "/" ? "/login" : `/login?next=${encodeURIComponent(next)}`} className="underline">Sign in</Link></>}
         {mode === "reset" && <Link href="/login" className="underline">Back to sign in</Link>}
       </p>
     </div>

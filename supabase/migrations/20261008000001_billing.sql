@@ -437,8 +437,10 @@ grant execute on function
   public.register_brand_kit(text, text), public.remove_brand_kit(text),
   public.register_track(text, text, bigint), public.remove_track(text)
   to authenticated;
+grant execute on function public.welcome_offer() to anon, authenticated;
 grant execute on function
   public.settle(uuid, numeric), public.set_run_state(text, text, timestamptz), public.grant_credit(text, numeric, text),
+  public.grant_welcome_credit(uuid, numeric, numeric),
   public.link_stripe_customer(uuid, text), public.claim_stripe_event(text, text, uuid, text),
   public.fulfil_topup(text, uuid, text, numeric, numeric, text, text),
   public.fulfil_plan_invoice(text, uuid, text, text, text, text, numeric, numeric, timestamptz, text, text),
