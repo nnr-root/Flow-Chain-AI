@@ -15,6 +15,8 @@ const COMPOSE_OWNED = [
 ];
 /** What stays on the owner's machine: the keys to the database itself, which nothing on the server needs. */
 const OWNER_ONLY = ["SUPABASE_DB_URL", "SUPABASE_DB_PASSWORD", "SUPABASE_ACCESS_TOKEN"];
+/** Where a test's stand-in Stripe is: the server only ever talks to the real one. */
+const TEST_ONLY = ["STRIPE_API_BASE"];
 /**
  * What the web app gets in a studio with accounts: where the accounts live, their PUBLIC key, and the bucket.
  * Everything else — the provider keys, and above all the service-role key that settles credit — is the worker's alone.
@@ -40,6 +42,8 @@ export type ServerConfig = {
   accounts: boolean;
   /** The web app's environment: empty without accounts. */
   web: Record<string, string>;
+  /** The studio takes payments (`STRIPE_SECRET_KEY`, which needs accounts). */
+  billing: boolean;
   /** Absent when no backup bucket is set. */
   backup?: BackupConfig;
 };
@@ -74,7 +78,7 @@ export function serverConfig(serverEnv: Record<string, string>, localEnv: Record
   const rawConcurrency = get("WORKER_CONCURRENCY");
   if (rawConcurrency !== undefined && !/^[1-9]\d*$/.test(rawConcurrency)) throw new Error("WORKER_CONCURRENCY must be a whole number, 1 or more");
 
-  const skip = new Set([...DEPLOY_KEYS, ...COMPOSE_OWNED, ...OWNER_ONLY]);
+  const skip = new Set([...DEPLOY_KEYS, ...COMPOSE_OWNED, ...OWNER_ONLY, ...TEST_ONLY]);
   const worker: Record<string, string> = {};
   for (const [key, value] of Object.entries(localEnv)) {
     if (!skip.has(key) && value.trim()) worker[key] = value.trim();
@@ -109,10 +113,21 @@ export function serverConfig(serverEnv: Record<string, string>, localEnv: Record
       if (worker[name]) web[name] = worker[name];
     }
   }
+  // Payments (3.4). Both processes talk to Stripe: the web app opens checkouts, the worker reads what was paid.
+  // The webhook's signing secret is the web app's alone — the worker never sees a webhook, only an event's id.
+  const billing = !!worker.STRIPE_SECRET_KEY;
+  const webhookSecret = worker.STRIPE_WEBHOOK_SECRET;
+  delete worker.STRIPE_WEBHOOK_SECRET;
+  if (billing) {
+    if (!accounts) throw new Error("STRIPE_SECRET_KEY is set but SUPABASE_URL is not: payments need a studio with accounts");
+    if (!webhookSecret) throw new Error("STRIPE_SECRET_KEY is set but STRIPE_WEBHOOK_SECRET is not: run npm run stripe:setup first (it creates the webhook and writes its secret to .env)");
+    web.STRIPE_SECRET_KEY = worker.STRIPE_SECRET_KEY;
+    web.STRIPE_WEBHOOK_SECRET = webhookSecret;
+  }
   return {
     target: `${user}@${host}`, dir, studioHost, studioUser,
     ...(rawConcurrency ? { concurrency: Number(rawConcurrency) } : {}),
-    worker, accounts, web,
+    worker, accounts, web, billing,
     ...(backup ? { backup } : {}),
   };
 }

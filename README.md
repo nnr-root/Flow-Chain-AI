@@ -273,6 +273,57 @@ To try it on your machine: `npm run db:start` (a local Supabase in Docker), then
 the studio with `SUPABASE_URL`, `SUPABASE_ANON_KEY` (and `SUPABASE_SERVICE_ROLE_KEY` for the worker) from
 `npx supabase status`.
 
+## Payments
+
+With `STRIPE_SECRET_KEY` set (and accounts, which payments need) users buy credit themselves. Without it
+nothing below exists and credit is granted by hand as before.
+
+- **What is sold.** `billing/plans.json` lists monthly plans and one-off top-ups, each with its price and the
+  credit it grants. The credit is less than the price: the difference is your margin, and credit is still
+  spent at what a video costs you. The defaults are Starter $19 → $12 and Pro $49 → $35 a month, and top-ups
+  of $10 → $6 and $25 → $16. The better rate is all that sets the plans apart.
+- **Two kinds of credit.** A plan's credit is for its month: what is left when the next month is paid for
+  expires, and so does what is left when the plan ends. Top-up credit, and credit you grant, never expires.
+  Plan credit is spent first. The account page shows both, the plan, and every payment with its receipt.
+- **Buying.** `/pricing` shows what is on sale (anyone may read it). A button there opens Stripe's own
+  checkout page; the studio never sees a card. "Manage subscription" on the account page opens Stripe's portal:
+  cancelling ends the plan with the month that was paid for, and a change of plan starts with the next month.
+- **Refunds.** A refund or a dispute in Stripe takes back the credit that payment granted, in proportion. If it
+  was already spent the balance goes below zero, and nothing paid starts until it is topped up.
+
+Once:
+
+1. In Stripe (begin in test mode), copy the secret key to `.env` as `STRIPE_SECRET_KEY`.
+2. Edit `billing/plans.json` if the defaults are not what you sell.
+3. `npm run stripe:setup` shows what it would create in Stripe and asks before doing it: the products and
+   prices, the portal's settings, and the webhook endpoint for `https://<STUDIO_HOST>/api/stripe/webhook`,
+   whose signing secret it writes to `.env`. Run it again whenever `plans.json` changes: a changed price is
+   archived and a new one made, and someone subscribed at the old price keeps it until they change plan. With
+   a live key it insists on `-- --live`.
+4. `npm run db:migrate`, then `npm run server:setup`. Both the web app and the worker get the Stripe key; only
+   the web app gets the webhook's signing secret.
+
+How it holds: Stripe tells the studio about a payment by calling the webhook. The web app checks Stripe's
+signature on that call and passes on nothing but the event's id. The worker asks Stripe itself for that event
+and for the payment as it is now, reads what it grants from the price in Stripe, and records the event's id
+together with its effect in one database transaction, so an event delivered twice, a forged call, or an id put
+straight into the queue grants nothing. The web app cannot grant credit at all. Every hour (and when it
+starts) the worker asks Stripe for the last three days' events and fulfils any that no webhook brought.
+
+What to know:
+
+- The Stripe secret key is in the web app as well as the worker, because the web app opens the checkout and
+  portal pages. Someone who took over the web app could use it against your Stripe account, but still could
+  not add credit in the studio.
+- Tax is not handled: prices are charged as listed. Turn on Stripe Tax and add what your country requires
+  before selling for real.
+- Only cards and other methods that confirm at once are tested. A payment that confirms days later is
+  fulfilled when it does.
+- A price created by hand in Stripe's dashboard is not sold by the studio unless its metadata says
+  `studio=flowchain`, a `key` and `credit_usd`; a payment for one that lacks them is logged by the worker and
+  retried by Stripe until the price is put right.
+- Prices are in USD only, and a plan is billed by the month.
+
 ## Tests
 
 `npm test` runs unit, ffmpeg, Remotion (headless Chrome), fake-provider pipeline and studio server tests offline
@@ -285,5 +336,6 @@ checks the Compose and proxy files of both kinds of deployment (needs Docker; th
 minutes). The tests of accounts, credit and storage are part of `npm test`
 and are skipped unless the local Supabase stack is running (`npm run db:start`; storage also needs Docker for
 a stand-in bucket). `npm run test:accounts` drives the studio with accounts in a browser: sign-up, credit, a
-video, and a second user who sees none of it. The RunPod worker's Python tests: `npm run setup:worker` once,
+video, buying a top-up and a plan, and a second user who sees none of it. Payments are tested against a
+stand-in Stripe (`web/test/stripe.ts`); no test reaches Stripe or needs its keys. The RunPod worker's Python tests: `npm run setup:worker` once,
 then `npm run test:worker`.

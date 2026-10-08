@@ -86,6 +86,7 @@ async function setup(cfg: ServerConfig, newPassword: boolean): Promise<void> {
   if (cfg.accounts) {
     console.log("This studio has accounts (SUPABASE_URL): visitors sign in at the studio, and the proxy asks for no login.");
     if (!cfg.worker.STUDIO_BUCKET) console.warn("Warning: STUDIO_BUCKET is not set: runs and uploads will exist on the server's disk only.");
+    if (cfg.billing) console.log(`This studio takes payments through Stripe (${cfg.worker.STRIPE_SECRET_KEY.startsWith("sk_live_") ? "LIVE mode" : "test mode"}).`);
   } else {
     hash = newPassword ? undefined : stored.STUDIO_PASSWORD_HASH;
     if (!hash) {

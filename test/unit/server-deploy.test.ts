@@ -23,6 +23,7 @@ describe("serverConfig", () => {
       worker: { GEMINI_API_KEY: "g", FAL_KEY: "f" },
       accounts: false,
       web: {},
+      billing: false,
     });
   });
 
@@ -121,6 +122,32 @@ describe("a studio with accounts", () => {
     expect(cfg.web).not.toHaveProperty("R2_SECRET_ACCESS_KEY");
     // the worker still has the pipeline's own
     expect(cfg.worker).toMatchObject({ R2_ACCESS_KEY_ID: "id", R2_SECRET_ACCESS_KEY: "secret" });
+  });
+
+  it("gives both processes the Stripe key, and the webhook's signing secret to the web app alone", () => {
+    const stripe = { STRIPE_SECRET_KEY: "sk_test_x", STRIPE_WEBHOOK_SECRET: "whsec_x" };
+    const cfg = serverConfig(base, { ...supabase, ...stripe, STRIPE_API_BASE: "http://127.0.0.1:3134" });
+    expect(cfg.billing).toBe(true);
+    expect(cfg.web).toMatchObject(stripe);
+    expect(cfg.worker.STRIPE_SECRET_KEY).toBe("sk_test_x");
+    expect(cfg.worker).not.toHaveProperty("STRIPE_WEBHOOK_SECRET");
+    // a test's stand-in address never reaches the server
+    expect(cfg.worker).not.toHaveProperty("STRIPE_API_BASE");
+    expect(cfg.web).not.toHaveProperty("STRIPE_API_BASE");
+    // and the worker's own key for settling credit is still not the web app's
+    expect(cfg.web).not.toHaveProperty("SUPABASE_SERVICE_ROLE_KEY");
+
+    const without = serverConfig(base, { ...supabase, STRIPE_WEBHOOK_SECRET: "whsec_x" });
+    expect(without.billing).toBe(false);
+    expect(without.web).not.toHaveProperty("STRIPE_WEBHOOK_SECRET");
+    expect(without.worker).not.toHaveProperty("STRIPE_WEBHOOK_SECRET");
+    // off on the server alone
+    expect(serverConfig({ ...base, STRIPE_SECRET_KEY: "" }, { ...supabase, ...stripe }).billing).toBe(false);
+  });
+
+  it("refuses payments without accounts, or without the webhook that confirms them", () => {
+    expect(() => serverConfig(base, { STRIPE_SECRET_KEY: "sk_test_x", STRIPE_WEBHOOK_SECRET: "whsec_x" })).toThrow("payments need a studio with accounts");
+    expect(() => serverConfig(base, { ...supabase, STRIPE_SECRET_KEY: "sk_test_x" })).toThrow("run npm run stripe:setup first");
   });
 
   it("turns accounts off on the server alone when server.env sets the project's address to nothing", () => {
