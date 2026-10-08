@@ -25,6 +25,7 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:migrate": "tsx scripts/studio-admin.ts migrate",
+    "studio:local": "tsx scripts/local.ts",
     "studio:grant": "tsx scripts/studio-admin.ts grant",
     "stripe:setup": "tsx scripts/stripe-setup.ts",
     "test:db": "REQUIRE_SUPABASE=1 vitest run test/db",

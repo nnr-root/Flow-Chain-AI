@@ -335,6 +335,17 @@ What to know:
   retried by Stripe until the price is put right.
 - Prices are in USD only, and a plan is billed by the month.
 
+## The whole studio on this machine
+
+`npm run studio:local` starts everything with one command: the local database (Docker), a queue, the worker
+and the web app with accounts, and Stripe's test mode when `.env` has a test key and the Stripe CLI is
+installed and logged in. It opens the studio in the browser; Ctrl+C stops all of it.
+`npm run studio:local -- grant <email> 5` gives an account credit in the local database.
+
+It never uses a hosted Supabase project or the real bucket, whatever `.env` says, and never a live Stripe key.
+It does use your provider keys: a video generated there is really generated and paid for, up to the amount
+approved on its button.
+
 ## The landing page
 
 In a studio with accounts, a visitor without a session who opens the bare address sees the landing page; a

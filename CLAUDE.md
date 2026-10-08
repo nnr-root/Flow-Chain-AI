@@ -65,6 +65,8 @@ npm run test:db            # database tests only; fails instead of skipping with
 npm run db:start           # local Supabase in Docker (API on 127.0.0.1:54321)
 npm run db:reset           # wipes and reloads the LOCAL database from supabase/migrations/
 npm run web:build          # next build (webpack mode)
+npm run studio:local       # the OWNER's command: the whole studio on this machine (real provider keys in the
+                           # worker). Do not start it yourself without being asked.
 npm run make:showcase -- <runId> --slug <name>   # publish a finished run for the landing page (free)
 npm run test:worker        # Python tests of the RunPod worker (npm run setup:worker once)
 ```
