@@ -16,6 +16,8 @@ export type Engine = {
   videos: number;
   /** The mean seconds of generated clips in such a video: what is compared with a company that sells clips. */
   clipSeconds: number;
+  /** The mean length of such a video. */
+  seconds: number;
 };
 
 /**
@@ -71,12 +73,12 @@ export function Calculator({ items, engines, others, asOf }: { items: CatalogueI
             <p className="max-w-[36rem] text-[1.1rem]" data-testid="calc-answer">That many videos is more than what is on sale covers in one month. <a href="/pricing" className="underline underline-offset-4">See what is on sale.</a></p>
           )}
           <p className="mt-4 max-w-[36rem] text-[0.92rem] text-graphite">
-            “About {usd(engine.creditPerVideoUsd)}” is the mean of the {engine.videos === 1 ? "one video" : `${engine.videos} videos`} above made this way, about 20 seconds each. Yours will use more or less with their length and how many scenes move; you are shown the most a video can cost before it is made.
+            “About {usd(engine.creditPerVideoUsd)}” is the mean of the {engine.videos === 1 ? "one video" : `${engine.videos} videos`} above made this way, about {Math.round(engine.seconds)} seconds each. Yours will use more or less with their length and how many scenes move; you are shown the most a video can cost before it is made.
           </p>
         </div>
       </div>
 
-      {others.length > 0 && q && (
+      {others.length > 0 && q && seconds > 0 && (
         <div className="mt-16" data-testid="calc-others">
           <h3 className="display text-[1.9rem] leading-[1.05]">The same month elsewhere</h3>
           <p className="mt-3 max-w-[44rem] text-[1.02rem] leading-[1.5]">
@@ -113,7 +115,7 @@ export function Calculator({ items, engines, others, asOf }: { items: CatalogueI
             </table>
           </div>
           <p className="mt-4 max-w-[44rem] text-[0.92rem] text-graphite">
-            Prices as their own pricing pages stated them on {asOf}; each name links to its page. This compares prices, not pictures: the models differ, and so does how sharp and how lifelike their clips are. Their plans also hold a set number of credits a month, which a large month would exceed.
+            Prices as their own pricing pages stated them {asOf}; each name links to its page. This compares prices, not pictures: the models differ, and so does how sharp and how lifelike their clips are. Their plans also hold a set number of credits a month, which a large month would exceed.
           </p>
         </div>
       )}

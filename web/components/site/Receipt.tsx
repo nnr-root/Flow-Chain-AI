@@ -6,13 +6,13 @@ const exact = (usd: number): string => `$${usd.toFixed(4)}`;
 
 /**
  * What a video cost, as a till slip: every line from the run's own ledger (Phase 4 spec §3.3). The amounts are
- * credit used, which is what the models charged; nothing on it is rounded in the page's favour.
+ * the credit the video used; nothing on it is rounded in the page's favour.
  */
 export function Receipt({ receipt }: { receipt: ShowcaseReceipt }) {
   return (
     <div className="receipt figures w-full max-w-[19rem] px-5 pb-7 pt-5 text-[0.78rem] leading-[1.55] text-ink" data-testid="receipt">
       <p className="font-medium">{receipt.title}</p>
-      <p className="text-graphite">{receipt.madeOn}, {receipt.seconds.toFixed(1)} s, {receipt.scenes} scenes</p>
+      <p className="text-graphite">{receipt.date}, {receipt.seconds.toFixed(1)} s, {receipt.scenes} scenes</p>
       <dl className="mt-3 border-t border-dashed border-ink/30 pt-3">
         {receipt.lines.map((line) => (
           <div key={line.label} className="mt-1.5 first:mt-0">

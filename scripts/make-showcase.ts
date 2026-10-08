@@ -5,7 +5,7 @@
  * it), `making.json` (how it was made, stage by stage), `receipt.json` (what the run cost, from its ledger)
  * and `poster.jpg`.
  */
-import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { FPS, outputSize } from "../src/config.js";
@@ -34,12 +34,17 @@ async function main(): Promise<void> {
   const dir = join(resolve(value("--runs") ?? process.env.RUNS_DIR ?? "runs"), runId);
   const manifest = await loadManifest(dir);
   if (!manifest.final) throw new Error(`run ${runId} is not finished: there is nothing to show yet`);
+  // every frame on the page is an upright one
+  if (manifest.request.aspect !== "9:16") throw new Error(`run ${runId} is ${manifest.request.aspect}: the landing page shows upright (9:16) videos only`);
 
   const fontsDir = resolve("assets/fonts");
   const sfxDir = resolve("assets/sfx");
   // the video as made, and every look the page lets a visitor give it: all by the studio's own preview function
   const { props, looks, files } = looksOf(manifest, { dir, fontsDir, sfxDir, fps: FPS, size: outputSize(manifest.request.aspect) });
-  const out = resolve("web/public/showcase", slug);
+  // Made beside its place and moved there when it is whole: a failure half-way leaves the showcase that was
+  // there before, not half of a new one.
+  const place = resolve("web/public/showcase", slug);
+  const out = `${place}.making`;
   const sharedOut = resolve("web/public/showcase/_shared");
   await rm(out, { recursive: true, force: true });
   const pubs = publications(Object.keys(files));
@@ -88,8 +93,10 @@ async function main(): Promise<void> {
   await writeFile(join(out, "looks.json"), `${JSON.stringify({ ...republish(looks, pubs), shared })}\n`);
   await writeFile(
     join(out, "receipt.json"),
-    `${JSON.stringify({ runId, title: manifest.script?.title ?? "", topic: manifest.request.topic, seconds: Math.round(manifest.final.duration * 10) / 10, scenes: manifest.scenes.length, madeOn: manifest.createdAt.slice(0, 10), ...receipt }, null, 2)}\n`,
+    `${JSON.stringify({ title: manifest.script?.title ?? "", topic: manifest.request.topic, seconds: Math.round(manifest.final.duration * 10) / 10, scenes: manifest.scenes.length, date: manifest.createdAt.slice(0, 10), ...receipt }, null, 2)}\n`,
   );
+  await rm(place, { recursive: true, force: true });
+  await rename(out, place);
   console.log(`${slug}: ${pubs.length} files, $${receipt.totalUsd.toFixed(4)} (${receipt.lines.map((l) => `${l.label.toLowerCase()} $${l.usd.toFixed(4)}`).join(", ")})`);
 }
 

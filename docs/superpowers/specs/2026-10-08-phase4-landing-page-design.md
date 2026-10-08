@@ -182,3 +182,71 @@ engine. About three videos are committed, one per engine in use.
 3. Every number on the page is computed from a ledger, the live catalogue, or a dated, sourced entry.
 4. Both calls to action work end to end; a topic typed in the hero is the new account's first draft.
 5. Without accounts the studio is exactly as before; all earlier tests pass.
+
+## 13. What Was Built, Found and Changed (2026-10-08)
+
+Built as a prototype in a scratch clone, one commit per task, and brought onto `main` as those commits (the
+work holds fonts, clips and audio, which a text plan cannot carry). Reviewed as a whole branch; the findings
+are fixed or recorded below. Where this section and an earlier one disagree, this one describes what is there.
+
+**Decided by the owner on the way**
+
+- Showcases: runs made on the studio's own GPU (the clockmaker, and a new product-photography video with the
+  brand kit, $0.23) and one made with hosted models (the robot painter). Voice and music cleared for public use.
+- Headline: "A finished short video for about what others charge for the clips." — shown only while
+  `clipsClaimHolds` is true; otherwise "Type a topic. Get a finished short video."
+- The competitor rows (Luma Ray 3.14 at 540p and 720p on Plus; Runway Gen-4 Turbo and Gen-4.5 on Standard),
+  read from their pricing pages on 2026-10-08, approved as built. **"10x" was not borne out**: against Runway
+  it is about 4.5x and 9x for the clips alone; against Luma at 540p the prices are about equal.
+- The calculator recommends the cheapest way to buy, including where that is a top-up rather than a plan.
+- The refund answer says how refunds behave; the terms and privacy pages say they are not written yet.
+
+**Where the built design differs from §1–§12**
+
+- §3.4 motion: one spring ("snap") for controls, a fade as the player takes the poster's place. No scroll
+  scrub and no docking: the controls sit under the Stage as a desk the whole width of the page.
+- §4: `PUBLIC_PAGES` also holds `showcase` (the videos' own files), `terms` and `privacy`.
+- §5: the hero's call to action is a field ("What is your video about?") and one button; "See pricing" is a
+  link under it. The features are shown on a second player (the branded video), fetched when reached.
+- §6: every look is computed at export (`src/deploy/showcase-looks.ts`, by `previewProps`) and the browser
+  only chooses (`web/lib/site/restyle.ts`). Caption styles are labelled by what they look like, not by the
+  people the pipeline names them after. Bundled fonts and sounds are published once, in `_shared`.
+- §6.1: also `looks.json` and `making.json` (script lines, a picture per scene, the voice's waveform).
+- §7: a comparison entry is `{ name, plan, planUsdPerMonth, creditsPerMonth, model, resolution,
+  creditsPerSecond, source, checkedOn }`; the price per second is worked out from it. What is compared is the
+  seconds of generated clips in one of our videos, since clips are all the others sell.
+- §8: welcome credit is granted when the address is **confirmed**, not at sign-up (unconfirmed sign-ups could
+  otherwise use up the day's cap). The page asks `welcome_offer()` and promises a free draft only while a new
+  account would be given at least a draft's hold.
+- New: `STUDIO_ENGINE` (the worker's `PROVIDER_MODE`, passed to the web app by setup) says which way the
+  studio makes pictures by default; the calculator starts there and the headline is held to it.
+
+**Found by the review and fixed**
+
+- A unit test held two real GPU endpoint ids, and an unknown own-GPU model would have been published with
+  its endpoint id. The ids were removed from the unpushed commits; `engineName` never shows an endpoint.
+- The pricing page said plans give "a better rate"; with the default prices Starter's rate is worse than the
+  $25 top-up's. It is now said only when every plan beats every top-up.
+- The quote was not always the cheapest (it never mixed top-ups). It now weighs every combination of at
+  most one plan with any top-ups, and a test compares it with a brute-force search.
+- Figures typed into copy (the number of videos, their length, the opening title's seconds, the scene limit,
+  the clip resolution) are now taken from the data and the code.
+- A long non-Latin topic could exceed what sign-up accepts as a destination: the hero carries 200 characters.
+- The export is all-or-nothing, refuses a wide run, keeps a PNG logo's transparency, and publishes no run id.
+- Freshness is by the calendar day. The welcome grant logs a warning when it fails and never waits more
+  than two seconds for its lock. Reduced motion is honoured by the springs as well.
+
+**Rulings and known limits**
+
+- The browser suite turns welcome credit on for the whole local database for one test, and resets it before
+  and after: it must run on its own. Cost if wrong: other suites' new users get five cents for a moment.
+- The offer is read when the page is viewed (and cached a minute); the grant happens at confirmation. If the
+  day's cap is reached in between, a visitor promised a free draft gets none.
+- A hundred confirmed throwaway accounts can take a day's cap; the page then promises nothing.
+- Both players loop while the page is open, do not pause off screen, and can both be unmuted.
+- With two root layouts an address that matches nothing shows Next's plain "not found", not the studio's frame.
+- Our own-GPU cost is measured GPU seconds at a configured rate: cold starts and idle time are not in a receipt.
+- After 90 days without re-reading the other companies' prices, the table and the comparing headline go,
+  silently and by design; nothing warns beforehand.
+
+**Verification** is recorded in the commit that closes the review.

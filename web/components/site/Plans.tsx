@@ -30,11 +30,11 @@ export function Plans({ items, signedIn, plan }: { items: CatalogueItem[]; signe
   const hasPlan = !!plan && LIVE.includes(plan.status);
   const buy = (item: CatalogueItem, label: string) =>
     signedIn ? (
-      <button type="button" className={button} data-testid={`buy-${item.key}`} disabled={!!busy} onClick={() => go(item.priceId, "/api/billing/checkout", { priceId: item.priceId })}>
+      <button type="button" className={button} data-testid={`buy-${item.key}`} data-cta={`plans-buy-${item.key}`} disabled={!!busy} onClick={() => go(item.priceId, "/api/billing/checkout", { priceId: item.priceId })}>
         {busy === item.priceId ? "Opening Stripe…" : label}
       </button>
     ) : (
-      <a href="/signup?next=%2Fpricing" className={`${button} inline-block`}>Sign up to buy</a>
+      <a href="/signup?next=%2Fpricing" data-cta={`plans-signup-${item.key}`} className={`${button} inline-block`}>Sign up to buy</a>
     );
   const plans = items.filter((i) => i.kind === "plan");
   const topups = items.filter((i) => i.kind === "topup");

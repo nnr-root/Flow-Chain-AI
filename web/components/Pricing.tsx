@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { errorText, sendJson, usd } from "@/lib/api";
+import { errorText, sendJson } from "@/lib/api";
 import { Button, ErrorNote } from "./ui";
 
 /** Sends the browser to a page at Stripe that one of the studio's routes opened for this user. */

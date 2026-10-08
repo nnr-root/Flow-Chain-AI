@@ -2,6 +2,7 @@
 import { useReducedMotion } from "motion/react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { inWords } from "@/lib/site/calculator";
 import { type Controls, madeControls, mediaUrl, restyle } from "@/lib/site/restyle";
 import type { Showcase } from "@/lib/site/showcases";
 import type { ShowcasePlayerHandle } from "./ShowcasePlayer";
@@ -75,14 +76,14 @@ export function FeatureStage({ showcase }: { showcase: Showcase }) {
         {looks.brand && (
           <Feature name="Your brand on every video">
             <p>A brand kit is a logo, and if you like a font and two colours, saved once. Every video you make with it carries the logo in a corner and your colour on the word being spoken.</p>
-            <button type="button" className={act} data-testid="feature-brand" aria-pressed={controls.brand} onClick={() => set("brand", !controls.brand)}>
+            <button type="button" className={act} data-testid="feature-brand" onClick={() => set("brand", !controls.brand)}>
               {controls.brand ? "Take the brand off" : "Put the brand back"}
             </button>
           </Feature>
         )}
         {looks.hook && (
           <Feature name="An opening that stops the scroll">
-            <p>The first three seconds open with a title the script writes, a quick zoom and an impact. Reword it or leave it out; neither costs anything.</p>
+            <p>The first {inWords(Math.round(looks.hook.endFrame / props.fps))} seconds open with a title the script writes, a quick zoom and an impact. Reword it or leave it out; neither costs anything.</p>
             <div className="flex flex-wrap gap-3">
               <input
                 type="text" value={controls.hookText} onChange={(e) => setControls((c) => ({ ...c, hook: true, hookText: e.target.value.slice(0, 60) }))}
@@ -94,7 +95,7 @@ export function FeatureStage({ showcase }: { showcase: Showcase }) {
           </Feature>
         )}
         <Feature name="Sound on the cuts">
-          <p>A cut gets a sound that fits it: a whoosh into a zoom or a blur, a pop on a hard cut or a glitch, nothing on a fade. The music drops under the voice and comes back between lines.</p>
+          <p>A cut gets a sound that fits it: a whoosh into a zoom or a blur, a pop on a hard cut or a glitch, nothing on a fade. Music, where there is any, is turned down under the voice.</p>
           {controls.sfx && cues.length > 0 && (
             <p className="figures text-[0.8rem] text-graphite" data-testid="feature-cues">
               In this video: {cues.map((c) => `${SOUND[c.src] ?? "a sound"} at ${at(c.frame, props.fps)}`).join(", ")}.
@@ -102,7 +103,7 @@ export function FeatureStage({ showcase }: { showcase: Showcase }) {
           )}
           <div className="flex flex-wrap gap-3">
             <button type="button" className={act} onClick={() => player.current?.playFrom(0, true)}>Play it with sound</button>
-            <button type="button" className={act} data-testid="feature-sfx" aria-pressed={controls.sfx} onClick={() => set("sfx", !controls.sfx)}>
+            <button type="button" className={act} data-testid="feature-sfx" onClick={() => set("sfx", !controls.sfx)}>
               {controls.sfx ? "Take the sounds out" : "Put the sounds back"}
             </button>
           </div>

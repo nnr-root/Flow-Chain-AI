@@ -27,9 +27,26 @@ function publishedPaths(props: RenderProps): string[] {
 }
 
 describe("the showcase videos", () => {
-  it("are there, and are the ones the page lists", () => {
+  it("are there, and are the ones the page lists, each under its own name", () => {
     expect(slugs.length).toBeGreaterThanOrEqual(2);
     expect(SHOWCASES.map((s) => s.slug).sort()).toEqual([...slugs].sort());
+    // the page's list is written by hand: a video's receipt or script under another video's name would be a lie
+    for (const s of SHOWCASES) {
+      const file = (name: string) => JSON.parse(readFileSync(join(root, s.slug, name), "utf8")) as unknown;
+      expect(s.props, `${s.slug} props`).toEqual(file("props.json"));
+      expect(s.looks, `${s.slug} looks`).toEqual(file("looks.json"));
+      expect(s.receipt, `${s.slug} receipt`).toEqual(file("receipt.json"));
+      expect(s.making, `${s.slug} making`).toEqual(file("making.json"));
+    }
+  });
+
+  it("publish nothing of the machine or the accounts that made them", () => {
+    for (const slug of slugs) {
+      for (const name of ["props.json", "looks.json", "receipt.json", "making.json"]) {
+        const text = readFileSync(join(root, slug, name), "utf8");
+        expect(text, `${slug}/${name}`).not.toMatch(/\/Users\/|\/home\/|\/private\/|runpod:|"runId"|sk_(test|live)_|whsec_/);
+      }
+    }
   });
 
   it.each(SHOWCASES.map((s) => [s.slug, s] as const))("%s can be given every look the page offers: each is the player's, and its files are there", (slug, showcase) => {

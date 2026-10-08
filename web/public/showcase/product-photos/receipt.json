@@ -1,10 +1,9 @@
 {
-  "runId": "20261008-191727-c07ea8",
   "title": "Three Mistakes That Make Your Product Photos Look Cheap",
   "topic": "Three mistakes that make your product photos look cheap",
   "seconds": 21.3,
   "scenes": 4,
-  "madeOn": "2026-10-08",
+  "date": "2026-10-08",
   "lines": [
     {
       "label": "Script",
@@ -29,5 +28,6 @@
     "voice": "ElevenLabs",
     "pictures": "SDXL, on our own GPU",
     "clips": "Wan 2.2 at 480p, on our own GPU"
-  }
+  },
+  "madeOn": "own"
 }

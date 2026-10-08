@@ -85,13 +85,15 @@ describe("a studio with accounts", () => {
   it("gives the web app the public key and the bucket, and keeps every key that can spend or settle with the worker", () => {
     const cfg = serverConfig(base, { ...supabase, ...r2, STUDIO_BUCKET: "studio", GEMINI_API_KEY: "g", FAL_KEY: "f", RUNPOD_API_KEY: "r", STUDIO_USER_JOBS: "3" });
     expect(cfg.accounts).toBe(true);
-    expect(cfg.web).toEqual({ SUPABASE_URL: supabase.SUPABASE_URL, SUPABASE_ANON_KEY: "public", STUDIO_USER_JOBS: "3", STUDIO_BUCKET: "studio", ...r2 });
+    expect(cfg.web).toEqual({ SUPABASE_URL: supabase.SUPABASE_URL, SUPABASE_ANON_KEY: "public", STUDIO_USER_JOBS: "3", STUDIO_BUCKET: "studio", STUDIO_ENGINE: "fal", ...r2 });
     for (const secret of ["SUPABASE_SERVICE_ROLE_KEY", "GEMINI_API_KEY", "FAL_KEY", "RUNPOD_API_KEY"]) {
       expect(cfg.web).not.toHaveProperty(secret);
       expect(cfg.worker).toHaveProperty(secret);
     }
     // without a bucket the web app has no use for the R2 keys either
-    expect(serverConfig(base, { ...supabase, ...r2 }).web).toEqual({ SUPABASE_URL: supabase.SUPABASE_URL, SUPABASE_ANON_KEY: "public" });
+    expect(serverConfig(base, { ...supabase, ...r2 }).web).toEqual({ SUPABASE_URL: supabase.SUPABASE_URL, SUPABASE_ANON_KEY: "public", STUDIO_ENGINE: "fal" });
+    // the landing page is told which way this studio makes its pictures: the worker's own setting, nothing secret
+    expect(serverConfig(base, { ...supabase, PROVIDER_MODE: "runpod" }).web.STUDIO_ENGINE).toBe("runpod");
   });
 
   it("puts the proxy without a login in front, because the studio asks every visitor itself", () => {

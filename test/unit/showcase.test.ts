@@ -16,7 +16,9 @@ describe("a showcase video's receipt", () => {
       lines: [{ label: "Script", usd: 0.0055 }, { label: "Voice", usd: 0.1146 }, { label: "Pictures", usd: 0.0375 }, { label: "Clips", usd: 0.1593 }],
       totalUsd: 0.3169,
       engines: { script: "Gemini", voice: "ElevenLabs", pictures: "SDXL, on our own GPU", clips: "Wan 2.2 at 480p, on our own GPU" },
+      madeOn: "own",
     });
+    expect(receiptOf(ledger, { ...models, image: "fal-ai/flux/dev", video: "fal-ai/kling-video/v2.1/standard/image-to-video" }).madeOn).toBe("hosted");
   });
 
   it("leaves out what cost nothing, keeps what it does not know under its own line, and refuses what is no amount", () => {
@@ -28,8 +30,11 @@ describe("a showcase video's receipt", () => {
   it("names a model in words only when it knows it, and otherwise shows what the run recorded", () => {
     expect(engineName("fal-ai/flux/dev")).toBe("Flux, on fal");
     expect(engineName("fal-ai/kling-video/v2.1/standard/image-to-video")).toBe("Kling 2.1, on fal");
-    expect(engineName("runpod:abc/clip-wan22-720p@2")).toBe("runpod:abc/clip-wan22-720p@2");
     expect(engineName("some-new-model")).toBe("some-new-model");
+    // a model on our own GPU that this file does not know yet: its workflow, never the endpoint it ran on
+    expect(engineName("runpod:abc123secret/clip-wan22-720p@2")).toBe("clip-wan22-720p@2, on our own GPU");
+    expect(engineName("runpod:abc123secret")).toBe("a model on our own GPU");
+    for (const model of ["runpod:abc123secret/clip-wan22-720p@2", "runpod:abc123secret", "runpod:abc123secret/keyframe-sdxl@1"]) expect(engineName(model)).not.toContain("abc123secret");
   });
 });
 
@@ -44,7 +49,7 @@ describe("the voice as a row of bars", () => {
 });
 
 describe("publishing a run's files", () => {
-  const published = ["fitted/scene_01.mp4", "images/keyframe_02.png", "narration.wav", "bgm.mp3", "sfx/whoosh.mp3", "Bangers-Regular.ttf", "logo.svg"];
+  const published = ["fitted/scene_01.mp4", "images/keyframe_02.png", "narration.wav", "bgm.mp3", "sfx/whoosh.mp3", "Bangers-Regular.ttf", "logo.svg", "brand/logo.png"];
 
   it("makes clips and pictures small, the narration an MP3, and copies the rest", () => {
     expect(publications(published)).toEqual([
@@ -55,6 +60,8 @@ describe("publishing a run's files", () => {
       { from: "sfx/whoosh.mp3", to: "sfx/whoosh.mp3", how: "copy" },
       { from: "Bangers-Regular.ttf", to: "Bangers-Regular.ttf", how: "copy" },
       { from: "logo.svg", to: "logo.svg", how: "copy" },
+      // a logo keeps its format, and with it its transparency
+      { from: "brand/logo.png", to: "brand/logo.png", how: "copy" },
     ]);
   });
 

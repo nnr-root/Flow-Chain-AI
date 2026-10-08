@@ -11,6 +11,8 @@ export type Receipt = {
   totalUsd: number;
   /** The models that made it, in words. */
   engines: { script: string; voice: string; pictures: string; clips: string };
+  /** Where the pictures and clips were generated: on the studio's own GPU, or by a hosted service. */
+  madeOn: "own" | "hosted";
 };
 
 const LINE_OF: Record<string, ReceiptLine["label"]> = { script: "Script", tts: "Voice", reference: "Pictures", keyframes: "Pictures", clips: "Clips" };
@@ -19,7 +21,8 @@ const round4 = (n: number): number => Math.round(n * 10_000) / 10_000;
 
 /**
  * A model's name as a visitor can read it. Only names this file knows are translated; anything else is shown as
- * the run recorded it, rather than guessed at.
+ * the run recorded it, rather than guessed at — except that a model on our own GPU is recorded with the id of
+ * the endpoint it ran on, which is nobody else's business: that part is never shown.
  */
 export function engineName(model: string): string {
   const known: Array<[RegExp, string]> = [
@@ -31,7 +34,10 @@ export function engineName(model: string): string {
     [/^runpod:[^/]+\/keyframe-flux/i, "Flux, on our own GPU"],
     [/^runpod:[^/]+\/clip-wan22-480p@/i, "Wan 2.2 at 480p, on our own GPU"],
   ];
-  return known.find(([pattern]) => pattern.test(model))?.[1] ?? model;
+  const name = known.find(([pattern]) => pattern.test(model))?.[1];
+  if (name) return name;
+  const own = /^runpod:[^/]*\/(.+)$/i.exec(model);
+  return own ? `${own[1]}, on our own GPU` : model.replace(/^runpod:.*/i, "a model on our own GPU");
 }
 
 /** What a run cost, grouped the way a video is made. Every figure comes from the run's own ledger. */
@@ -47,6 +53,7 @@ export function receiptOf(ledger: LedgerEntry[], models: { llm: string; tts: str
     lines,
     totalUsd: round4(lines.reduce((sum, line) => sum + line.usd, 0)),
     engines: { script: engineName(models.llm), voice: engineName(models.tts), pictures: engineName(models.image), clips: engineName(models.video) },
+    madeOn: /^runpod:/i.test(models.video) ? "own" : "hosted",
   };
 }
 
@@ -62,7 +69,8 @@ export function publications(published: string[]): Publication[] {
     const ext = extname(from).toLowerCase();
     const swap = (to: string) => `${from.slice(0, from.length - ext.length)}${to}`;
     if (ext === ".mp4" || ext === ".mov" || ext === ".webm") return { from, to: swap(".mp4"), how: "video" as const };
-    if (ext === ".png" || ext === ".jpg" || ext === ".jpeg") return { from, to: swap(".jpg"), how: "picture" as const };
+    // the run's own pictures, that is: a brand's logo may be a PNG too, and must keep its transparency
+    if (from.startsWith("images/") && (ext === ".png" || ext === ".jpg" || ext === ".jpeg")) return { from, to: swap(".jpg"), how: "picture" as const };
     if (ext === ".wav") return { from, to: swap(".mp3"), how: "narration" as const };
     return { from, to: from, how: "copy" as const };
   });

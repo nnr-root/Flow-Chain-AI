@@ -19,13 +19,39 @@ describe("what a month of videos costs", () => {
     // 30 videos use $9.60: Starter's $12 for $19 beats two $10 top-ups ($20 for $12)
     expect(names(quote(30, 0.32, all))).toEqual(["1 × starter"]);
     expect(quote(30, 0.32, all)).toMatchObject({ monthUsd: 19, creditUsd: 12, videos: 37, perVideoUsd: 0.63 });
-    // 60 videos use $19.20: Starter and a $25 top-up ($44) are cheaper than Pro ($49)
-    expect(names(quote(60, 0.32, all))).toEqual(["1 × starter", "1 × topup-25"]);
+    // 60 videos use $19.20: a $10 and a $25 top-up ($35 for $22) beat Starter with top-ups ($39) and Pro ($49)
+    expect(names(quote(60, 0.32, all))).toEqual(["1 × topup-10", "1 × topup-25"]);
+    expect(quote(60, 0.32, all)).toMatchObject({ monthUsd: 35, creditUsd: 22 });
+    // 23 at 81 cents use $18.69: a $25 and a $10 top-up ($35 for $22), not two $25 ones or a plan and a top-up
+    expect(quote(23, 0.8124, all)).toMatchObject({ monthUsd: 35, creditUsd: 22 });
     // 100 use $32: Pro covers them
     expect(names(quote(100, 0.32, all))).toEqual(["1 × pro"]);
     expect(quote(100, 0.32, all)?.perVideoUsd).toBe(0.49);
     // 200 use $64: Pro and top-ups beside it
-    expect(names(quote(200, 0.32, all))).toEqual(["1 × pro", "2 × topup-25"]);
+    expect(quote(200, 0.32, all)?.buy[0]).toEqual({ item: pro, times: 1 });
+  });
+
+  it("is never dearer than any way of buying one plan at most and top-ups, tried one by one", () => {
+    // every combination of 0 or 1 plan with up to a dozen of each top-up, the slow and certain way
+    const cheapest = (needUnits: number): number => {
+      let least = Number.POSITIVE_INFINITY;
+      for (const plan of [null, starter, pro]) {
+        for (let tens = 0; tens <= 12; tens++) {
+          for (let big = 0; big <= 12; big++) {
+            const credit = Math.round(((plan?.creditUsd ?? 0) + tens * 6 + big * 16) * 10_000);
+            if (credit >= needUnits) least = Math.min(least, (plan?.priceUsd ?? 0) + tens * 10 + big * 25);
+          }
+        }
+      }
+      return least;
+    };
+    for (const each of [0.2292, 0.2731, 0.3169, 0.8124]) {
+      for (let videos = 1; videos <= 150; videos++) {
+        const need = Math.round(videos * each * 10_000);
+        if (need > 60 * 10_000) break; // beyond what a dozen of each top-up reaches
+        expect(quote(videos, each, all)?.monthUsd, `${videos} at ${each}`).toBe(cheapest(need));
+      }
+    }
   });
 
   it("never quotes less credit than the videos use, to the hundredth of a cent", () => {
@@ -49,6 +75,8 @@ describe("what a month of videos costs", () => {
     expect(quote(10, Number.NaN, all)).toBeNull();
     // plans only: a month that no plan covers cannot be quoted, rather than quoted short
     expect(quote(200, 0.32, [starter, pro])).toBeNull();
+    // two plans cannot be bought together: 120 videos ($38.40) are Starter and two $25 top-ups ($69), not Starter and Pro ($68)
+    expect(names(quote(120, 0.32, [starter, pro, twentyFive]))).toEqual(["1 × starter", "2 × topup-25"]);
     expect(names(quote(30, 0.32, [starter, pro]))).toEqual(["1 × starter"]);
   });
 
@@ -66,11 +94,16 @@ describe("another company's price", () => {
 
   it("is shown only with a source, well-formed, and read within ninety days", () => {
     expect(freshComparisons([luma], today)).toEqual([luma]);
-    expect(freshComparisons([luma], new Date("2027-01-06T00:00:00Z"))).toEqual([luma]); // the ninetieth day
-    expect(freshComparisons([luma], new Date("2027-01-07T00:00:01Z"))).toEqual([]);
+    // through the whole of the ninetieth day, and not a moment of the ninety-first
+    expect(freshComparisons([luma], new Date("2027-01-06T00:00:00Z"))).toEqual([luma]);
+    expect(freshComparisons([luma], new Date("2027-01-06T23:59:59Z"))).toEqual([luma]);
+    expect(freshComparisons([luma], new Date("2027-01-07T00:00:00Z"))).toEqual([]);
+    // read "tomorrow" by an owner east of Greenwich in the small hours: taken; a date further ahead is a slip
+    expect(freshComparisons([{ ...luma, checkedOn: "2026-10-21" }], today)).toEqual([{ ...luma, checkedOn: "2026-10-21" }]);
+    expect(freshComparisons([{ ...luma, checkedOn: "2026-10-22" }], today)).toEqual([]);
     for (const bad of [
       { ...luma, source: "" }, { ...luma, source: "http://lumalabs.ai/pricing" }, { ...luma, source: "lumalabs.ai" },
-      { ...luma, checkedOn: "last week" }, { ...luma, checkedOn: "2026-10-21" }, // read "tomorrow"
+      { ...luma, checkedOn: "last week" },
       { ...luma, creditsPerSecond: 0 }, { ...luma, planUsdPerMonth: "30" }, { name: "Luma" }, null,
     ]) expect(freshComparisons([bad], today), JSON.stringify(bad)).toEqual([]);
     // one bad entry does not take the good ones with it

@@ -38,7 +38,9 @@ read the one for the area you are changing before changing it (table at the end)
 | `src/media/` | ffmpeg and Remotion helpers |
 | `src/billing/stripe.ts` | the Stripe HTTP client (shared by web, worker and `stripe:setup`) |
 | `src/deploy/`, `scripts/` | pure planners (`src/deploy`) and the commands that act (`scripts`) for the server, the database, Stripe |
-| `web/app/` | pages and API routes (App Router) |
+| `web/app/(studio)/` | the studio's pages (dark); `web/app/api/`, `web/app/auth/`: route handlers |
+| `web/app/(marketing)/` | the landing page, `/pricing`, `/terms`, `/privacy` (light): **its own root layout, CSS and fonts** |
+| `web/components/site/`, `web/lib/site/`, `web/public/showcase/`, `web/content/` | the landing page's parts, its arithmetic, the published videos, other companies' dated prices |
 | `web/server/` | everything the routes do: `http.ts` (`route()`), `tenant.ts`, `session.ts`, `runs.ts`, `jobs/`, `store/`, `billing/` |
 | `web/worker/` | `worker.ts` (the queue), `tenant.ts` (credit), `billing.ts` (Stripe fulfilment) |
 | `web/lib/` | code shared by server and browser; no secrets, few imports |
@@ -56,12 +58,14 @@ npm run typecheck          # tsc for the pipeline and for web/
 npm test                   # everything in vitest (≈ 10 min; needs ffmpeg; more runs with the items below)
 npx vitest run <file>      # one file — the normal loop
 npm run test:e2e           # studio in a browser, fixtures + stand-in CLI
-npm run test:accounts      # studio with accounts in a browser (needs db:start, redis-server)
+npm run test:accounts      # studio with accounts in a browser (needs db:start, redis-server); run it ALONE:
+                           # it switches a database-wide setting on for a moment
 npm run test:stack         # the Compose stack through the proxy (needs Docker; minutes)
 npm run test:db            # database tests only; fails instead of skipping without the local stack
 npm run db:start           # local Supabase in Docker (API on 127.0.0.1:54321)
 npm run db:reset           # wipes and reloads the LOCAL database from supabase/migrations/
 npm run web:build          # next build (webpack mode)
+npm run make:showcase -- <runId> --slug <name>   # publish a finished run for the landing page (free)
 npm run test:worker        # Python tests of the RunPod worker (npm run setup:worker once)
 ```
 
@@ -109,6 +113,24 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
   reservation for exactly that user, run, kind and cap.
 - Next.js 16 in **webpack mode**; `web/proxy.ts` is the request interceptor. No Supabase client runs in
   the browser: sessions are HttpOnly cookies set by the studio's own routes.
+
+## The landing page (Phase 4)
+
+- **Two root layouts.** Nothing under `(marketing)` imports the studio's `globals.css` or components styled
+  for it, and the reverse; a browser test checks backgrounds and typefaces on both sides. Going from one
+  side to the other is a full page load, on purpose.
+- **A visitor without a session at `/` is shown `/welcome`** (a rewrite in `web/proxy.ts`). `PUBLIC_PAGES`
+  lists what anyone may open; adding to it is a security decision.
+- **Every number on the page is computed** (`web/lib/site/calculator.ts`) from a showcase's receipt, the live
+  catalogue, or a dated, sourced entry in `web/content/comparison.json`. No figure, count or comparison is
+  typed into copy. A claim is shown only while its evidence is (`clipsClaimHolds`, `freshComparisons`).
+- **No invented proof:** no testimonials, logos, user counts or avatars until real ones exist.
+- **"The real renderer" must stay true:** the page restyles a video by choosing among looks that
+  `looksOf()` computed with the studio's own `previewProps`; `web/test/restyle.test.ts` compares every
+  combination with it. Do not compute captions, cuts or sounds in the browser.
+- Showcases are published by `npm run make:showcase` (free) and listed by hand in
+  `web/lib/site/showcases.ts`; what is published must never carry a machine path or a GPU endpoint id.
+- Design: the spec's §3 (and its amended list of banned details) is binding for anything on this side.
 
 ## Multi-tenant rules
 
@@ -211,6 +233,7 @@ graphify god-nodes --top 20       # the hubs
 | The queue, the worker, the server | `2026-10-07-phase3.2-job-queue-deployment-design.md` |
 | Accounts, credit, storage | `2026-10-07-phase3.3-multi-tenant-design.md` (§14–§15 win) |
 | Payments | `2026-10-08-phase3.4-stripe-billing-design.md` (§13–§15 win) |
+| The landing page, showcases, welcome credit | `2026-10-08-phase4-landing-page-design.md` (§13 wins) |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.
 

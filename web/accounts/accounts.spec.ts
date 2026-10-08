@@ -15,6 +15,17 @@ const B = { email: `bob-${stamp}@example.test`, password: "bob-password-1" };
 const userId = async (email: string) => (await service.from("users").select("id").eq("email", email).single()).data!.id as string;
 const balance = async (email: string) => Number((await service.from("users").select("balance_usd").eq("email", email).single()).data!.balance_usd);
 
+// Welcome credit is one setting for the whole local database. One test below turns it on for a moment; a run
+// that was killed in that moment would leave it on for everything that uses the database afterwards, so it is
+// put back to off before and after. (For the same reason this suite is not run alongside the others.)
+const welcomeOff = () => service.from("settings").update({ welcome_credit_usd: 0, welcome_daily_cap_usd: 5 }).eq("only_row", true);
+test.beforeAll(async () => {
+  await welcomeOff();
+});
+test.afterAll(async () => {
+  await welcomeOff();
+});
+
 async function signIn(page: Page, who: { email: string; password: string }) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(who.email);
@@ -128,6 +139,7 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await expect(page.getByTestId("faq").locator("details")).toHaveCount(7);
   await page.getByText("Does my credit expire?").click();
   await expect(page.getByTestId("faq")).toContainText("Credit from a top-up does not expire.");
+  await expect(page.getByTestId("faq")).toContainText("up to twelve scenes");
   // (the answer about cost quotes the receipts on this very page)
   await expect(page.getByTestId("faq").locator("details").first()).toContainText("23, 32 and 81 cents");
   await expect(page.locator('[data-cta="closing-signup"]')).toHaveText("Create an account");
@@ -347,6 +359,16 @@ test("a visitor types a topic on the landing page, creates an account, and finds
     expect(await balance(C.email)).toBeGreaterThan(0);
     await page.goto("/account");
     await expect(page.getByTestId("ledger")).toContainText("welcome");
+    // An address that is confirmed later, by the emailed link (as in production): nothing until then, the
+    // welcome when it is, and nothing for being confirmed again or changing the address afterwards.
+    const later = await service.auth.admin.createUser({ email: `dee-${stamp}@example.test`, password: "dee-password-1", email_confirm: false });
+    const dee = later.data.user!;
+    const has = async () => Number((await service.from("users").select("balance_usd").eq("id", dee.id).single()).data!.balance_usd);
+    expect(await has()).toBe(0);
+    await service.auth.admin.updateUserById(dee.id, { email_confirm: true });
+    await expect.poll(has).toBe(0.05);
+    await service.auth.admin.updateUserById(dee.id, { email: `dee2-${stamp}@example.test`, email_confirm: true });
+    expect(await has()).toBe(0.05);
     // once: nothing more for signing in again
     await page.getByTestId("sign-out").click();
     await signIn(page, C);

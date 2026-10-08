@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { Motion } from "@/components/site/Motion";
 import "./site.css";
 
 /*
@@ -22,7 +23,7 @@ export const metadata: Metadata = {
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${fraunces.variable} ${schibsted.variable} ${plexMono.variable}`}>
-      <body className="min-h-screen" data-surface="site">{children}</body>
+      <body className="min-h-screen" data-surface="site"><Motion>{children}</Motion></body>
     </html>
   );
 }

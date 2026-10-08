@@ -113,6 +113,8 @@ export function serverConfig(serverEnv: Record<string, string>, localEnv: Record
       if (worker[name]) web[name] = worker[name];
     }
   }
+  // The landing page says what a video costs "here": it is told which way this studio makes its pictures by default.
+  if (accounts) web.STUDIO_ENGINE = worker.PROVIDER_MODE === "runpod" ? "runpod" : "fal";
   // Payments (3.4). Both processes talk to Stripe: the web app opens checkouts, the worker reads what was paid.
   // The webhook's signing secret is the web app's alone — the worker never sees a webhook, only an event's id.
   const billing = !!worker.STRIPE_SECRET_KEY;

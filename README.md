@@ -335,6 +335,32 @@ What to know:
   retried by Stripe until the price is put right.
 - Prices are in USD only, and a plan is billed by the month.
 
+## The landing page
+
+In a studio with accounts, a visitor without a session who opens the bare address sees the landing page; a
+signed-in user sees their videos there. `/pricing`, `/terms` and `/privacy` are on the same, light side. It has
+its own layout, typefaces (files in the repository) and styles: nothing of it reaches the studio's pages.
+
+- **The videos on it are real runs.** `npm run make:showcase -- <runId> --slug <name>` publishes a finished
+  upright run into `web/public/showcase/<name>/`: the media made small, what the player needs, every look a
+  visitor can give it (worked out by the same function a free re-render uses), how it was made, and its
+  receipt from the run's own ledger. It is free and calls no provider. Then list it in
+  `web/lib/site/showcases.ts`; the first one listed is the one a visitor meets. The files are public: the
+  export leaves out machine paths and the ids of your GPU endpoints, and a test checks that.
+- **Every number on it is computed** — from those receipts, from what Stripe has on sale, and from
+  `web/content/comparison.json`, where another company's price carries the address it was read at and the
+  date. **An entry older than 90 days is no longer shown**, and when none is left the comparison table and
+  the comparing headline go with it (the page then opens with a plain one). Read the prices again and update
+  the dates to keep them. The headline compares only when the comparison holds for the way your studio makes
+  pictures by default (`PROVIDER_MODE`, which `server:setup` passes to the web app as `STUDIO_ENGINE`).
+- **A free first draft (optional).** In the database's `settings` row, `welcome_credit_usd` (0 = off; 0.05
+  covers a couple of script drafts and no clip) gives each new account that much once its address is
+  confirmed, and `welcome_daily_cap_usd` (5) is the most given away in a day to all new accounts together.
+  The page says "Make a free draft" only while a new account would really be given enough for one; a
+  sentence typed there is in the new-video form after sign-up. Turn it on in the Supabase dashboard's SQL
+  editor: `update settings set welcome_credit_usd = 0.05;`.
+- **Before real money:** `/terms` and `/privacy` say that they are not written yet. Replace them.
+
 ## Tests
 
 `npm test` runs unit, ffmpeg, Remotion (headless Chrome), fake-provider pipeline and studio server tests offline
@@ -346,7 +372,9 @@ the server's images and drives the whole Compose stack through the proxy's login
 checks the Compose and proxy files of both kinds of deployment (needs Docker; the first build takes several
 minutes). The tests of accounts, credit and storage are part of `npm test`
 and are skipped unless the local Supabase stack is running (`npm run db:start`; storage also needs Docker for
-a stand-in bucket). `npm run test:accounts` drives the studio with accounts in a browser: sign-up, credit, a
-video, buying a top-up and a plan, and a second user who sees none of it. Payments are tested against a
+a stand-in bucket). `npm run test:accounts` drives the studio with accounts in a browser: the landing page (the live player, the
+calculator, a topic carried through sign-up, welcome credit, how fast it paints on a slowed-down phone),
+sign-up, credit, a video, buying a top-up and a plan, and a second user who sees none of it. It turns a
+database-wide setting on for a moment, so run it on its own, not beside `npm test`. Payments are tested against a
 stand-in Stripe (`web/test/stripe.ts`); no test reaches Stripe or needs its keys. The RunPod worker's Python tests: `npm run setup:worker` once,
 then `npm run test:worker`.

@@ -1,4 +1,5 @@
 "use client";
+import { useReducedMotion } from "motion/react";
 import { SHOW_EVENT, type Showcase } from "@/lib/site/showcases";
 import { Receipt } from "./Receipt";
 
@@ -9,14 +10,17 @@ const cents = (usd: number): string => `${Math.round(usd * 100)} cents`;
  * testimonials until there are real ones. The sentence under them is worked out from the receipts themselves.
  */
 export function Shelf({ showcases }: { showcases: Showcase[] }) {
-  const own = showcases.filter((s) => /our own GPU/.test(s.receipt.engines.clips));
+  const still = useReducedMotion() ?? false;
+  const own = showcases.filter((s) => s.receipt.madeOn === "own");
+  /** The same in every one of them, and so not what makes the difference. */
+  const shared = (part: "script" | "voice") => new Set(showcases.map((s) => s.receipt.engines[part])).size === 1;
   const hosted = showcases.filter((s) => !own.includes(s));
   const moving = (s: Showcase) => s.making.scenes.filter((scene) => scene.kind === "clip").length;
   /** "32 cents, with 3 moving scenes": the two things that make one video's cost comparable with another's. */
   const cost = (s: Showcase) => `${cents(s.receipt.totalUsd)}, with ${moving(s)} moving ${moving(s) === 1 ? "scene" : "scenes"}`;
   const play = (slug: string) => {
     window.dispatchEvent(new CustomEvent(SHOW_EVENT, { detail: slug }));
-    document.getElementById("stage")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    document.getElementById("stage")?.scrollIntoView({ behavior: still ? "auto" : "smooth", block: "center" });
   };
   return (
     <div data-testid="shelf">
@@ -35,11 +39,11 @@ export function Shelf({ showcases }: { showcases: Showcase[] }) {
       {own.length > 0 && hosted.length > 0 && (
         <p className="mt-12 max-w-[44rem] text-[1.1rem] leading-[1.5]" data-testid="shelf-compare">
           Made on our own GPU: {own.map(cost).join("; ")}. Made with hosted models: {hosted.map(cost).join("; ")}.
-          The script writer, the voice and the cut are the same in all three; what differs is which models make the pictures, and where they run.
+          {shared("script") && shared("voice") ? "The script writer, the voice and the cut are the same in all of them; what differs is" : "What differs most is"} which models make the pictures, and where they run.
         </p>
       )}
       <p className="mt-4 max-w-[44rem] text-[0.92rem] text-graphite">
-        These are amounts of credit, at exactly what the models charged for these three videos. Other videos cost more or less with their length and how many scenes move.
+        These are the amounts of credit these videos used. Other videos use more or less with their length and how many scenes move.
       </p>
     </div>
   );

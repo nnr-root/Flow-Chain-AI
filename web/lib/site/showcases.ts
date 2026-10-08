@@ -19,7 +19,7 @@ import robotReceipt from "@/public/showcase/robot-painter/receipt.json";
  * To add one, run that command and list it here. (The files are JSON written by the command and checked by
  * web/test/showcase.test.ts against the player's own schema, which is why they are taken at their word here.)
  */
-export type ShowcaseReceipt = Receipt & { runId: string; title: string; topic: string; seconds: number; scenes: number; madeOn: string };
+export type ShowcaseReceipt = Receipt & { title: string; topic: string; seconds: number; scenes: number; date: string };
 export type Showcase = {
   slug: string;
   props: RenderProps;

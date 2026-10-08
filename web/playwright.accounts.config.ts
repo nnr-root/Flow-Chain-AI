@@ -34,6 +34,10 @@ const shared = {
   REDIS_URL: `redis://127.0.0.1:${REDIS_PORT}`,
   SUPABASE_URL: supabase.url,
   SUPABASE_ANON_KEY: supabase.anonKey,
+  // this studio makes its pictures on its own GPU (what `server:setup` tells the web app from PROVIDER_MODE)
+  STUDIO_ENGINE: "runpod",
+  // one test turns welcome credit on and looks at the page at once: the page must ask the database each time
+  WELCOME_OFFER_TTL_MS: "0",
   // payments go to the stand-in Stripe below: these keys open nothing anywhere else
   STRIPE_SECRET_KEY: "sk_test_standin",
   STRIPE_API_BASE: `http://127.0.0.1:${STRIPE_PORT}`,

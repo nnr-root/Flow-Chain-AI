@@ -1,10 +1,9 @@
 {
-  "runId": "20261005-221305-f93414",
   "title": "The Soul on the Canvas",
   "topic": "A lost robot learns to paint",
   "seconds": 19,
   "scenes": 4,
-  "madeOn": "2026-10-05",
+  "date": "2026-10-05",
   "lines": [
     {
       "label": "Script",
@@ -29,5 +28,6 @@
     "voice": "ElevenLabs",
     "pictures": "Flux, on fal",
     "clips": "Kling 2.1, on fal"
-  }
+  },
+  "madeOn": "hosted"
 }

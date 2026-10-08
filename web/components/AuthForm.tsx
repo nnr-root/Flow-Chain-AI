@@ -63,7 +63,7 @@ export function AuthForm({ mode, next = "/", error: initialError = "" }: { mode:
         </a>
       )}
       <p className="text-center text-xs text-dim">
-        {mode === "login" && <><Link href="/signup" className="underline">Create an account</Link> · <Link href="/reset" className="underline">Forgot your password?</Link></>}
+        {mode === "login" && <><Link href={next === "/" ? "/signup" : `/signup?next=${encodeURIComponent(next)}`} className="underline">Create an account</Link> · <Link href="/reset" className="underline">Forgot your password?</Link></>}
         {mode === "signup" && <>Already have an account? <Link href={next === "/" ? "/login" : `/login?next=${encodeURIComponent(next)}`} className="underline">Sign in</Link></>}
         {mode === "reset" && <Link href="/login" className="underline">Back to sign in</Link>}
       </p>

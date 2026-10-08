@@ -135,14 +135,16 @@ alter default privileges for role postgres revoke execute on functions from publ
 -- the last day past `p_cap`. Returns what was granted (0 when nothing was). Its two amounts are parameters so
 -- that it can be tested without changing a setting every other account shares.
 create function public.grant_welcome_credit(p_user_id uuid, p_amount numeric, p_cap numeric) returns numeric
-language plpgsql security definer set search_path = '' as $$
+language plpgsql security definer set search_path = '' set lock_timeout = '2s' as $$
 declare
   v_amount numeric(12, 4) := round(p_amount, 4);
   v_given numeric(12, 4);
   v_balance numeric(12, 4);
 begin
   if v_amount is null or v_amount = 'NaN' or v_amount <= 0 or v_amount > 5 or p_cap is null or p_cap = 'NaN' then return 0; end if;
-  -- one grant at a time (the settings row is the lock): the day's total cannot be raced past
+  -- One grant at a time (the settings row is the lock): the day's total cannot be raced past. A sign-up never
+  -- waits long for it (this function's own lock_timeout): if the row is held, this fails, and the account is
+  -- made without a welcome.
   perform 1 from public.settings for update;
   perform 1 from public.users where id = p_user_id for update;
   if not found then return 0; end if;
@@ -176,7 +178,8 @@ begin
     -- a welcome that cannot be given must never stand in the way of the account itself
     begin
       perform public.grant_welcome_credit(new.id, s.welcome_credit_usd, s.welcome_daily_cap_usd) from public.settings s;
-    exception when others then null;
+    exception when others then
+      raise warning 'welcome credit could not be given to %: %', new.id, sqlerrm;
     end;
   end if;
   return new;
@@ -190,7 +193,8 @@ language plpgsql security definer set search_path = '' as $$
 begin
   begin
     perform public.grant_welcome_credit(new.id, s.welcome_credit_usd, s.welcome_daily_cap_usd) from public.settings s;
-  exception when others then null;
+  exception when others then
+    raise warning 'welcome credit could not be given to %: %', new.id, sqlerrm;
   end;
   return new;
 end $$;
