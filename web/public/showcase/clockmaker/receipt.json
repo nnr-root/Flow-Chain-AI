@@ -1,0 +1,33 @@
+{
+  "runId": "20261006-212125-7c8639",
+  "title": "The Midnight Gear",
+  "topic": "A clockmaker's apprentice repairs the town clock before the midnight bell",
+  "seconds": 19.7,
+  "scenes": 4,
+  "madeOn": "2026-10-06",
+  "lines": [
+    {
+      "label": "Script",
+      "usd": 0.0055
+    },
+    {
+      "label": "Voice",
+      "usd": 0.1146
+    },
+    {
+      "label": "Pictures",
+      "usd": 0.0375
+    },
+    {
+      "label": "Clips",
+      "usd": 0.1593
+    }
+  ],
+  "totalUsd": 0.3169,
+  "engines": {
+    "script": "Gemini",
+    "voice": "ElevenLabs",
+    "pictures": "SDXL, on our own GPU",
+    "clips": "Wan 2.2 at 480p, on our own GPU"
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "runId": "20261005-221305-f93414",
+  "title": "The Soul on the Canvas",
+  "topic": "A lost robot learns to paint",
+  "seconds": 19,
+  "scenes": 4,
+  "madeOn": "2026-10-05",
+  "lines": [
+    {
+      "label": "Script",
+      "usd": 0.0055
+    },
+    {
+      "label": "Voice",
+      "usd": 0.0981
+    },
+    {
+      "label": "Pictures",
+      "usd": 0.2088
+    },
+    {
+      "label": "Clips",
+      "usd": 0.5
+    }
+  ],
+  "totalUsd": 0.8124,
+  "engines": {
+    "script": "Gemini",
+    "voice": "ElevenLabs",
+    "pictures": "Flux, on fal",
+    "clips": "Kling 2.1, on fal"
+  }
+}
