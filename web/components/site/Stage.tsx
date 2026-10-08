@@ -35,7 +35,8 @@ function Leader() {
   );
 }
 
-export function Stage({ children }: { children?: React.ReactNode }) {
+/** `caption`: what is said under the frame, left and right; the frame's own measurements when nothing is playing in it. */
+export function Stage({ children, caption = ["00:00:00:00", "1080 × 1920, 30 fps"] }: { children?: React.ReactNode; caption?: [string, string] }) {
   return (
     <figure className="mx-auto w-full max-w-[21rem]" data-testid="stage">
       {/* the marks frame the picture, as on a proof; the caption sits outside them */}
@@ -45,9 +46,9 @@ export function Stage({ children }: { children?: React.ReactNode }) {
           {children ?? <Leader />}
         </div>
       </div>
-      <figcaption className="figures mt-5 flex justify-between text-[0.75rem] text-graphite">
-        <span>00:00:00:00</span>
-        <span>1080 × 1920, 30 fps</span>
+      <figcaption className="figures mt-5 flex justify-between gap-4 text-[0.75rem] text-graphite">
+        <span>{caption[0]}</span>
+        <span>{caption[1]}</span>
       </figcaption>
     </figure>
   );

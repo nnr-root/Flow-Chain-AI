@@ -40,6 +40,37 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await expect(page.getByTestId("landing")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Type a topic. Get a finished short video.");
   await expect(page.getByTestId("stage")).toBeVisible();
+  // The Stage shows a still of a real video at once, then the real renderer playing it; the controls under it
+  // change what it shows, there and then.
+  const player = page.getByTestId("showcase-player");
+  await expect(player.locator("img")).toHaveAttribute("src", "/showcase/clockmaker/poster.jpg");
+  await expect(player).toHaveAttribute("data-live", "true", { timeout: 20_000 });
+  await expect(player.locator("video, img").first()).toBeVisible();
+  const before = { font: await player.getAttribute("data-caption-font"), cuts: await player.getAttribute("data-cuts") };
+  await page.getByText("Playful", { exact: true }).click();
+  await expect(player).toHaveAttribute("data-caption-font", "Luckiest Guy");
+  await page.getByText("Glitch", { exact: true }).click();
+  await expect(player).toHaveAttribute("data-cuts", /^(glitch|cut)(,(glitch|cut))*$/);
+  expect(await player.getAttribute("data-cuts")).not.toBe(before.cuts);
+  await page.getByTestId("hook-text").fill("Made in your browser");
+  await expect(player).toHaveAttribute("data-hook", "Made in your browser");
+  // the words typed are in the film itself (the composition is ordinary page content, not a recording): the
+  // title shows for the first three seconds of each pass of the loop, a line of words at a time
+  await expect(player.getByText(/browser/i).first()).toBeAttached({ timeout: 30_000 });
+  await page.getByText("Sound effects", { exact: true }).click();
+  await expect(player).toHaveAttribute("data-sounds", "0");
+  await page.getByTestId("restyle-reset").click();
+  await expect(player).toHaveAttribute("data-caption-font", before.font!);
+  await expect(player).toHaveAttribute("data-cuts", before.cuts!);
+  // another of the videos, with a brand that can be taken off
+  await page.locator('label[title="Three Mistakes That Make Your Product Photos Look Cheap"]').click();
+  await expect(page.getByRole("radio", { name: "Three Mistakes That Make Your Product Photos Look Cheap" })).toBeChecked();
+  await expect(player).toHaveAttribute("data-slug", "product-photos");
+  await expect(player).toHaveAttribute("data-brand", "true");
+  await page.getByText("Brand", { exact: true }).click();
+  await expect(player).toHaveAttribute("data-brand", "false");
+  // the videos' own files are for anyone; nothing else of the server is
+  expect((await page.request.get("/showcase/clockmaker/props.json")).status()).toBe(200);
   const site = await page.evaluate(() => ({ background: getComputedStyle(document.body).backgroundColor, heading: getComputedStyle(document.querySelector("h1")!).fontFamily, text: getComputedStyle(document.body).fontFamily }));
   expect(site.background).toBe("rgb(244, 239, 230)");
   expect(site.heading).toMatch(/fraunces/i);

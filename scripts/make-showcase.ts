@@ -1,18 +1,16 @@
 /**
  * npm run make:showcase -- <runId> --slug <name> [--runs <dir>]: publishes a finished run for the landing page
  * (Phase 4 spec §6.1). Free: it reads the run and calls no provider. Writes web/public/showcase/<name>/ with
- * the media made small, `props.json` (what the player is given), `receipt.json` (what the run cost, from its
- * ledger) and `poster.jpg`.
+ * the media made small, `props.json` (what the player is given), `looks.json` (every look a visitor can give
+ * it), `receipt.json` (what the run cost, from its ledger) and `poster.jpg`.
  */
-import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
-import type { Caption } from "@remotion/captions";
+import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
+import { dirname, join, resolve, sep } from "node:path";
 import { FPS, outputSize } from "../src/config.js";
 import { publications, receiptOf, republish, slugOf } from "../src/deploy/showcase.js";
+import { looksOf } from "../src/deploy/showcase-looks.js";
 import { loadManifest } from "../src/manifest/store.js";
 import { ffmpeg } from "../src/media/ffmpeg.js";
-import { buildRenderProps } from "../src/stages/build-render-props.js";
-import { paths } from "../src/stages/paths.js";
 
 /** The page shows a video about a phone wide: half the render's size is more than it needs. */
 const WIDTH = 540;
@@ -33,18 +31,19 @@ async function main(): Promise<void> {
   const manifest = await loadManifest(dir);
   if (!manifest.final) throw new Error(`run ${runId} is not finished: there is nothing to show yet`);
 
-  const captions = JSON.parse(await readFile(join(dir, paths.captions), "utf8")) as Caption[];
-  const { props, files } = buildRenderProps(
-    manifest,
-    { dir, fontsDir: resolve("assets/fonts"), sfxDir: resolve("assets/sfx"), fps: FPS, size: outputSize(manifest.request.aspect) },
-    captions,
-  );
+  const fontsDir = resolve("assets/fonts");
+  const sfxDir = resolve("assets/sfx");
+  // the video as made, and every look the page lets a visitor give it: all by the studio's own preview function
+  const { props, looks, files } = looksOf(manifest, { dir, fontsDir, sfxDir, fps: FPS, size: outputSize(manifest.request.aspect) });
   const out = resolve("web/public/showcase", slug);
+  const sharedOut = resolve("web/public/showcase/_shared");
   await rm(out, { recursive: true, force: true });
   const pubs = publications(Object.keys(files));
+  // the bundled caption fonts and sound effects are the same for every video: kept once, beside the videos
+  const shared = pubs.filter((pub) => [fontsDir, sfxDir].some((d) => files[pub.from].startsWith(d + sep))).map((pub) => pub.to);
   for (const pub of pubs) {
     const from = files[pub.from];
-    const to = join(out, pub.to);
+    const to = join(shared.includes(pub.to) ? sharedOut : out, pub.to);
     await mkdir(dirname(to), { recursive: true });
     if (pub.how === "video") {
       // no sound track (the narration and music are the player's own), and seekable from the first byte
@@ -61,6 +60,7 @@ async function main(): Promise<void> {
 
   const receipt = receiptOf(manifest.ledger, manifest.models);
   await writeFile(join(out, "props.json"), `${JSON.stringify(republish(props, pubs))}\n`);
+  await writeFile(join(out, "looks.json"), `${JSON.stringify({ ...republish(looks, pubs), shared })}\n`);
   await writeFile(
     join(out, "receipt.json"),
     `${JSON.stringify({ runId, title: manifest.script?.title ?? "", topic: manifest.request.topic, seconds: Math.round(manifest.final.duration * 10) / 10, scenes: manifest.scenes.length, madeOn: manifest.createdAt.slice(0, 10), ...receipt }, null, 2)}\n`,

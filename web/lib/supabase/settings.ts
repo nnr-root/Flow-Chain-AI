@@ -55,8 +55,11 @@ export const LINK_ERRORS = {
 } as const;
 export const linkError = (code: string | null | undefined): string => (code && Object.hasOwn(LINK_ERRORS, code) ? LINK_ERRORS[code as keyof typeof LINK_ERRORS] : "");
 
-/** Pages anyone may open. (`/pricing` exists only in a studio that takes payments; elsewhere it is "not found".) */
-export const PUBLIC_PAGES = /^\/(welcome|login|signup|reset|pricing|auth\/callback|auth\/google)(\/|$)/;
+/**
+ * Pages anyone may open. (`/pricing` exists only in a studio that takes payments; elsewhere it is "not found".
+ * `/showcase/` is not a page but the landing page's own videos: files made for showing to anyone.)
+ */
+export const PUBLIC_PAGES = /^\/(welcome|showcase|login|signup|reset|pricing|auth\/callback|auth\/google)(\/|$)/;
 
 /** The landing page: what a visitor without a session is shown at `/`. */
 export const LANDING_PAGE = "/welcome";
