@@ -40,7 +40,10 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await page.goto("/");
   await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/);
   await expect(page.getByTestId("landing")).toBeVisible();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Type a topic. Get a finished short video.");
+  // The headline compares with other companies only while their prices are fresh enough to be shown beside it
+  // (and with what this studio sells — a $19 plan and a $10 top-up — the comparison holds).
+  const comparable = freshComparisons(JSON.parse(readFileSync(fileURLToPath(new URL("../content/comparison.json", import.meta.url)), "utf8")), new Date()).length > 0;
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(comparable ? "A finished short video for about what others charge for the clips." : "Type a topic. Get a finished short video.");
   await expect(page.getByTestId("stage").first()).toBeVisible();
   // The Stage shows a still of a real video at once, then the real renderer playing it; the controls under it
   // change what it shows, there and then.

@@ -18,7 +18,7 @@
   --font-mono: var(--font-plex-mono), ui-monospace, "SF Mono", Menlo, monospace;
 
   /* Robert Bringhurst's classic scale, with a display step that follows the window */
-  --text-display: clamp(2.75rem, 1.2rem + 7.4vw, 8rem);
+  --text-display: clamp(2.6rem, 1.2rem + 6.2vw, 6.75rem);
   --text-display--line-height: 0.94;
   --text-display--letter-spacing: -0.035em;
 }

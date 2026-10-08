@@ -97,5 +97,19 @@ export const usdPerSecond = (c: Comparison): number => (c.planUsdPerMonth / c.cr
 /** What `seconds` of generated clips cost there: the clips alone, which is all that is sold there. */
 export const clipsCostUsd = (c: Comparison, seconds: number): number => cents(usdPerSecond(c) * seconds);
 
+/**
+ * Whether the page may say that a finished video costs "about what others charge for the clips" (Phase 4 spec
+ * D7: a claim only where the numbers bear it out). It may when, at the dearest rate credit is sold at here, a
+ * typical video comes to no more than 15 % above what the cheapest of the other companies charges for the same
+ * seconds of clips alone. Without prices here, or without a fresh price from anyone else, there is no claim.
+ */
+export function clipsClaimHolds(creditPerVideoUsd: number, clipSeconds: number, items: CatalogueItem[], others: Comparison[]): boolean {
+  const sold = items.filter((i) => i.creditUsd > 0);
+  if (sold.length === 0 || others.length === 0 || !(creditPerVideoUsd > 0) || !(clipSeconds > 0)) return false;
+  const ours = creditPerVideoUsd * Math.max(...sold.map(pricePerCreditDollar));
+  const theirs = Math.min(...others.map((c) => usdPerSecond(c) * clipSeconds));
+  return ours <= theirs * 1.15;
+}
+
 /** The mean of some amounts, to the hundredth of a cent; 0 for none. */
 export const mean = (amounts: number[]): number => (amounts.length === 0 ? 0 : Math.round((amounts.reduce((a, b) => a + b, 0) / amounts.length) * 10_000) / 10_000);

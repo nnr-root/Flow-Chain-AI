@@ -10,7 +10,7 @@ import { Shelf } from "@/components/site/Shelf";
 import { TopicStart } from "@/components/site/TopicStart";
 import comparison from "@/content/comparison.json";
 import { billingOn, type CatalogueItem } from "@/lib/billing";
-import { freshComparisons, mean } from "@/lib/site/calculator";
+import { clipsClaimHolds, freshComparisons, mean } from "@/lib/site/calculator";
 import type { Showcase } from "@/lib/site/showcases";
 import { catalogue } from "@/server/billing/catalogue";
 import { welcomeOffer } from "@/server/site/welcome";
@@ -54,12 +54,16 @@ export default async function Page() {
   const today = new Date();
   const others = freshComparisons(comparison, today);
   const asOf = others.map((c) => c.checkedOn).sort()[0] ?? "";
+  // The headline compares with other companies only while the calculator below can show the comparison and it
+  // holds (their prices fresh, ours on sale): the claim and its evidence stand or fall together.
+  const cheapest = enginesOf(SHOWCASES)[0];
+  const claim = cheapest ? clipsClaimHolds(cheapest.creditPerVideoUsd, cheapest.clipSeconds, items, others) : false;
   return (
     <div data-testid="landing">
       <SiteNav signedIn={signedIn} sells={sells} free={free} />
       <main className="mx-auto max-w-[84rem] px-6 sm:px-10">
         <LiveStage showcases={SHOWCASES}>
-          <h1 className="display text-display">Type a topic. Get a finished short video.</h1>
+          <h1 className="display text-display" data-claim={claim}>{claim ? "A finished short video for about what others charge for the clips." : "Type a topic. Get a finished short video."}</h1>
           <p className="mt-8 max-w-[34rem] text-[1.2rem] leading-[1.45] text-graphite">
             Flow Chain writes the script, records the voice, generates the pictures and cuts the video to the words.
             You see what it will cost, and approve it, before anything is bought.

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { CatalogueItem } from "@/lib/billing";
-import { clipsCostUsd, Comparison, freshComparisons, mean, pricePerCreditDollar, quote, usdPerSecond } from "@/lib/site/calculator";
+import { clipsClaimHolds, clipsCostUsd, Comparison, freshComparisons, mean, pricePerCreditDollar, quote, usdPerSecond } from "@/lib/site/calculator";
 
 const item = (kind: "plan" | "topup", key: string, priceUsd: number, creditUsd: number): CatalogueItem => ({ priceId: `price_${key}`, kind, key, name: key, priceUsd, creditUsd });
 const starter = item("plan", "starter", 19, 12);
@@ -82,6 +82,23 @@ describe("another company's price", () => {
     expect(usdPerSecond(Comparison.parse(luma))).toBeCloseTo(0.03, 10);
     expect(clipsCostUsd(Comparison.parse(luma), 15)).toBe(0.45);
     expect(clipsCostUsd(Comparison.parse({ ...luma, name: "Runway", planUsdPerMonth: 15, creditsPerMonth: 625, creditsPerSecond: 6 }), 15)).toBe(2.16);
+  });
+
+  it("lets the page claim \"about what others charge for the clips\" only while the numbers bear it out", () => {
+    const cheap = Comparison.parse(luma); // 3 cents a second: 15.5 s of clips for about 47 cents
+    const dear = Comparison.parse({ ...luma, name: "Runway", planUsdPerMonth: 15, creditsPerMonth: 625, creditsPerSecond: 6 });
+    // a video using 27 cents of credit, bought at the dearest rate here (the $10 top-up: $1.67 a dollar), is 46 cents
+    expect(clipsClaimHolds(0.2731, 15.5, all, [cheap, dear])).toBe(true);
+    // it is the cheapest of the others that decides, not the dearest
+    expect(clipsClaimHolds(0.8124, 9.7, all, [cheap, dear])).toBe(false);
+    expect(clipsClaimHolds(0.8124, 9.7, all, [dear])).toBe(true);
+    // a little above is still "about"; well above is not
+    expect(clipsClaimHolds(0.32, 15.5, all, [cheap])).toBe(true); // 53 cents against 47
+    expect(clipsClaimHolds(0.36, 15.5, all, [cheap])).toBe(false); // 60 cents
+    // nothing to compare, nothing claimed
+    expect(clipsClaimHolds(0.2731, 15.5, all, [])).toBe(false);
+    expect(clipsClaimHolds(0.2731, 15.5, [], [cheap])).toBe(false);
+    expect(clipsClaimHolds(0, 15.5, all, [cheap])).toBe(false);
   });
 
   it("is, in the file the page reads, something the page may show today", () => {
