@@ -120,6 +120,14 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
     await expect(page.getByTestId("calc-others")).toContainText(`stated them on ${fresh.map((c) => c.checkedOn).sort()[0]}`);
     await expect(page.getByTestId("calc-row-ours")).toContainText("$19.00");
   } else await expect(page.getByTestId("calc-others")).toHaveCount(0);
+  // what is on sale, as Stripe lists it; the questions; and a last way in
+  await expect(page.getByTestId("plans").getByTestId("offer-starter")).toContainText("$19.00 / month");
+  await expect(page.getByTestId("faq").locator("details")).toHaveCount(7);
+  await page.getByText("Does my credit expire?").click();
+  await expect(page.getByTestId("faq")).toContainText("Credit from a top-up does not expire.");
+  // (the answer about cost quotes the receipts on this very page)
+  await expect(page.getByTestId("faq").locator("details").first()).toContainText("23, 32 and 81 cents");
+  await expect(page.locator('[data-cta="closing-signup"]')).toHaveText("Create an account");
   // a video on the shelf is played in the Stage at the top
   await page.getByTestId("shelf-play-robot-painter").click();
   await expect(player).toHaveAttribute("data-slug", "robot-painter");
@@ -229,6 +237,9 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
   // anyone may read what is on sale; buying asks for an account
   await page.goto("/pricing");
   await expect(page).toHaveURL(/\/pricing$/);
+  // the pricing page is the landing page's side: its paper, its typefaces
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(244, 239, 230)");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Buy credit. Spend it at what a video costs.");
   await expect(page.getByTestId("offer-starter")).toContainText("$19.00 / month");
   await expect(page.getByTestId("offer-topup-10")).toContainText("$6.00 of credit. It does not expire.");
   await expect(page.getByRole("link", { name: "Sign up to buy" })).toHaveCount(2);
@@ -341,4 +352,38 @@ test("a visitor types a topic on the landing page, creates an account, and finds
     await service.from("settings").update({ welcome_credit_usd: Number(was.welcome_credit_usd), welcome_daily_cap_usd: Number(was.welcome_daily_cap_usd) }).eq("only_row", true);
   }
   expect(Number((await service.from("settings").select("welcome_credit_usd").single()).data!.welcome_credit_usd)).toBe(0);
+});
+
+test("the pages anyone may read are there, say what is not written yet, and the landing page is quick on a phone", async ({ page }) => {
+  for (const [path, title] of [["/terms", "Terms"], ["/privacy", "Privacy"]] as const) {
+    expect((await page.goto(path))!.status()).toBe(200);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(title);
+    await expect(page.getByTestId("legal-pending")).toContainText("not published yet");
+  }
+  await page.goto("/");
+  for (const link of ["Terms", "Privacy"]) await expect(page.getByRole("contentinfo").getByRole("link", { name: link })).toBeVisible();
+
+  // A mid-range phone on a middling connection: a processor four times slower than this machine's, 1.6 Mbit/s
+  // down, 150 ms away. The first screen's largest thing must be painted within 2.5 s, and nothing may jump as
+  // the typefaces and the player arrive (Phase 4 spec §3.6).
+  await page.setViewportSize({ width: 390, height: 844 });
+  const device = await page.context().newCDPSession(page);
+  await device.send("Network.enable");
+  await device.send("Network.emulateNetworkConditions", { offline: false, latency: 150, downloadThroughput: (1.6 * 1024 * 1024) / 8, uploadThroughput: (750 * 1024) / 8 });
+  await device.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+  await device.send("Network.setCacheDisabled", { cacheDisabled: true });
+  await page.goto("/");
+  await expect(page.getByTestId("showcase-player")).toHaveAttribute("data-live", "true", { timeout: 60_000 });
+  await page.waitForTimeout(3000);
+  const seen = await page.evaluate(() => new Promise<{ lcp: number; cls: number }>((done) => {
+    let lcp = 0;
+    let cls = 0;
+    new PerformanceObserver((list) => { for (const e of list.getEntries()) lcp = e.startTime; }).observe({ type: "largest-contentful-paint", buffered: true });
+    new PerformanceObserver((list) => { for (const e of list.getEntries() as Array<PerformanceEntry & { value: number; hadRecentInput: boolean }>) if (!e.hadRecentInput) cls += e.value; }).observe({ type: "layout-shift", buffered: true });
+    setTimeout(() => done({ lcp, cls }), 500);
+  }));
+  console.log(`landing page on a throttled phone: largest paint ${Math.round(seen.lcp)} ms, layout shift ${seen.cls.toFixed(3)}`);
+  expect(seen.lcp).toBeGreaterThan(0);
+  expect(seen.lcp).toBeLessThan(2500);
+  expect(seen.cls).toBeLessThan(0.1);
 });

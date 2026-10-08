@@ -59,7 +59,7 @@ export const linkError = (code: string | null | undefined): string => (code && O
  * Pages anyone may open. (`/pricing` exists only in a studio that takes payments; elsewhere it is "not found".
  * `/showcase/` is not a page but the landing page's own videos: files made for showing to anyone.)
  */
-export const PUBLIC_PAGES = /^\/(welcome|showcase|login|signup|reset|pricing|auth\/callback|auth\/google)(\/|$)/;
+export const PUBLIC_PAGES = /^\/(welcome|showcase|terms|privacy|login|signup|reset|pricing|auth\/callback|auth\/google)(\/|$)/;
 
 /** The landing page: what a visitor without a session is shown at `/`. */
 export const LANDING_PAGE = "/welcome";

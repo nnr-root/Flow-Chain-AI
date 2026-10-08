@@ -13,24 +13,24 @@ export function startAddress(topic: string, signedIn: boolean): string {
  * new-video form when they get there — after creating an account, if they have none. `free`: a new account is
  * given credit for a first draft, so the button may say so.
  */
-export function TopicStart({ signedIn, free }: { signedIn: boolean; free: boolean }) {
+export function TopicStart({ signedIn, free, id = "hero-topic" }: { signedIn: boolean; free: boolean; id?: string }) {
   const [topic, setTopic] = useState("");
   return (
     <form
-      className="mt-10 max-w-[34rem]" data-testid="topic-start"
+      className="mt-10 max-w-[34rem]" data-testid={id === "hero-topic" ? "topic-start" : `topic-start-${id}`}
       onSubmit={(e) => {
         e.preventDefault();
         window.location.assign(startAddress(topic, signedIn));
       }}
     >
-      <label htmlFor="hero-topic" className="block text-[0.95rem] text-graphite">What is your video about?</label>
+      <label htmlFor={id} className="block text-[0.95rem] text-graphite">What is your video about?</label>
       <div className="mt-2 flex flex-wrap gap-3">
         <input
-          id="hero-topic" type="text" value={topic} onChange={(e) => setTopic(e.target.value)} maxLength={500} data-testid="hero-topic"
+          id={id} type="text" value={topic} onChange={(e) => setTopic(e.target.value)} maxLength={500} data-testid={id}
           placeholder="Three mistakes that make product photos look cheap"
           className="min-w-0 flex-1 basis-64 rounded-md border border-ink/25 bg-paper px-4 py-3.5 text-[1.05rem] placeholder:text-graphite/60 focus:border-ink"
         />
-        <button type="submit" data-cta={signedIn ? "hero-new" : "hero-signup"} className="rounded-md bg-ink px-6 py-3.5 text-[1.05rem] font-medium text-paper hover:bg-stage">
+        <button type="submit" data-cta={`${id === "hero-topic" ? "hero" : "closing"}-${signedIn ? "new" : "signup"}`} className="rounded-md bg-ink px-6 py-3.5 text-[1.05rem] font-medium text-paper hover:bg-stage">
           {signedIn ? "Make this video" : free ? "Make a free draft" : "Create an account"}
         </button>
       </div>
