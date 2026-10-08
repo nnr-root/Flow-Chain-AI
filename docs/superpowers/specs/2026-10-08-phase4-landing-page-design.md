@@ -45,16 +45,16 @@ sizes and weights where 3:1 suffices.
 ### 3.2 Type
 
 - **Fraunces** (variable): display. Very large (`clamp(3rem, 9vw, 8.5rem)`), tight leading (0.92–1.0),
-  optical size at its maximum; the italic for the one emphasised word of a headline.
+  optical size at its maximum. No word of a headline is set apart in italic or colour.
 - **Schibsted Grotesk** (variable): text and interface, 17–19 px body, 1.5 leading, measure ≤ 68 characters.
-- **IBM Plex Mono**: prices, timecodes, receipts, labels in small capitals; tabular figures.
+- **IBM Plex Mono**: prices, timecodes, receipts; tabular figures. No capitalised labels above headings.
 
 ### 3.3 Signature devices
 
 - **The receipt:** a narrow mono slip beside a showcase video listing what it cost, line by line, from the
   run's ledger, with its total.
-- **Print and film marks:** crop marks at the corners of the Stage, registration marks, a running timecode
-  and frame counter; section numbers set like folios.
+- **Print and film marks:** crop marks at the corners of the Stage, a running timecode and frame counter.
+  Numbers mark only what is a real sequence (the stages of making a video).
 - **Three depth layers:** paper; glass (backdrop blur, a hairline edge, fine grain) for controls over
   video; the film itself.
 
@@ -66,7 +66,13 @@ nothing else. The hero player scrubs with scroll, then docks. Under `prefers-red
 ### 3.5 Banned
 
 Gradient blobs, glow, emoji or stock icons, three-column icon grids, fake dashboards, invented avatars,
-logos, numbers or quotes.
+logos, numbers or quotes; an italic or coloured accent word in a headline; capitalised eyebrow labels;
+arrows appended to buttons; meta strings joined with middle dots.
+
+*Amended 2026-10-08 after building Task 1:* the cream paper, serif display and vermilion accent the owner
+approved are, taken together, a common machine-generated look. They stay as approved; what is removed are
+the details above that mark that look, so that what distinguishes the page is what belongs to this product:
+the 9:16 Stage, the film leader and timecode, and the real receipts.
 
 ### 3.6 Budget
 
