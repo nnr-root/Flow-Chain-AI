@@ -84,6 +84,8 @@ describe("the showcase videos", () => {
     expect(Math.round(receipt.lines.reduce((sum, l) => sum + l.usd, 0) * 10_000)).toBe(Math.round(receipt.totalUsd * 10_000));
     expect(receipt.totalUsd).toBeGreaterThan(0);
     for (const part of ["script", "voice", "pictures", "clips"]) expect(receipt.engines[part], part).toMatch(/\S/);
+    // where its pictures were made: what the calculator groups the videos by
+    expect(["own", "hosted"]).toContain((receipt as { madeOn?: string }).madeOn);
     expect(receipt.seconds).toBeGreaterThan(5);
     expect(receipt.topic).toMatch(/\S/);
   });

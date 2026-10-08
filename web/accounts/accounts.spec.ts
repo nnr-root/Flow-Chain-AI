@@ -362,12 +362,15 @@ test("a visitor types a topic on the landing page, creates an account, and finds
     // An address that is confirmed later, by the emailed link (as in production): nothing until then, the
     // welcome when it is, and nothing for being confirmed again or changing the address afterwards.
     const later = await service.auth.admin.createUser({ email: `dee-${stamp}@example.test`, password: "dee-password-1", email_confirm: false });
+    expect(later.error).toBeNull();
     const dee = later.data.user!;
     const has = async () => Number((await service.from("users").select("balance_usd").eq("id", dee.id).single()).data!.balance_usd);
     expect(await has()).toBe(0);
-    await service.auth.admin.updateUserById(dee.id, { email_confirm: true });
+    expect((await service.auth.admin.updateUserById(dee.id, { email_confirm: true })).error).toBeNull();
     await expect.poll(has).toBe(0.05);
-    await service.auth.admin.updateUserById(dee.id, { email: `dee2-${stamp}@example.test`, email_confirm: true });
+    const moved = await service.auth.admin.updateUserById(dee.id, { email: `dee2-${stamp}@example.test`, email_confirm: true });
+    expect(moved.error).toBeNull();
+    expect(moved.data.user?.email).toBe(`dee2-${stamp}@example.test`);
     expect(await has()).toBe(0.05);
     // once: nothing more for signing in again
     await page.getByTestId("sign-out").click();

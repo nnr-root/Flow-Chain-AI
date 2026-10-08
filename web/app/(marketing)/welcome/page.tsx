@@ -65,7 +65,9 @@ export default async function Page() {
   // holds — their prices fresh, ours on sale — for the way this studio usually makes its pictures: the claim and
   // its evidence stand or fall together.
   const engines = enginesOf(SHOWCASES);
-  const claim = engines.length > 0 && clipsClaimHolds(engines[0].creditPerVideoUsd, engines[0].clipSeconds, items, others);
+  // (no video on the page made the usual way: nothing to hold the claim to, so it is not made)
+  const usual = process.env.STUDIO_ENGINE?.trim() === "runpod" ? "own" : "hosted";
+  const claim = engines[0]?.id === usual && clipsClaimHolds(engines[0].creditPerVideoUsd, engines[0].clipSeconds, items, others);
   return (
     <div data-testid="landing">
       <SiteNav signedIn={signedIn} sells={sells} free={free} />
@@ -101,7 +103,7 @@ export default async function Page() {
           <div className="mt-12"><Shelf showcases={SHOWCASES} /></div>
         </section>
 
-        {items.length > 0 && (
+        {items.length > 0 && engines.length > 0 && (
           <section className="mt-28" aria-labelledby="calculator-title">
             <h2 id="calculator-title" className={H2}>What your month would cost</h2>
             <div className="mt-12"><Calculator items={items} engines={engines} others={others} asOf={asOf} /></div>
