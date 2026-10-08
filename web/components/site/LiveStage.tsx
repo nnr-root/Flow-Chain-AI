@@ -3,7 +3,7 @@ import { motion, useReducedMotion } from "motion/react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { type Controls, madeControls, mediaUrl, restyle } from "@/lib/site/restyle";
-import type { Showcase } from "@/lib/site/showcases";
+import { SHOW_EVENT, type Showcase } from "@/lib/site/showcases";
 import { Stage } from "./Stage";
 
 // the player and the composition are the heavy part of the page: fetched after the poster is on screen
@@ -77,12 +77,21 @@ export function LiveStage({ showcases, children }: { showcases: Showcase[]; chil
     };
   }, [live]);
 
-  const choose = (next: string) => {
+  const choose = useCallback((next: string) => {
     const to = showcases.find((s) => s.slug === next);
     if (!to) return;
     setSlug(next);
     setControls(madeControls(to.looks));
-  };
+  }, [showcases]);
+  // another part of the page (a video on the shelf) asks for one of the videos to be played here
+  useEffect(() => {
+    const show = (e: Event) => {
+      choose(String((e as CustomEvent).detail));
+      setLive(true);
+    };
+    window.addEventListener(SHOW_EVENT, show);
+    return () => window.removeEventListener(SHOW_EVENT, show);
+  }, [choose]);
   const set = <K extends keyof Controls>(key: K, value: Controls[K]) => setControls((c) => ({ ...c, [key]: value }));
   const props = useMemo(() => restyle(showcase.props, showcase.looks, controls), [showcase, controls]);
   const resolve = useCallback((path: string) => mediaUrl(showcase.slug, showcase.looks.shared, path), [showcase]);
@@ -93,7 +102,7 @@ export function LiveStage({ showcases, children }: { showcases: Showcase[]; chil
     <section className="pb-10 pt-14 lg:pt-20" data-testid="live-stage">
       <div className="grid items-center gap-x-10 gap-y-12 lg:grid-cols-12">
         <div className="lg:col-span-7">{children}</div>
-        <div className="w-full max-w-[21rem] justify-self-center lg:col-span-5 lg:justify-self-end">
+        <div id="stage" className="w-full max-w-[21rem] scroll-mt-24 justify-self-center lg:col-span-5 lg:justify-self-end">
           <Stage caption={[`${receipt.seconds.toFixed(1)} s, ${receipt.scenes} scenes`, `${usd(receipt.totalUsd)} of credit`]}>
             <div
               ref={frame}

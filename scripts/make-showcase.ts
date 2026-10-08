@@ -2,15 +2,19 @@
  * npm run make:showcase -- <runId> --slug <name> [--runs <dir>]: publishes a finished run for the landing page
  * (Phase 4 spec §6.1). Free: it reads the run and calls no provider. Writes web/public/showcase/<name>/ with
  * the media made small, `props.json` (what the player is given), `looks.json` (every look a visitor can give
- * it), `receipt.json` (what the run cost, from its ledger) and `poster.jpg`.
+ * it), `making.json` (how it was made, stage by stage), `receipt.json` (what the run cost, from its ledger)
+ * and `poster.jpg`.
  */
-import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
 import { FPS, outputSize } from "../src/config.js";
-import { publications, receiptOf, republish, slugOf } from "../src/deploy/showcase.js";
+import { type Making, peaksOf, publications, receiptOf, republish, slugOf } from "../src/deploy/showcase.js";
 import { looksOf } from "../src/deploy/showcase-looks.js";
 import { loadManifest } from "../src/manifest/store.js";
 import { ffmpeg } from "../src/media/ffmpeg.js";
+import { paths } from "../src/stages/paths.js";
+import { requireFitted } from "../src/stages/require.js";
 
 /** The page shows a video about a phone wide: half the render's size is more than it needs. */
 const WIDTH = 540;
@@ -57,6 +61,27 @@ async function main(): Promise<void> {
   }
   // the poster: the finished video a moment after the hook's zoom has landed
   await ffmpeg(["-ss", "1.5", "-i", join(dir, manifest.final.path), "-frames:v", "1", "-vf", `scale=${WIDTH}:-2`, "-q:v", "4", join(out, "poster.jpg")]);
+
+  // How it was made (the page's strip): a picture of every scene from its middle, and the voice as it was spoken.
+  const scenes: Making["scenes"] = [];
+  for (const [i, scene] of manifest.scenes.entries()) {
+    const thumb = `scenes/${String(i + 1).padStart(2, "0")}.jpg`;
+    const frames = props.scenes[i].frames;
+    await mkdir(dirname(join(out, thumb)), { recursive: true });
+    if (scene.mode === 1) await ffmpeg(["-ss", (frames / FPS / 2).toFixed(2), "-i", join(dir, requireFitted(scene).path), "-frames:v", "1", "-vf", "scale=270:-2", "-q:v", "5", join(out, thumb)]);
+    else await ffmpeg(["-i", join(dir, paths.keyframe(i)), "-vf", "scale=270:-2", "-q:v", "5", join(out, thumb)]);
+    scenes.push({ narration: manifest.script!.scenes[i].narration, seconds: Math.round((frames / FPS) * 10) / 10, kind: scene.mode === 1 ? "clip" : "still", thumb });
+  }
+  const raw = join(tmpdir(), `showcase-${process.pid}.raw`);
+  await ffmpeg(["-i", join(dir, paths.narration), "-ac", "1", "-ar", "4000", "-f", "s16le", raw]);
+  const pcm = await readFile(raw);
+  await rm(raw, { force: true });
+  const making: Making = {
+    topic: manifest.request.topic,
+    scenes,
+    voice: { seconds: Math.round((props.totalFrames / FPS) * 10) / 10, peaks: peaksOf(new Int16Array(pcm.buffer, pcm.byteOffset, Math.floor(pcm.byteLength / 2)), 96) },
+  };
+  await writeFile(join(out, "making.json"), `${JSON.stringify(making)}\n`);
 
   const receipt = receiptOf(manifest.ledger, manifest.models);
   await writeFile(join(out, "props.json"), `${JSON.stringify(republish(props, pubs))}\n`);

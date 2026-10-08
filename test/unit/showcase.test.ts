@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { engineName, publications, receiptOf, republish, slugOf } from "../../src/deploy/showcase.js";
+import { engineName, peaksOf, publications, receiptOf, republish, slugOf } from "../../src/deploy/showcase.js";
 
 const models = { llm: "gemini-flash-latest", tts: "eleven_multilingual_v2", image: "runpod:abc123keyframe/keyframe-sdxl@1", video: "runpod:abc123clip/clip-wan22-480p@1" };
 
@@ -30,6 +30,16 @@ describe("a showcase video's receipt", () => {
     expect(engineName("fal-ai/kling-video/v2.1/standard/image-to-video")).toBe("Kling 2.1, on fal");
     expect(engineName("runpod:abc/clip-wan22-720p@2")).toBe("runpod:abc/clip-wan22-720p@2");
     expect(engineName("some-new-model")).toBe("some-new-model");
+  });
+});
+
+describe("the voice as a row of bars", () => {
+  it("is the loudest moment of each stretch, against the loudest of all", () => {
+    expect(peaksOf(Int16Array.from([0, 100, -200, 50, 400, -400, 0, 0]), 4)).toEqual([0.25, 0.5, 1, 0]);
+    // more bars than samples, silence, and nothing at all
+    expect(peaksOf(Int16Array.from([10, -20]), 4)).toHaveLength(4);
+    expect(peaksOf(new Int16Array(8), 2)).toEqual([0, 0]);
+    expect(peaksOf(new Int16Array(0), 4)).toEqual([]);
   });
 });
 

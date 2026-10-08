@@ -83,6 +83,31 @@ export function republish<T>(props: T, pubs: Publication[]): T {
   return walk(props) as T;
 }
 
+/**
+ * A recording as a row of bars: the loudest moment of each of `buckets` equal stretches, from 0 to 1 against
+ * the loudest of all. Enough to draw the voice as it was spoken.
+ */
+export function peaksOf(samples: Int16Array, buckets: number): number[] {
+  if (samples.length === 0 || buckets < 1) return [];
+  const peaks = Array.from({ length: buckets }, (_, b) => {
+    const from = Math.floor((b * samples.length) / buckets);
+    const to = Math.max(from + 1, Math.floor(((b + 1) * samples.length) / buckets));
+    let peak = 0;
+    for (let i = from; i < to && i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]));
+    return peak;
+  });
+  const loudest = Math.max(...peaks);
+  return peaks.map((p) => (loudest === 0 ? 0 : Math.round((p / loudest) * 100) / 100));
+}
+
+/** How a video was made, stage by stage: what the "how a video is made" strip shows of a real run. */
+export type Making = {
+  topic: string;
+  /** The script, scene by scene: what is said, for how long, and whether the picture moves. */
+  scenes: Array<{ narration: string; seconds: number; kind: "clip" | "still"; thumb: string }>;
+  voice: { seconds: number; peaks: number[] };
+};
+
 /** A showcase's name in an address: lower-case letters, digits and dashes. */
 export function slugOf(text: string | undefined): string {
   if (!text || !/^[a-z0-9][a-z0-9-]{0,39}$/.test(text)) throw new Error("--slug must be a short name in lower-case letters, digits and dashes");

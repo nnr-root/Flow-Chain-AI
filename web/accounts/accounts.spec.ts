@@ -39,7 +39,7 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/);
   await expect(page.getByTestId("landing")).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Type a topic. Get a finished short video.");
-  await expect(page.getByTestId("stage")).toBeVisible();
+  await expect(page.getByTestId("stage").first()).toBeVisible();
   // The Stage shows a still of a real video at once, then the real renderer playing it; the controls under it
   // change what it shows, there and then.
   const player = page.getByTestId("showcase-player");
@@ -69,6 +69,36 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await expect(player).toHaveAttribute("data-brand", "true");
   await page.getByText("Brand", { exact: true }).click();
   await expect(player).toHaveAttribute("data-brand", "false");
+  // How it was made: five steps, with what the run really produced and cost at each. The steps' costs are the
+  // receipt's lines, and the receipt adds up to its total.
+  const steps = page.getByTestId("making").locator("> li");
+  await expect(steps).toHaveCount(5);
+  await expect(steps.nth(0)).toContainText("A clockmaker's apprentice repairs the town clock before the midnight bell");
+  await expect(steps.nth(1)).toContainText("$0.0055");
+  await expect(steps.nth(3).locator("img")).toHaveCount(4);
+  const receipts = page.getByTestId("receipt");
+  await expect(receipts).toHaveCount(3);
+  for (const receipt of await receipts.all()) {
+    const amounts = (await receipt.locator("dd").allInnerTexts()).filter((t) => t.startsWith("$")).map((t) => Math.round(Number(t.slice(1)) * 10_000));
+    const total = Math.round(Number((await receipt.getByTestId("receipt-total").innerText()).slice(1)) * 10_000);
+    expect(amounts.length).toBeGreaterThanOrEqual(3);
+    expect(amounts.reduce((a, b) => a + b, 0)).toBe(total);
+  }
+  await expect(page.getByTestId("shelf-compare")).toContainText("32 cents, with 3 moving scenes");
+  await expect(page.getByTestId("shelf-compare")).toContainText("81 cents, with 2 moving scenes");
+  // a feature is shown on a real video, not described: the brand comes off it, the sounds come out of it
+  const feature = page.getByTestId("feature-player");
+  await feature.scrollIntoViewIfNeeded();
+  await expect(feature).toHaveAttribute("data-live", "true", { timeout: 20_000 });
+  await expect(feature).toHaveAttribute("data-brand", "true");
+  await page.getByTestId("feature-brand").click();
+  await expect(feature).toHaveAttribute("data-brand", "false");
+  await expect(page.getByTestId("feature-cues")).toContainText("an impact at 0:00.0");
+  await page.getByTestId("feature-sfx").click();
+  await expect(feature).toHaveAttribute("data-sounds", "0");
+  // a video on the shelf is played in the Stage at the top
+  await page.getByTestId("shelf-play-robot-painter").click();
+  await expect(player).toHaveAttribute("data-slug", "robot-painter");
   // the videos' own files are for anyone; nothing else of the server is
   expect((await page.request.get("/showcase/clockmaker/props.json")).status()).toBe(200);
   const site = await page.evaluate(() => ({ background: getComputedStyle(document.body).backgroundColor, heading: getComputedStyle(document.querySelector("h1")!).fontFamily, text: getComputedStyle(document.body).fontFamily }));

@@ -1,6 +1,9 @@
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { SiteNav } from "@/components/site/SiteNav";
+import { FeatureStage } from "@/components/site/FeatureStage";
 import { LiveStage } from "@/components/site/LiveStage";
+import { MakingStrip } from "@/components/site/MakingStrip";
+import { Shelf } from "@/components/site/Shelf";
 import { billingOn } from "@/lib/billing";
 import { SHOWCASES } from "@/lib/site/showcases";
 import { accountsOnly, headerAccount } from "@/server/page";
@@ -15,6 +18,9 @@ export default async function Page() {
   accountsOnly();
   const signedIn = (await headerAccount()) !== null;
   const sells = billingOn();
+  const hero = SHOWCASES[0];
+  // the features are shown on a video that was made with a brand kit
+  const branded = SHOWCASES.find((s) => s.looks.brand !== null) ?? hero;
   return (
     <div data-testid="landing">
       <SiteNav signedIn={signedIn} sells={sells} />
@@ -34,6 +40,23 @@ export default async function Page() {
             {sells && <a href="/pricing" data-cta="hero-pricing" className="underline decoration-hairline decoration-2 underline-offset-[6px] hover:decoration-ink">See pricing</a>}
           </div>
         </LiveStage>
+
+        <section className="mt-24" aria-labelledby="making-title">
+          <h2 id="making-title" className="display max-w-[50rem] text-[clamp(2rem,1.2rem+3.2vw,3.5rem)] leading-[1.02] tracking-[-0.025em]">From one sentence to a finished video, in five steps</h2>
+          <p className="mt-5 max-w-[40rem] text-[1.1rem] text-graphite">This is how “{hero.receipt.title}”, the first video in the player above, was made, and what each step cost.</p>
+          <div className="mt-12"><MakingStrip showcase={hero} /></div>
+        </section>
+
+        <section className="mt-28" aria-labelledby="features-title">
+          <h2 id="features-title" className="display max-w-[50rem] text-[clamp(2rem,1.2rem+3.2vw,3.5rem)] leading-[1.02] tracking-[-0.025em]">The parts an editor would do by hand</h2>
+          <div className="mt-12"><FeatureStage showcase={branded} /></div>
+        </section>
+
+        <section className="mt-28" aria-labelledby="shelf-title">
+          <h2 id="shelf-title" className="display max-w-[50rem] text-[clamp(2rem,1.2rem+3.2vw,3.5rem)] leading-[1.02] tracking-[-0.025em]">Three videos, and what each one cost</h2>
+          <p className="mt-5 max-w-[40rem] text-[1.1rem] text-graphite">Nobody has reviewed Flow Chain yet, so here is the work itself, with the receipts.</p>
+          <div className="mt-12"><Shelf showcases={SHOWCASES} /></div>
+        </section>
       </main>
       <SiteFooter sells={sells} />
     </div>
