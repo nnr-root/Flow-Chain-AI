@@ -238,6 +238,82 @@ describe.skipIf(!supa)("billing in the database", () => {
     expect(Math.round(ledger!.reduce((sum, r) => sum + Number(r.amount_usd), 0) * 10_000) / 10_000).toBe(10);
   });
 
+  it("does not matter which of two jobs spends, or which settles first, when the month they hold is refunded", async () => {
+    // the case one job could not show: a $10 month out with two jobs, half refunded, the subscription ends,
+    // one job spends its 5 and the other nothing — the 5 that are handed back are the 5 that were refunded
+    for (const [first, second] of [[5, 0], [0, 5]]) {
+      for (const olderSettlesFirst of [true, false]) {
+        const u = await newUser(s, "two");
+        const [charge, sub] = [unique("ch"), unique("sub")];
+        await month(u, 10, { paid: 20, charge, sub });
+        const jobs = [await reserve(u, await run(u), 5), await reserve(u, await run(u), 5)];
+        await rpc("refund_payment", { p_event_id: unique("evt"), p_charge_id: charge, p_refunded_usd: 10 });
+        await rpc("end_subscription", { p_event_id: unique("evt"), p_user_id: u.id, p_subscription_id: sub });
+        const order = olderSettlesFirst ? [0, 1] : [1, 0];
+        for (const i of order) await settle(jobs[i], [first, second][i]);
+        expect(await account(u), `spends ${first}/${second}, ${olderSettlesFirst ? "older" : "newer"} first`).toEqual({ balance: 0, plan: 0, period: 2 });
+      }
+    }
+  });
+
+  it("ends every way a refunded month can go with two jobs out at what a plain sum says", async () => {
+    // Every combination of: other credit or none; how much each job holds; how much of the month is refunded;
+    // whether the month then ends, is followed by another, or goes on; what each job spends; which settles
+    // first. The balance must be what was put in, less what was refunded and spent, less the plan credit that
+    // was neither refunded nor spent when its month ended — worked out here without the database's rules.
+    const MONTH = 10;
+    type Case = { topup: number; caps: [number, number]; refunded: number; then: "goes on" | "ends" | "renews"; spends: [number, number]; order: [number, number] };
+    const cases: Case[] = [];
+    for (const [topupUsd, caps] of [[0, [5, 5]], [20, [5, 5]], [20, [8, 8]], [20, [3, 4]]] as Array<[number, [number, number]]>) {
+      for (const refunded of [0, 0.5, 1]) {
+        for (const then of ["goes on", "ends", "renews"] as const) {
+          for (const a1 of [0, 2, caps[0]]) {
+            for (const a2 of [0, 2, caps[1]]) {
+              for (const order of [[0, 1], [1, 0]] as Array<[number, number]>) cases.push({ topup: topupUsd, caps, refunded, then, spends: [a1, a2], order });
+            }
+          }
+        }
+      }
+    }
+    const expected = (c: Case): number => {
+      // plan credit is what a job holds first
+      const part1 = Math.min(c.caps[0], MONTH);
+      const parts = [part1, Math.min(c.caps[1], MONTH - part1)];
+      const spent = c.spends[0] + c.spends[1];
+      const spentOfPlan = Math.min(c.spends[0], parts[0]) + Math.min(c.spends[1], parts[1]);
+      const takenBack = MONTH * c.refunded;
+      const unusedAtMonthsEnd = c.then === "goes on" ? 0 : Math.max(MONTH - takenBack - spentOfPlan, 0);
+      return c.topup + MONTH - takenBack - spent - unusedAtMonthsEnd + (c.then === "renews" ? MONTH : 0);
+    };
+    const play = async (c: Case): Promise<string | null> => {
+      const u = await newUser(s, "sum");
+      const [charge, sub] = [unique("ch"), unique("sub")];
+      if (c.topup > 0) await topup(u, c.topup);
+      await month(u, MONTH, { paid: 20, charge, sub });
+      const jobs = [await reserve(u, await run(u), c.caps[0]), await reserve(u, await run(u), c.caps[1])];
+      if (c.refunded > 0) await rpc("refund_payment", { p_event_id: unique("evt"), p_charge_id: charge, p_refunded_usd: 20 * c.refunded });
+      if (c.then === "ends") await rpc("end_subscription", { p_event_id: unique("evt"), p_user_id: u.id, p_subscription_id: sub });
+      if (c.then === "renews") await month(u, MONTH, { sub });
+      for (const i of c.order) await settle(jobs[i], c.spends[i]);
+      const end = await account(u);
+      const { data: ledger } = await u.client.from("ledger").select("amount_usd");
+      const summed = Math.round(ledger!.reduce((sum, r) => sum + Number(r.amount_usd), 0) * 10_000) / 10_000;
+      const wrong = [
+        end.balance !== expected(c) && `balance ${end.balance}, expected ${expected(c)}`,
+        summed !== end.balance && `the ledger adds up to ${summed}, the balance is ${end.balance}`,
+        (end.plan < 0 || end.plan > Math.max(end.balance, 0)) && `plan credit ${end.plan} with a balance of ${end.balance}`,
+      ].filter(Boolean);
+      return wrong.length > 0 ? `${JSON.stringify(c)}: ${wrong.join("; ")}` : null;
+    };
+    const failures: string[] = [];
+    // a dozen at a time: each is a user of its own
+    for (let i = 0; i < cases.length; i += 12) {
+      failures.push(...(await Promise.all(cases.slice(i, i + 12).map(play))).filter((f): f is string => f !== null));
+    }
+    expect(cases).toHaveLength(648);
+    expect(failures).toEqual([]);
+  }, 600_000);
+
   it("takes credit back by hand out of the plan's when nothing else is left, and expires only what remains", async () => {
     await month(a, 10);
     expect(Number(await rpc("grant_credit", { p_email: a.email, p_amount_usd: -8, p_note: "taken back" }))).toBe(2);

@@ -31,6 +31,19 @@ alter table public.reservations
   add column plan_part_usd numeric(12, 4) not null default 0 check (plan_part_usd >= 0 and plan_part_usd <> 'NaN'),
   add column plan_period integer not null default 0;
 
+-- Plan credit that a refund took back while it was out with jobs (held by open reservations), per user and
+-- month. The refund cannot know which of those jobs will spend its hold and which will hand it back; so the
+-- amount waits here, and each job, when it settles, sets what it hands back against it first. Only what is then
+-- left returns as plan credit, or expires if the month is over. For the functions below alone: nobody reads it.
+create table public.plan_refunds_out (
+  user_id uuid not null references public.users (id) on delete cascade,
+  plan_period integer not null,
+  owed_usd numeric(12, 4) not null check (owed_usd >= 0 and owed_usd <> 'NaN'),
+  primary key (user_id, plan_period)
+);
+alter table public.plan_refunds_out enable row level security;
+revoke all on public.plan_refunds_out from public, anon, authenticated;
+
 alter table public.ledger drop constraint ledger_kind_check;
 alter table public.ledger add constraint ledger_kind_check
   check (kind in ('grant', 'reserve', 'settle', 'purchase', 'plan', 'expire', 'refund'));
@@ -124,8 +137,10 @@ begin
   return v_id;
 end $$;
 
--- The charge consumes the reservation's plan part first. What is left of that part goes back to plan credit
--- when its month is still the current one; after a renewal it has expired with its month and is not returned.
+-- The charge consumes the reservation's plan part first. What is left of that part is first set against what
+-- a refund already took back of that month's credit while it was out (`plan_refunds_out`). The rest goes back
+-- to plan credit when its month is still the current one; after the month has ended it expires — but, like
+-- all expiry, never beyond what is there: it does not take the balance below zero.
 create or replace function public.settle(p_reservation_id uuid, p_run_total_usd numeric) returns numeric
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -136,6 +151,8 @@ declare
   v_balance numeric(12, 4);
   v_period integer;
   v_plan_left numeric(12, 4);
+  v_owed numeric(12, 4);
+  v_returned numeric(12, 4);
 begin
   if p_run_total_usd is null or p_run_total_usd = 'NaN' or p_run_total_usd < 0 or p_run_total_usd > 100000 then
     raise exception 'invalid_amount';
@@ -148,13 +165,21 @@ begin
   v_charge := greatest(v_total - v_already, 0);
   select plan_period into v_period from public.users where id = r.user_id for update;
   v_plan_left := r.plan_part_usd - least(v_charge, r.plan_part_usd);
+  -- (under the user's lock, as the refund writes it)
+  select owed_usd into v_owed from public.plan_refunds_out where user_id = r.user_id and plan_period = r.plan_period for update;
+  if found and v_owed > 0 and v_plan_left > 0 then
+    update public.plan_refunds_out set owed_usd = owed_usd - least(v_plan_left, v_owed) where user_id = r.user_id and plan_period = r.plan_period;
+    v_plan_left := v_plan_left - least(v_plan_left, v_owed);
+  end if;
 
   if v_period = r.plan_period then
     update public.users set balance_usd = balance_usd + r.cap_usd - v_charge, plan_credit_usd = plan_credit_usd + v_plan_left
       where id = r.user_id returning balance_usd into v_balance;
   else
-    update public.users set balance_usd = balance_usd + r.cap_usd - v_charge - v_plan_left
-      where id = r.user_id returning balance_usd into v_balance;
+    update public.users set balance_usd = balance_usd + r.cap_usd - v_charge
+      where id = r.user_id returning balance_usd into v_returned;
+    v_plan_left := least(v_plan_left, greatest(v_returned, 0));
+    update public.users set balance_usd = balance_usd - v_plan_left where id = r.user_id returning balance_usd into v_balance;
   end if;
   update public.runs set charged_usd = greatest(charged_usd, v_total), updated_at = now() where id = r.run_id;
   update public.reservations set status = 'settled', charged_usd = v_charge, settled_at = now() where id = r.id;
@@ -356,7 +381,6 @@ declare
   v_period integer;
   v_plan numeric(12, 4);
   v_rest numeric(12, 4);
-  r record;
 begin
   if not public.valid_amount(p_refunded_usd) then raise exception 'invalid_amount'; end if;
   select * into p from public.payments where charge_id = p_charge_id;
@@ -381,20 +405,20 @@ begin
           plan_credit_usd = case when p.kind = 'plan' and p.plan_period = v_period then greatest(plan_credit_usd - v_take, 0) else plan_credit_usd end
       where id = p.user_id returning balance_usd into v_balance;
     insert into public.ledger (user_id, kind, amount_usd, balance_after_usd, note) values (p.user_id, 'refund', -v_take, v_balance, p.id);
-    -- The month's credit may be out with a job (held by a reservation, where the row above does not see it).
-    -- What the refund took beyond the credit that was at hand comes off what those jobs hold as plan credit: it
-    -- is taken back already, and must not be taken again as "expired" if the month ends before they settle.
-    -- (This locks reservations after the user, the other way round from `settle`: should the two ever meet,
-    -- Postgres ends one of them and it is tried again — the event by Stripe, the settling by the worker.)
+    -- The month's credit may be out with jobs (held by open reservations, where the row above does not see
+    -- it). What the refund took beyond the credit that was at hand is noted against the month, up to what is
+    -- out: `settle` sets what each job hands back against it, so that it is not handed back, or taken again as
+    -- "expired", after it was taken here. (Reservations are read, not locked: reserving and settling both wait
+    -- for the user's row, which is held here.)
     if p.kind = 'plan' and p.plan_period = v_period then
-      v_rest := v_take - least(v_take, v_plan);
-      for r in select id, plan_part_usd from public.reservations
-        where user_id = p.user_id and status = 'open' and plan_period = v_period and plan_part_usd > 0 order by created_at for update
-      loop
-        exit when v_rest <= 0;
-        update public.reservations set plan_part_usd = plan_part_usd - least(r.plan_part_usd, v_rest) where id = r.id;
-        v_rest := v_rest - least(r.plan_part_usd, v_rest);
-      end loop;
+      select least(v_take - least(v_take, v_plan),
+                   greatest(coalesce(sum(plan_part_usd), 0) - coalesce((select owed_usd from public.plan_refunds_out where user_id = p.user_id and plan_period = v_period), 0), 0))
+        into v_rest from public.reservations
+        where user_id = p.user_id and status = 'open' and plan_period = v_period;
+      if v_rest > 0 then
+        insert into public.plan_refunds_out (user_id, plan_period, owed_usd) values (p.user_id, v_period, v_rest)
+          on conflict (user_id, plan_period) do update set owed_usd = public.plan_refunds_out.owed_usd + excluded.owed_usd;
+      end if;
     end if;
   end if;
   return 'fulfilled';
