@@ -16,7 +16,7 @@ export const keys = {
 
 /** What was last stored of a folder, kept inside it. */
 export const INDEX = ".stored.json";
-/** Never stored: the render's working files, the pipeline's lock, a job's own bookkeeping of this server, the index itself. */
+/** Never stored: the render's working files, the pipeline's lock, the index itself, half-written files. */
 const SKIP = [/^render\//, /^\.lock$/, /^\.stored\.json$/, /\.part$/, /\.tmp$/];
 
 type Index = Record<string, { size: number; mtimeMs: number }>;
@@ -58,25 +58,51 @@ export async function storeFolder(store: ObjectStore, dir: string, prefix: strin
   return sent;
 }
 
-/** Downloads what the bucket has under `prefix` and `dir` lacks (or has at another size). Returns how many were fetched. */
-export async function restoreFolder(store: ObjectStore, prefix: string, dir: string): Promise<number> {
+/** The file that says "this run folder is whole": fetched last, removed first. */
+const MARKER = "manifest.json";
+/** Restores in flight in this process, by folder: a second asker waits for the first instead of racing it. */
+const restoring = new Map<string, Promise<number>>();
+
+/**
+ * Downloads what the bucket has under `prefix` and `dir` lacks. Returns how many files were fetched.
+ *
+ * A file that exists here is never replaced: what is on this disk is at least as new as what was stored, and a
+ * manifest overwritten with an older one would forget what the run has bought.
+ *
+ * The manifest comes last. The pipeline takes a finished stage whose output file is missing for one that must
+ * be done — and paid for — again, so a run folder must never have its manifest before it has everything else:
+ * a restore that is cut off leaves a folder without a manifest, which nothing will start a job on.
+ */
+export function restoreFolder(store: ObjectStore, prefix: string, dir: string): Promise<number> {
+  const running = restoring.get(dir);
+  if (running) return running;
+  const work = restoreNow(store, prefix, dir).finally(() => restoring.delete(dir));
+  restoring.set(dir, work);
+  return work;
+}
+
+async function restoreNow(store: ObjectStore, prefix: string, dir: string): Promise<number> {
   const index = await readIndex(dir);
   let fetched = 0;
-  for (const object of await store.list(prefix)) {
-    const name = object.key.slice(prefix.length);
+  const objects = (await store.list(prefix))
+    .map((object) => ({ ...object, name: object.key.slice(prefix.length) }))
     // what a bucket holds is not trusted to stay inside the folder
-    if (!name || name.split("/").some((part) => part === "" || part === "." || part === "..") || name.includes("\\")) continue;
-    const path = join(dir, name);
-    const have = await stat(path).then((s) => s.size, () => -1);
-    if (have === object.size) continue;
+    .filter(({ name }) => name && !name.split("/").some((part) => part === "" || part === "." || part === "..") && !name.includes("\\"))
+    .sort((a, b) => Number(a.name === MARKER) - Number(b.name === MARKER) || (a.name < b.name ? -1 : 1));
+  for (const object of objects) {
+    const path = join(dir, object.name);
+    if (existsSync(path)) continue;
     await store.getToFile(object.key, path);
     const info = await stat(path);
-    index[name] = { size: info.size, mtimeMs: info.mtimeMs };
+    index[object.name] = { size: info.size, mtimeMs: info.mtimeMs };
     fetched++;
   }
   if (fetched > 0) await writeFile(join(dir, INDEX), JSON.stringify(index));
   return fetched;
 }
+
+/** Whether a restore of this folder is under way in this process. */
+export const isRestoring = (dir: string): boolean => restoring.has(dir);
 
 /** Whether everything in `dir` is in the bucket as it is now. */
 export async function isStored(dir: string): Promise<boolean> {
@@ -94,17 +120,19 @@ export async function isStored(dir: string): Promise<boolean> {
  * Frees disk: removes run folders that are wholly in the bucket and untouched for `days`. They come back when
  * their owner opens them. Returns the run ids removed.
  */
-export async function cleanCache(runsRoot: string, days: number, now = Date.now()): Promise<string[]> {
+export async function cleanCache(runsRoot: string, days: number, now = Date.now(), busy: (runId: string) => boolean = () => false): Promise<string[]> {
   if (!existsSync(runsRoot)) return [];
   const removed: string[] = [];
   for (const user of await readdir(runsRoot)) {
     if (!UUID.test(user)) continue;
     for (const runId of await readdir(join(runsRoot, user))) {
       const dir = join(runsRoot, user, runId);
-      if (!RUN_ID.test(runId) || existsSync(join(dir, ".lock"))) continue;
+      if (!RUN_ID.test(runId) || existsSync(join(dir, ".lock")) || busy(runId) || restoring.has(dir)) continue;
       const names = await filesIn(dir).catch(() => [] as string[]);
       const newest = Math.max(0, ...(await Promise.all(names.map((n) => stat(join(dir, n)).then((s) => s.mtimeMs, () => now)))));
       if (now - newest < days * 86_400_000 || !(await isStored(dir))) continue;
+      // the manifest goes first: a removal that is cut off must not leave a folder that looks like a whole run
+      await rm(join(dir, MARKER), { force: true });
       await rm(dir, { recursive: true, force: true });
       removed.push(runId);
     }

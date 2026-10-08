@@ -84,6 +84,58 @@ describe.skipIf(!hasDocker())("store and restore against an S3-compatible store"
     expect(await restoreFolder(store, prefix, dir)).toBe(1);
   });
 
+  it("never replaces a file that is here: what is on this disk is at least as new as what was stored", async () => {
+    const dir = await folder("newer", { "manifest.json": '{"bought":["script"]}', "narration.wav": "voice" });
+    const prefix = keys.run(USER, "20261007-120000-abc130");
+    await storeFolder(store, dir, prefix);
+    // a job ran since (its store failed): the manifest here knows more than the stored one
+    await writeFile(join(dir, "manifest.json"), '{"bought":["script","clips"]}');
+    await rm(join(dir, "narration.wav"));
+    expect(await restoreFolder(store, prefix, dir)).toBe(1);
+    expect(await readFile(join(dir, "manifest.json"), "utf8")).toBe('{"bought":["script","clips"]}');
+    expect(await readFile(join(dir, "narration.wav"), "utf8")).toBe("voice");
+  });
+
+  it("fetches the manifest last, so a restore that is cut off never leaves a folder that looks like a whole run", async () => {
+    const dir = await folder("cut", { "manifest.json": "{}", "a-first.wav": "1", "zz-last.mp4": "2" });
+    const prefix = keys.run(USER, "20261007-120000-abc131");
+    await storeFolder(store, dir, prefix);
+    await rm(dir, { recursive: true });
+    // the store fails on the last media file
+    const flaky = new ObjectStore(minio.settings);
+    const real = flaky.getToFile.bind(flaky);
+    const order: string[] = [];
+    flaky.getToFile = async (key, path) => {
+      order.push(key.slice(prefix.length));
+      if (key.endsWith("zz-last.mp4")) throw new Error("the connection dropped");
+      return real(key, path);
+    };
+    await expect(restoreFolder(flaky, prefix, dir)).rejects.toThrow("the connection dropped");
+    expect(order).toEqual(["a-first.wav", "zz-last.mp4"]);
+    expect(existsSync(join(dir, "manifest.json"))).toBe(false);
+    // tried again, it is finished, and only then is the manifest there
+    expect(await restoreFolder(store, prefix, dir)).toBe(2);
+    expect(existsSync(join(dir, "manifest.json"))).toBe(true);
+  });
+
+  it("runs one restore of a folder at a time: a second asker gets the first one's result", async () => {
+    const dir = await folder("twice", { "manifest.json": "{}", "final.mp4": Buffer.alloc(500_000, 3) });
+    const prefix = keys.run(USER, "20261007-120000-abc132");
+    await storeFolder(store, dir, prefix);
+    await rm(dir, { recursive: true });
+    const [one, two, three] = await Promise.all([restoreFolder(store, prefix, dir), restoreFolder(store, prefix, dir), restoreFolder(store, prefix, dir)]);
+    expect([one, two, three]).toEqual([2, 2, 2]);
+    expect((await readFile(join(dir, "final.mp4"))).length).toBe(500_000);
+  });
+
+  it("stores a file with its type, so a link to it plays instead of downloading", async () => {
+    const dir = await folder("typed", { "final.mp4": "v", "manifest.json": "{}" });
+    const prefix = keys.run(USER, "20261007-120000-abc133");
+    await storeFolder(store, dir, prefix);
+    expect((await fetch(await store.link(`${prefix}final.mp4`))).headers.get("content-type")).toBe("video/mp4");
+    expect((await fetch(await store.link(`${prefix}manifest.json`))).headers.get("content-type")).toBe("application/json");
+  });
+
   it("never writes outside the folder, whatever the bucket holds", async () => {
     const dir = await folder("c", { "manifest.json": "{}" });
     const prefix = keys.run(USER, "20261007-120000-abc125");

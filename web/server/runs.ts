@@ -59,7 +59,8 @@ export async function readManifest(runId: string): Promise<Manifest | null> {
  * bucket before anything looks at it. Returns whether it was.
  */
 async function bringBack(runId: string): Promise<boolean> {
-  if (existsSync(runDir(runId)) || !(await isStoredRun(runId))) return false;
+  // a folder without its manifest is no run yet (a restore that was cut off): it is fetched again, not taken as is
+  if (existsSync(join(runDir(runId), "manifest.json")) || !(await isStoredRun(runId))) return false;
   await runner().restore(runId);
   return existsSync(join(runDir(runId), "manifest.json"));
 }
@@ -98,10 +99,13 @@ export type RunSummary = {
 /** Every run, newest first. Folders the studio cannot read (older schema, half-written) are listed as failed, not hidden. */
 export async function listRuns(): Promise<RunSummary[]> {
   const local = await localRuns();
-  // with accounts: what the database lists and this disk does not hold is kept in the bucket
-  const here = new Set(local.map((r) => r.runId));
-  const away = (await runRows()).filter((r) => r.stored && !here.has(r.runId)).map((r): RunSummary => ({ runId: r.runId, state: "stored", topic: r.topic, createdAt: r.createdAt }));
-  return [...local, ...away].sort((x, y) => (x.runId < y.runId ? 1 : -1));
+  // with accounts: what the database lists as stored and this disk does not hold whole is kept in the bucket
+  const { runs } = roots();
+  const away = (await runRows())
+    .filter((r) => r.stored && !existsSync(join(runs, r.runId, "manifest.json")))
+    .map((r): RunSummary => ({ runId: r.runId, state: "stored", topic: r.topic, createdAt: r.createdAt }));
+  const archived = new Set(away.map((r) => r.runId));
+  return [...local.filter((r) => !archived.has(r.runId)), ...away].sort((x, y) => (x.runId < y.runId ? 1 : -1));
 }
 
 async function localRuns(): Promise<RunSummary[]> {

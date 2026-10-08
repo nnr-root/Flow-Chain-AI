@@ -1,6 +1,7 @@
+import { randomBytes } from "node:crypto";
 import { createWriteStream, openAsBlob } from "node:fs";
 import { mkdir, rename, rm } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, extname } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { AwsClient } from "aws4fetch";
@@ -31,6 +32,12 @@ export function storeSettings(env: Record<string, string | undefined> = process.
   return { endpoint: endpoint.replace(/\/$/, ""), bucket, accessKeyId, secretAccessKey };
 }
 
+/** What a stored file is, so that a link to it plays in a browser instead of downloading. */
+const TYPES: Record<string, string> = {
+  ".mp4": "video/mp4", ".wav": "audio/wav", ".mp3": "audio/mpeg", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+  ".svg": "image/svg+xml", ".ttf": "font/ttf", ".otf": "font/otf", ".json": "application/json",
+};
+
 const xml = (text: string, tag: string): string[] => [...text.matchAll(new RegExp(`<${tag}>([^<]*)</${tag}>`, "g"))].map((m) => m[1]);
 const unescape = (s: string): string => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
 
@@ -49,7 +56,8 @@ export class ObjectStore {
   async putFile(key: string, path: string): Promise<void> {
     const body = await openAsBlob(path);
     // the body is not hashed for the signature: that would read every video twice
-    const res = await this.aws.fetch(this.url(key), { method: "PUT", body, headers: { "x-amz-content-sha256": "UNSIGNED-PAYLOAD", "content-length": String(body.size) } });
+    const type = TYPES[extname(path).toLowerCase()] ?? "application/octet-stream";
+    const res = await this.aws.fetch(this.url(key), { method: "PUT", body, headers: { "x-amz-content-sha256": "UNSIGNED-PAYLOAD", "content-length": String(body.size), "content-type": type } });
     if (!res.ok) throw new Error(`storing ${key} failed: HTTP ${res.status}`);
     await res.arrayBuffer();
   }
@@ -59,7 +67,8 @@ export class ObjectStore {
     const res = await this.aws.fetch(this.url(key), { method: "GET" });
     if (!res.ok || !res.body) throw new Error(`fetching ${key} failed: HTTP ${res.status}`);
     await mkdir(dirname(path), { recursive: true });
-    const partial = `${path}.${process.pid}.part`;
+    // a name nobody else has: two downloads of one file (two tabs, a job and a page) must not write into each other
+    const partial = `${path}.${randomBytes(6).toString("hex")}.part`;
     try {
       await pipeline(Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]), createWriteStream(partial));
       await rename(partial, path);
@@ -80,7 +89,9 @@ export class ObjectStore {
       const keys = xml(text, "Key").map(unescape);
       const sizes = xml(text, "Size").map(Number);
       keys.forEach((key, i) => out.push({ key, size: sizes[i] }));
-      token = xml(text, "IsTruncated")[0] === "true" ? unescape(xml(text, "NextContinuationToken")[0] ?? "") || undefined : undefined;
+      token = xml(text, "IsTruncated")[0] === "true" ? unescape(xml(text, "NextContinuationToken")[0] ?? "") : undefined;
+      // "there is more" without saying where: half a listing must never be taken for all of it
+      if (token === "") throw new Error(`listing ${prefix} was cut short`);
     } while (token);
     return out;
   }
