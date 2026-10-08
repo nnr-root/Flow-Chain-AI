@@ -299,6 +299,25 @@ describe.skipIf(!supa || !hasRedisServer())("payments", () => {
     expect((await buy(aCookie, starter)).status).toBe(200);
   });
 
+  it("finishes what follows a grant on the next delivery, when Stripe failed in between", async () => {
+    await worker();
+    const { sessionId } = await buy(bCookie, starter);
+    const [created, invoicePaid] = stripe.completeCheckout(sessionId!);
+    await deliver(created);
+    for (const event of stripe.cancelSubscription(stripe.sessions.get(sessionId!)!.subscription as string)) await deliver(event);
+    // the month is granted, and then the look at its charge fails: the delivery as a whole is not done
+    stripe.failOnce.push("GET /v1/charges/");
+    expect((await deliver(invoicePaid)).status).toBe(503);
+    expect(await account(b)).toMatchObject({ balance: 12, plan: 12 });
+    // Stripe delivers again: the grant is there already, and the rest is done now
+    expect(await outcome(await deliver(invoicePaid))).toEqual({ received: true, outcome: "duplicate" });
+    expect(await account(b)).toMatchObject({ balance: 0, plan: 0 });
+    expect((await b.client.from("subscriptions").select("status").single()).data).toEqual({ status: "canceled" });
+    // and once more changes nothing
+    expect(await outcome(await deliver(invoicePaid))).toEqual({ received: true, outcome: "duplicate" });
+    expect((await b.client.from("ledger").select("kind,amount_usd").order("id")).data).toEqual([{ kind: "plan", amount_usd: 12 }, { kind: "expire", amount_usd: -12 }]);
+  });
+
   it("ignores what is not the studio's: other event types, and customers it did not create", async () => {
     await worker();
     expect(await outcome(await deliver(stripe.emit("payment_method.attached", { id: "pm_1" })))).toEqual({ received: true, outcome: "ignored" });

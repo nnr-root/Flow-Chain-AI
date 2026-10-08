@@ -81,7 +81,12 @@ export function createBilling(stripe: StripeApi, db: SupabaseClient, log: (messa
 
   /**
    * A payment can be refunded before it is fulfilled (its fulfilment was failing meanwhile). The refund's own
-   * event found no payment then; so right after granting, the charge is looked at as it is now.
+   * event found no payment then; so once the payment is on record, the charge is looked at as it is now.
+   *
+   * This, and ending a subscription that is over (below), follow the grant in calls of their own. They carry
+   * ids derived from the event's, so they happen once; and they run on every delivery of the event, not only
+   * the one that granted — a delivery whose follow-up failed is delivered again, finds the grant done
+   * ("duplicate"), and must still finish the rest.
    */
   const settleRefunds = async (eventId: string, chargeId: string | undefined, charge?: Obj): Promise<void> => {
     if (!chargeId) return;
@@ -99,7 +104,7 @@ export function createBilling(stripe: StripeApi, db: SupabaseClient, log: (messa
   };
 
   async function topup(eventId: string, type: string, sessionId: string): Promise<string> {
-    const session = await stripe.get<Obj>(`/v1/checkout/sessions/${pathId(sessionId)}`, { expand: ["line_items.data.price", "payment_intent"] });
+    const session = await stripe.get<Obj>(`/v1/checkout/sessions/${pathId(sessionId)}`, { expand: ["line_items", "payment_intent"] });
     // a subscription's Checkout is fulfilled by its invoice; a session that is not paid yet, by a later event
     if (session.mode !== "payment") return ignore(eventId, type, "ignored");
     if (session.payment_status !== "paid") return "not_paid";
@@ -112,17 +117,20 @@ export function createBilling(stripe: StripeApi, db: SupabaseClient, log: (messa
     const credit = Math.round(grant.creditUsd * quantity * 10_000) / 10_000;
     const paid = paidFor(`the session ${sessionId}`, session.currency, session.amount_total, credit);
     const chargeId = idOf((session.payment_intent as Obj | undefined)?.latest_charge);
-    const charge = chargeId ? await stripe.get<Obj>(`/v1/charges/${pathId(chargeId)}`) : undefined;
+    // "paid" by a charge: one marked paid by other means has no money behind it that the studio can see
+    if (!chargeId) throw new Unfulfillable(`the session ${sessionId} is paid but names no charge`);
+    const charge = await stripe.get<Obj>(`/v1/charges/${pathId(chargeId)}`);
     const outcome = await call("fulfil_topup", {
       p_event_id: eventId, p_user_id: user, p_payment_id: sessionId, p_paid_usd: paid,
-      p_credit_usd: credit, p_charge_id: chargeId ?? null, p_invoice_url: str(charge?.receipt_url) ?? null,
+      p_credit_usd: credit, p_charge_id: chargeId, p_invoice_url: str(charge.receipt_url) ?? null,
     });
-    if (outcome === "fulfilled") await settleRefunds(eventId, chargeId, charge);
+    await settleRefunds(eventId, chargeId, charge);
     return outcome;
   }
 
   async function planInvoice(eventId: string, type: string, invoiceId: string): Promise<string> {
-    const invoice = await stripe.get<Obj>(`/v1/invoices/${pathId(invoiceId)}`, { expand: ["lines.data.price"] });
+    // (a line's price, like a subscription item's below, comes whole in this API version: nothing to expand)
+    const invoice = await stripe.get<Obj>(`/v1/invoices/${pathId(invoiceId)}`);
     // Credit follows a month that was paid for: the first, or a renewal. A proration or a manual invoice grants nothing.
     if (invoice.status !== "paid") return "not_paid";
     if (invoice.billing_reason !== "subscription_create" && invoice.billing_reason !== "subscription_cycle") return ignore(eventId, type, "ignored");
@@ -137,25 +145,24 @@ export function createBilling(stripe: StripeApi, db: SupabaseClient, log: (messa
     const paid = paidFor(`the invoice ${invoiceId}`, invoice.currency, invoice.amount_paid, grant.creditUsd);
     const subscription = await stripe.get<Obj>(`/v1/subscriptions/${pathId(subscriptionId)}`);
     const chargeId = idOf(invoice.charge);
+    if (!chargeId) throw new Unfulfillable(`the invoice ${invoiceId} is paid but names no charge`);
     const outcome = await call("fulfil_plan_invoice", {
       p_event_id: eventId, p_user_id: user, p_invoice_id: invoiceId, p_subscription_id: subscriptionId, p_plan: grant.plan, p_price_id: grant.priceId,
       p_paid_usd: paid, p_credit_usd: grant.creditUsd, p_period_end: iso(subscription.current_period_end),
-      p_charge_id: chargeId ?? null, p_invoice_url: str(invoice.hosted_invoice_url) ?? null,
+      p_charge_id: chargeId, p_invoice_url: str(invoice.hosted_invoice_url) ?? null,
     });
-    if (outcome === "fulfilled" || outcome === "second_subscription") {
-      await settleRefunds(eventId, chargeId);
-      // The subscription as it is now, not as the invoice knew it: a month fulfilled late, after its subscription
-      // was ended, must not leave the user with a plan that no later event will ever end.
-      if (subscription.status === "canceled" || subscription.status === "incomplete_expired") {
-        await call("end_subscription", { p_event_id: `${eventId}_ended`, p_user_id: user, p_subscription_id: subscriptionId });
-      }
+    await settleRefunds(eventId, chargeId);
+    // The subscription as it is now, not as the invoice knew it: a month fulfilled late, after its subscription
+    // was ended, must not leave the user with a plan that no later event will ever end.
+    if (subscription.status === "canceled" || subscription.status === "incomplete_expired") {
+      await call("end_subscription", { p_event_id: `${eventId}_ended`, p_user_id: user, p_subscription_id: subscriptionId });
     }
     return outcome;
   }
 
   async function subscription(eventId: string, type: string, subscriptionId: string): Promise<string> {
     // as it is now, not as the event saw it: Stripe does not promise to deliver in order
-    const sub = await stripe.get<Obj>(`/v1/subscriptions/${pathId(subscriptionId)}`, { expand: ["items.data.price"] });
+    const sub = await stripe.get<Obj>(`/v1/subscriptions/${pathId(subscriptionId)}`);
     const user = await userOf(sub.customer);
     if (!user) return ignore(eventId, type, "unknown_customer");
     if (sub.status === "canceled" || sub.status === "incomplete_expired") {

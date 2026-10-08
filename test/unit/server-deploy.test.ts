@@ -126,7 +126,7 @@ describe("a studio with accounts", () => {
 
   it("gives both processes the Stripe key, and the webhook's signing secret to the web app alone", () => {
     const stripe = { STRIPE_SECRET_KEY: "sk_test_x", STRIPE_WEBHOOK_SECRET: "whsec_x" };
-    const cfg = serverConfig(base, { ...supabase, ...stripe, STRIPE_API_BASE: "http://127.0.0.1:3134" });
+    const cfg = serverConfig(base, { ...supabase, ...stripe, STRIPE_API_BASE: "http://127.0.0.1:3134", STRIPE_WEBHOOK_ENDPOINT: "we_1" });
     expect(cfg.billing).toBe(true);
     expect(cfg.web).toMatchObject(stripe);
     expect(cfg.worker.STRIPE_SECRET_KEY).toBe("sk_test_x");
@@ -134,6 +134,9 @@ describe("a studio with accounts", () => {
     // a test's stand-in address never reaches the server
     expect(cfg.worker).not.toHaveProperty("STRIPE_API_BASE");
     expect(cfg.web).not.toHaveProperty("STRIPE_API_BASE");
+    // nor does setup's own note of which endpoint the secret is of
+    expect(cfg.worker).not.toHaveProperty("STRIPE_WEBHOOK_ENDPOINT");
+    expect(cfg.web).not.toHaveProperty("STRIPE_WEBHOOK_ENDPOINT");
     // and the worker's own key for settling credit is still not the web app's
     expect(cfg.web).not.toHaveProperty("SUPABASE_SERVICE_ROLE_KEY");
 

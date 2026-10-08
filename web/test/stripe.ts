@@ -47,6 +47,8 @@ export type FakeStripe = {
   emit(type: string, object: Obj): FakeEvent;
   /** The body and signature header Stripe would send for an event. */
   signed(event: FakeEvent, opts?: { secret?: string; at?: number }): { body: string; signature: string };
+  /** Paths (as "GET /v1/charges/") whose next request is answered 500, once each: Stripe having a bad moment. */
+  failOnce: string[];
   /** Where `completeCheckout` through the browser page delivers webhooks (the studio's webhook route). */
   deliverTo?: string;
   stop(): Promise<void>;
@@ -117,7 +119,7 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
   };
 
   const api: Omit<FakeStripe, "url" | "env" | "stop"> = {
-    secretKey, webhookSecret, events, customers, sessions, requests, charges, portalConfigurations: [], portalSessions: [], products, prices, webhookEndpoints: [], deliverTo: opts.deliverTo,
+    secretKey, webhookSecret, events, customers, sessions, requests, charges, failOnce: [], portalConfigurations: [], portalSessions: [], products, prices, webhookEndpoints: [], deliverTo: opts.deliverTo,
     addPrice(p) {
       const priceId = id("price");
       prices.set(priceId, {
@@ -236,6 +238,11 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
     const listed = (all: Iterable<Obj>): Obj[] => [...all].filter((o) => !url.searchParams.has("active") || String(o.active) === url.searchParams.get("active"));
     if (req.headers.authorization !== `Bearer ${secretKey}`) return send(401, { error: { message: "Invalid API Key provided" } });
     if (!req.headers["stripe-version"]) return send(400, { error: { message: "the studio must name the API version it speaks" } });
+    const failing = stripe.failOnce.findIndex((prefix) => `${req.method} ${url.pathname}`.startsWith(prefix));
+    if (failing >= 0) {
+      stripe.failOnce.splice(failing, 1);
+      return send(500, { error: { message: "An unknown error occurred" } });
+    }
     const form = req.method === "POST" ? parseForm(text) : {};
     const expand = url.searchParams.getAll("expand[0]").concat(url.searchParams.getAll("expand[1]"));
     const one = (pattern: RegExp) => pattern.exec(url.pathname)?.[1];

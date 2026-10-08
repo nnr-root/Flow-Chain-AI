@@ -354,6 +354,9 @@ declare
   v_take numeric(12, 4);
   v_balance numeric(12, 4);
   v_period integer;
+  v_plan numeric(12, 4);
+  v_rest numeric(12, 4);
+  r record;
 begin
   if not public.valid_amount(p_refunded_usd) then raise exception 'invalid_amount'; end if;
   select * into p from public.payments where charge_id = p_charge_id;
@@ -364,7 +367,7 @@ begin
     if exists (select 1 from public.stripe_events where id = p_event_id) then return 'duplicate'; end if;
     return 'unknown_payment';
   end if;
-  select plan_period into v_period from public.users where id = p.user_id for update;
+  select plan_period, plan_credit_usd into v_period, v_plan from public.users where id = p.user_id for update;
   select * into p from public.payments where id = p.id for update;
   if not public.claim_stripe_event(p_event_id, 'refund', p.user_id) then return 'duplicate'; end if;
   v_refunded := least(greatest(round(p_refunded_usd, 4), p.refunded_usd), p.paid_usd);
@@ -378,6 +381,21 @@ begin
           plan_credit_usd = case when p.kind = 'plan' and p.plan_period = v_period then greatest(plan_credit_usd - v_take, 0) else plan_credit_usd end
       where id = p.user_id returning balance_usd into v_balance;
     insert into public.ledger (user_id, kind, amount_usd, balance_after_usd, note) values (p.user_id, 'refund', -v_take, v_balance, p.id);
+    -- The month's credit may be out with a job (held by a reservation, where the row above does not see it).
+    -- What the refund took beyond the credit that was at hand comes off what those jobs hold as plan credit: it
+    -- is taken back already, and must not be taken again as "expired" if the month ends before they settle.
+    -- (This locks reservations after the user, the other way round from `settle`: should the two ever meet,
+    -- Postgres ends one of them and it is tried again — the event by Stripe, the settling by the worker.)
+    if p.kind = 'plan' and p.plan_period = v_period then
+      v_rest := v_take - least(v_take, v_plan);
+      for r in select id, plan_part_usd from public.reservations
+        where user_id = p.user_id and status = 'open' and plan_period = v_period and plan_part_usd > 0 order by created_at for update
+      loop
+        exit when v_rest <= 0;
+        update public.reservations set plan_part_usd = plan_part_usd - least(r.plan_part_usd, v_rest) where id = r.id;
+        v_rest := v_rest - least(r.plan_part_usd, v_rest);
+      end loop;
+    end if;
   end if;
   return 'fulfilled';
 end $$;

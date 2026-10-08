@@ -212,6 +212,32 @@ describe.skipIf(!supa)("billing in the database", () => {
     expect(await account(b)).toEqual({ balance: 10, plan: 10, period: 3 });
   });
 
+  it("does not take a refunded month twice when its credit was out with a job as the month ended", async () => {
+    // the subscription ends while the job runs
+    const [charge, sub] = [unique("ch"), unique("sub")];
+    await month(a, 10, { paid: 20, charge, sub });
+    const held = await reserve(a, await run(a), 10);
+    await rpc("refund_payment", { p_event_id: unique("evt"), p_charge_id: charge, p_refunded_usd: 20 });
+    expect((await account(a)).balance).toBe(-10);
+    await rpc("end_subscription", { p_event_id: unique("evt"), p_user_id: a.id, p_subscription_id: sub });
+    await settle(held, 0);
+    expect(await account(a)).toEqual({ balance: 0, plan: 0, period: 2 });
+
+    // the next month is paid for while the job runs: half of the first month was refunded, and the job spends 2
+    const bCharge = unique("ch");
+    await month(b, 10, { paid: 20, charge: bCharge });
+    const job = await reserve(b, await run(b), 10);
+    await rpc("refund_payment", { p_event_id: unique("evt"), p_charge_id: bCharge, p_refunded_usd: 10 });
+    await month(b, 10);
+    // 8 come back; of the 5 of the old month the job still held as plan credit, 2 were used and 3 expire
+    await settle(job, 2);
+    const end = await account(b);
+    expect(end.period).toBe(2);
+    expect(end.balance).toBe(10);
+    const { data: ledger } = await b.client.from("ledger").select("amount_usd");
+    expect(Math.round(ledger!.reduce((sum, r) => sum + Number(r.amount_usd), 0) * 10_000) / 10_000).toBe(10);
+  });
+
   it("takes credit back by hand out of the plan's when nothing else is left, and expires only what remains", async () => {
     await month(a, 10);
     expect(Number(await rpc("grant_credit", { p_email: a.email, p_amount_usd: -8, p_note: "taken back" }))).toBe(2);
