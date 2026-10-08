@@ -84,7 +84,7 @@ export async function finishCallback(req: Request): Promise<string> {
 }
 
 export type Account = { email: string; balanceUsd: number };
-export type LedgerRow = { id: number; kind: "grant" | "reserve" | "settle"; amountUsd: number; balanceAfterUsd: number; runId: string | null; note: string; at: string };
+export type LedgerRow = { id: number; kind: "grant" | "reserve" | "settle" | "purchase" | "plan" | "expire" | "refund"; amountUsd: number; balanceAfterUsd: number; runId: string | null; note: string; at: string };
 
 /** The signed-in user's balance; row-level security makes "the one row I can see" exactly that. */
 export async function account(): Promise<Account> {

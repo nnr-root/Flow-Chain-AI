@@ -4,7 +4,7 @@ import { ApiError } from "../http";
 import { runner } from "../jobs";
 import { siteOrigin } from "../session";
 import { currentUser, userDb } from "../tenant";
-import { catalogue } from "./catalogue";
+import { catalogue, portalConfiguration } from "./catalogue";
 import { StripeError, stripeApi } from "@src/billing/stripe";
 
 /* What a signed-in user does about paying: go to Stripe to buy, go to Stripe to manage, and read what they bought. */
@@ -73,7 +73,7 @@ export async function portal(req: Request): Promise<{ url: string }> {
   const customer = data?.stripe_customer_id as string | null;
   if (!customer) throw new ApiError("validation", "there is nothing to manage yet: you have not bought anything");
   try {
-    const session = await api.post<{ url?: string }>("/v1/billing_portal/sessions", { customer, return_url: `${siteOrigin(req)}/account` });
+    const session = await api.post<{ url?: string }>("/v1/billing_portal/sessions", { customer, return_url: `${siteOrigin(req)}/account`, configuration: await portalConfiguration(api) });
     if (!session.url) throw new Error("Stripe returned no portal address");
     return { url: session.url };
   } catch (err) {

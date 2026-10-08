@@ -13,6 +13,14 @@ const B = { email: `bob-${stamp}@example.test`, password: "bob-password-1" };
 const userId = async (email: string) => (await service.from("users").select("id").eq("email", email).single()).data!.id as string;
 const balance = async (email: string) => Number((await service.from("users").select("balance_usd").eq("email", email).single()).data!.balance_usd);
 
+async function signIn(page: Page, who: { email: string; password: string }) {
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(who.email);
+  await page.getByLabel("Password").fill(who.password);
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByTestId("account-link")).toContainText(who.email);
+}
+
 async function signUp(page: Page, who: { email: string; password: string }) {
   await page.goto("/signup");
   await page.getByLabel("Email").fill(who.email);
@@ -102,5 +110,66 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect(page).toHaveURL(runUrl);
   await expect(page.getByTestId("player")).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("a user buys a top-up and a plan at Stripe and has the credit when they come back; the other user sees none of it", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+
+  // anyone may read what is on sale; buying asks for an account
+  await page.goto("/pricing");
+  await expect(page).toHaveURL(/\/pricing$/);
+  await expect(page.getByTestId("offer-starter")).toContainText("$19.00 / month");
+  await expect(page.getByTestId("offer-topup-10")).toContainText("$6.00 of credit. It does not expire.");
+  await expect(page.getByRole("link", { name: "Sign up to buy" })).toHaveCount(2);
+  expect((await page.request.post("/api/billing/checkout", { data: { priceId: "price_x" }, headers: { "sec-fetch-site": "same-origin" } })).status()).toBe(401);
+
+  // B has nothing; the note under a button they cannot use says where credit comes from
+  await signIn(page, B);
+  await expect(page.getByTestId("header-balance")).toHaveText("$0.00");
+  await page.goto("/new");
+  await page.getByTestId("topic").fill("owls at dusk");
+  await page.getByTestId("credit-note").getByTestId("add-credit").click();
+  await expect(page).toHaveURL(/\/pricing$/);
+
+  // a top-up: to Stripe's page (the stand-in pays at once) and back, with the credit already there
+  await page.getByTestId("buy-topup-10").click();
+  await expect(page).toHaveURL(/\/account\?paid=1$/, { timeout: 30_000 });
+  await expect(page.getByTestId("paid-note")).toHaveAttribute("data-state", "confirmed");
+  await expect(page.getByTestId("balance")).toHaveText("$6.00");
+  await expect(page.getByTestId("payments").locator("tbody tr")).toHaveCount(1);
+  await expect(page.getByTestId("payments")).toContainText("Top-up");
+  await expect(page.getByTestId("payments")).toContainText("$10.00");
+  await expect(page.getByTestId("plan")).toHaveText("No plan.");
+  await expect(page.getByTestId("ledger")).toContainText("Top-up bought");
+  expect(await balance(B.email)).toBe(6);
+
+  // a plan: a month's credit beside the top-up's, told apart
+  await page.goto("/pricing");
+  await page.getByTestId("buy-starter").click();
+  await expect(page).toHaveURL(/\/account\?paid=1$/, { timeout: 30_000 });
+  await expect(page.getByTestId("balance")).toHaveText("$18.00");
+  await expect(page.getByTestId("balance-split")).toContainText("$12.00 from your plan, to use by ");
+  await expect(page.getByTestId("balance-split")).toContainText("$6.00 that does not expire");
+  await expect(page.getByTestId("plan")).toContainText("starter · Active · renews on ");
+  await expect(page.getByTestId("payments").locator("tbody tr")).toHaveCount(2);
+  // one plan at a time: the pricing page now offers to manage it, not to buy another
+  await page.goto("/pricing");
+  await expect(page.getByTestId("your-plan")).toBeVisible();
+  await expect(page.getByTestId("buy-starter")).toHaveCount(0);
+  await expect(page.getByTestId("buy-topup-10")).toBeVisible();
+  await page.getByTestId("manage-billing").click();
+  await expect(page.getByRole("heading", { name: "Stand-in customer portal" })).toBeVisible();
+
+  // A bought nothing and sees nothing of it
+  await page.goto("/account");
+  await page.getByTestId("sign-out").click();
+  await signIn(page, A);
+  await page.goto("/account");
+  await expect(page.getByTestId("balance")).toHaveText("$0.79");
+  await expect(page.getByTestId("payments")).toHaveCount(0);
+  await expect(page.getByTestId("plan")).toHaveCount(0);
+  await expect(page.getByTestId("ledger")).not.toContainText("Top-up bought");
   expect(errors).toEqual([]);
 });

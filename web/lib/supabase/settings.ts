@@ -55,5 +55,5 @@ export const LINK_ERRORS = {
 } as const;
 export const linkError = (code: string | null | undefined): string => (code && Object.hasOwn(LINK_ERRORS, code) ? LINK_ERRORS[code as keyof typeof LINK_ERRORS] : "");
 
-/** Pages anyone may open. */
-export const PUBLIC_PAGES = /^\/(login|signup|reset|auth\/callback|auth\/google)(\/|$)/;
+/** Pages anyone may open. (`/pricing` exists only in a studio that takes payments; elsewhere it is "not found".) */
+export const PUBLIC_PAGES = /^\/(login|signup|reset|pricing|auth\/callback|auth\/google)(\/|$)/;

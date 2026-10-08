@@ -7,13 +7,17 @@ import { getJson, usd } from "./api";
  * Asked again whenever `when` changes (a job starting or ending changes the balance) and when the window is
  * looked at again (credit may have been added meanwhile).
  */
+/** Whether this studio sells credit: learned with the balance, and the same for everyone, so kept once for the page. */
+let sells = false;
+
 export function useBalance(when: unknown = ""): number | null {
   const [balance, setBalance] = useState<number | null>(null);
   useEffect(() => {
     let gone = false;
     const ask = () =>
-      getJson<{ account: { balanceUsd: number } | null }>("/api/account").then(
+      getJson<{ account: { balanceUsd: number } | null; billing?: boolean }>("/api/account").then(
         (data) => {
+          sells = data.billing === true;
           // no account: a studio without accounts, where credit does not apply
           if (!gone) setBalance(data.account ? data.account.balanceUsd : null);
         },
@@ -43,7 +47,8 @@ export function CreditNote({ balance, needUsd }: { balance: number | null; needU
   if (!tooLittle(balance, needUsd)) return null;
   return (
     <p className="text-xs text-warn" data-testid="credit-note" role="status">
-      This needs up to {usd(needUsd!)}; you have {usd(Math.max(balance!, 0))}. <a href="/account" className="underline">Your account</a>
+      This needs up to {usd(needUsd!)}; you have {usd(Math.max(balance!, 0))}.{" "}
+      {sells ? <a href="/pricing" className="underline" data-testid="add-credit">Add credit</a> : <a href="/account" className="underline">Your account</a>}
     </p>
   );
 }

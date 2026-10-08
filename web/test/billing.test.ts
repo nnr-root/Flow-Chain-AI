@@ -4,6 +4,7 @@ import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { signWebhook } from "@src/billing/stripe";
+import { GET as accountRoute } from "@/app/api/account/route";
 import { POST as checkout } from "@/app/api/billing/checkout/route";
 import { POST as portal } from "@/app/api/billing/portal/route";
 import { POST as webhook } from "@/app/api/stripe/webhook/route";
@@ -99,6 +100,8 @@ describe.skipIf(!supa || !hasRedisServer())("payments", () => {
 
   it("turns a paid top-up into credit, once, for the user who bought it", async () => {
     await worker();
+    // the pages learn with the balance that credit can be bought here
+    expect(await (await accountRoute(as(aCookie, "/api/account"), undefined)).json()).toEqual({ account: { email: a.email, balanceUsd: 0 }, ledger: [], billing: true });
     const { status, sessionId } = await buy(aCookie, topup);
     expect(status).toBe(200);
     // the customer is the worker's creation, tagged with whose it is, and recorded
@@ -273,6 +276,12 @@ describe.skipIf(!supa || !hasRedisServer())("payments", () => {
 
     const opened = await portal(as(aCookie, "/api/billing/portal", { json: {} }), undefined);
     expect(((await opened.json()) as { url: string }).url).toBe(`${stripe.url}/portal/${[...customers][0]}`);
+    expect(stripe.portalSessions.at(-1)).toMatchObject({ customer: [...customers][0], return_url: "http://127.0.0.1:3131/account", configuration: null });
+    // the configuration that stripe:setup made is the one used, not another in the same account
+    stripe.portalConfigurations.push({ id: "bpc_other", metadata: {} }, { id: "bpc_studio", metadata: { studio: "flowchain" } });
+    forgetCatalogue();
+    await portal(as(aCookie, "/api/billing/portal", { json: {} }), undefined);
+    expect(stripe.portalSessions.at(-1)!.configuration).toBe("bpc_studio");
     expect((await portal(as(bCookie, "/api/billing/portal", { json: {} }), undefined)).status).toBe(400);
     expect((await portal(request("/api/billing/portal", { json: {} }), undefined)).status).toBe(401);
     expect((await checkout(request("/api/billing/checkout", { json: { priceId: topup } }), undefined)).status).toBe(401);

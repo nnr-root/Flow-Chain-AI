@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { QueueBanner } from "@/components/QueueBanner";
 import { usd } from "@/lib/api";
+import { billingOn } from "@/lib/billing";
 import { multiTenant } from "@/lib/supabase/settings";
 import { headerAccount } from "@/server/page";
 import "./globals.css";
@@ -22,12 +23,19 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <>
                 <Link href="/" className="text-dim hover:text-white">Videos</Link>
                 <Link href="/brand-kits" className="text-dim hover:text-white">Brand kits</Link>
+                {billingOn() && <Link href="/pricing" className="text-dim hover:text-white">Pricing</Link>}
                 {me && (
                   <Link href="/account" className="ml-auto text-dim hover:text-white" data-testid="account-link">
                     <span data-testid="header-balance" className="font-medium text-white">{usd(me.balanceUsd)}</span> · {me.email}
                   </Link>
                 )}
                 <Link href="/new" className={`${me ? "" : "ml-auto "}rounded-lg bg-accent px-3 py-1.5 font-medium text-ink hover:brightness-110`}>New video</Link>
+              </>
+            )}
+            {signedOut && billingOn() && (
+              <>
+                <Link href="/pricing" className="text-dim hover:text-white">Pricing</Link>
+                <Link href="/login" className="ml-auto text-dim hover:text-white">Sign in</Link>
               </>
             )}
           </nav>

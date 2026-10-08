@@ -46,7 +46,26 @@ export async function catalogue(now = Date.now()): Promise<CatalogueItem[]> {
   return cached.items;
 }
 
+let portalCached: { at: number; id: string | undefined } | undefined;
+
+/**
+ * The Customer Portal configuration `npm run stripe:setup` made (plan changes without proration, cancelling at
+ * the month's end), or undefined: Stripe then uses the account's default.
+ */
+export async function portalConfiguration(stripe: StripeApi, now = Date.now()): Promise<string | undefined> {
+  if (portalCached && now - portalCached.at < TTL_MS) return portalCached.id;
+  try {
+    const all = await stripe.list<{ id: string; metadata?: Record<string, string> }>("/v1/billing_portal/configurations", { active: true });
+    portalCached = { at: now, id: all.find((c) => c.metadata?.studio === "flowchain")?.id };
+  } catch (err) {
+    console.error("billing:", err instanceof StripeError ? err.message : String(err));
+    return portalCached?.id;
+  }
+  return portalCached.id;
+}
+
 /** Tests only. */
 export const forgetCatalogue = (): void => {
   cached = undefined;
+  portalCached = undefined;
 };

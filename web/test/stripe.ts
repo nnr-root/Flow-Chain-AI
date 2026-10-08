@@ -22,6 +22,9 @@ export type FakeStripe = {
   sessions: Map<string, Obj>;
   /** Every request the studio made, as "METHOD /path". */
   requests: string[];
+  /** The account's Customer Portal configurations, and the portal sessions the studio opened. */
+  portalConfigurations: Obj[];
+  portalSessions: Obj[];
   addPrice(p: { key: string; kind: "plan" | "topup"; priceUsd: number; creditUsd?: number; name?: string; metadata?: Record<string, string> }): string;
   /** The customer pays a Checkout session the studio created. Returns the events Stripe would send. */
   completeCheckout(sessionId: string): FakeEvent[];
@@ -65,9 +68,10 @@ const read = (req: IncomingMessage): Promise<string> =>
     req.on("end", () => done(text));
   });
 
-export async function startStripe(): Promise<FakeStripe> {
-  const secretKey = `sk_test_${Math.random().toString(36).slice(2)}`;
-  const webhookSecret = `whsec_${Math.random().toString(36).slice(2)}`;
+/** `port`, the keys and `deliverTo` are given when the stand-in runs as a process of its own (the browser test). */
+export async function startStripe(opts: { port?: number; secretKey?: string; webhookSecret?: string; deliverTo?: string } = {}): Promise<FakeStripe> {
+  const secretKey = opts.secretKey ?? `sk_test_${Math.random().toString(36).slice(2)}`;
+  const webhookSecret = opts.webhookSecret ?? `whsec_${Math.random().toString(36).slice(2)}`;
   const customers = new Map<string, Obj>();
   const byIdempotencyKey = new Map<string, Obj>();
   const prices = new Map<string, Obj>();
@@ -103,7 +107,7 @@ export async function startStripe(): Promise<FakeStripe> {
   };
 
   const api: Omit<FakeStripe, "url" | "env" | "stop"> = {
-    secretKey, webhookSecret, events, customers, sessions, requests,
+    secretKey, webhookSecret, events, customers, sessions, requests, portalConfigurations: [], portalSessions: [], deliverTo: opts.deliverTo,
     addPrice(p) {
       const priceId = id("price");
       prices.set(priceId, {
@@ -239,7 +243,12 @@ export async function startStripe(): Promise<FakeStripe> {
 
     if (req.method === "POST" && url.pathname === "/v1/billing_portal/sessions") {
       if (!customers.has(form.customer)) return send(400, { error: { message: "No such customer" } });
-      return send(200, { id: id("bps"), object: "billing_portal.session", customer: form.customer, return_url: form.return_url, url: `${base}/portal/${form.customer}` });
+      const session = { id: id("bps"), object: "billing_portal.session", customer: form.customer, return_url: form.return_url, configuration: form.configuration ?? null, url: `${base}/portal/${form.customer}` };
+      stripe.portalSessions.push(session);
+      return send(200, session);
+    }
+    if (req.method === "GET" && url.pathname === "/v1/billing_portal/configurations") {
+      return send(200, { object: "list", has_more: false, data: stripe.portalConfigurations });
     }
     for (const [pattern, store, what] of [
       [/^\/v1\/charges\/([^/]+)$/, charges, "charge"], [/^\/v1\/invoices\/([^/]+)$/, invoices, "invoice"], [/^\/v1\/subscriptions\/([^/]+)$/, subscriptions, "subscription"],
@@ -260,7 +269,7 @@ export async function startStripe(): Promise<FakeStripe> {
     return send(404, { error: { message: `the stand-in Stripe has no ${req.method} ${url.pathname}` } });
   });
 
-  await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+  await new Promise<void>((done) => server.listen(opts.port ?? 0, "127.0.0.1", done));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   return Object.assign(api as FakeStripe, {
     url: base,

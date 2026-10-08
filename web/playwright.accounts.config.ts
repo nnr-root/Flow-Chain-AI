@@ -7,6 +7,7 @@ const web = dirname(fileURLToPath(import.meta.url));
 export const data = join(web, ".e2e/accounts");
 const PORT = 3133;
 const REDIS_PORT = 6391;
+const STRIPE_PORT = 3134;
 
 /** The local Supabase stack's address and keys (`npm run db:start`); this test never touches a hosted project. */
 function localSupabase(): { url: string; anonKey: string; serviceKey: string } {
@@ -33,12 +34,17 @@ const shared = {
   REDIS_URL: `redis://127.0.0.1:${REDIS_PORT}`,
   SUPABASE_URL: supabase.url,
   SUPABASE_ANON_KEY: supabase.anonKey,
+  // payments go to the stand-in Stripe below: these keys open nothing anywhere else
+  STRIPE_SECRET_KEY: "sk_test_standin",
+  STRIPE_API_BASE: `http://127.0.0.1:${STRIPE_PORT}`,
 };
+const WEBHOOK_SECRET = "whsec_standin";
 
 /**
  * The studio with accounts in a real browser (`npm run test:accounts`): sign-up, the session, the proxy's
- * redirect, credit and isolation between two users. Needs the local Supabase stack and `redis-server`. The
- * worker runs the stand-in CLI, so nothing can reach a provider.
+ * redirect, credit, buying credit, and isolation between two users. Needs the local Supabase stack and
+ * `redis-server`. The worker runs the stand-in CLI and payments go to a stand-in Stripe, so nothing can reach a
+ * provider or charge anything.
  */
 export default defineConfig({
   testDir: "accounts",
@@ -60,18 +66,28 @@ export default defineConfig({
       stdout: "ignore",
     },
     {
+      // Stripe's stand-in: its checkout page pays at once and calls the studio's webhook, signed, as Stripe would
+      command: "node --import tsx test/stripe-server.ts",
+      port: STRIPE_PORT,
+      timeout: 60_000,
+      reuseExistingServer: false,
+      stdout: "ignore",
+      env: { STRIPE_SECRET_KEY: shared.STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET: WEBHOOK_SECRET, FAKE_STRIPE_PORT: String(STRIPE_PORT), FAKE_STRIPE_DELIVER_TO: `http://127.0.0.1:${PORT}/api/stripe/webhook` },
+    },
+    {
       // The worker first, in the background (it has no port to wait for), then the built studio. The worker alone
       // gets the key that settles credit and the provider keys' stand-ins; the web process gets neither.
       command: [
         `(SUPABASE_SERVICE_ROLE_KEY="$WORKER_SERVICE_KEY" FLOWCHAIN_CLI="$WORKER_CLI" WORKER_RECONCILE_MS=2000 WORKER_RECONCILE_KNOWN_USERS_ONLY=1`,
         `GEMINI_API_KEY=t ELEVENLABS_API_KEY=t ELEVENLABS_VOICE_ID=t FAL_KEY=t node --import tsx worker/main.ts > ${data}/worker.log 2>&1 &)`,
-        `; npx next build --webpack && exec npx next start -H 127.0.0.1 -p ${PORT}`,
+        // the signing secret is the web app's alone: the worker never sees a webhook
+        `; npx next build --webpack && STRIPE_WEBHOOK_SECRET="$WEB_WEBHOOK_SECRET" exec npx next start -H 127.0.0.1 -p ${PORT}`,
       ].join(" "),
       url: `http://127.0.0.1:${PORT}/login`,
       timeout: 300_000,
       reuseExistingServer: false,
       stdout: "ignore",
-      env: { ...shared, WORKER_SERVICE_KEY: supabase.serviceKey, WORKER_CLI: join(web, "test/stub-cli.mjs") },
+      env: { ...shared, WORKER_SERVICE_KEY: supabase.serviceKey, WORKER_CLI: join(web, "test/stub-cli.mjs"), WEB_WEBHOOK_SECRET: WEBHOOK_SECRET },
     },
   ],
 });
