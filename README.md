@@ -325,6 +325,9 @@ What to know:
   cost. A restricted key for the web app is not set up by this version.
 - Tax is not handled: prices are charged as listed. Turn on Stripe Tax and add what your country requires
   before selling for real.
+- Credit follows money the studio can see: a payment that names a charge, in USD, for at least the credit it
+  grants. An invoice you mark as paid by hand in Stripe, one paid from a customer's Stripe balance, or a
+  checkout made free by a coupon grants nothing; grant that credit yourself (`npm run studio:grant`).
 - Only cards and other methods that confirm at once are tested. A payment that confirms days later is
   fulfilled when it does.
 - A price created by hand in Stripe's dashboard is not sold by the studio unless its metadata says
