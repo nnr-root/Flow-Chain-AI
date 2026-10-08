@@ -22,6 +22,14 @@ const unavailable = (err: unknown): ApiError => {
   return new ApiError("billing_unavailable", "payments are not available right now", "nothing was charged; try again in a moment");
 };
 
+/** The signed-in user's own Stripe customer, from their own row (row-level security makes it theirs), or null. */
+async function ownCustomer(): Promise<string | null> {
+  const { data, error } = await userDb().from("users").select("stripe_customer_id").maybeSingle();
+  if (error) throw unavailable(new Error(error.message));
+  const id = data?.stripe_customer_id as string | null | undefined;
+  return id && /^cus_[A-Za-z0-9_]+$/.test(id) ? id : null;
+}
+
 /** The user's plan as the database mirrors it from Stripe, or null. */
 export async function currentPlan(): Promise<PlanView | null> {
   const { data, error } = await userDb().from("subscriptions").select("plan,status,current_period_end,cancel_at_period_end").maybeSingle();
@@ -46,8 +54,10 @@ export async function checkout(req: Request, input: unknown): Promise<{ url: str
     const plan = await currentPlan();
     if (plan && LIVE.includes(plan.status)) throw new ApiError("already_subscribed", "you already have a plan", "change or cancel it under Manage subscription on your account page");
   }
-  // the customer is the worker's to create and to say whose it is
-  const customer = await runner().stripeCustomer();
+  // The customer is the worker's to create. Which customer is this user's is then read from the user's own
+  // row, not taken from the answer that came back through the queue.
+  const customer = (await ownCustomer()) ?? (await runner().stripeCustomer().then(ownCustomer));
+  if (!customer) throw unavailable(new Error("the worker created no customer for this user"));
   const origin = siteOrigin(req);
   try {
     const session = await api.post<{ url?: string }>("/v1/checkout/sessions", {
@@ -68,9 +78,7 @@ export async function checkout(req: Request, input: unknown): Promise<{ url: str
 /** Stripe's own page for changing or cancelling a plan and updating a card, for the user's own customer. */
 export async function portal(req: Request): Promise<{ url: string }> {
   const api = stripe();
-  const { data, error } = await userDb().from("users").select("stripe_customer_id").single();
-  if (error) throw new ApiError("unauthenticated", "sign in first");
-  const customer = data?.stripe_customer_id as string | null;
+  const customer = await ownCustomer();
   if (!customer) throw new ApiError("validation", "there is nothing to manage yet: you have not bought anything");
   try {
     const session = await api.post<{ url?: string }>("/v1/billing_portal/sessions", { customer, return_url: `${siteOrigin(req)}/account`, configuration: await portalConfiguration(api) });

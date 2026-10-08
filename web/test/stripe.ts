@@ -30,8 +30,13 @@ export type FakeStripe = {
   prices: Map<string, Obj>;
   webhookEndpoints: Obj[];
   addPrice(p: { key: string; kind: "plan" | "topup"; priceUsd: number; creditUsd?: number; name?: string; metadata?: Record<string, string> }): string;
-  /** The customer pays a Checkout session the studio created. Returns the events Stripe would send. */
-  completeCheckout(sessionId: string): FakeEvent[];
+  /**
+   * The customer pays a Checkout session the studio created. Returns the events Stripe would send. With `later`
+   * the session completes with a payment method that confirms afterwards: nothing is paid until `payLater`.
+   */
+  completeCheckout(sessionId: string, opts?: { later?: boolean }): FakeEvent[];
+  payLater(sessionId: string): FakeEvent[];
+  charges: Map<string, Obj>;
   /** A month goes by: the subscription's next invoice is paid. */
   renew(subscriptionId: string): FakeEvent[];
   updateSubscription(subscriptionId: string, change: Obj): FakeEvent[];
@@ -96,7 +101,7 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
     return event;
   };
   const charge = (customer: string, usd: number): Obj => {
-    const c = { id: id("ch"), object: "charge", customer, amount: cents(usd), amount_refunded: 0, receipt_url: `https://stripe.test/receipts/${id("rcpt")}` };
+    const c = { id: id("ch"), object: "charge", customer, amount: cents(usd), amount_refunded: 0, disputed: false, receipt_url: `https://stripe.test/receipts/${id("rcpt")}` };
     charges.set(c.id, c);
     return c;
   };
@@ -104,15 +109,15 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
     const price = prices.get(sub.items.data[0].price.id)!;
     const paid = charge(sub.customer, price.unit_amount / 100);
     const inv = {
-      id: id("in"), object: "invoice", status: "paid", billing_reason: reason, customer: sub.customer, subscription: sub.id, amount_paid: price.unit_amount,
-      charge: paid.id, hosted_invoice_url: `https://stripe.test/invoices/${id("inv")}`, lines: { data: [{ price, quantity: 1 }] },
+      id: id("in"), object: "invoice", status: "paid", billing_reason: reason, customer: sub.customer, subscription: sub.id, amount_paid: price.unit_amount, currency: "usd",
+      charge: paid.id, hosted_invoice_url: `https://stripe.test/invoices/${id("inv")}`, lines: { data: [{ price, quantity: 1, proration: false }] },
     };
     invoices.set(inv.id, inv);
     return inv;
   };
 
   const api: Omit<FakeStripe, "url" | "env" | "stop"> = {
-    secretKey, webhookSecret, events, customers, sessions, requests, portalConfigurations: [], portalSessions: [], products, prices, webhookEndpoints: [], deliverTo: opts.deliverTo,
+    secretKey, webhookSecret, events, customers, sessions, requests, charges, portalConfigurations: [], portalSessions: [], products, prices, webhookEndpoints: [], deliverTo: opts.deliverTo,
     addPrice(p) {
       const priceId = id("price");
       prices.set(priceId, {
@@ -122,15 +127,25 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
       });
       return priceId;
     },
-    completeCheckout(sessionId) {
+    payLater(sessionId) {
+      const session = sessions.get(sessionId)!;
+      const paid = charge(session.customer, session.amount_total / 100);
+      const intent = { id: id("pi"), object: "payment_intent", latest_charge: paid.id };
+      intents.set(intent.id, intent);
+      session.payment_intent = intent.id;
+      session.payment_status = "paid";
+      return [emit("checkout.session.async_payment_succeeded", session)];
+    },
+    completeCheckout(sessionId, opts = {}) {
       const session = sessions.get(sessionId);
       if (!session) throw new Error(`no session ${sessionId}`);
       const price = prices.get(session.line_items.data[0].price.id)!;
       session.status = "complete";
+      session.amount_total = price.unit_amount * session.line_items.data[0].quantity;
+      if (session.mode === "payment" && opts.later) return [emit("checkout.session.completed", session)];
       session.payment_status = "paid";
-      session.amount_total = price.unit_amount;
       if (session.mode === "payment") {
-        const paid = charge(session.customer, price.unit_amount / 100);
+        const paid = charge(session.customer, session.amount_total / 100);
         const intent = { id: id("pi"), object: "payment_intent", latest_charge: paid.id };
         intents.set(intent.id, intent);
         session.payment_intent = intent.id;
@@ -165,6 +180,7 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
       return [emit("charge.refunded", c)];
     },
     dispute(chargeId, usd) {
+      charges.get(chargeId)!.disputed = true;
       return [emit("charge.dispute.created", { id: id("dp"), object: "dispute", charge: chargeId, amount: cents(usd) })];
     },
     emit,
@@ -236,7 +252,7 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
       const sessionId = id("cs");
       const session = {
         id: sessionId, object: "checkout.session", mode: form.mode, customer: form.customer, client_reference_id: form.client_reference_id ?? null,
-        status: "open", payment_status: "unpaid", amount_total: null, payment_intent: null, subscription: null,
+        status: "open", payment_status: "unpaid", amount_total: null, currency: "usd", payment_intent: null, subscription: null,
         success_url: form.success_url, cancel_url: form.cancel_url, url: `${base}/pay/${sessionId}`,
         line_items: { data: [{ price, quantity: Number(form.line_items[0].quantity ?? 1) }] },
       };

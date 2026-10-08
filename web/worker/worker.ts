@@ -280,13 +280,18 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   // With billing: the one place a Stripe payment becomes credit.
   const pay = db ? billing(log) : null;
   /** Webhooks can be missed (the web was down for longer than Stripe retries): ask Stripe what happened lately. */
+  let catchingUp = false;
   const catchUp = async (): Promise<void> => {
-    if (!pay) return;
+    // one pass at a time: with Stripe slow, a pass can outlast the hour
+    if (!pay || catchingUp) return;
+    catchingUp = true;
     try {
       const done = await pay.catchUp();
       if (done > 0) log(`worker: fulfilled ${done} Stripe event(s) no webhook had brought`);
     } catch (err) {
       log(`worker: could not ask Stripe for recent events: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      catchingUp = false;
     }
   };
 

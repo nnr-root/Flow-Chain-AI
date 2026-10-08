@@ -159,6 +159,12 @@ describe.skipIf(!supa || !hasRedisServer())("payments", () => {
     }
     expect((await account(a)).balance).toBe(0);
     expect((await db().from("stripe_events").select("id").eq("user_id", a.id)).data).toEqual([]);
+    // what is not an id never becomes part of a request to Stripe
+    expect(stripe.requests.filter((r) => r.includes("..") || r.endsWith("/x"))).toEqual([]);
+    // an event of the other mode (a live event with a test key) is not this studio's to fulfil
+    paid.livemode = true;
+    expect((await deliver(paid)).status).toBe(503);
+    expect((await account(a)).balance).toBe(0);
   });
 
   it("runs a subscription: a paid month grants credit that the next month replaces, whatever order the events come in", async () => {
@@ -230,6 +236,67 @@ describe.skipIf(!supa || !hasRedisServer())("payments", () => {
     session.line_items.data[0].price.metadata.credit_usd = credit;
     expect(await outcome(await deliver(paid))).toEqual({ received: true, outcome: "fulfilled" });
     expect((await account(a)).balance).toBe(6);
+  });
+
+  it("does not keep the credit of a payment that was refunded before it could be fulfilled", async () => {
+    await worker();
+    const { sessionId } = await buy(aCookie, topup);
+    const session = stripe.sessions.get(sessionId!)!;
+    const credit = session.line_items.data[0].price.metadata.credit_usd;
+    delete session.line_items.data[0].price.metadata.credit_usd;
+    const [paid] = stripe.completeCheckout(sessionId!);
+    expect((await deliver(paid)).status).toBe(503);
+    // the owner, seeing a customer who paid and got nothing, gives the money back
+    const [chargeId] = [...stripe.charges.keys()];
+    const [refunded] = stripe.refund(chargeId, 10);
+    // nothing was granted, so there is nothing to take — and the event is not marked done
+    expect(await outcome(await deliver(refunded))).toEqual({ received: true, outcome: "unknown_payment" });
+    // then puts the price right; Stripe's retry of the payment goes through, and grants nothing that stays
+    session.line_items.data[0].price.metadata.credit_usd = credit;
+    expect(await outcome(await deliver(paid))).toEqual({ received: true, outcome: "fulfilled" });
+    expect((await account(a)).balance).toBe(0);
+    expect((await a.client.from("payments").select("credit_usd,refunded_usd").single()).data).toEqual({ credit_usd: 6, refunded_usd: 10 });
+    expect((await a.client.from("ledger").select("kind,amount_usd").order("id")).data).toEqual([{ kind: "purchase", amount_usd: 6 }, { kind: "refund", amount_usd: -6 }]);
+  });
+
+  it("grants only when the money has arrived, and never more than was paid", async () => {
+    await worker();
+    // a payment method that confirms later: the checkout is complete, nothing is paid yet
+    const first = await buy(aCookie, topup);
+    const [completed] = stripe.completeCheckout(first.sessionId!, { later: true });
+    expect(await outcome(await deliver(completed))).toEqual({ received: true, outcome: "not_paid" });
+    expect((await account(a)).balance).toBe(0);
+    const [succeeded] = stripe.payLater(first.sessionId!);
+    expect(await outcome(await deliver(succeeded))).toEqual({ received: true, outcome: "fulfilled" });
+    // the first event, delivered again now that it is paid, is the same payment
+    expect(await outcome(await deliver(completed))).toEqual({ received: true, outcome: "duplicate_payment" });
+    expect((await account(a)).balance).toBe(6);
+
+    // a price that claims more credit than it costs (a slip in the dashboard, or someone with the account's key)
+    const second = await buy(aCookie, topup);
+    stripe.sessions.get(second.sessionId!)!.line_items.data[0].price = { ...stripe.sessions.get(second.sessionId!)!.line_items.data[0].price, metadata: { studio: "flowchain", key: "topup-10", credit_usd: "1000" } };
+    expect((await deliver(stripe.completeCheckout(second.sessionId!)[0])).status).toBe(503);
+    // and a payment in another currency, whose amount is not dollars
+    const third = await buy(aCookie, topup);
+    stripe.sessions.get(third.sessionId!)!.currency = "jpy";
+    expect((await deliver(stripe.completeCheckout(third.sessionId!)[0])).status).toBe(503);
+    expect((await account(a)).balance).toBe(6);
+  });
+
+  it("ends the plan of a month that is fulfilled after its subscription was ended", async () => {
+    await worker();
+    const { sessionId } = await buy(aCookie, starter);
+    const [created, invoicePaid] = stripe.completeCheckout(sessionId!);
+    await deliver(created);
+    const sub = stripe.sessions.get(sessionId!)!.subscription as string;
+    // the month's own event is late; the subscription is ended first (cancelled at once in the dashboard)
+    for (const event of stripe.cancelSubscription(sub)) await deliver(event);
+    expect(await outcome(await deliver(invoicePaid))).toEqual({ received: true, outcome: "fulfilled" });
+    // it was paid for and is on record, but there is no plan left and nothing that will never expire
+    expect(await account(a)).toMatchObject({ balance: 0, plan: 0 });
+    expect((await a.client.from("subscriptions").select("status").single()).data).toEqual({ status: "canceled" });
+    expect((await a.client.from("payments").select("kind,credit_usd")).data).toEqual([{ kind: "plan", credit_usd: 12 }]);
+    expect((await buy(aCookie, starter)).status).toBe(200);
   });
 
   it("ignores what is not the studio's: other event types, and customers it did not create", async () => {

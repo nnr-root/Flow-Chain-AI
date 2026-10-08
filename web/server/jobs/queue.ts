@@ -335,7 +335,9 @@ export function queueRunner(url: string): JobRunner {
       try {
         return (await ask(e, "stripe-event", { args: [], eventId }, 25_000)).stdout;
       } catch (err) {
-        throw new ApiError("billing_unavailable", "the payment could not be fulfilled yet", err instanceof Error ? err.message : String(err));
+        // why is the worker's to log (it does); the caller is told only that it is not done, so that it tries again
+        console.error("billing:", err instanceof Error ? err.message : String(err));
+        throw new ApiError("billing_unavailable", "the payment could not be fulfilled yet");
       }
     },
 

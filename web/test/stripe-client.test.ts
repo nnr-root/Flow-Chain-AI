@@ -1,5 +1,6 @@
+import { createServer } from "node:http";
 import { describe, expect, it } from "vitest";
-import { formEncode, signWebhook, stripeSettings, usdOf, verifyWebhook } from "@src/billing/stripe";
+import { API_VERSION, creditOf, formEncode, pathId, signWebhook, StripeApi, stripeSettings, usdOf, verifyWebhook } from "@src/billing/stripe";
 import { catalogueItem } from "@/server/billing/catalogue";
 
 describe("a webhook's signature", () => {
@@ -34,6 +35,37 @@ describe("a webhook's signature", () => {
 });
 
 describe("talking to Stripe", () => {
+  it("names its version and key on every request, follows a list's pages, and puts nothing but ids in a path", async () => {
+    const seen: Array<{ url: string; version: unknown; auth: unknown }> = [];
+    const server = createServer((req, res) => {
+      seen.push({ url: req.url ?? "", version: req.headers["stripe-version"], auth: req.headers.authorization });
+      const after = new URL(req.url ?? "/", "http://x").searchParams.get("starting_after");
+      const page = after === null ? ["a", "b"] : after === "b" ? ["c", "d"] : after === "d" ? ["e"] : [];
+      if (req.url?.startsWith("/v1/broken")) {
+        res.writeHead(402, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ error: { message: "Your card was declined.", code: "card_declined" } }));
+      }
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ data: page.map((id) => ({ id })), has_more: after !== "d" }));
+    });
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    try {
+      const api = new StripeApi({ secretKey: "sk_test_k", apiBase: `http://127.0.0.1:${(server.address() as { port: number }).port}`, live: false });
+      expect((await api.list("/v1/things", { active: true })).map((t) => t.id)).toEqual(["a", "b", "c", "d", "e"]);
+      expect(seen.map((s) => s.url)).toEqual(["/v1/things?active=true&limit=100", "/v1/things?active=true&limit=100&starting_after=b", "/v1/things?active=true&limit=100&starting_after=d"]);
+      expect(new Set(seen.map((s) => `${String(s.version)} ${String(s.auth)}`))).toEqual(new Set([`${API_VERSION} Bearer sk_test_k`]));
+      // a list is cut where asked, with what it has so far
+      expect(await api.list("/v1/things", {}, 3)).toHaveLength(4);
+      await expect(api.get("/v1/broken")).rejects.toMatchObject({ message: "Your card was declined.", status: 402, code: "card_declined" });
+    } finally {
+      await new Promise((done) => server.close(done));
+    }
+    expect(pathId("evt_1Abc")).toBe("evt_1Abc");
+    for (const not of ["../../x", "evt_1/../../v1/customers", "", "a b", undefined, 7]) expect(() => pathId(not)).toThrow("not a Stripe id");
+    expect(creditOf({ credit_usd: "12.5" })).toBe(12.5);
+    for (const not of [{ credit_usd: " 12 " }, { credit_usd: "0x10" }, { credit_usd: "-1" }, { credit_usd: 12 }, {}, null]) expect(creditOf(not as never)).toBeNull();
+  });
+
   it("writes nested parameters the way Stripe reads forms", () => {
     expect(formEncode({ mode: "payment", line_items: [{ price: "price_1", quantity: 1 }], metadata: { user_id: "u 1" }, expand: ["a.b", "c"], skip: undefined }))
       .toBe("mode=payment&line_items%5B0%5D%5Bprice%5D=price_1&line_items%5B0%5D%5Bquantity%5D=1&metadata%5Buser_id%5D=u%201&expand%5B0%5D=a.b&expand%5B1%5D=c");
@@ -43,6 +75,9 @@ describe("talking to Stripe", () => {
     expect(stripeSettings({})).toBeNull();
     expect(stripeSettings({ STRIPE_SECRET_KEY: "sk_test_x" })).toEqual({ secretKey: "sk_test_x", apiBase: "https://api.stripe.com", live: false });
     expect(stripeSettings({ STRIPE_SECRET_KEY: "sk_live_x", STRIPE_API_BASE: "http://127.0.0.1:1/" })).toEqual({ secretKey: "sk_live_x", apiBase: "http://127.0.0.1:1", live: true });
+    // a restricted key is live or not like any other
+    expect(stripeSettings({ STRIPE_SECRET_KEY: "rk_live_x" })?.live).toBe(true);
+    expect(stripeSettings({ STRIPE_SECRET_KEY: "rk_test_x" })?.live).toBe(false);
     expect(usdOf(1999)).toBe(19.99);
     expect(usdOf(undefined)).toBeNaN();
   });
@@ -58,6 +93,9 @@ describe("talking to Stripe", () => {
       { ...price, currency: "eur" },
       { ...price, recurring: { interval: "year" } },
       { ...price, product: { name: "Starter", active: false } },
+      { ...price, metadata: { studio: "flowchain", key: "starter", credit_usd: "1e1" } }, // plain decimals only
+      { ...price, metadata: { studio: "flowchain", key: "starter", credit_usd: "0" } },
+      { ...price, metadata: { studio: "flowchain", key: "starter", credit_usd: "20" } }, // more than its $19: not an offer
     ]) expect(catalogueItem(not as typeof price)).toBeNull();
   });
 });

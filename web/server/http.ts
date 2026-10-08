@@ -67,6 +67,8 @@ type Handler<C> = (req: Request, ctx: C) => Promise<Response> | Response;
  * its `write` value (not enumerable), so a test can check every route file's label.
  */
 export function route<C>(opts: { write: boolean; public?: boolean; external?: boolean }, handler: Handler<C>): Handler<C> {
+  // a route that skips the same-origin rule must not act for whoever's cookies came along
+  if (opts.external && !opts.public) throw new Error("an external route must be public: it cannot act on a session");
   const wrapped: Handler<C> = async (req, ctx) => {
     try {
       // `external`: a write that comes from outside the studio's own pages by design (a payment provider's

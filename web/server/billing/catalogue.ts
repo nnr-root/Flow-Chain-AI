@@ -1,6 +1,6 @@
 import type { CatalogueItem } from "@/lib/billing";
 import { ApiError } from "../http";
-import { type StripeApi, StripeError, stripeApi, usdOf } from "@src/billing/stripe";
+import { creditOf, type StripeApi, StripeError, stripeApi, usdOf } from "@src/billing/stripe";
 
 /* What can be bought: the studio's active prices as Stripe lists them. Stripe is the source of truth; this is a short-lived copy. */
 
@@ -15,9 +15,11 @@ let cached: { at: number; items: CatalogueItem[] } | undefined;
 /** One Stripe price as something to buy, or null when it is not the studio's or lacks what the studio needs to know. */
 export function catalogueItem(price: Price): CatalogueItem | null {
   const meta = price.metadata ?? {};
-  const credit = Number(meta.credit_usd);
-  if (meta.studio !== "flowchain" || !meta.key || !meta.credit_usd || !Number.isFinite(credit) || credit < 0) return null;
+  const credit = creditOf(meta);
+  if (meta.studio !== "flowchain" || !meta.key || credit === null) return null;
   if (price.currency !== "usd" || typeof price.unit_amount !== "number") return null;
+  // credit is bought at a mark-up: a price that grants more than it costs is a mistake (or worse), not an offer
+  if (credit > usdOf(price.unit_amount)) return null;
   // a plan is billed by the month; anything recurring otherwise is not something the studio sells
   if (price.recurring && price.recurring.interval !== "month") return null;
   const product = typeof price.product === "object" ? price.product : {};

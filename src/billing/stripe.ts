@@ -25,7 +25,7 @@ export type StripeSettings = { secretKey: string; apiBase: string; live: boolean
 export function stripeSettings(env: Record<string, string | undefined> = process.env): StripeSettings | null {
   const secretKey = env.STRIPE_SECRET_KEY?.trim();
   if (!secretKey) return null;
-  return { secretKey, apiBase: (env.STRIPE_API_BASE?.trim() || "https://api.stripe.com").replace(/\/$/, ""), live: secretKey.startsWith("sk_live_") };
+  return { secretKey, apiBase: (env.STRIPE_API_BASE?.trim() || "https://api.stripe.com").replace(/\/$/, ""), live: /^(sk|rk)_live_/.test(secretKey) };
 }
 
 export class StripeError extends Error {
@@ -74,6 +74,8 @@ export class StripeApi {
           ...(idempotencyKey ? { "idempotency-key": idempotencyKey } : {}),
         },
         body: method === "POST" ? formEncode(params ?? {}) : undefined,
+        // the key goes to Stripe and nowhere a redirect might point
+        redirect: "error",
         signal: AbortSignal.timeout(20_000),
       });
     } catch (err) {
@@ -152,6 +154,23 @@ export function verifyWebhook(rawBody: string, header: string | null, secret: st
 /** A header Stripe would send for this body (tests, and the stand-in Stripe). */
 export function signWebhook(rawBody: string, secret: string, nowSec = Math.floor(Date.now() / 1000)): string {
   return `t=${nowSec},v1=${createHmac("sha256", secret).update(`${nowSec}.${rawBody}`, "utf8").digest("hex")}`;
+}
+
+/** An object's id as part of a request's path. Ids are letters, digits and underscores; anything else is not one. */
+export function pathId(id: unknown): string {
+  if (typeof id !== "string" || !/^[A-Za-z0-9_]{1,255}$/.test(id)) throw new StripeError("not a Stripe id", 400);
+  return id;
+}
+
+/**
+ * The credit a price says it grants (`metadata.credit_usd`), or null when it does not say so in plain decimals:
+ * "12", "12.5" — not "1e5", not "0x10", not nothing, not zero.
+ */
+export function creditOf(metadata: Record<string, unknown> | null | undefined): number | null {
+  const text = metadata?.credit_usd;
+  if (typeof text !== "string" || !/^\d{1,6}(\.\d{1,4})?$/.test(text)) return null;
+  const credit = Number(text);
+  return credit > 0 ? credit : null;
 }
 
 /** Cents, as Stripe counts, to dollars to four decimals. */
