@@ -184,6 +184,9 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   // With accounts: the database as the service role sees it, for checking and settling the credit held for a job.
   const db = tenantDb();
   const asUser = <T>(userId: string | undefined, work: () => Promise<T>): Promise<T> => {
+    // A job that names a user belongs to a studio with accounts. A worker without them (half a set-up) would run
+    // it in the shared folder, hold nobody to their credit and settle nothing: it does not run it.
+    if (!db && userId) throw new Error("the job is a user's, and this worker has no accounts configured");
     if (!db) return work();
     // every path below is the job's user's own; a job that names no user, or no real one, is nobody's
     if (!userId || !UUID.test(userId)) throw new Error("the job names no user");
@@ -375,11 +378,12 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     }
     if (job.name === "release") {
       // the web held credit for a job it then could not queue: give it back now rather than at the next reconcile
-      const { runId } = job.data;
-      if (!db || !runId) return { stdout: "" };
-      const held = await db.openReservationFor(runId);
-      // only the owner's own reservation, and (in settleIdle) only when the run really has no job
-      const done = held && held.user_id === job.data.userId ? await settleIdle(held) : false;
+      const { runId, reservationId } = job.data;
+      if (!db || !runId || !reservationId || !UUID.test(reservationId)) return { stdout: "" };
+      // Exactly the reservation that was asked about — a later one for the same run belongs to another job —
+      // and only when it is its owner's, still open, and (in settleIdle) the run really has no job.
+      const held = await db.reservation(reservationId);
+      const done = held && held.status === "open" && held.run_id === runId && held.user_id === job.data.userId ? await settleIdle(held) : false;
       return { stdout: done ? "released" : "" };
     }
     const refused = refusal("quick", job.data.args);

@@ -87,8 +87,9 @@ services:
       - ${WORKER_ENV_FILE:?set WORKER_ENV_FILE to the file with the provider keys}
     volumes:
       - ${DATA_DIR:-./data}/runs:/data/runs
-      - ${DATA_DIR:-./data}/brand-kits:/data/brand-kits:ro
-      - ${DATA_DIR:-./data}/uploads:/data/uploads:ro
+      # written by the worker only to fetch from the bucket a kit or track a job needs and this disk lacks
+      - ${DATA_DIR:-./data}/brand-kits:/data/brand-kits
+      - ${DATA_DIR:-./data}/uploads:/data/uploads
     depends_on:
       redis:
         condition: service_healthy

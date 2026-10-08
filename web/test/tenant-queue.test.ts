@@ -283,15 +283,19 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     await worker({ WORKER_RECONCILE_MS: "600000" });
     await grant(a, 1);
     const id = await ownRun(a);
-    expect((await a.client.rpc("reserve_credit", { p_run_id: id, p_kind: "generate", p_cap_usd: 0.4 })).error).toBeNull();
+    const { data: reservationId, error: held } = await a.client.rpc("reserve_credit", { p_run_id: id, p_kind: "generate", p_cap_usd: 0.4 });
+    expect(held).toBeNull();
     expect(await balance(a)).toBe(0.6);
     const quick = new Queue(QUEUES.quick, { connection: admin });
     try {
       // somebody else asking changes nothing
-      await quick.add("release", { args: [], userId: b.id, runId: id }, JOB_OPTIONS);
+      await quick.add("release", { args: [], userId: b.id, runId: id, reservationId }, JOB_OPTIONS);
+      // nor does asking about the run without naming the reservation: a later one would belong to another job
+      await quick.add("release", { args: [], userId: a.id, runId: id }, JOB_OPTIONS);
+      await quick.add("release", { args: [], userId: a.id, runId: id, reservationId: "00000000-0000-4000-8000-000000000000" }, JOB_OPTIONS);
       await new Promise((r) => setTimeout(r, 1000));
       expect(await openReservations()).toBe(1);
-      await quick.add("release", { args: [], userId: a.id, runId: id }, JOB_OPTIONS);
+      await quick.add("release", { args: [], userId: a.id, runId: id, reservationId }, JOB_OPTIONS);
       await until(async () => (await openReservations()) === 0, 10_000);
     } finally {
       await quick.close();
@@ -310,7 +314,7 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     expect(await balance(a)).toBe(0.8945);
 
     // the wrong disk: the run's folder is not here, and credit is held for the run again
-    await rm(join(folder(a), id), { recursive: true });
+    await rm(join(folder(a), id), { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
     expect((await a.client.rpc("reserve_credit", { p_run_id: id, p_kind: "generate", p_cap_usd: 0.3 })).error).toBeNull();
     await until(() => w.output().includes("its credit stays held"), 20_000);
     expect(await openReservations()).toBe(1);

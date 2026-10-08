@@ -4,7 +4,7 @@ import { extname, join } from "node:path";
 import { BrandKit, loadBrandKit } from "@src/brand";
 import { roots } from "./config";
 import { ApiError } from "./http";
-import { bringLibrary, keepBrandKit, keepTrack } from "./store/tenant";
+import { assertRoomFor, bringLibrary, keepBrandKit, keepTrack } from "./store/tenant";
 import { Slug } from "./schemas";
 
 const MB = 1024 * 1024;
@@ -74,6 +74,7 @@ const num = (form: FormData, key: string): number | undefined => {
  * written, and the pipeline's own `loadBrandKit` has the last word. A kit that does not load is removed again.
  */
 export async function createKit(form: FormData): Promise<KitSummary> {
+  await assertRoomFor("brand_kits");
   const name = field(form, "name");
   if (!name) throw new ApiError("validation", "name: give the kit a name");
   const slug = slugify(name);
@@ -160,6 +161,7 @@ export async function listMusic(): Promise<Track[]> {
 
 /** Stores an uploaded MP3 under a name made from its title; an existing name gets a numeric suffix. */
 export async function addMusic(form: FormData): Promise<Track> {
+  await assertRoomFor("music_tracks");
   const f = file(form, "file");
   if (!f) throw new ApiError("validation", "file: choose an MP3 file");
   const { bytes } = await upload(f, "music file", LIMITS.music, { ".mp3": KIND.mp3 });

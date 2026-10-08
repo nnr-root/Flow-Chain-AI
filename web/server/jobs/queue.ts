@@ -249,7 +249,7 @@ export function queueRunner(url: string): JobRunner {
             try {
               await q.remove();
               // the credit that was held for it comes back now, not at the worker's next pass
-              if (q.data.reservationId && q.data.userId) void ask(e, "release", { args: [], userId: q.data.userId, runId }, 3000).catch(() => {});
+              if (q.data.reservationId && q.data.userId) void ask(e, "release", { args: [], userId: q.data.userId, runId, reservationId: q.data.reservationId }, 3000).catch(() => {});
               return { ...fromQueue(q), stoppedAt: new Date().toISOString(), state: "stopped" };
             } catch (err) {
               // the worker took the job between the two calls: it is working now, and is stopped as such
@@ -317,12 +317,12 @@ export function queueRunner(url: string): JobRunner {
         await admit(await ends(url), runId);
       }),
 
-    async release(runId) {
+    async release(runId, reservationId) {
       try {
         const userId = currentUser()?.id;
         if (!userId) return;
         const e = await ends(url);
-        await ask(e, "release", { args: [], userId, runId }, 3000);
+        await ask(e, "release", { args: [], userId, runId, reservationId }, 3000);
       } catch {
         // the worker's regular pass gives the credit back within a minute or two
       }

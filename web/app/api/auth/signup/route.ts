@@ -1,5 +1,9 @@
 import { signUp } from "@/server/auth";
 import { body, json, route } from "@/server/http";
+import { limitAttempts } from "@/server/limits";
 
 export const dynamic = "force-dynamic";
-export const POST = route({ write: true, public: true }, async (req) => json(await signUp(req, await body(req))));
+export const POST = route({ write: true, public: true }, async (req) => {
+  limitAttempts(req, "auth");
+  return json(await signUp(req, await body(req)));
+});

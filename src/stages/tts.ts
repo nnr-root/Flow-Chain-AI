@@ -5,6 +5,7 @@ import { TIMEOUTS, withRetry } from "../providers/retry.js";
 import { outPath, paths } from "./paths.js";
 import { requireScript } from "./require.js";
 import type { Stage } from "./types.js";
+import { withExpectedSpend } from "./inflight.js";
 
 function speech(m: Manifest, i: number) {
   const scenes = requireScript(m).scenes;
@@ -28,11 +29,14 @@ export const ttsStage: Stage = {
   async run(ctx, scene) {
     const i = scene!;
     const req = speech(ctx.manifest, i);
-    const result = await withRetry(`tts scene ${i + 1}`, () => ctx.providers.tts.speak(req), {
-      timeoutMs: TIMEOUTS.tts,
-      baseDelayMs: ctx.retryDelayMs,
-    });
-    await ctx.charge(ttsCost(ctx.prices, req.text.length));
+    const cost = ttsCost(ctx.prices, req.text.length);
+    const result = await withExpectedSpend(ctx, `tts:${i}`, cost, () =>
+      withRetry(`tts scene ${i + 1}`, () => ctx.providers.tts.speak(req), {
+        timeoutMs: TIMEOUTS.tts,
+        baseDelayMs: ctx.retryDelayMs,
+      }),
+    );
+    await ctx.charge(cost);
     await writeFile(await outPath(ctx, paths.rawAudio(i)), result.audio);
     ctx.manifest.scenes[i].tts = { raw: paths.rawAudio(i), words: result.words };
   },

@@ -28,39 +28,60 @@ function unavailable(err: unknown): ApiError {
   return new ApiError("storage_unavailable", "the studio's storage could not be reached", "nothing was saved; try again in a moment");
 }
 
+/** What the database says when an account has as many kits or tracks as one may have. */
+const FULL: Record<string, string> = {
+  too_many_brand_kits: "you have as many brand kits as one account may have; remove one first",
+  too_many_tracks: "you have as many tracks as one account may have; remove one first",
+};
+const refused = (message: string): ApiError | null => (FULL[message] ? new ApiError("validation", FULL[message]) : null);
+
 /**
- * Makes an uploaded brand kit last: its files go to the bucket and the kit is registered as the user's. If either
- * fails the kit is removed again, so nothing exists on this disk alone.
+ * With accounts, before an upload is accepted: is there room for one more? The registration afterwards is what
+ * enforces the limit; this asks first so that a file is not written, and sent to the bucket, only to be refused.
+ */
+export async function assertRoomFor(what: "brand_kits" | "music_tracks"): Promise<void> {
+  if (!currentUser()) return;
+  const { data, error } = await userDb().rpc("library_room", { p_what: what });
+  if (error) throw new Error(`asking for room: ${error.message}`);
+  if (data !== true) throw refused(what === "brand_kits" ? "too_many_brand_kits" : "too_many_tracks")!;
+}
+
+/**
+ * Makes an uploaded brand kit the user's: with a bucket its files go there, and with or without one the kit is
+ * registered — which is what counts it against the account's limit. If any of it fails the kit is removed
+ * again, so nothing exists that is not on record.
  */
 export async function keepBrandKit(slug: string, name: string): Promise<void> {
+  const user = currentUser();
+  if (!user) return;
   const m = mine();
-  if (!m) return;
   const dir = join(roots().brandKits, slug);
-  const prefix = `${keys.brandKits(m.user.id)}${slug}/`;
+  const prefix = `${keys.brandKits(user.id)}${slug}/`;
   try {
-    await storeFolder(m.store, dir, prefix);
+    if (m) await storeFolder(m.store, dir, prefix);
     const { error } = await userDb().rpc("register_brand_kit", { p_slug: slug, p_name: name });
-    if (error) throw new Error(error.message);
+    if (error) throw refused(error.message) ?? new Error(error.message);
   } catch (err) {
     // nothing of a kit that was not saved may stay behind, here or in the bucket (it would come back with the next restore)
     await rm(dir, { recursive: true, force: true });
-    await m.store.list(prefix).then((objects) => Promise.all(objects.map((o) => m.store.remove(o.key)))).catch(() => {});
-    throw unavailable(err);
+    if (m) await m.store.list(prefix).then((objects) => Promise.all(objects.map((o) => m.store.remove(o.key)))).catch(() => {});
+    throw err instanceof ApiError ? err : unavailable(err);
   }
 }
 
 export async function keepTrack(file: string, name: string, bytes: number): Promise<void> {
+  const user = currentUser();
+  if (!user) return;
   const m = mine();
-  if (!m) return;
   const path = join(roots().uploads, file);
   try {
-    await m.store.putFile(`${keys.music(m.user.id)}${file}`, path);
+    if (m) await m.store.putFile(`${keys.music(user.id)}${file}`, path);
     const { error } = await userDb().rpc("register_track", { p_id: file.replace(/\.mp3$/, "").toLowerCase(), p_name: name, p_bytes: bytes });
-    if (error) throw new Error(error.message);
+    if (error) throw refused(error.message) ?? new Error(error.message);
   } catch (err) {
     await rm(path, { force: true });
-    await m.store.remove(`${keys.music(m.user.id)}${file}`).catch(() => {});
-    throw unavailable(err);
+    if (m) await m.store.remove(`${keys.music(user.id)}${file}`).catch(() => {});
+    throw err instanceof ApiError ? err : unavailable(err);
   }
 }
 

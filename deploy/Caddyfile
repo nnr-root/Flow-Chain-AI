@@ -5,6 +5,10 @@
 	basic_auth {
 		{$STUDIO_USER} {$STUDIO_PASSWORD_HASH}
 	}
+	# the largest upload is a 20 MB track; nothing larger is passed on (the studio reads an upload into memory)
+	request_body {
+		max_size 40MB
+	}
 	reverse_proxy web:3131 {
 		# the live feed is a long-lived stream: pass it on as it comes
 		flush_interval -1

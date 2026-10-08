@@ -62,7 +62,7 @@ create index ledger_by_user on public.ledger (user_id, id desc);
 create table public.brand_kits (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users (id) on delete cascade,
-  slug text not null check (slug ~ '^[a-z0-9][a-z0-9-]{0,39}$'),
+  slug text not null check (slug ~ '^[a-z0-9][a-z0-9-]{0,62}$'),
   name text not null,
   created_at timestamptz not null default now(),
   unique (user_id, slug)
@@ -84,8 +84,8 @@ create table public.settings (
   max_user_jobs integer not null default 2 check (max_user_jobs >= 1),
   -- how much one user may register: runs a day that never got further than being created, brand kits, music tracks
   max_unstarted_runs integer not null default 20 check (max_unstarted_runs >= 1),
-  max_brand_kits integer not null default 50 check (max_brand_kits >= 1),
-  max_music_tracks integer not null default 200 check (max_music_tracks >= 1)
+  max_brand_kits integer not null default 20 check (max_brand_kits >= 1),
+  max_music_tracks integer not null default 50 check (max_music_tracks >= 1)
 );
 insert into public.settings default values;
 
@@ -220,6 +220,22 @@ begin
   return v_id;
 end $$;
 
+-- Whether the caller may register one more kit or track. The registering functions enforce the limit; this lets
+-- the studio ask before it accepts an upload.
+create function public.library_room(p_what text) returns boolean
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_user uuid := auth.uid();
+begin
+  if v_user is null then raise exception 'unauthenticated'; end if;
+  if p_what = 'brand_kits' then
+    return (select count(*) from public.brand_kits where user_id = v_user) < (select max_brand_kits from public.settings);
+  elsif p_what = 'music_tracks' then
+    return (select count(*) from public.music_tracks where user_id = v_user) < (select max_music_tracks from public.settings);
+  end if;
+  raise exception 'invalid_kind';
+end $$;
+
 create function public.remove_brand_kit(p_slug text) returns void
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -311,7 +327,7 @@ end $$;
 revoke execute on all functions in schema public from public, anon, authenticated;
 grant execute on function
   public.create_run(text, text), public.reserve_credit(text, text, numeric),
-  public.register_brand_kit(text, text), public.remove_brand_kit(text),
+  public.register_brand_kit(text, text), public.remove_brand_kit(text), public.library_room(text),
   public.register_track(text, text, bigint), public.remove_track(text)
   to authenticated;
 grant execute on function

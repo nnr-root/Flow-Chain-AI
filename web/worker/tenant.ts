@@ -69,8 +69,8 @@ export function tenantDb(): TenantDb | null {
 }
 
 /**
- * What a run has spent in all, from its manifest: its ledger, plus every provider job that was submitted and has
- * not been charged yet. A submitted job is billed by the provider whether or not anyone waits for it, so a run
+ * What a run has spent in all, from its manifest: its ledger, plus every provider call that was made and has
+ * not been charged yet (a submitted job, a narration or script request in flight). A submitted job is billed by the provider whether or not anyone waits for it, so a run
  * stopped (or a worker killed) between submit and result has spent that money already; when the job is later
  * collected, its ledger entry takes the place of this figure; when it is given up for a new one instead, its
  * cost stays on record (`abandonedUsd`).
@@ -84,10 +84,15 @@ export function spendOf(runDir: string): number | null | undefined {
   try {
     const manifest = JSON.parse(readFileSync(file, "utf8")) as {
       ledger?: Array<{ usd?: unknown }>;
+      inFlight?: Record<string, unknown>;
+      abandonedUsd?: unknown;
       scenes?: Array<{ abandonedUsd?: unknown; jobs?: Record<string, { expectedUsd?: unknown; chargedUsd?: unknown; result?: unknown } | undefined> }>;
     };
     const amount = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : Number.NaN);
     let total = (manifest.ledger ?? []).reduce((sum, e) => sum + amount(e.usd), 0);
+    // narration or a script that was on its way when the process was ended, and such calls that were made again since
+    for (const usd of Object.values(manifest.inFlight ?? {})) total += amount(usd);
+    if (manifest.abandonedUsd !== undefined) total += amount(manifest.abandonedUsd);
     for (const scene of manifest.scenes ?? []) {
       // jobs submitted and then given up for a new one (a reroll while one was in flight): billed, and no longer in `jobs`
       if (scene.abandonedUsd !== undefined) total += amount(scene.abandonedUsd);

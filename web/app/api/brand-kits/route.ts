@@ -1,15 +1,11 @@
-import { ApiError, json, route } from "@/server/http";
-import { createKit, listKits } from "@/server/library";
+import { json, route } from "@/server/http";
+import { createKit, LIMITS, listKits } from "@/server/library";
+import { boundedForm } from "@/server/limits";
 
 export const dynamic = "force-dynamic";
 export const GET = route({ write: false }, async () => json({ kits: await listKits() }));
 
 export const POST = route({ write: true }, async (req) => {
-  let form: FormData;
-  try {
-    form = await req.formData();
-  } catch {
-    throw new ApiError("validation", "send the kit as a form (multipart/form-data)");
-  }
+  const form = await boundedForm(req, LIMITS.logo + LIMITS.font + LIMITS.portrait + 1024 * 1024);
   return json({ kit: await createKit(form) }, 201);
 });

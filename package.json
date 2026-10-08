@@ -26,6 +26,7 @@
     "db:migrate": "tsx scripts/studio-admin.ts migrate",
     "studio:grant": "tsx scripts/studio-admin.ts grant",
     "test:db": "REQUIRE_SUPABASE=1 vitest run test/db",
+    "test:tenant": "REQUIRE_SUPABASE=1 vitest run web/test test/db",
     "server:setup": "tsx scripts/server.ts setup",
     "server:deploy": "tsx scripts/server.ts deploy",
     "server:backup": "tsx scripts/server.ts backup",

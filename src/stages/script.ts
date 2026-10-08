@@ -5,6 +5,7 @@ import { PRESETS } from "../presets.js";
 import { TIMEOUTS, withRetry } from "../providers/retry.js";
 import { outPath, paths } from "./paths.js";
 import type { Stage } from "./types.js";
+import { withExpectedSpend } from "./inflight.js";
 
 export const countWords = (text: string): number => text.trim().split(/\s+/).filter(Boolean).length;
 
@@ -48,10 +49,12 @@ export const scriptStage: Stage = {
     const { topic, sceneCount, aspect, shots, style, characters } = ctx.manifest.request;
     let feedback: string | undefined;
     for (let attempt = 1; attempt <= 2; attempt++) {
-      const raw = await withRetry(
-        "script generation",
-        () => ctx.providers.llm.generateScript({ topic, sceneCount, aspect, shots, style, characters, feedback }),
-        { timeoutMs: TIMEOUTS.llm, baseDelayMs: ctx.retryDelayMs },
+      const raw = await withExpectedSpend(ctx, "script", scriptCost(ctx.prices), () =>
+        withRetry(
+          "script generation",
+          () => ctx.providers.llm.generateScript({ topic, sceneCount, aspect, shots, style, characters, feedback }),
+          { timeoutMs: TIMEOUTS.llm, baseDelayMs: ctx.retryDelayMs },
+        ),
       );
       await ctx.charge(scriptCost(ctx.prices)); // every answer is paid for, valid or not
       const result = validateScript(raw, sceneCount);

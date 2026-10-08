@@ -26,6 +26,7 @@ import { POST as unlock } from "@/app/api/runs/[id]/unlock/route";
 import { GET as callback } from "@/app/auth/callback/route";
 import { linkError, safeNext } from "@/lib/supabase/settings";
 import { roots } from "@/server/config";
+import { resetAttempts } from "@/server/limits";
 import { closeQueue } from "@/server/jobs/queue";
 import { localSupabase, newUser, type TestUser } from "../../test/helpers/supabase";
 import { draftManifest, finishedManifest, nextRunId, params, request, useStudio } from "./helpers";
@@ -84,6 +85,7 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
 
   beforeEach(async () => {
     withAccounts(s);
+    resetAttempts();
     process.env.REDIS_URL = redis.url;
     [a, b] = await Promise.all([newUser(s, "a"), newUser(s, "b")]);
     [aCookie, bCookie] = await Promise.all([cookiesOf(a), cookiesOf(b)]);
@@ -243,6 +245,38 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
     expect(text).not.toContain('"state":"draft"');
     abort.abort();
     await reader.cancel();
+  });
+
+  it("lets one visitor's wrong guesses lock out that visitor, not everybody", async () => {
+    // every sign-in reaches the accounts service from this server's one address: the studio counts per visitor itself
+    const from = (address: string, password: string) =>
+      login(request("/api/auth/login", { json: { email: a.email, password }, headers: { "x-forwarded-for": `198.51.100.7, ${address}` } }), undefined);
+    for (let i = 0; i < 10; i++) expect((await from("203.0.113.5", "not-the-password")).status).toBe(401);
+    const locked = await from("203.0.113.5", a.password);
+    expect([locked.status, await code(locked)]).toEqual([429, "busy"]);
+    // what a client claims in front of the proxy's own entry does not change who it is
+    expect((await login(request("/api/auth/login", { json: { email: a.email, password: a.password }, headers: { "x-forwarded-for": "203.0.113.99, 203.0.113.5" } }), undefined)).status).toBe(429);
+    // someone else, at another address, signs in as ever
+    expect((await from("203.0.113.6", a.password)).status).toBe(200);
+  });
+
+  it("registers an upload as the user's, with or without a bucket, so the account's limit counts it", async () => {
+    const form = new FormData();
+    form.set("name", "Night bed");
+    form.set("file", new File([new Uint8Array([0x49, 0x44, 0x33, 0x04, 0, 0, 0, 0, 0, 0])], "bed.mp3", { type: "audio/mpeg" }));
+    const { POST: addTrack } = await import("@/app/api/music/route");
+    const res = await addTrack(as(aCookie, "/api/music", { body: form }), undefined);
+    expect(res.status).toBe(201);
+    expect((await a.client.from("music_tracks").select("id,name")).data).toEqual([{ id: "night-bed", name: "night-bed" }]);
+    expect((await b.client.from("music_tracks").select("id")).data).toEqual([]);
+
+    // an upload that says it is larger than a track may be is refused before any of it is read
+    const huge = new Request("http://127.0.0.1:3131/api/music", {
+      method: "POST", body: "x",
+      headers: { host: "127.0.0.1:3131", "sec-fetch-site": "same-origin", cookie: aCookie, "content-type": "multipart/form-data; boundary=x", "content-length": String(500 * 1024 * 1024) },
+    });
+    const refused = await addTrack(huge, undefined);
+    expect([refused.status, ((await refused.json()) as { error: { message: string } }).error.message]).toEqual([400, "the upload is too large (at most 21 MB in all)"]);
   });
 
   it("keeps each user's brand kits and tracks apart on disk", async () => {

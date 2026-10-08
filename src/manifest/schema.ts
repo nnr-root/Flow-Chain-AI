@@ -228,5 +228,13 @@ export const Manifest = z.object({
   scenes: z.array(SceneState),
   final: z.object({ path: z.string(), duration: z.number(), chain: z.string() }).optional(),
   ledger: z.array(LedgerEntry).default([]),
+  /**
+   * Provider calls that are paid for on their answer (narration, the script) and are on their way right now,
+   * by "stage" or "stage:scene", with what each is expected to cost. Only ever non-empty in a manifest whose
+   * process was ended mid-call; see `withExpectedSpend`. Absent on older runs.
+   */
+  inFlight: z.record(z.string(), z.number()).optional(),
+  /** What such calls cost that were found left over and made again: billed by the provider, in no ledger entry. */
+  abandonedUsd: z.number().optional(),
 });
 export type Manifest = z.infer<typeof Manifest>;

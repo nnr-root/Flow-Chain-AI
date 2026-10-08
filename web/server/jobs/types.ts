@@ -59,6 +59,6 @@ export interface JobRunner {
    * has room in line). Asked before credit is held, so that what can be known beforehand does not hold it.
    */
   ready(runId: string): Promise<void>;
-  /** Credit was held for a job that then could not be queued: has it given back at once. Never throws. */
-  release(runId: string): Promise<void>;
+  /** Credit was held (`reservationId`) for a job that then could not be queued: has it given back at once. Never throws. */
+  release(runId: string, reservationId: string): Promise<void>;
 }

@@ -1,6 +1,10 @@
 # The studio with accounts (SUPABASE_URL is set): HTTPS, and everything passed to the studio, which asks every
 # visitor to sign in itself. There is no login here: the one in `Caddyfile` is for a studio without accounts.
 {$STUDIO_SITE} {
+	# the largest upload is a 20 MB track; nothing larger is passed on (the studio reads an upload into memory)
+	request_body {
+		max_size 40MB
+	}
 	reverse_proxy web:3131 {
 		# the live feed is a long-lived stream: pass it on as it comes
 		flush_interval -1

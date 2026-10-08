@@ -204,19 +204,27 @@ single-user app described above.
 - **Signing in.** Anyone can create an account with an email address and a password, or with Google. Each user
   sees only their own videos, brand kits and music: everything of anyone else's answers "not found". There is
   no proxy login and no password from setup in this mode: you sign up like everyone else.
-- **Credit.** Every account has a balance in USD, starting at 0. A paid action holds the amount you approve on
-  its button, the worker runs it capped at that amount, and what it did not spend comes back. The account page
-  shows the balance and every movement. With too little credit the button says so and nothing starts. You add
-  credit with `npm run studio:grant -- --email <address> --usd 5` (`--usd -2` takes some back; it prints which
-  project it acted on). A clip or picture that was sent to a provider is charged even if the job is stopped
-  before it comes back: the provider bills it either way.
+- **Credit.** Every account has a balance in USD, starting at 0. A generation or a regenerated scene holds the
+  amount you approve on its button, the worker runs it capped at that amount, and what it did not spend comes
+  back; a draft holds $0.02 for its script (about $0.006). The account page shows the balance and every
+  movement. With too little credit the button says so and nothing starts. You add credit with
+  `npm run studio:grant -- --email <address> --usd 5` (`--usd -2` takes some back; it prints which project it
+  acted on).
+- **What is charged.** What the run's own record says was spent, plus anything that was sent to a provider and
+  not collected: a clip, picture, narration or script request that was on its way when the job was stopped is
+  charged, because the provider bills it either way. This errs on the side of charging: a request the provider
+  in the end never ran, or one that cost less than expected, stays charged at the expected price. A provider
+  that bills by measured time can also come out slightly above a cap; the real amount is charged, and a
+  balance below zero has to be topped up before anything paid can start.
 - **Storage.** With `STUDIO_BUCKET` set (a private R2 bucket of its own), every run is copied to the bucket
   after each job and uploads are kept there; the server's disk is a cache. A run untouched for
   `STUDIO_CACHE_DAYS` (14) is removed from the disk and comes back when its owner opens it. A file the disk
   lacks is served by a link to the bucket that is valid for five minutes.
 - **Limits.** One account may have two long jobs waiting or working (`STUDIO_USER_JOBS`). The database's
   `settings` table holds the rest: two paid jobs at once per account (`max_user_jobs`), twenty videos a day
-  that are created and never started (`max_unstarted_runs`), fifty brand kits, two hundred tracks.
+  that are created and never started (`max_unstarted_runs`), twenty brand kits and fifty tracks (with or
+  without a bucket). An upload is read only up to its limit, and the proxy passes on no request above 40 MB.
+  Signing in, signing up and asking for a reset are limited to ten attempts in five minutes per visitor.
 
 Once, by hand:
 
@@ -244,6 +252,14 @@ that job, whoever queued it. Accounts always work through the queue (`REDIS_URL`
 have accounts and finds none configured answers nothing at all, rather than run without a login.
 
 What to know:
+
+- Every sign-in reaches Supabase from the server's one address, and Supabase limits attempts per address: the
+  studio's own per-visitor limit keeps one visitor from using that up for everyone, but a project that many
+  people use needs its limits raised (Authentication → Rate limits) and, for open sign-up, a CAPTCHA there.
+- Free work is not limited in number: re-renders and price checks cost you nothing at a provider but use the
+  server's CPU. Two long jobs per account at a time is the only brake.
+- With a bucket, a file the disk lacks is loaded by the browser straight from R2. Allow the studio's address in
+  the bucket's CORS settings (GET, from `https://<your studio>`), or fonts loaded that way will be refused.
 
 - The links in confirmation and reset emails work in the browser that asked for them, not on another device:
   the studio only accepts links of that kind, because a link that works anywhere could be used to sign someone

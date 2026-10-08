@@ -53,7 +53,7 @@ async function startPaid(runId: string, kind: "draft" | "generate" | "reroll", a
   try {
     return await startJob(runId, kind, args, capUsd, { reservationId });
   } catch (err) {
-    await releaseJob(runId);
+    await releaseJob(runId, reservationId);
     throw err;
   }
 }

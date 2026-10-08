@@ -378,4 +378,23 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     expect(await calls(studio)).toHaveLength(1); // one CLI, ever
     expect(w.child.exitCode).toBeNull();
   });
+
+  it("does not run a user's job on a worker that has no accounts: it would be nobody's to pay for", async () => {
+    const { Queue } = await import("bullmq");
+    const { JOB_OPTIONS } = await import("@/server/jobs/redis");
+    await worker();
+    const id = nextRunId();
+    const queue = new Queue(QUEUES.runs, { connection: admin });
+    try {
+      const data = { runId: id, kind: "generate", args: ["resume", id, "--budget", "1", "--cap", "1"], enqueuedAt: new Date().toISOString(), token: "t" };
+      await queue.add("generate", { ...data, userId: "11111111-2222-4333-8444-555555555555" }, { ...JOB_OPTIONS, jobId: id });
+      await until(async () => (await queue.getJob(id)) === undefined);
+      expect(await calls(studio)).toEqual([]);
+      // the same job with no user is this studio's own, and runs
+      await queue.add("generate", data, { ...JOB_OPTIONS, jobId: id });
+      await until(async () => (await calls(studio)).length === 1);
+    } finally {
+      await queue.close();
+    }
+  });
 });

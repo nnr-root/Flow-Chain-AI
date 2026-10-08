@@ -246,6 +246,21 @@ describe.skipIf(!supa)("tenancy in the database", () => {
     expect((await b.client.rpc("create_run", { p_id: freshRunId(), p_topic: "x" })).error).toBeNull();
   });
 
+  it("limits how many kits one account registers, and says beforehand whether there is room", async () => {
+    expect((await a.client.rpc("library_room", { p_what: "brand_kits" })).data).toBe(true);
+    const made = await Promise.all(Array.from({ length: 21 }, (_, i) => a.client.rpc("register_brand_kit", { p_slug: `kit-${i}`, p_name: `Kit ${i}` })));
+    expect(made.filter((r) => !r.error)).toHaveLength(20);
+    expect(made.filter((r) => r.error).map((r) => r.error!.message)).toEqual(["too_many_brand_kits"]);
+    expect((await a.client.rpc("library_room", { p_what: "brand_kits" })).data).toBe(false);
+    // renaming one of its own is not one more
+    const kept = (await a.client.from("brand_kits").select("slug").limit(1).single()).data!.slug as string;
+    expect((await a.client.rpc("register_brand_kit", { p_slug: kept, p_name: "Renamed" })).error).toBeNull();
+    expect((await b.client.rpc("library_room", { p_what: "brand_kits" })).data).toBe(true);
+    expect((await a.client.rpc("library_room", { p_what: "everything" })).error?.message).toBe("invalid_kind");
+    // a kit's name may be as long as the studio makes them
+    expect((await b.client.rpc("register_brand_kit", { p_slug: "a".repeat(48), p_name: "Long" })).error).toBeNull();
+  });
+
   it("follows an account's address when it changes, so credit goes to whoever signs in with it now", async () => {
     const moved = `moved-${a.id.slice(0, 8)}@example.test`;
     expect((await service().auth.admin.updateUserById(a.id, { email: moved, email_confirm: true })).error).toBeNull();

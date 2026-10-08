@@ -30,6 +30,13 @@ describe("what a run has spent, from its manifest", () => {
     expect(spendOf(await run({ ledger: [{ usd: 0.025 }], scenes: [{ jobs: { clips: { requestId: "r1", inputHash: "h", submittedAt: "t", chargedUsd: 0 } } }] }))).toBe(0.025);
   });
 
+  it("counts a narration or script request that was on its way when the process was ended", async () => {
+    expect(spendOf(await run({ ledger: [{ usd: 0.0055 }], inFlight: { "tts:0": 0.03, "tts:1": 0.02 }, scenes: [] }))).toBe(0.0555);
+    // and such calls that were made again since: billed, in no ledger entry
+    expect(spendOf(await run({ ledger: [{ usd: 0.0055 }, { usd: 0.03 }], abandonedUsd: 0.03, scenes: [] }))).toBe(0.0655);
+    expect(spendOf(await run({ ledger: [], inFlight: { script: "a lot" } }))).toBeUndefined();
+  });
+
   it("says so when it cannot say: no manifest is not the same as a manifest that cannot be read", async () => {
     expect(spendOf(await run(undefined))).toBeNull();
     expect(spendOf(await run("{ half a file"))).toBeUndefined();
