@@ -63,6 +63,9 @@ export function createBilling(stripe: StripeApi, db: SupabaseClient, log: (messa
     return { priceId: String(p.id), plan: str(meta.plan) ?? str(meta.key) ?? "plan", creditUsd: credit };
   };
 
+  /** Events seen that could not take effect yet. In memory only: after a restart each is said once more. */
+  const waiting = new Set<string>();
+
   const ignore = async (eventId: string, type: string, why: string): Promise<string> => {
     await call("claim_stripe_event", { p_event_id: eventId, p_type: type, p_user_id: null, p_outcome: why });
     return why;
@@ -124,8 +127,9 @@ export function createBilling(stripe: StripeApi, db: SupabaseClient, log: (messa
 
   async function refund(eventId: string, chargeId: string, disputedCents?: unknown): Promise<string> {
     const charge = await stripe.get<Obj>(`/v1/charges/${chargeId}`);
-    // what has left the studio's hands for this charge so far: refunded, or held by a dispute
-    const refunded = Math.max(usdOf(charge.amount_refunded) || 0, disputedCents === undefined ? 0 : usdOf(disputedCents) || 0);
+    // what has left the studio's hands for this charge so far: refunded, and held by a dispute on top of that
+    // (the database never takes back more than was paid)
+    const refunded = (usdOf(charge.amount_refunded) || 0) + (disputedCents === undefined ? 0 : usdOf(disputedCents) || 0);
     return call("refund_payment", { p_event_id: eventId, p_charge_id: chargeId, p_refunded_usd: refunded });
   }
 
@@ -150,7 +154,12 @@ export function createBilling(stripe: StripeApi, db: SupabaseClient, log: (messa
       if (!charge) throw new Error("the dispute names no charge");
       outcome = await refund(eventId, charge, object.amount);
     } else outcome = await ignore(eventId, type, "ignored");
-    if (outcome !== "duplicate") log(`worker: Stripe event ${eventId} (${type}): ${outcome}`);
+    // An event that waits for something (a payment not paid yet, a refund whose payment is not recorded yet) is
+    // not recorded, and the catch-up offers it again every hour: said once, not every hour.
+    const waits = outcome === "not_paid" || outcome === "unknown_payment";
+    if (outcome !== "duplicate" && !(waits && waiting.has(eventId))) log(`worker: Stripe event ${eventId} (${type}): ${outcome}`);
+    if (waits) waiting.add(eventId);
+    else waiting.delete(eventId);
     return outcome;
   }
 
@@ -187,7 +196,7 @@ export function createBilling(stripe: StripeApi, db: SupabaseClient, log: (messa
       if (known.has(id)) continue;
       try {
         const outcome = await fulfil(id);
-        if (outcome !== "duplicate" && outcome !== "not_paid") done++;
+        if (outcome !== "duplicate" && outcome !== "not_paid" && outcome !== "unknown_payment") done++;
       } catch (err) {
         log(`worker: could not fulfil Stripe event ${id}: ${err instanceof Error ? err.message : String(err)}`);
       }

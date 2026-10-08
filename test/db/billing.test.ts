@@ -32,7 +32,7 @@ describe.skipIf(!supa)("billing in the database", () => {
     });
   const month = (u: TestUser, credit: number, opts: { event?: string; invoice?: string; sub?: string; plan?: string; paid?: number; charge?: string } = {}) =>
     rpc("fulfil_plan_invoice", {
-      p_event_id: opts.event ?? unique("evt"), p_user_id: u.id, p_invoice_id: opts.invoice ?? unique("in"), p_subscription_id: opts.sub ?? `sub_${u.id.slice(0, 8)}`,
+      p_event_id: opts.event ?? unique("evt"), p_user_id: u.id, p_invoice_id: opts.invoice ?? unique("in"), p_subscription_id: opts.sub ?? `sub_${u.id}`,
       p_plan: opts.plan ?? "starter", p_price_id: "price_starter", p_paid_usd: opts.paid ?? 19, p_credit_usd: credit,
       p_period_end: new Date(Date.now() + 30 * 86_400_000).toISOString(), p_charge_id: opts.charge ?? unique("ch"), p_invoice_url: "https://stripe.test/i",
     });
@@ -170,7 +170,7 @@ describe.skipIf(!supa)("billing in the database", () => {
   it("keeps the books straight when a renewal and several jobs happen at once", async () => {
     await topup(a, 4);
     await month(a, 6);
-    await db().from("settings").select("max_user_jobs"); // (two jobs at a time is the limit; two is enough to race)
+    // (two jobs at a time is an account's limit; two are enough to race)
     const runs = [await run(a), await run(a)];
     const [first, second, renewed] = await Promise.all([reserve(a, runs[0], 5), reserve(a, runs[1], 5), month(a, 6)]);
     expect(renewed).toBe("fulfilled");
@@ -180,11 +180,92 @@ describe.skipIf(!supa)("billing in the database", () => {
     const end = await account(a);
     expect(end.period).toBe(2);
     expect(end.balance).toBe(10);
-    expect(end.plan).toBeLessThanOrEqual(6);
-    expect(end.plan).toBeGreaterThanOrEqual(0);
+    expect(end.plan).toBe(6);
     // every row of the ledger adds up to the balance
     const { data: ledger } = await a.client.from("ledger").select("amount_usd");
     expect(Math.round(ledger!.reduce((sum, r) => sum + Number(r.amount_usd), 0) * 10_000) / 10_000).toBe(10);
+  });
+
+  it("never lets what can expire be more than what is there, however the credit left", async () => {
+    // a month's credit is held by a job, the month is refunded, the job spends nothing
+    const charge = unique("ch");
+    await month(a, 10, { paid: 20, charge });
+    const held = await reserve(a, await run(a), 10);
+    await rpc("refund_payment", { p_event_id: unique("evt"), p_charge_id: charge, p_refunded_usd: 20 });
+    await settle(held, 0);
+    expect(await account(a)).toEqual({ balance: 0, plan: 0, period: 1 });
+    // the next month is whole: nothing is taken for the refund a second time
+    await month(a, 10);
+    expect(await account(a)).toEqual({ balance: 10, plan: 10, period: 2 });
+
+    // a top-up is spent and then refunded beside a plan: the debt comes out of what the plan had left
+    const spent = unique("ch");
+    await topup(b, 5, { paid: 10, charge: spent });
+    await month(b, 10);
+    await settle(await reserve(b, await run(b), 10), 10); // the plan's 10 are spent first
+    await month(b, 10); // a new month: 5 + 10
+    expect(await account(b)).toEqual({ balance: 15, plan: 10, period: 2 });
+    await settle(await reserve(b, await run(b), 10), 10); // the plan's again: the 5 of the top-up are left
+    await rpc("refund_payment", { p_event_id: unique("evt"), p_charge_id: spent, p_refunded_usd: 10 });
+    expect(await account(b)).toEqual({ balance: 0, plan: 0, period: 2 });
+    await month(b, 10);
+    expect(await account(b)).toEqual({ balance: 10, plan: 10, period: 3 });
+  });
+
+  it("takes credit back by hand out of the plan's when nothing else is left, and expires only what remains", async () => {
+    await month(a, 10);
+    expect(Number(await rpc("grant_credit", { p_email: a.email, p_amount_usd: -8, p_note: "taken back" }))).toBe(2);
+    expect(await account(a)).toEqual({ balance: 2, plan: 2, period: 1 });
+    await month(a, 10);
+    expect(await account(a)).toEqual({ balance: 10, plan: 10, period: 2 });
+    expect(await kinds(a)).toEqual(["plan 10 → 10", "grant -8 → 2", "expire -2 → 0", "plan 10 → 10"]);
+  });
+
+  it("applies a refund that came before its payment was recorded, once the payment is there", async () => {
+    // (a payment whose fulfilment is still failing can be refunded meanwhile)
+    const charge = unique("ch");
+    const event = unique("evt");
+    const refund = () => rpc("refund_payment", { p_event_id: event, p_charge_id: charge, p_refunded_usd: 10 });
+    expect(await refund()).toBe("unknown_payment");
+    // not recorded as done: it can be offered again
+    expect((await db().from("stripe_events").select("id").eq("id", event)).data).toEqual([]);
+    expect(await refund()).toBe("unknown_payment");
+    await topup(a, 6, { paid: 10, charge });
+    expect(await refund()).toBe("fulfilled");
+    expect(await refund()).toBe("duplicate");
+    expect((await account(a)).balance).toBe(0);
+  });
+
+  it("fulfils a month once per event and once per invoice, and mirrors a subscription once per event", async () => {
+    const [event, invoice, sub] = [unique("evt"), unique("in"), unique("sub")];
+    expect(await month(a, 10, { event, invoice, sub })).toBe("fulfilled");
+    expect(await month(a, 10, { event, invoice, sub })).toBe("duplicate");
+    // Stripe may tell of the same paid invoice in another event
+    expect(await month(a, 10, { invoice, sub })).toBe("duplicate_payment");
+    expect(await account(a)).toEqual({ balance: 10, plan: 10, period: 1 });
+    const again = unique("evt");
+    const sync = () => rpc("sync_subscription", { p_event_id: again, p_user_id: a.id, p_subscription_id: sub, p_plan: "starter", p_price_id: "price_starter", p_status: "past_due", p_period_end: "2026-11-08T00:00:00Z", p_cancel_at_period_end: false });
+    expect(await sync()).toBe("fulfilled");
+    expect(await sync()).toBe("duplicate");
+    // the subscription ends once, whatever number of events say so
+    expect(await rpc("end_subscription", { p_event_id: unique("evt"), p_user_id: a.id, p_subscription_id: sub })).toBe("fulfilled");
+    expect(await rpc("end_subscription", { p_event_id: unique("evt"), p_user_id: a.id, p_subscription_id: sub })).toBe("already_ended");
+    expect(await account(a)).toEqual({ balance: 0, plan: 0, period: 2 });
+  });
+
+  it("refuses an amount that is no amount, in every function that takes one", async () => {
+    const bad = [Number.NaN, -1, 1e9, null];
+    for (const usd of bad) {
+      const calls: Array<[string, Record<string, unknown>]> = [
+        ["fulfil_topup", { p_event_id: unique("evt"), p_user_id: a.id, p_payment_id: unique("cs"), p_paid_usd: usd, p_credit_usd: 1, p_charge_id: null, p_invoice_url: null }],
+        ["fulfil_topup", { p_event_id: unique("evt"), p_user_id: a.id, p_payment_id: unique("cs"), p_paid_usd: 1, p_credit_usd: usd, p_charge_id: null, p_invoice_url: null }],
+        ["fulfil_plan_invoice", { p_event_id: unique("evt"), p_user_id: a.id, p_invoice_id: unique("in"), p_subscription_id: unique("sub"), p_plan: "starter", p_price_id: "p", p_paid_usd: 1, p_credit_usd: usd, p_period_end: new Date().toISOString() }],
+        ["refund_payment", { p_event_id: unique("evt"), p_charge_id: unique("ch"), p_refunded_usd: usd }],
+      ];
+      for (const [name, args] of calls) expect((await db().rpc(name, args)).error, `${name} ${String(usd)}`).not.toBeNull();
+    }
+    expect(await account(a)).toEqual({ balance: 0, plan: 0, period: 0 });
+    expect((await a.client.from("payments").select("id")).data).toEqual([]);
   });
 
   it("grants for a second subscription that was paid for, without ending the first one's month", async () => {

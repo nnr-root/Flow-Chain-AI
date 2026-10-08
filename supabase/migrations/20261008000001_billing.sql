@@ -13,6 +13,19 @@ alter table public.users
   -- goes up by one whenever a subscription month ends: credit held by a job in an earlier month is not returned
   add column plan_period integer not null default 0;
 
+-- What can expire is never more than what is there. Credit leaves the balance in ways that know nothing of
+-- plans — a refund of a top-up that was spent, credit taken back by hand, a job settled above its cap — and
+-- without this the next expiry would take the same money a second time. So the rule is kept where no function
+-- can forget it: on every write of the row.
+create function public.plan_credit_within_balance() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  new.plan_credit_usd := greatest(least(new.plan_credit_usd, new.balance_usd), 0);
+  return new;
+end $$;
+create trigger plan_credit_within_balance before insert or update on public.users
+  for each row execute function public.plan_credit_within_balance();
+
 alter table public.reservations
   -- how much of the cap was plan credit, and of which month
   add column plan_part_usd numeric(12, 4) not null default 0 check (plan_part_usd >= 0 and plan_part_usd <> 'NaN'),
@@ -67,6 +80,8 @@ alter table public.payments enable row level security;
 alter table public.stripe_events enable row level security;
 create policy "own row" on public.subscriptions for select to authenticated using (user_id = (select auth.uid()));
 create policy "own rows" on public.payments for select to authenticated using (user_id = (select auth.uid()));
+-- (said outright, whichever role applies this file: nothing but reading their own rows, and nothing of the events)
+revoke all on public.subscriptions, public.payments, public.stripe_events from public, anon, authenticated;
 -- stripe_events: no policy, so nobody but the service role reads it
 grant select on public.subscriptions, public.payments to authenticated;
 
@@ -318,6 +333,11 @@ begin
     update public.stripe_events set outcome = 'other_subscription' where id = p_event_id;
     return 'other_subscription';
   end if;
+  -- a second event for a subscription that has already ended ends nothing again
+  if exists (select 1 from public.subscriptions where user_id = p_user_id and status = 'canceled') then
+    update public.stripe_events set outcome = 'already_ended' where id = p_event_id;
+    return 'already_ended';
+  end if;
   perform public.expire_plan_credit(p_user_id, 'the subscription ended');
   update public.subscriptions set status = 'canceled', cancel_at_period_end = false, updated_at = now() where user_id = p_user_id;
   return 'fulfilled';
@@ -338,8 +358,10 @@ begin
   if not public.valid_amount(p_refunded_usd) then raise exception 'invalid_amount'; end if;
   select * into p from public.payments where charge_id = p_charge_id;
   if not found then
-    -- a charge the studio never fulfilled: nothing was granted, so nothing is taken
-    if not public.claim_stripe_event(p_event_id, 'refund', null, 'unknown_payment') then return 'duplicate'; end if;
+    -- No payment with this charge — yet, perhaps: a payment whose fulfilment is still failing (a price that does
+    -- not say what it grants) can be refunded before it is recorded. So the event is NOT recorded as done: the
+    -- worker's catch-up offers it again, and it takes effect once the payment is there.
+    if exists (select 1 from public.stripe_events where id = p_event_id) then return 'duplicate'; end if;
     return 'unknown_payment';
   end if;
   select plan_period into v_period from public.users where id = p.user_id for update;
@@ -360,8 +382,8 @@ begin
   return 'fulfilled';
 end $$;
 
--- Default privileges already keep users away from everything above (first migration). Said outright for the
--- functions, since two of them replace ones users may call:
+-- Default privileges already keep users away from everything above (first migration). Said outright all the
+-- same for the functions, since two of them replace ones users may call:
 revoke execute on all functions in schema public from public, anon, authenticated;
 grant execute on function
   public.create_run(text, text), public.reserve_credit(text, text, numeric), public.library_room(text),
@@ -370,10 +392,10 @@ grant execute on function
   to authenticated;
 grant execute on function
   public.settle(uuid, numeric), public.set_run_state(text, text, timestamptz), public.grant_credit(text, numeric, text),
-  public.link_stripe_customer(uuid, text), public.claim_stripe_event(text, text, uuid, text), public.valid_amount(numeric),
+  public.link_stripe_customer(uuid, text), public.claim_stripe_event(text, text, uuid, text),
   public.fulfil_topup(text, uuid, text, numeric, numeric, text, text),
   public.fulfil_plan_invoice(text, uuid, text, text, text, text, numeric, numeric, timestamptz, text, text),
   public.sync_subscription(text, uuid, text, text, text, text, timestamptz, boolean),
-  public.end_subscription(text, uuid, text), public.expire_plan_credit(uuid, text),
+  public.end_subscription(text, uuid, text),
   public.refund_payment(text, text, numeric)
   to service_role;
