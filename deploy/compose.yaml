@@ -47,6 +47,8 @@ services:
     environment:
       <<: *data
       STUDIO_HOST: ${STUDIO_HOST:?set STUDIO_HOST to the studio's public host name}
+      # which login the studio is meant to have; the web app refuses everything if it is "supabase" and it has no accounts
+      STUDIO_AUTH: ${STUDIO_AUTH:?set STUDIO_AUTH to proxy (the proxy asks for the login) or supabase (the studio does)}
     # with accounts: where they live and the bucket's keys; never a provider key, never the key that settles credit
     env_file:
       - ${WEB_ENV_FILE:?set WEB_ENV_FILE to the web app's settings file (it may be empty)}

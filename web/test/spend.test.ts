@@ -24,6 +24,8 @@ describe("what a run has spent, from its manifest", () => {
       keyframe: { requestId: "r2", inputHash: "h", submittedAt: "t", expectedUsd: 0.025, chargedUsd: 0.025, result: { url: "u" } },
     };
     expect(spendOf(await run({ ledger: [{ usd: 0.025 }], scenes: [{ jobs }, { jobs: {} }, {}] }))).toBe(0.275);
+    // jobs given up for a new one while in flight are no longer in `jobs`; their cost is kept on the scene
+    expect(spendOf(await run({ ledger: [{ usd: 0.025 }], scenes: [{ abandonedUsd: 0.5, jobs }, { abandonedUsd: 0.25 }] }))).toBe(1.025);
     // a run made before expected costs were recorded: only what the ledger says
     expect(spendOf(await run({ ledger: [{ usd: 0.025 }], scenes: [{ jobs: { clips: { requestId: "r1", inputHash: "h", submittedAt: "t", chargedUsd: 0 } } }] }))).toBe(0.025);
   });

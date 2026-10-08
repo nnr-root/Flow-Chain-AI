@@ -8,6 +8,15 @@ export type SupabaseSettings = { url: string; anonKey: string };
  */
 export const multiTenant = (): boolean => !!process.env.SUPABASE_URL?.trim();
 
+/**
+ * On a server the stack says which login the studio is meant to have (`STUDIO_AUTH`, set by server:setup):
+ * `proxy` (the proxy asks for the one login) or `supabase` (the studio asks every visitor to sign in). The proxy
+ * is chosen from the same word. If it says "supabase" and this process has no accounts configured — a settings
+ * file that was not written, or edited — the studio would be open to anyone: it then answers nothing at all.
+ */
+export const loginMissing = (): boolean => process.env.STUDIO_AUTH?.trim() === "supabase" && !multiTenant();
+export const LOGIN_MISSING = "The studio is set up to have accounts but has none configured, so it answers nothing. Run npm run server:setup again.";
+
 /** The project's address and its public key (safe in a browser: row-level security is what protects the data). */
 export function supabaseSettings(): SupabaseSettings {
   const url = process.env.SUPABASE_URL?.trim();

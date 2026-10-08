@@ -9,7 +9,7 @@ import { DRAFT_CAP_USD } from "../lib/credit";
 import { multiTenant } from "../lib/supabase/settings";
 import { baseRoots, health, roots } from "../server/config";
 import {
-  consumerConnection, KEYS, type QuickJobData, type QuickJobResult, QUEUES, refusal, type RunJobData, type RunJobResult,
+  commandKind, consumerConnection, KEYS, type QuickJobData, type QuickJobResult, QUEUES, refusal, type RunJobData, type RunJobResult,
 } from "../server/jobs/redis";
 import { exitCodeOf, lockState, readJobRecord, runFolder, runShort, spawnCli, stopProcess } from "../server/jobs/run-cli";
 import { type Job, type JobView, LOCK_FILE } from "../server/jobs/types";
@@ -31,6 +31,8 @@ export type WorkerOptions = {
   lockMs?: number;
   /** With accounts: how often open reservations without a job are settled, and how old one must be (default 60 s both). */
   reconcileMs?: number;
+  /** Tests only (see `settleIdle`). */
+  reconcileKnownUsersOnly?: boolean;
   log?: (message: string) => void;
 };
 
@@ -248,10 +250,19 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
    * before and has no manifest here is on the wrong disk, and returning its credit would be a gift.
    */
   const unsettleable = new Set<string>();
-  const settleAt = async (runId: string, dir: string): Promise<number | undefined> => {
-    const total = spendOf(dir);
+  const settleAt = async (runId: string, dir: string, userId?: string): Promise<number | undefined> => {
+    let total = spendOf(dir);
     if (total !== null) return total;
     if (!db || (await db.chargedFor(runId)) > 0) {
+      // the run is kept in the bucket: fetch it, and what it spent can be read after all
+      if (db && bucket && userId) {
+        await restoreFolder(bucket, keys.run(userId, runId), dir).catch(() => 0);
+        total = spendOf(dir);
+        if (total !== null) {
+          unsettleable.delete(runId);
+          return total;
+        }
+      }
       // said once per run, not at every pass
       if (!unsettleable.has(runId)) log(`worker: ${runId} was charged before but has no manifest on this disk; its credit stays held`);
       unsettleable.add(runId);
@@ -261,10 +272,10 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   };
 
   /** After a job, however it ended: charge what the run really spent and record how the run stands. */
-  const account = async (data: Pick<RunJobData, "runId" | "reservationId">, dir: string, job: JobView | null): Promise<void> => {
+  const account = async (data: Pick<RunJobData, "runId" | "reservationId" | "userId">, dir: string, job: JobView | null): Promise<void> => {
     if (!db) return;
     try {
-      const total = data.reservationId ? await settleAt(data.runId, dir) : undefined;
+      const total = data.reservationId ? await settleAt(data.runId, dir, data.userId) : undefined;
       if (data.reservationId && total !== undefined) {
         const charged = await db.settle(data.reservationId, total);
         log(`worker: ${data.runId} settled at $${charged.toFixed(4)}`);
@@ -282,10 +293,14 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
    */
   const settleIdle = async (r: Reservation): Promise<boolean> => {
     if (!db || !UUID.test(r.user_id)) return false;
+    // Tests only: several workers share one database there, each with a runs folder of its own. A worker then
+    // leaves alone the credit of users it has never seen. (In production one database has one worker, and a
+    // user's first draft, never queued, has no folder: this rule would strand its credit.)
+    if (opts.reconcileKnownUsersOnly && !existsSync(join(baseRoots().runs, r.user_id))) return false;
     if (active.has(r.run_id) || starting.has(r.run_id) || (await line.getJob(r.run_id))) return false;
     return inScope({ user: { id: r.user_id, email: "" } }, async () => {
       const dir = runFolder(r.run_id);
-      const total = await settleAt(r.run_id, dir);
+      const total = await settleAt(r.run_id, dir, r.user_id);
       if (total === undefined) return false;
       const charged = await db.settle(r.id, total);
       log(`worker: settled the credit held for ${r.run_id}, which has no job: $${charged.toFixed(4)} of $${r.cap_usd.toFixed(4)}`);
@@ -298,8 +313,12 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   };
 
   const runJob = (job: QueueJob<RunJobData>): Promise<RunJobResult> => asUser(job.data.userId, async () => {
-    const { runId, kind, args, approvedUsd } = job.data;
+    const { runId, args, approvedUsd } = job.data;
     const dir = runFolder(runId);
+    // What a job is, is what its command is. The job's own word for it must agree, and is never what decides
+    // whether credit has to be held: a job that calls itself free, or nothing at all, would otherwise spend unasked.
+    const kind = commandKind(args);
+    if (kind === undefined || job.data.kind !== kind) throw new Error(refusal("runs", args, runId) ?? `the job says it is "${String(job.data.kind)}" and its command is not`);
     const refused = refusal("runs", args, runId, kind);
     if (refused) throw new Error(refused);
     // After a long Redis outage the queue can lose track of a job whose CLI is still working and hand the run
@@ -309,8 +328,8 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     starting.add(runId);
     let started: { job: Job; child: ChildProcess };
     try {
-      await checkReservation(job.data);
-      await bringLocal(job.data);
+      await checkReservation({ ...job.data, kind });
+      await bringLocal({ ...job.data, kind });
       await clearDeadLock(dir);
       started = await spawnCli(runId, kind, args, approvedUsd);
     } catch (err) {

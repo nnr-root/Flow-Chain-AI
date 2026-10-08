@@ -35,6 +35,7 @@ if (command === "plan") {
   if (behave.pendingUsd && existsSync(join(runs, args[1], "manifest.json"))) {
     const file = join(runs, args[1], "manifest.json");
     const manifest = JSON.parse(readFileSync(file, "utf8"));
+    if (behave.abandonedUsd) manifest.scenes[0].abandonedUsd = (manifest.scenes[0].abandonedUsd ?? 0) + behave.abandonedUsd;
     manifest.scenes[0].jobs = { ...manifest.scenes[0].jobs, clips: { requestId: "stub-request", inputHash: "stub", submittedAt: new Date().toISOString(), expectedUsd: behave.pendingUsd, chargedUsd: 0 } };
     writeFileSync(file, JSON.stringify(manifest));
   }

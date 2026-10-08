@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { refusal } from "@/server/jobs/redis";
+import { commandKind, refusal } from "@/server/jobs/redis";
 import { draftArgs, rerenderArgs } from "@/server/schemas";
 
 describe("what the worker agrees to run", () => {
@@ -61,8 +61,12 @@ describe("what the worker agrees to run", () => {
     expect(refusal("runs", ["reroll", "x", "--scene", "1", "--stage", "clips", "--budget", "1", "--cap", "1", "--cap", "9"], "x")).toBe(reroll);
     expect(refusal("runs", ["reroll", "x", "--scene", "1; rm -rf /", "--stage", "clips", "--budget", "1", "--cap", "1"], "x")).toBe(reroll);
     expect(refusal("runs", ["reroll", "x", "--stage", "clips", "--scene", "1", "--budget", "1", "--cap", "1"], "x")).toBe(reroll);
-    // bare, a resume can spend nothing: the CLI stops to ask
-    expect(refusal("runs", ["resume", "x"], "x")).toBeUndefined();
+    // bare, a resume would spend up to the CLI's own default budget with no cap at all
+    expect(refusal("runs", ["resume", "x"], "x")).toBe(shape);
+    expect(commandKind(["resume", "x"])).toBe("generate");
+    expect(commandKind(["run", "--draft"])).toBe("draft");
+    expect(commandKind(["doctor"])).toBeUndefined();
+    expect(commandKind(undefined)).toBeUndefined();
   });
 
   it("lets a draft carry only what a draft has, each once: a second --run-id would write into another run", () => {

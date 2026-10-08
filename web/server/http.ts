@@ -1,6 +1,6 @@
 import { ZodError } from "zod";
 import { hostName, isAllowedHost } from "@/lib/hosts";
-import { multiTenant } from "@/lib/supabase/settings";
+import { LOGIN_MISSING, loginMissing, multiTenant } from "@/lib/supabase/settings";
 
 export type ErrorCode =
   | "validation" | "not_found" | "job_active" | "busy" | "estimate_changed" | "not_draft" | "missing_keys"
@@ -68,6 +68,8 @@ export function route<C>(opts: { write: boolean; public?: boolean }, handler: Ha
   const wrapped: Handler<C> = async (req, ctx) => {
     try {
       guard(req, opts);
+      // meant to have accounts and has none: nothing is answered, the health check included, so a deploy fails loudly
+      if (loginMissing()) return new Response(JSON.stringify({ error: { code: "internal", message: LOGIN_MISSING } }), { status: 503, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
       if (!multiTenant()) return await handler(req, ctx);
       // loaded only where there are accounts: the single-user studio and the worker never need it
       const [{ requestSession, sessionUser }, { inScope }] = await Promise.all([import("./session"), import("./tenant")]);

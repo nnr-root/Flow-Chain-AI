@@ -72,7 +72,8 @@ export function tenantDb(): TenantDb | null {
  * What a run has spent in all, from its manifest: its ledger, plus every provider job that was submitted and has
  * not been charged yet. A submitted job is billed by the provider whether or not anyone waits for it, so a run
  * stopped (or a worker killed) between submit and result has spent that money already; when the job is later
- * collected, its ledger entry takes the place of this figure.
+ * collected, its ledger entry takes the place of this figure; when it is given up for a new one instead, its
+ * cost stays on record (`abandonedUsd`).
  *
  * `null` when the run has no manifest at all, `undefined` when the manifest cannot be read (then nothing is
  * settled on a guess).
@@ -83,11 +84,13 @@ export function spendOf(runDir: string): number | null | undefined {
   try {
     const manifest = JSON.parse(readFileSync(file, "utf8")) as {
       ledger?: Array<{ usd?: unknown }>;
-      scenes?: Array<{ jobs?: Record<string, { expectedUsd?: unknown; chargedUsd?: unknown; result?: unknown } | undefined> }>;
+      scenes?: Array<{ abandonedUsd?: unknown; jobs?: Record<string, { expectedUsd?: unknown; chargedUsd?: unknown; result?: unknown } | undefined> }>;
     };
     const amount = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : Number.NaN);
     let total = (manifest.ledger ?? []).reduce((sum, e) => sum + amount(e.usd), 0);
     for (const scene of manifest.scenes ?? []) {
+      // jobs submitted and then given up for a new one (a reroll while one was in flight): billed, and no longer in `jobs`
+      if (scene.abandonedUsd !== undefined) total += amount(scene.abandonedUsd);
       for (const job of Object.values(scene.jobs ?? {})) {
         // submitted, not collected: no result and nothing charged yet
         if (job && job.result === undefined && !(amount(job.chargedUsd) > 0) && job.expectedUsd !== undefined) total += amount(job.expectedUsd);

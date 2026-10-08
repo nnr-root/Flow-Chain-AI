@@ -57,6 +57,8 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
       firstState.current = false;
       return;
     }
+    // only where there are accounts: nothing on the page depends on the server again otherwise
+    if (balance === null) return;
     router.refresh();
     const later = setTimeout(() => {
       setSettled((n) => n + 1);

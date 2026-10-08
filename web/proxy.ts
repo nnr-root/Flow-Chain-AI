@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 import { hostName, isAllowedHost } from "./lib/hosts";
-import { multiTenant, PUBLIC_PAGES, supabaseSettings } from "./lib/supabase/settings";
+import { LOGIN_MISSING, loginMissing, multiTenant, PUBLIC_PAGES, supabaseSettings } from "./lib/supabase/settings";
 
 /**
  * Runs before every request Next answers — pages, their RSC payloads, the API and static files — and refuses
@@ -18,6 +18,9 @@ export async function proxy(request: NextRequest): Promise<Response | undefined>
       status: 403,
       headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
     });
+  }
+  if (loginMissing()) {
+    return new Response(`${LOGIN_MISSING}\n`, { status: 503, headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" } });
   }
   if (!multiTenant()) return undefined;
 

@@ -45,6 +45,10 @@ const DRAFT_FLAGS = new Set(["--no-hook", "--no-sfx"]);
 /** The kind of job each command is: the kind decides whether credit must be held, so it cannot be claimed freely. */
 const KIND_OF: Record<string, JobKind> = { run: "draft", resume: "generate", reroll: "reroll", rerender: "rerender" };
 
+/** The kind of job a command is, or undefined for something that is no job command. Never taken from the job's own word. */
+export const commandKind = (args: unknown): JobKind | undefined =>
+  Array.isArray(args) && typeof args[0] === "string" && Object.hasOwn(KIND_OF, args[0]) ? KIND_OF[args[0]] : undefined;
+
 /**
  * What the worker agrees to run, whoever put the job in Redis. The provider keys live with the worker, so it
  * does not take the web's word for anything:
@@ -74,8 +78,6 @@ export function refusal(queue: keyof typeof QUEUES, args: unknown, runId?: strin
   if (command === "resume") {
     if (list.includes("--yes")) return '"resume" may not be started with --yes';
     if (runId !== undefined && list[1] !== runId) return other;
-    // bare, it can spend nothing (with no amount approved the CLI stops to ask, and nobody is there to answer)
-    if (list.length === 2) return undefined;
     const ok = list.length === 6 && list[2] === "--budget" && list[4] === "--cap" && AMOUNT.test(list[3]) && list[3] === list[5];
     return ok ? undefined : '"resume" must be: resume <run> --budget <usd> --cap <the same usd>';
   }

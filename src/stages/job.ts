@@ -92,6 +92,12 @@ export async function runProviderJob<Out extends { url: string; seed?: number; c
       controller,
       spec.submitTimeoutMs ?? TIMEOUTS.submit,
     );
+    // A job that was submitted for other inputs and never collected is replaced here. The provider bills it all
+    // the same, so its cost moves to the scene's `abandonedUsd` in the same save that drops its record.
+    const given = state.jobs[stage];
+    if (given && !given.result && !(given.chargedUsd > 0) && given.expectedUsd !== undefined && given.expectedUsd > 0) {
+      state.abandonedUsd = Math.round(((state.abandonedUsd ?? 0) + given.expectedUsd) * 10_000) / 10_000;
+    }
     job = { requestId, inputHash: ctx.inputHash, submittedAt: new Date().toISOString(), expectedUsd: spec.costUsd, chargedUsd: 0 };
     state.jobs[stage] = job;
     await saveManifest(ctx.dir, ctx.manifest);
@@ -110,6 +116,8 @@ export async function runProviderJob<Out extends { url: string; seed?: number; c
   } catch (err) {
     // The job completed, so it was billed, even though its output is unusable.
     if (err instanceof Error && err.cause instanceof UnusableResultError) {
+      // it is over: what it cost is what is charged now (possibly nothing), no longer what was expected
+      delete pending.expectedUsd;
       await chargeOnce(ctx, pending, err.cause.costUsd ?? spec.costUsd);
     }
     const message = err instanceof Error ? err.message : String(err);

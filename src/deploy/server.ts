@@ -11,8 +11,10 @@ const DEPLOY_KEYS = [
 /** Set by the Compose file for the server's own layout: a local value must never reach the worker. */
 const COMPOSE_OWNED = [
   "RUNS_DIR", "BRAND_KITS_DIR", "STUDIO_UPLOADS_DIR", "REDIS_URL", "FLOWCHAIN_CLI", "FLOWCHAIN_ROOT",
-  "STUDIO_SITE", "STUDIO_PASSWORD_HASH", "DATA_DIR", "WORKER_ENV_FILE", "WEB_ENV_FILE", "CADDYFILE", "NODE_ENV",
+  "STUDIO_SITE", "STUDIO_PASSWORD_HASH", "DATA_DIR", "WORKER_ENV_FILE", "WEB_ENV_FILE", "CADDYFILE", "STUDIO_AUTH", "NODE_ENV",
 ];
+/** What stays on the owner's machine: the keys to the database itself, which nothing on the server needs. */
+const OWNER_ONLY = ["SUPABASE_DB_URL", "SUPABASE_DB_PASSWORD", "SUPABASE_ACCESS_TOKEN"];
 /**
  * What the web app gets in a studio with accounts: where the accounts live, their PUBLIC key, and the bucket.
  * Everything else — the provider keys, and above all the service-role key that settles credit — is the worker's alone.
@@ -72,7 +74,7 @@ export function serverConfig(serverEnv: Record<string, string>, localEnv: Record
   const rawConcurrency = get("WORKER_CONCURRENCY");
   if (rawConcurrency !== undefined && !/^[1-9]\d*$/.test(rawConcurrency)) throw new Error("WORKER_CONCURRENCY must be a whole number, 1 or more");
 
-  const skip = new Set([...DEPLOY_KEYS, ...COMPOSE_OWNED]);
+  const skip = new Set([...DEPLOY_KEYS, ...COMPOSE_OWNED, ...OWNER_ONLY]);
   const worker: Record<string, string> = {};
   for (const [key, value] of Object.entries(localEnv)) {
     if (!skip.has(key) && value.trim()) worker[key] = value.trim();
@@ -102,6 +104,8 @@ export function serverConfig(serverEnv: Record<string, string>, localEnv: Record
       if (!worker[name]) throw new Error(`SUPABASE_URL is set but ${name} is not: a studio with accounts needs both of the project's keys`);
     }
     for (const name of [...WEB_KEYS, ...(worker.STUDIO_BUCKET ? WEB_BUCKET_KEYS : [])]) {
+      // the bucket's own keys, where it has them, are the ones the web app uses: the pipeline's are then not its business
+      if (worker[`STUDIO_${name}`] && name.startsWith("R2_")) continue;
       if (worker[name]) web[name] = worker[name];
     }
   }
@@ -163,7 +167,10 @@ export function composeEnv(cfg: ServerConfig, passwordHash?: string): Record<str
   if (!cfg.accounts && !passwordHash) throw new Error("a studio without accounts needs the proxy's login");
   return {
     STUDIO_HOST: cfg.studioHost,
-    ...(cfg.accounts ? { CADDYFILE: "Caddyfile.accounts" } : { CADDYFILE: "Caddyfile", STUDIO_USER: cfg.studioUser, STUDIO_PASSWORD_HASH: passwordHash! }),
+    // one word decides both the proxy's file and what the web app insists on: they cannot disagree
+    ...(cfg.accounts
+      ? { STUDIO_AUTH: "supabase", CADDYFILE: "Caddyfile.accounts" }
+      : { STUDIO_AUTH: "proxy", CADDYFILE: "Caddyfile", STUDIO_USER: cfg.studioUser, STUDIO_PASSWORD_HASH: passwordHash! }),
     DATA_DIR: p.data,
     WORKER_ENV_FILE: p.workerEnv,
     WEB_ENV_FILE: p.webEnv,

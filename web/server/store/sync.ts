@@ -44,7 +44,7 @@ export async function storeFolder(store: ObjectStore, dir: string, prefix: strin
   if (!existsSync(dir)) return 0;
   const index = await readIndex(dir);
   let sent = 0;
-  for (const name of (await filesIn(dir)).sort()) {
+  for (const name of (await filesIn(dir)).sort(markersLast)) {
     if (SKIP.some((re) => re.test(name))) continue;
     const info = await stat(join(dir, name));
     const known = index[name];
@@ -58,8 +58,13 @@ export async function storeFolder(store: ObjectStore, dir: string, prefix: strin
   return sent;
 }
 
-/** The file that says "this run folder is whole": fetched last, removed first. */
+/**
+ * The file that says "this folder is whole" — a run's manifest, a kit's description. Sent last and fetched last,
+ * removed first: neither the bucket's copy nor this disk's ever has it before it has everything it speaks of.
+ */
+const MARKERS = new Set(["manifest.json", "brand.json"]);
 const MARKER = "manifest.json";
+const markersLast = (a: string, b: string): number => Number(MARKERS.has(a)) - Number(MARKERS.has(b)) || (a < b ? -1 : a > b ? 1 : 0);
 /** Restores in flight in this process, by folder: a second asker waits for the first instead of racing it. */
 const restoring = new Map<string, Promise<number>>();
 
@@ -88,7 +93,7 @@ async function restoreNow(store: ObjectStore, prefix: string, dir: string): Prom
     .map((object) => ({ ...object, name: object.key.slice(prefix.length) }))
     // what a bucket holds is not trusted to stay inside the folder
     .filter(({ name }) => name && !name.split("/").some((part) => part === "" || part === "." || part === "..") && !name.includes("\\"))
-    .sort((a, b) => Number(a.name === MARKER) - Number(b.name === MARKER) || (a.name < b.name ? -1 : 1));
+    .sort((a, b) => markersLast(a.name, b.name));
   for (const object of objects) {
     const path = join(dir, object.name);
     if (existsSync(path)) continue;

@@ -63,7 +63,7 @@ export default defineConfig({
       // The worker first, in the background (it has no port to wait for), then the built studio. The worker alone
       // gets the key that settles credit and the provider keys' stand-ins; the web process gets neither.
       command: [
-        `(SUPABASE_SERVICE_ROLE_KEY="$WORKER_SERVICE_KEY" FLOWCHAIN_CLI="$WORKER_CLI" WORKER_RECONCILE_MS=2000`,
+        `(SUPABASE_SERVICE_ROLE_KEY="$WORKER_SERVICE_KEY" FLOWCHAIN_CLI="$WORKER_CLI" WORKER_RECONCILE_MS=2000 WORKER_RECONCILE_KNOWN_USERS_ONLY=1`,
         `GEMINI_API_KEY=t ELEVENLABS_API_KEY=t ELEVENLABS_VOICE_ID=t FAL_KEY=t node --import tsx worker/main.ts > ${data}/worker.log 2>&1 &)`,
         `; npx next build --webpack && exec npx next start -H 127.0.0.1 -p ${PORT}`,
       ].join(" "),

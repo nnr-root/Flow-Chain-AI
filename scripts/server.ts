@@ -51,16 +51,19 @@ async function deploy(cfg: ServerConfig): Promise<void> {
   console.log("Building and starting (the first build takes several minutes; a running job is allowed to finish first) …");
   await remote(cfg, upScript(cfg));
   const url = `https://${cfg.studioHost}`;
-  // the first certificate takes a moment; 401 is the proxy asking for the login
+  // The first certificate takes a moment. What is waited for is the studio REFUSING someone who is not signed in:
+  // 401 from the proxy's login, or — with accounts — 401 from the studio's own API for a request without a session.
+  const probe = cfg.accounts ? `${url}/api/runs` : url;
   const deadline = Date.now() + 120_000;
   let answer = "no answer";
   while (Date.now() < deadline) {
-    answer = await fetch(url, { signal: AbortSignal.timeout(10_000) }).then((r) => String(r.status), (e: Error) => (e.cause instanceof Error ? e.cause.message : e.message));
-    if (answer === "401") break;
+    answer = await fetch(probe, { redirect: "manual", signal: AbortSignal.timeout(10_000) }).then((r) => String(r.status), (e: Error) => (e.cause instanceof Error ? e.cause.message : e.message));
+    if (answer === "401" || answer === "200") break;
     await new Promise((r) => setTimeout(r, 3000));
   }
-  if (answer === "401") console.log(`The studio is up: ${url} (user "${cfg.studioUser}")`);
-  else console.warn(`The stack is running, but ${url} does not ask for the login yet (${answer}). Check that the DNS name points at the server and that ports 80 and 443 are open.`);
+  if (answer === "401") console.log(cfg.accounts ? `The studio is up: ${url} (sign up there, then add credit with npm run studio:grant)` : `The studio is up: ${url} (user "${cfg.studioUser}")`);
+  else if (answer === "200") throw new Error(`${probe} answers WITHOUT asking who is there: the studio is open to anyone. Stop it (ssh ${cfg.target} and run: docker compose -p flowchain down) and run npm run server:setup again.`);
+  else console.warn(`The stack is running, but ${url} does not answer as expected yet (${answer}). Check that the DNS name points at the server and that ports 80 and 443 are open.`);
 }
 
 async function setup(cfg: ServerConfig, newPassword: boolean): Promise<void> {
@@ -72,6 +75,7 @@ async function setup(cfg: ServerConfig, newPassword: boolean): Promise<void> {
   const names = Object.keys(cfg.worker).sort();
   if (names.length === 0) console.warn("Warning: no provider keys or settings were found in .env or deploy/server.env; the worker will not be able to generate anything.");
   else console.log(`The worker gets: ${names.join(", ")}`);
+  if (cfg.accounts) console.log(`The web app gets: ${Object.keys(cfg.web).sort().join(", ")}`);
   console.log(`Preparing ${cfg.target} (Docker, folders under ${cfg.dir}) …`);
   await remote(cfg, prepareScript(cfg));
 
@@ -91,14 +95,16 @@ async function setup(cfg: ServerConfig, newPassword: boolean): Promise<void> {
       if (!hash.startsWith("$2")) throw new Error("could not hash the login password on the server");
     }
   }
+  // The web app's settings first, the stack's last: the stack's file names the proxy without a login, and that
+  // must never be in place before the web app has what makes it ask for one.
+  await writeRemote(cfg, p.webEnv, webEnvText);
+  await writeRemote(cfg, p.workerEnv, workerEnvText);
   await writeRemote(cfg, p.composeEnv, composeEnvText(composeEnv(cfg, hash)));
   // shown as soon as it is stored: if a later step fails, the login is not lost with it
   if (password) {
     console.log(`\nLogin — shown this once, keep it somewhere safe:\n  user      ${cfg.studioUser}\n  password  ${password}`);
     console.log("(npm run server:setup -- --new-password makes a new one.)\n");
   }
-  await writeRemote(cfg, p.webEnv, webEnvText);
-  await writeRemote(cfg, p.workerEnv, workerEnvText);
   console.log("Wrote the stack's settings and the worker's keys.");
 
   if (cfg.backup) {

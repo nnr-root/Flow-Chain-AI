@@ -166,7 +166,7 @@ The studio uses these CLI commands, which also work on their own:
 
 ## Studio on a server
 
-One server runs the studio for you alone, over HTTPS behind one login: a proxy (Caddy), the web app, **one
+One server runs the studio over HTTPS — for you alone behind one login, or with accounts (next section): a proxy (Caddy), the web app, **one
 worker** that takes jobs from a queue (Redis) and runs the CLI for each, and Redis. Jobs wait their turn: two
 generations run at once by default, the rest show their place in line. A job is never retried on its own — a
 failed or interrupted run waits for you to press Resume, so nothing is bought twice.
@@ -201,31 +201,56 @@ your machine: `redis-server` in one terminal, then `REDIS_URL=redis://127.0.0.1:
 With `SUPABASE_URL` set the studio has accounts. Without it, nothing below applies and the studio is the
 single-user app described above.
 
-- **Signing in.** Anyone can create an account with an email address and a password, or with Google; an email
-  address must be confirmed first. Each user sees only their own videos, brand kits and music: everything of
-  anyone else's answers "not found".
+- **Signing in.** Anyone can create an account with an email address and a password, or with Google. Each user
+  sees only their own videos, brand kits and music: everything of anyone else's answers "not found". There is
+  no proxy login and no password from setup in this mode: you sign up like everyone else.
 - **Credit.** Every account has a balance in USD, starting at 0. A paid action holds the amount you approve on
   its button, the worker runs it capped at that amount, and what it did not spend comes back. The account page
   shows the balance and every movement. With too little credit the button says so and nothing starts. You add
-  credit with `npm run studio:grant -- --email <address> --usd 5` (`--usd -2` takes some back).
+  credit with `npm run studio:grant -- --email <address> --usd 5` (`--usd -2` takes some back; it prints which
+  project it acted on). A clip or picture that was sent to a provider is charged even if the job is stopped
+  before it comes back: the provider bills it either way.
 - **Storage.** With `STUDIO_BUCKET` set (a private R2 bucket of its own), every run is copied to the bucket
   after each job and uploads are kept there; the server's disk is a cache. A run untouched for
   `STUDIO_CACHE_DAYS` (14) is removed from the disk and comes back when its owner opens it. A file the disk
   lacks is served by a link to the bucket that is valid for five minutes.
-- **Limits.** One account may have two long jobs waiting or working (`STUDIO_USER_JOBS`); the database allows
-  two paid jobs per account (`max_user_jobs` in its `settings` table).
+- **Limits.** One account may have two long jobs waiting or working (`STUDIO_USER_JOBS`). The database's
+  `settings` table holds the rest: two paid jobs at once per account (`max_user_jobs`), twenty videos a day
+  that are created and never started (`max_unstarted_runs`), fifty brand kits, two hundred tracks.
 
-Once, by hand: create a Supabase project; under Authentication turn on Google (with a Google OAuth client), set
-the site URL to `https://<your studio>` and allow `https://<your studio>/auth/callback` as a redirect; create
-the bucket; put `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL` (the
-connection string) and `STUDIO_BUCKET` in `.env`. Then `npm run db:migrate` creates the tables, and
-`npm run server:setup` deploys: it gives the web app only the public key and the bucket, and the worker alone
-the provider keys and the key that settles credit.
+Once, by hand:
+
+1. Create a Supabase project. Under Authentication keep **Confirm email** on (an address must then be confirmed
+   before its account can sign in) and set up your own SMTP sender before inviting strangers: the built-in one
+   sends only a few emails an hour.
+2. Turn on Google there, with a Google OAuth client whose redirect URI is
+   `https://<project>.supabase.co/auth/v1/callback`. Set the site URL to `https://<your studio>` and allow
+   `https://<your studio>/auth/callback` as a redirect.
+3. Create the bucket.
+4. Put `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL` (the connection
+   string) and `STUDIO_BUCKET` in `.env`.
+
+Then `npm run db:migrate` creates the tables (the Supabase CLI takes the connection string as an argument, so
+it shows in your own machine's process list while it runs), and `npm run server:setup` deploys. Setup gives
+the web app only the project's public key, the bucket and its keys, and the job limit; the worker alone gets
+the provider keys and the key that settles credit; the connection string is sent to neither. When you update
+a server that was set up before accounts existed, run `npm run server:setup` once more (not just
+`server:deploy`): the stack now has to be told which login it has.
 
 How it holds: a signed-in user can talk to the database directly, so the database itself only lets a user read
 their own rows, and every write goes through a function that checks who is calling; settling and granting
 credit can only be done by the worker's key. The worker runs a paid job only when credit is held for exactly
-that job, whoever queued it. Accounts always work through the queue (`REDIS_URL`).
+that job, whoever queued it. Accounts always work through the queue (`REDIS_URL`). A studio that is set up to
+have accounts and finds none configured answers nothing at all, rather than run without a login.
+
+What to know:
+
+- The links in confirmation and reset emails work in the browser that asked for them, not on another device:
+  the studio only accepts links of that kind, because a link that works anywhere could be used to sign someone
+  into another person's account. Email templates changed to the `token_hash` form are not supported.
+- An account that has a history of payments cannot be deleted in the Supabase dashboard: its ledger is kept.
+- The migration file was changed while this phase was built. A database that had it applied before must be
+  reset (`npm run db:reset` for the local one).
 
 To try it on your machine: `npm run db:start` (a local Supabase in Docker), then start Redis, the worker and
 the studio with `SUPABASE_URL`, `SUPABASE_ANON_KEY` (and `SUPABASE_SERVICE_ROLE_KEY` for the worker) from
@@ -238,8 +263,9 @@ the studio with `SUPABASE_URL`, `SUPABASE_ANON_KEY` (and `SUPABASE_SERVICE_ROLE_
 studio and drives it in a browser against fixture runs and a stand-in CLI (run `npx playwright install chromium`
 once); it never reaches a provider. `npm run test:queue` runs the queue and worker against a
 throwaway Redis (needs `redis-server` on the PATH; these tests are skipped without it). `npm run test:stack` builds
-the server's images and drives the whole Compose stack through the proxy's login with the stand-in CLI (needs
-Docker; the first build takes several minutes). The tests of accounts, credit and storage are part of `npm test`
+the server's images and drives the whole Compose stack through the proxy's login with the stand-in CLI, and
+checks the Compose and proxy files of both kinds of deployment (needs Docker; the first build takes several
+minutes). The tests of accounts, credit and storage are part of `npm test`
 and are skipped unless the local Supabase stack is running (`npm run db:start`; storage also needs Docker for
 a stand-in bucket). `npm run test:accounts` drives the studio with accounts in a browser: sign-up, credit, a
 video, and a second user who sees none of it. The RunPod worker's Python tests: `npm run setup:worker` once,

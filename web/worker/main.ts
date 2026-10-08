@@ -19,6 +19,7 @@ try {
     guardTtlMs: number("WORKER_GUARD_TTL_MS"),
     lockMs: number("WORKER_LOCK_MS"),
     reconcileMs: number("WORKER_RECONCILE_MS"),
+    reconcileKnownUsersOnly: process.env.WORKER_RECONCILE_KNOWN_USERS_ONLY === "1",
   });
   const stop = () => {
     void worker.close().then(() => process.exit(0));

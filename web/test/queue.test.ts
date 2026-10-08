@@ -83,7 +83,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     for (const exitCode of [1, 2]) {
       await stub(studio, "_behave.json", { exitCode });
       const id = nextRunId();
-      await startJob(id, "generate", ["resume", id]);
+      await startJob(id, "generate", ["resume", id, "--budget", "1", "--cap", "1"]);
       expect(await ended(id)).toMatchObject({ exitCode });
     }
     await new Promise((r) => setTimeout(r, 1500)); // longer than the worker's stalled-job check in these tests
@@ -95,7 +95,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await stub(studio, "_behave.json", { sleepMs: 1500 });
     await worker();
     const id = nextRunId();
-    const both = await Promise.allSettled([startJob(id, "generate", ["resume", id]), startJob(id, "generate", ["resume", id])]);
+    const both = await Promise.allSettled([startJob(id, "generate", ["resume", id, "--budget", "1", "--cap", "1"]), startJob(id, "generate", ["resume", id, "--budget", "1", "--cap", "1"])]);
     expect(both.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
     expect((both.find((r) => r.status === "rejected") as PromiseRejectedResult).reason).toMatchObject({ code: "job_active" });
     await until(async () => (await state(id)) === "running");
@@ -109,10 +109,10 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await worker({ WORKER_CONCURRENCY: "1" });
     const [a, b, c] = [nextRunId(), nextRunId(), nextRunId()];
     await saveRun(studio, draftManifest(b));
-    await startJob(a, "generate", ["resume", a]);
+    await startJob(a, "generate", ["resume", a, "--budget", "1", "--cap", "1"]);
     await until(async () => (await state(a)) === "running");
-    await startJob(b, "generate", ["resume", b]);
-    await startJob(c, "generate", ["resume", c]);
+    await startJob(b, "generate", ["resume", b, "--budget", "1", "--cap", "1"]);
+    await startJob(c, "generate", ["resume", c, "--budget", "1", "--cap", "1"]);
     expect(await viewJob(b)).toMatchObject({ state: "queued", position: 1, kind: "generate" });
     expect(await viewJob(c)).toMatchObject({ state: "queued", position: 2 });
     expect((await readRun(b)).state).toBe("queued");
@@ -125,12 +125,12 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await worker({ WORKER_CONCURRENCY: "1" });
     const [a, b, c] = [nextRunId(), nextRunId(), nextRunId()];
     await saveRun(studio, draftManifest(c));
-    await startJob(a, "generate", ["resume", a]);
+    await startJob(a, "generate", ["resume", a, "--budget", "1", "--cap", "1"]);
     await until(async () => (await calls(studio)).length === 1);
     await new Promise((r) => setTimeout(r, 500)); // a's CLI has read how to behave by now
     await stub(studio, "_behave.json", {}); // the later jobs end at once
-    await startJob(b, "generate", ["resume", b]);
-    await startJob(c, "generate", ["resume", c]);
+    await startJob(b, "generate", ["resume", b, "--budget", "1", "--cap", "1"]);
+    await startJob(c, "generate", ["resume", c, "--budget", "1", "--cap", "1"]);
 
     /** What a feed of run c reports, as "state" or "queued:<position>", without repeats. */
     const follow = (opts: { pollMs?: number }) => {
@@ -172,9 +172,9 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await stub(studio, "_behave.json", { sleepMs: 30_000 });
     await worker({ WORKER_CONCURRENCY: "1" });
     const [a, b] = [nextRunId(), nextRunId()];
-    await startJob(a, "generate", ["resume", a]);
+    await startJob(a, "generate", ["resume", a, "--budget", "1", "--cap", "1"]);
     await until(async () => (await calls(studio)).length === 1);
-    await startJob(b, "generate", ["resume", b]);
+    await startJob(b, "generate", ["resume", b, "--budget", "1", "--cap", "1"]);
 
     expect((await stopJob(b)).state).toBe("stopped");
     expect(await inRedis(b)).toBe(false);
@@ -199,7 +199,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await stub(studio, "_behave.json", { sleepMs: 30_000 });
     const first = await worker();
     const id = nextRunId();
-    await startJob(id, "generate", ["resume", id]);
+    await startJob(id, "generate", ["resume", id, "--budget", "1", "--cap", "1"]);
     await until(async () => (await calls(studio)).length === 1);
     const { pid } = JSON.parse(await readFile(join(studio.runs, id, JOB_FILE), "utf8"));
     // the container dies: the worker and, with it, the CLI it started; the CLI's lock stays behind
@@ -226,7 +226,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await new Promise((r) => setTimeout(r, 1500));
     expect(await calls(studio)).toHaveLength(1); // not re-run
     // resumable: the user's next action is a new job
-    await startJob(id, "generate", ["resume", id]);
+    await startJob(id, "generate", ["resume", id, "--budget", "1", "--cap", "1"]);
     expect(await ended(id)).toMatchObject({ exitCode: 0 });
   });
 
@@ -234,7 +234,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await stub(studio, "_behave.json", { sleepMs: 1500 });
     await worker();
     const id = nextRunId();
-    await startJob(id, "generate", ["resume", id]);
+    await startJob(id, "generate", ["resume", id, "--budget", "1", "--cap", "1"]);
     await until(async () => (await calls(studio)).length === 1);
     const { pid } = JSON.parse(await readFile(join(studio.runs, id, JOB_FILE), "utf8"));
     // the CLI takes its lock, then dies without a chance to remove it; the worker lives on
@@ -246,7 +246,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     // a lock whose process is alive is never touched: a quick command at work on the run, or a CLI started by hand
     await stub(studio, "_behave.json", {});
     await writeFile(join(studio.runs, id, ".lock"), `${process.pid}\n`);
-    await startJob(id, "generate", ["resume", id]);
+    await startJob(id, "generate", ["resume", id, "--budget", "1", "--cap", "1"]);
     expect(await ended(id)).toMatchObject({ exitCode: 0 });
     expect(await readFile(join(studio.runs, id, ".lock"), "utf8")).toBe(`${process.pid}\n`);
   });
@@ -255,7 +255,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await stub(studio, "_behave.json", { sleepMs: 4000 });
     const w = await worker();
     const id = nextRunId();
-    await startJob(id, "generate", ["resume", id]);
+    await startJob(id, "generate", ["resume", id, "--budget", "1", "--cap", "1"]);
     await until(async () => (await calls(studio)).length === 1);
     const stopping = w.stop();
     workers = [];
@@ -283,7 +283,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await until(async () => (await admin.exists(KEYS.worker)) === 0);
     expect((await studioHealth()).queue).toEqual({ mode: "queue", redis: true, worker: false });
     const id = nextRunId();
-    await expect(startJob(id, "generate", ["resume", id])).rejects.toMatchObject({ code: "worker_offline" });
+    await expect(startJob(id, "generate", ["resume", id, "--budget", "1", "--cap", "1"])).rejects.toMatchObject({ code: "worker_offline" });
     await expect(cliText(["plan", id, "--json"])).rejects.toMatchObject({ code: "worker_offline" });
     // a new video is refused for that reason too, not waved through because no key is known to be missing
     const video = { topic: "t", aspect: "9:16", scenes: 4, style: "auto", motion: "auto", provider: "fal", budgetUsd: 3, captionStyle: "preset", transition: "auto", musicGain: 0.35, sfxGain: 0.6, sfx: true, hook: { mode: "gemini" } };
@@ -303,7 +303,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await stub(studio, "_behave.json", { sleepMs: 1200 });
     const patient = await worker();
     const a = nextRunId();
-    await startJob(a, "generate", ["resume", a]);
+    await startJob(a, "generate", ["resume", a, "--budget", "1", "--cap", "1"]);
     await until(async () => (await calls(studio)).length === 1);
     expect(await patient.stop()).toBe(0);
     workers = [];
@@ -312,7 +312,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await stub(studio, "_behave.json", { sleepMs: 30_000 });
     const hurried = await worker({ WORKER_DRAIN_MS: "300" });
     const b = nextRunId();
-    await startJob(b, "generate", ["resume", b]);
+    await startJob(b, "generate", ["resume", b, "--budget", "1", "--cap", "1"]);
     await until(async () => (await calls(studio)).length === 2);
     expect(await hurried.stop()).toBe(0);
     workers = [];
@@ -325,14 +325,14 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await worker({ WORKER_CONCURRENCY: "1" });
     const [a, b] = [nextRunId(), nextRunId()];
     await mkdir(join(studio.runs, a), { recursive: true });
-    await startJob(a, "generate", ["resume", a]);
+    await startJob(a, "generate", ["resume", a, "--budget", "1", "--cap", "1"]);
     await until(async () => (await calls(studio)).length === 1);
-    await startJob(b, "generate", ["resume", b]);
+    await startJob(b, "generate", ["resume", b, "--budget", "1", "--cap", "1"]);
 
     await redis.stop();
     const c = nextRunId();
     const t0 = Date.now();
-    await expect(startJob(c, "generate", ["resume", c])).rejects.toMatchObject({ code: "queue_unavailable" });
+    await expect(startJob(c, "generate", ["resume", c, "--budget", "1", "--cap", "1"])).rejects.toMatchObject({ code: "queue_unavailable" });
     expect(Date.now() - t0).toBeLessThan(5000);
     expect((await studioHealth()).queue).toEqual({ mode: "queue", redis: false, worker: false });
 
@@ -358,7 +358,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await stub(studio, "_behave.json", { sleepMs: 60_000 });
     const w = await worker({ WORKER_CONCURRENCY: String(slots) });
     const a = nextRunId();
-    await startJob(a, "generate", ["resume", a]);
+    await startJob(a, "generate", ["resume", a, "--budget", "1", "--cap", "1"]);
     await until(async () => (await calls(studio)).length === 1);
 
     // away for longer than the guard (1.5 s) and the queue's lock on the job (1 s): the queue's stall check
@@ -371,7 +371,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
 
     const seen = () => state(a).catch(() => undefined); // the web's connection may still be coming back
     await until(async () => (await seen()) === "running", 30_000);
-    await expect(startJob(a, "generate", ["resume", a])).rejects.toMatchObject({ code: "job_active" });
+    await expect(startJob(a, "generate", ["resume", a, "--budget", "1", "--cap", "1"])).rejects.toMatchObject({ code: "job_active" });
     await stopJob(a);
     await until(async () => (await seen()) === "stopped");
     expect(await inRedis(a)).toBe(false);

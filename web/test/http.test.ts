@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { isAllowedHost, isLoopbackHost } from "@/lib/hosts";
 import { ApiError, body, errorResponse, guard, json, route } from "@/server/http";
+import { request } from "./helpers";
 
 const req = (headers: Record<string, string>, method = "POST") => new Request("http://127.0.0.1:3131/api/x", { method, headers });
 
@@ -128,5 +129,30 @@ describe("responses", () => {
     expect(await body(post("application/json; charset=utf-8", '{"a":1}'))).toEqual({ a: 1 });
     await expect(body(post("text/plain", '{"a":1}'))).rejects.toThrow("send JSON");
     await expect(body(post("application/json", "{nope"))).rejects.toThrow("not valid JSON");
+  });
+});
+
+describe("a studio that is meant to have accounts and has none configured", () => {
+  it("answers nothing at all, the health check included: it would otherwise be open to anyone", async () => {
+    const { GET: ping } = await import("@/app/api/ping/route");
+    const { GET: runs } = await import("@/app/api/runs/route");
+    const { proxy } = await import("@/proxy");
+    const { NextRequest } = await import("next/server");
+    expect((await ping(request("/api/ping"), undefined)).status).toBe(200);
+    process.env.STUDIO_AUTH = "supabase";
+    try {
+      for (const res of [await ping(request("/api/ping"), undefined), await runs(request("/api/runs"), undefined)]) {
+        expect(res.status).toBe(503);
+        expect(await res.text()).toContain("has none configured");
+      }
+      const page = await proxy(new NextRequest("http://127.0.0.1:3131/", { headers: { host: "127.0.0.1:3131" } }));
+      expect(page?.status).toBe(503);
+      // with the proxy's own login in front there is nothing to refuse
+      process.env.STUDIO_AUTH = "proxy";
+      expect((await ping(request("/api/ping"), undefined)).status).toBe(200);
+      expect(await proxy(new NextRequest("http://127.0.0.1:3131/", { headers: { host: "127.0.0.1:3131" } }))).toBeUndefined();
+    } finally {
+      delete process.env.STUDIO_AUTH;
+    }
   });
 });

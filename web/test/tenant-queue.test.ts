@@ -93,6 +93,8 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     const w = startWorkerProcess({
       REDIS_URL: redis.url, FLOWCHAIN_ROOT: studio.root, RUNS_DIR: studio.runs, FLOWCHAIN_CLI: process.env.FLOWCHAIN_CLI!,
       SUPABASE_URL: s.url, SUPABASE_ANON_KEY: s.anonKey, SUPABASE_SERVICE_ROLE_KEY: s.serviceKey, WORKER_RECONCILE_MS: "1000",
+      // other test files use the same database at the same time: this worker leaves their users' credit alone
+      WORKER_RECONCILE_KNOWN_USERS_ONLY: "1",
       GEMINI_API_KEY: "g", ELEVENLABS_API_KEY: "e", ELEVENLABS_VOICE_ID: "v", FAL_KEY: "f", ...bucket?.env, ...env,
     });
     workers.push(w);
@@ -191,6 +193,8 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
         job({ reservationId: aReservation, userId: undefined }, "0.5"), // nobody's job
         // "free" by its kind, spending by its command: the kind is not taken on trust
         job({ kind: "rerender" }, "100"),
+        // no kind at all
+        job({ kind: undefined }, "100"),
         // the cap the credit was held for, and after it the one a command line would really use
         { ...job({ reservationId: aReservation }, "0.5"), args: ["resume", id, "--budget", "0.5", "--cap", "0.5", "--cap", "500"] },
       ]) {
@@ -251,6 +255,27 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     await until(async () => (await openReservations()) === 0);
     // the script the run already had, and the clip the provider will bill for: 1 − 0.0055 − 0.2
     expect(await balance(a)).toBe(0.7945);
+  });
+
+  it("keeps charging for jobs that were submitted and then given up: a second stopped reroll is not free", async () => {
+    await worker();
+    await grant(a, 2);
+    const id = await ownRun(a);
+    await priced(a, 0.5);
+    const stopAfterSubmit = async (pendingUsd: number, abandonedUsd?: number) => {
+      // the stand-in CLI does what the pipeline does when a new job replaces one in flight: the old one's cost is kept
+      await behave(a, { pendingUsd, abandonedUsd, sleepMs: 30_000 });
+      const before = (await jobCalls(a)).length;
+      expect((await generate(as(aCookie, `/api/runs/${id}/generate`, { json: { approvedUsd: 0.5 } }), params({ id }))).status).toBe(202);
+      await until(async () => (await jobCalls(a)).length === before + 1);
+      await until(async () => JSON.parse(await readFile(join(folder(a), id, "manifest.json"), "utf8")).scenes[0].jobs?.clips?.expectedUsd === pendingUsd);
+      expect((await stop(as(aCookie, `/api/runs/${id}/job`, { method: "DELETE" }), params({ id }))).status).toBe(200);
+      await until(async () => (await openReservations()) === 0);
+    };
+    await stopAfterSubmit(0.2);
+    expect(await balance(a)).toBe(1.7945); // 2 − script 0.0055 − the first clip 0.20
+    await stopAfterSubmit(0.2, 0.2);
+    expect(await balance(a)).toBe(1.5945); // and the second one too
   });
 
   it("gives credit back at once when the job it was held for could not be queued, and only to its owner", async () => {

@@ -69,7 +69,9 @@ export async function readRun(runId: string): Promise<RunView> {
   runDir(runId);
   const job = await viewJob(runId);
   let manifest = await readManifest(runId);
-  if (!manifest && !job && (await bringBack(runId))) manifest = await readManifest(runId);
+  // no manifest and nothing at work on the run: it may be a run that is kept in the bucket and is not (or not
+  // wholly) on this disk — an old job record from a restore that was cut off does not make it a run
+  if (!manifest && job?.state !== "running" && job?.state !== "queued" && (await bringBack(runId))) manifest = await readManifest(runId);
   if (!manifest && !job) throw new ApiError("not_found", `no run ${runId}`);
   const staleLock = await runner().staleLock(runId, job);
   return { runId, state: stateOf(manifest, job), job, staleLock, ...(manifest ? { status: statusOf(manifest) } : {}) };

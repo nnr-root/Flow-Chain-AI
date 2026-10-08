@@ -97,11 +97,37 @@ describe("a studio with accounts", () => {
     const cfg = serverConfig(base, supabase);
     expect(composeEnv(cfg)).toEqual({
       STUDIO_HOST: "studio.example.com",
+      // one word for the proxy's file and for what the web app insists on
+      STUDIO_AUTH: "supabase",
       CADDYFILE: "Caddyfile.accounts",
       DATA_DIR: "/opt/flowchain/data",
       WORKER_ENV_FILE: "/opt/flowchain/worker.env",
       WEB_ENV_FILE: "/opt/flowchain/web.env",
     });
+  });
+
+  it("keeps the keys to the database itself on the owner's machine: neither container gets them", () => {
+    const cfg = serverConfig(base, { ...supabase, SUPABASE_DB_URL: "postgresql://postgres:secret@db.abc.supabase.co:5432/postgres", SUPABASE_DB_PASSWORD: "secret", SUPABASE_ACCESS_TOKEN: "sbp_x" });
+    for (const name of ["SUPABASE_DB_URL", "SUPABASE_DB_PASSWORD", "SUPABASE_ACCESS_TOKEN"]) {
+      expect(cfg.worker).not.toHaveProperty(name);
+      expect(cfg.web).not.toHaveProperty(name);
+    }
+  });
+
+  it("gives the web app the bucket's own keys where it has them, not the pipeline's as well", () => {
+    const cfg = serverConfig(base, { ...supabase, ...r2, STUDIO_BUCKET: "studio", STUDIO_R2_ACCESS_KEY_ID: "own-id", STUDIO_R2_SECRET_ACCESS_KEY: "own-secret" });
+    expect(cfg.web).toMatchObject({ STUDIO_R2_ACCESS_KEY_ID: "own-id", STUDIO_R2_SECRET_ACCESS_KEY: "own-secret", R2_ACCOUNT_ID: "acc" });
+    expect(cfg.web).not.toHaveProperty("R2_ACCESS_KEY_ID");
+    expect(cfg.web).not.toHaveProperty("R2_SECRET_ACCESS_KEY");
+    // the worker still has the pipeline's own
+    expect(cfg.worker).toMatchObject({ R2_ACCESS_KEY_ID: "id", R2_SECRET_ACCESS_KEY: "secret" });
+  });
+
+  it("turns accounts off on the server alone when server.env sets the project's address to nothing", () => {
+    const cfg = serverConfig({ ...base, SUPABASE_URL: "" }, supabase);
+    expect(cfg.accounts).toBe(false);
+    expect(cfg.web).toEqual({});
+    expect(composeEnv(cfg, "$2a$14$hash")).toMatchObject({ STUDIO_AUTH: "proxy", CADDYFILE: "Caddyfile" });
   });
 
   it("refuses half a project: both of its keys or none", () => {
@@ -119,6 +145,7 @@ describe("the files written on the server", () => {
     const values = composeEnv(cfg, hash);
     expect(values).toEqual({
       STUDIO_HOST: "studio.example.com",
+      STUDIO_AUTH: "proxy",
       CADDYFILE: "Caddyfile",
       STUDIO_USER: "studio",
       STUDIO_PASSWORD_HASH: hash,

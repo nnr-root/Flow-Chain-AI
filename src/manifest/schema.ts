@@ -125,6 +125,12 @@ export const SceneState = z.object({
   nonces: z.partialRecord(StageName, z.number().int()).default({}),
   stages: z.partialRecord(StageName, StageRecord).default({}),
   jobs: z.partialRecord(StageName, ProviderJob).default({}),
+  /**
+   * The expected cost of provider jobs that were submitted for this scene and then given up for a new one
+   * before they were collected (a reroll while a job was in flight). The provider bills them all the same, and
+   * their records are gone from `jobs`, so their cost is kept here. Absent on older runs and on most scenes.
+   */
+  abandonedUsd: z.number().optional(),
   tts: z.object({ raw: z.string(), words: z.array(WordTiming) }).optional(),
   audio: z
     .object({ path: z.string(), duration: z.number(), words: z.array(WordTiming), removedSec: z.number() })

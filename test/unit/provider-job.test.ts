@@ -157,6 +157,50 @@ describe("runProviderJob charges", () => {
     expect(polls).toBe(1); // unusable results are not retried
     expect(charges).toEqual([0]); // not the 0.25 estimate
     expect(run.manifest.scenes[0].jobs.clips).toMatchObject({ requestId: "req-1", chargedUsd: 0 });
+    // it is over at no cost: nothing is expected of it any more
+    expect(run.manifest.scenes[0].jobs.clips?.expectedUsd).toBeUndefined();
     expect((await loadManifest(run.dir)).scenes[0].nonces.tts).toBe(9);
+  });
+});
+
+describe("runProviderJob keeps track of what a provider will bill", () => {
+  const stuck = (requestId: string) =>
+    spec({
+      submit: async () => requestId,
+      wait: async () => {
+        throw new Error("still running");
+      },
+      waitMs: 1,
+    });
+
+  it("records a submitted job's expected cost before waiting for it", async () => {
+    const { run, charges } = await runContext();
+    run.retryDelayMs = 1;
+    await expect(runProviderJob(run, 0, "clips", stuck("req-1"))).rejects.toThrow(/request req-1 is kept/);
+    expect(charges).toEqual([]);
+    expect((await loadManifest(run.dir)).scenes[0].jobs.clips).toMatchObject({ requestId: "req-1", expectedUsd: 0.25, chargedUsd: 0 });
+  });
+
+  it("keeps the cost of a job that is given up for a new one while in flight (a reroll): it is billed all the same", async () => {
+    const { run } = await runContext();
+    run.retryDelayMs = 1;
+    await expect(runProviderJob(run, 0, "clips", stuck("req-1"))).rejects.toThrow();
+    // a reroll: new inputs, so a new job is submitted and the old record is replaced
+    const rerolled = { ...run, inputHash: "h2" };
+    await expect(runProviderJob(rerolled, 0, "clips", stuck("req-2"))).rejects.toThrow();
+    let saved = (await loadManifest(run.dir)).scenes[0];
+    expect(saved.jobs.clips).toMatchObject({ requestId: "req-2", expectedUsd: 0.25 });
+    expect(saved.abandonedUsd).toBe(0.25);
+    // and again: both abandoned jobs stay on record
+    await expect(runProviderJob({ ...run, inputHash: "h3" }, 0, "clips", stuck("req-3"))).rejects.toThrow();
+    saved = (await loadManifest(run.dir)).scenes[0];
+    expect(saved.abandonedUsd).toBe(0.5);
+
+    // a job that was collected and charged is not "abandoned" when a later reroll replaces it
+    const done = { ...run, inputHash: "h4" };
+    await runProviderJob(done, 0, "clips", spec({ submit: async () => "req-4" }));
+    await expect(runProviderJob({ ...run, inputHash: "h5" }, 0, "clips", stuck("req-5"))).rejects.toThrow();
+    // req-3 was given up for req-4 (+0.25); req-4 itself was paid for and adds nothing
+    expect((await loadManifest(run.dir)).scenes[0].abandonedUsd).toBe(0.75);
   });
 });

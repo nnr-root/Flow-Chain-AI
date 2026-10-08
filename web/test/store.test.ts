@@ -118,6 +118,23 @@ describe.skipIf(!hasDocker())("store and restore against an S3-compatible store"
     expect(existsSync(join(dir, "manifest.json"))).toBe(true);
   });
 
+  it("sends the manifest last too, so the bucket's copy never has it before the files it speaks of", async () => {
+    const dir = await folder("sent", { "manifest.json": "{}", "a.wav": "1", "zz.mp4": "2", "brand.json": "{}" });
+    const prefix = keys.run(USER, "20261007-120000-abc134");
+    const recording = new ObjectStore(minio.settings);
+    const real = recording.putFile.bind(recording);
+    const order: string[] = [];
+    recording.putFile = async (key, path) => {
+      order.push(key.slice(prefix.length));
+      if (key.endsWith("zz.mp4")) throw new Error("the connection dropped");
+      return real(key, path);
+    };
+    await expect(storeFolder(recording, dir, prefix)).rejects.toThrow("the connection dropped");
+    expect(order).toEqual(["a.wav", "zz.mp4"]);
+    expect((await store.list(prefix)).map((o) => o.key.slice(prefix.length))).toEqual(["a.wav"]);
+    expect(await storeFolder(store, dir, prefix)).toBe(3);
+  });
+
   it("runs one restore of a folder at a time: a second asker gets the first one's result", async () => {
     const dir = await folder("twice", { "manifest.json": "{}", "final.mp4": Buffer.alloc(500_000, 3) });
     const prefix = keys.run(USER, "20261007-120000-abc132");

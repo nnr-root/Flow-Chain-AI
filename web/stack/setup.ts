@@ -52,19 +52,20 @@ async function up(): Promise<void> {
       `WORKER_ENV_FILE=${join(data, "worker.env")}`,
       `WEB_ENV_FILE=${join(data, "web.env")}`,
       "CADDYFILE=Caddyfile",
+      "STUDIO_AUTH=proxy",
       `STACK_PORT=${PORT}`,
       "",
     ].join("\n"),
   );
   // the files as a server gets them: a host name (so a certificate would be asked for), no test overrides
-  const production = { ...composeEnv(), STUDIO_HOST: "studio.example.com", STUDIO_USER: USER, STUDIO_PASSWORD_HASH: hash, WORKER_ENV_FILE: join(data, "worker.env"), WEB_ENV_FILE: join(data, "web.env"), CADDYFILE: "Caddyfile" };
+  const production = { ...composeEnv(), STUDIO_HOST: "studio.example.com", STUDIO_USER: USER, STUDIO_PASSWORD_HASH: hash, WORKER_ENV_FILE: join(data, "worker.env"), WEB_ENV_FILE: join(data, "web.env"), CADDYFILE: "Caddyfile", STUDIO_AUTH: "proxy" };
   execFileSync("docker", ["compose", "-f", join(repo, "deploy/compose.yaml"), "config", "--quiet"], { cwd: repo, env: production, stdio: ["ignore", "inherit", "inherit"] });
   sh("docker", ["run", "--rm", "-e", "STUDIO_SITE=studio.example.com", "-e", `STUDIO_USER=${USER}`, "-e", `STUDIO_PASSWORD_HASH=${hash}`,
     "-v", `${join(repo, "deploy/Caddyfile")}:/etc/caddy/Caddyfile:ro`, "caddy:2", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]);
   // and as a server with accounts gets them: the other proxy file, no proxy login
   execFileSync("docker", ["compose", "-f", join(repo, "deploy/compose.yaml"), "config", "--quiet"], {
     cwd: repo, stdio: ["ignore", "inherit", "inherit"],
-    env: { ...composeEnv(), STUDIO_HOST: "studio.example.com", WORKER_ENV_FILE: join(data, "worker.env"), WEB_ENV_FILE: join(data, "web.env"), CADDYFILE: "Caddyfile.accounts" },
+    env: { ...composeEnv(), STUDIO_HOST: "studio.example.com", WORKER_ENV_FILE: join(data, "worker.env"), WEB_ENV_FILE: join(data, "web.env"), CADDYFILE: "Caddyfile.accounts", STUDIO_AUTH: "supabase" },
   });
   sh("docker", ["run", "--rm", "-e", "STUDIO_SITE=studio.example.com",
     "-v", `${join(repo, "deploy/Caddyfile.accounts")}:/etc/caddy/Caddyfile:ro`, "caddy:2", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]);
