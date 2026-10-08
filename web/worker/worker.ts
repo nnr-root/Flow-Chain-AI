@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { type Job as QueueJob, Queue, Worker } from "bullmq";
 import type { Redis } from "ioredis";
 import { RUN_ID } from "@src/studio/commands";
+import { DRAFT_CAP_USD } from "../lib/credit";
 import { multiTenant } from "../lib/supabase/settings";
 import { baseRoots, health, roots } from "../server/config";
 import {
@@ -16,7 +17,7 @@ import { readManifest, stateOf } from "../server/runs";
 import { objectStore } from "../server/store/s3";
 import { cleanCache, isStored, keys, restoreFolder, storeFolder } from "../server/store/sync";
 import { inScope, UUID } from "../server/tenant";
-import { spendOf, tenantDb } from "./tenant";
+import { type Reservation, spendOf, tenantDb } from "./tenant";
 
 export type WorkerOptions = {
   redisUrl: string;
@@ -33,8 +34,6 @@ export type WorkerOptions = {
   log?: (message: string) => void;
 };
 
-/** What a draft may cost at most; its reservation must hold exactly this (see `web/server/credit.ts`). */
-const DRAFT_CAP_USD = 0.02;
 const PAID = new Set(["draft", "generate", "reroll"]);
 
 /** Thrown when another worker already holds the guard. */
@@ -216,7 +215,10 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   const storeRun = async (userId: string, runId: string): Promise<void> => {
     if (!db || !bucket) return;
     try {
-      const sent = await storeFolder(bucket, runFolder(runId), keys.run(userId, runId));
+      const dir = runFolder(runId);
+      // nothing to keep yet: a run without a manifest is not recorded as stored
+      if (!existsSync(join(dir, "manifest.json"))) return;
+      const sent = await storeFolder(bucket, dir, keys.run(userId, runId));
       await db.setRunState(runId, null, new Date().toISOString());
       unstored.delete(`${userId}/${runId}`);
       if (sent > 0) log(`worker: stored ${sent} file(s) of ${runId}`);
@@ -230,16 +232,39 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   const bringLocal = async (data: RunJobData): Promise<void> => {
     if (!bucket || !data.userId) return;
     const dir = runFolder(data.runId);
+    // A run folder has its manifest only once it has everything else (a restore fetches it last), so a manifest
+    // here means the run is whole. Without one the run must come from the bucket, and if it cannot, the job does
+    // not start: the pipeline would take what is missing for work to be done, and paid for, again.
     if (data.kind !== "draft" && !existsSync(join(dir, "manifest.json"))) await restoreFolder(bucket, keys.run(data.userId, data.runId), dir);
-    await restoreFolder(bucket, keys.brandKits(data.userId), roots().brandKits);
-    await restoreFolder(bucket, keys.music(data.userId), roots().uploads);
+    // kits and tracks are a convenience here: with the bucket away a job that needs none of them still runs
+    for (const [prefix, to] of [[keys.brandKits(data.userId), roots().brandKits], [keys.music(data.userId), roots().uploads]] as const) {
+      await restoreFolder(bucket, prefix, to).catch((err: Error) => log(`worker: could not fetch ${prefix} (${err.message}); carrying on with what is on disk`));
+    }
+  };
+
+  /**
+   * What to settle a reservation at, or undefined when that cannot be said yet (the reservation then stays open).
+   * A run without a manifest has spent nothing only if nothing was ever charged for it; a run that was charged
+   * before and has no manifest here is on the wrong disk, and returning its credit would be a gift.
+   */
+  const unsettleable = new Set<string>();
+  const settleAt = async (runId: string, dir: string): Promise<number | undefined> => {
+    const total = spendOf(dir);
+    if (total !== null) return total;
+    if (!db || (await db.chargedFor(runId)) > 0) {
+      // said once per run, not at every pass
+      if (!unsettleable.has(runId)) log(`worker: ${runId} was charged before but has no manifest on this disk; its credit stays held`);
+      unsettleable.add(runId);
+      return undefined;
+    }
+    return 0;
   };
 
   /** After a job, however it ended: charge what the run really spent and record how the run stands. */
   const account = async (data: Pick<RunJobData, "runId" | "reservationId">, dir: string, job: JobView | null): Promise<void> => {
     if (!db) return;
     try {
-      const total = spendOf(dir);
+      const total = data.reservationId ? await settleAt(data.runId, dir) : undefined;
       if (data.reservationId && total !== undefined) {
         const charged = await db.settle(data.reservationId, total);
         log(`worker: ${data.runId} settled at $${charged.toFixed(4)}`);
@@ -251,19 +276,41 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     }
   };
 
+  /**
+   * Settles a reservation whose run has no job: neither waiting nor being worked on here. This worker runs every
+   * job there is, so such a reservation belongs to nothing that could still spend.
+   */
+  const settleIdle = async (r: Reservation): Promise<boolean> => {
+    if (!db || !UUID.test(r.user_id)) return false;
+    if (active.has(r.run_id) || starting.has(r.run_id) || (await line.getJob(r.run_id))) return false;
+    return inScope({ user: { id: r.user_id, email: "" } }, async () => {
+      const dir = runFolder(r.run_id);
+      const total = await settleAt(r.run_id, dir);
+      if (total === undefined) return false;
+      const charged = await db.settle(r.id, total);
+      log(`worker: settled the credit held for ${r.run_id}, which has no job: $${charged.toFixed(4)} of $${r.cap_usd.toFixed(4)}`);
+      const record = readJobRecord(dir);
+      const code = exitCodeOf(dir);
+      const job: JobView | null = !record ? null : code !== undefined ? { ...record, state: "ended", exitCode: code } : { ...record, state: record.stoppedAt ? "stopped" : "interrupted" };
+      await db.setRunState(r.run_id, stateOf(await readManifest(r.run_id).catch(() => null), job));
+      return true;
+    });
+  };
+
   const runJob = (job: QueueJob<RunJobData>): Promise<RunJobResult> => asUser(job.data.userId, async () => {
     const { runId, kind, args, approvedUsd } = job.data;
     const dir = runFolder(runId);
-    const refused = refusal("runs", args, runId);
+    const refused = refusal("runs", args, runId, kind);
     if (refused) throw new Error(refused);
-    await checkReservation(job.data);
-    await bringLocal(job.data);
     // After a long Redis outage the queue can lose track of a job whose CLI is still working and hand the run
     // out again. One CLI per run, whatever the queue believes.
     if (active.has(runId) || starting.has(runId)) throw new Error(`run ${runId} is still being worked on by this worker`);
+    // from here the run counts as being worked on: nothing else may settle its credit or touch its folder
     starting.add(runId);
     let started: { job: Job; child: ChildProcess };
     try {
+      await checkReservation(job.data);
+      await bringLocal(job.data);
       await clearDeadLock(dir);
       started = await spawnCli(runId, kind, args, approvedUsd);
     } catch (err) {
@@ -303,7 +350,18 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       // a run its owner opened that this disk does not hold
       const { userId, runId } = job.data;
       if (!bucket || !userId || !runId) throw new Error("nothing to restore from");
+      // a run that is being worked on is on this disk already, and newer than anything stored
+      if (active.has(runId) || starting.has(runId)) return { stdout: "0" };
       return asUser(userId, async () => ({ stdout: String(await restoreFolder(bucket, keys.run(userId, runId), runFolder(runId))) }));
+    }
+    if (job.name === "release") {
+      // the web held credit for a job it then could not queue: give it back now rather than at the next reconcile
+      const { runId } = job.data;
+      if (!db || !runId) return { stdout: "" };
+      const held = await db.openReservationFor(runId);
+      // only the owner's own reservation, and (in settleIdle) only when the run really has no job
+      const done = held && held.user_id === job.data.userId ? await settleIdle(held) : false;
+      return { stdout: done ? "released" : "" };
     }
     const refused = refusal("quick", job.data.args);
     if (refused) throw new Error(refused);
@@ -324,21 +382,7 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     if (!db || reconciling) return;
     reconciling = true;
     try {
-      for (const r of await db.openReservations(reconcileMs)) {
-        if (active.has(r.run_id) || starting.has(r.run_id) || (await line.getJob(r.run_id))) continue;
-        if (!UUID.test(r.user_id)) continue;
-        await inScope({ user: { id: r.user_id, email: "" } }, async () => {
-          const dir = runFolder(r.run_id);
-          const total = spendOf(dir);
-          if (total === undefined) return;
-          const charged = await db.settle(r.id, total);
-          log(`worker: settled the credit held for ${r.run_id}, which has no job: $${charged.toFixed(4)} of $${r.cap_usd.toFixed(4)}`);
-          const record = readJobRecord(dir);
-          const code = exitCodeOf(dir);
-          const job: JobView | null = !record ? null : code !== undefined ? { ...record, state: "ended", exitCode: code } : { ...record, state: record.stoppedAt ? "stopped" : "interrupted" };
-          await db.setRunState(r.run_id, stateOf(await readManifest(r.run_id).catch(() => null), job));
-        });
-      }
+      for (const r of await db.openReservations(reconcileMs)) await settleIdle(r);
       // stores that failed while the bucket was away
       for (const entry of [...unstored]) {
         const [userId, runId] = entry.split("/");
@@ -367,7 +411,7 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   const clean = async (): Promise<void> => {
     if (!bucket) return;
     try {
-      const removed = await cleanCache(baseRoots().runs, cacheDays);
+      const removed = await cleanCache(baseRoots().runs, cacheDays, Date.now(), (runId) => active.has(runId) || starting.has(runId));
       if (removed.length > 0) log(`worker: freed the disk of ${removed.length} stored run(s) untouched for ${cacheDays} days`);
     } catch (err) {
       log(`worker: could not clean the disk: ${err instanceof Error ? err.message : String(err)}`);

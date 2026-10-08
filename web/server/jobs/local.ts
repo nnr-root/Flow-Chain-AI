@@ -89,6 +89,8 @@ export const localRunner: JobRunner = {
   },
 
   async restore() {},
+  async ready() {},
+  async release() {},
 
   async staleLock(runId, job) {
     return hasStaleLock(runFolder(runId), job);

@@ -54,4 +54,11 @@ export interface JobRunner {
   clearStaleLock(runId: string): Promise<void>;
   /** Brings a run's folder back from the bucket (a studio with accounts); nothing to do where runs only live on disk. */
   restore(runId: string): Promise<void>;
+  /**
+   * Whether a job for this run could be started right now (the worker is there, the run has no job, the user
+   * has room in line). Asked before credit is held, so that what can be known beforehand does not hold it.
+   */
+  ready(runId: string): Promise<void>;
+  /** Credit was held for a job that then could not be queued: has it given back at once. Never throws. */
+  release(runId: string): Promise<void>;
 }

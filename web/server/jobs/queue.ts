@@ -148,6 +148,21 @@ function own<T extends { data: { userId?: string } }>(q: T | undefined): T | und
   return q && me !== undefined && q.data.userId !== me ? undefined : q;
 }
 
+const taken = (runId: string) => new ApiError("job_active", `run ${runId} is already queued or working`, "wait for it to finish, or stop it first");
+
+/** What must hold before a job for `runId` goes in line: a worker, no job of the run, room for the user. */
+async function admit(e: Ends, runId: string): Promise<void> {
+  await requireWorker(e.redis);
+  if ((await heldByWorker(e.redis, runId)) || (await e.runs.getJob(runId))) throw taken(runId);
+  const userId = currentUser()?.id;
+  if (!userId) return;
+  // one account cannot fill the line: free jobs count here, paid ones are also limited where credit is held
+  const inLine = [...(await e.runs.getWaiting()), ...(await e.runs.getActive())].filter((j) => j.data.userId === userId).length;
+  if (inLine >= userJobLimit()) {
+    throw new ApiError("too_many_jobs", "you already have as many jobs waiting or working as one account may have", "wait for one to finish");
+  }
+}
+
 /** Where a waiting job stands: 1 is next. */
 async function position(runs: Queue<RunJobData>, runId: string): Promise<number> {
   // the waiting list is in the order the worker will take the jobs
@@ -204,24 +219,15 @@ export function queueRunner(url: string): JobRunner {
       reach(async () => {
         runFolder(runId);
         const e = await ends(url);
-        await requireWorker(e.redis);
-        const taken = () => new ApiError("job_active", `run ${runId} is already queued or working`, "wait for it to finish, or stop it first");
-        if ((await heldByWorker(e.redis, runId)) || (await e.runs.getJob(runId))) throw taken();
+        await admit(e, runId);
         const userId = currentUser()?.id;
-        if (userId) {
-          // one account cannot fill the line: free jobs count here, paid ones are also limited where credit is held
-          const mine = [...(await e.runs.getWaiting()), ...(await e.runs.getActive())].filter((j) => j.data.userId === userId).length;
-          if (mine >= userJobLimit()) {
-            throw new ApiError("too_many_jobs", "you already have as many jobs waiting or working as one account may have", "wait for one to finish");
-          }
-        }
         const token = randomUUID();
         const data: RunJobData = { runId, kind, args, approvedUsd, enqueuedAt: new Date().toISOString(), token, ...(userId ? { userId } : {}), ...(opts?.reservationId ? { reservationId: opts.reservationId } : {}) };
         const added = await e.runs.add(kind, data, { ...JOB_OPTIONS, jobId: runId });
         // Two requests at once: the queue keeps the first job for an id and quietly ignores the second `add`, so
         // only the stored job says whose it is. (Already gone means it ran to its end in the meantime.)
         const stored = await e.runs.getJob(runId);
-        if (stored && stored.data.token !== token) throw taken();
+        if (stored && stored.data.token !== token) throw taken(runId);
         return (await view(e, runId)) ?? { ...fromQueue(added), state: "queued", position: 1 };
       }),
 
@@ -303,6 +309,23 @@ export function queueRunner(url: string): JobRunner {
       return { ...e.health.value, queue: { mode: "queue", redis: true, worker: true } };
     },
 
+    ready: (runId) =>
+      reach(async () => {
+        runFolder(runId);
+        await admit(await ends(url), runId);
+      }),
+
+    async release(runId) {
+      try {
+        const userId = currentUser()?.id;
+        if (!userId) return;
+        const e = await ends(url);
+        await ask(e, "release", { args: [], userId, runId }, 10_000);
+      } catch {
+        // the worker's regular pass gives the credit back within a minute or two
+      }
+    },
+
     restore: (runId) =>
       reach(async () => {
         runFolder(runId);
@@ -313,7 +336,8 @@ export function queueRunner(url: string): JobRunner {
         try {
           await ask(e, "restore", { args: [], userId, runId }, QUICK_WAIT_MS);
         } catch (err) {
-          throw new ApiError("storage_unavailable", "the run could not be brought back from storage", err instanceof Error ? err.message : String(err));
+          console.error("restore:", err instanceof Error ? err.message : String(err));
+          throw new ApiError("storage_unavailable", "the run could not be brought back from storage", "try again in a moment");
         }
       }),
 

@@ -31,7 +31,9 @@ export function safeNext(next: string | null | undefined): string {
   if (next.includes("\\") || !URL.canParse(next, "http://studio.invalid")) return "/";
   const url = new URL(next, "http://studio.invalid");
   if (url.origin !== "http://studio.invalid") return "/";
-  return url.pathname + url.search;
+  // "/a/..//other.site" keeps the origin here and still comes out as "//other.site": a path to another site
+  const path = url.pathname + url.search;
+  return path.startsWith("//") ? "/" : path;
 }
 
 /**
@@ -40,7 +42,6 @@ export function safeNext(next: string | null | undefined): string {
  */
 export const LINK_ERRORS = {
   link: "That link is no longer valid. Sign in, or ask for a new one.",
-  "signed-in": "You are already signed in. Sign out first to use that link.",
   incomplete: "Sign-in was not completed.",
 } as const;
 export const linkError = (code: string | null | undefined): string => (code && Object.hasOwn(LINK_ERRORS, code) ? LINK_ERRORS[code as keyof typeof LINK_ERRORS] : "");

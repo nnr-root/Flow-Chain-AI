@@ -31,6 +31,13 @@ if (command === "plan") {
   const behave = readJson("_behave.json", {});
   // which of the server's own secrets reached this process (none should)
   if (behave.envNames) writeFileSync(join(runs, "_env.json"), JSON.stringify(Object.keys(process.env).filter((name) => /^SUPABASE_/.test(name))));
+  // "submits" a provider job and then waits for it: stopped here, the job is submitted and never collected
+  if (behave.pendingUsd && existsSync(join(runs, args[1], "manifest.json"))) {
+    const file = join(runs, args[1], "manifest.json");
+    const manifest = JSON.parse(readFileSync(file, "utf8"));
+    manifest.scenes[0].jobs = { ...manifest.scenes[0].jobs, clips: { requestId: "stub-request", inputHash: "stub", submittedAt: new Date().toISOString(), expectedUsd: behave.pendingUsd, chargedUsd: 0 } };
+    writeFileSync(file, JSON.stringify(manifest));
+  }
   if (behave.sleepMs) await new Promise((done) => setTimeout(done, behave.sleepMs));
   // "buys" something: the run's manifest records the spend, as the real pipeline's ledger does
   if (behave.spendUsd && existsSync(join(runs, args[1], "manifest.json"))) {

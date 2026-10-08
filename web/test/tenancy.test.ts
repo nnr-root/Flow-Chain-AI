@@ -57,6 +57,8 @@ describe("where a visitor may be sent after signing in", () => {
       expect(safeNext(smuggled), JSON.stringify(smuggled)).toBe("/");
     }
     expect(safeNext("/runs/../account")).toBe("/account");
+    // a path that only becomes another site's address once it is tidied up
+    for (const tidied of ["/a/..//evil.example", "/.//evil.example", "/x/../..//evil.example/path"]) expect(safeNext(tidied), tidied).toBe("/");
     expect(linkError("link")).toMatch(/no longer valid/);
     // only our own words are ever shown for a link that failed, never text from the address
     for (const text of ["Your account is locked, call 555-0100", "constructor", "", undefined]) expect(linkError(text)).toBe("");
@@ -170,11 +172,13 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
     // whatever an address claims went wrong is not carried onto our page
     const claimed = await callback(request("/auth/callback?error_description=Call+555-0100+to+unlock+your+account"), undefined);
     expect(claimed.headers.get("location")).toBe("http://127.0.0.1:3131/login?error=incomplete");
-    // a link from an email never replaces the session of someone who is signed in (it could be anybody's link)
-    const switched = await callback(as(aCookie, "/auth/callback?token_hash=abc&type=recovery"), undefined);
-    expect(switched.headers.get("location")).toBe("http://127.0.0.1:3131/login?error=signed-in");
-    expect(switched.headers.getSetCookie()).toEqual([]);
-    expect((await callback(request("/auth/callback?token_hash=abc&type=whatever"), undefined)).headers.get("location")).toBe("http://127.0.0.1:3131/login?error=incomplete");
+    // A token link works in any browser, so it could be sent to someone to sign them into the sender's account:
+    // only codes are taken (a code needs the cookie of the browser that asked for it).
+    for (const who of [request, (path: string) => as(aCookie, path)]) {
+      const token = await callback(who("/auth/callback?token_hash=abc&type=recovery"), undefined);
+      expect(token.headers.get("location")).toBe("http://127.0.0.1:3131/login?error=incomplete");
+      expect(cookiesFrom(token)).not.toMatch(/auth-token(\.\d+)?=/);
+    }
 
     // on a server the links in emails are built from the configured name, never from what a request claims
     process.env.STUDIO_HOST = "studio.example.com";

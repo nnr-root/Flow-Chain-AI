@@ -97,12 +97,14 @@ export function cliCommand(args: string[]): { cmd: string; argv: string[] } {
 /**
  * The environment the CLI runs in: this process's own, without what Next sets for itself (`NODE_ENV`,
  * `NODE_OPTIONS`, `NEXT_*`, `__NEXT_*`), which would change how the CLI and its renderer behave, and without
- * the database's keys (`SUPABASE_*`): the CLI makes videos and has no business with accounts or credit.
+ * what is the server's own (`SUPABASE_*`, `REDIS_URL`, `WORKER_*`): the CLI makes videos and has no business
+ * with accounts, credit or the queue.
  */
 export function childEnv(): NodeJS.ProcessEnv {
   const env: Record<string, string | undefined> = {};
   for (const [name, value] of Object.entries(process.env)) {
-    if (name === "NODE_ENV" || name === "NODE_OPTIONS" || name.startsWith("NEXT_") || name.startsWith("__NEXT_") || name.startsWith("SUPABASE_")) continue;
+    if (name === "NODE_ENV" || name === "NODE_OPTIONS" || name.startsWith("NEXT_") || name.startsWith("__NEXT_")) continue;
+    if (name.startsWith("SUPABASE_") || name.startsWith("WORKER_") || name === "REDIS_URL") continue;
     env[name] = value;
   }
   env.RUNS_DIR = roots().runs;

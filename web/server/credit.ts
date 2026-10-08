@@ -4,15 +4,14 @@ import { userDb } from "./tenant";
 
 /* Credit, as the web sees it: it can hold a user's own credit for a job, through the user's own session. Settling is the worker's. */
 
-/** What a draft may cost at most (the script is about $0.006). The worker checks a draft's reservation against this. */
-export const DRAFT_CAP_USD = 0.02;
+export { DRAFT_CAP_USD } from "@/lib/credit";
 
 const REFUSALS: Record<string, () => ApiError> = {
   not_found: () => new ApiError("not_found", "no such run"),
   job_active: () => new ApiError("job_active", "this run already has a paid job waiting or working", "wait for it to finish, or stop it first"),
   too_many_jobs: () => new ApiError("too_many_jobs", "you already have as many jobs waiting or working as one account may have", "wait for one to finish"),
   insufficient_credit: () => new ApiError("insufficient_credit", "your credit does not cover this", "see your balance on the account page"),
-  too_many_runs: () => new ApiError("too_many_jobs", "you have too many videos that were never started", "open or generate one of them first"),
+  too_many_runs: () => new ApiError("too_many_jobs", "too many videos were created today without being started", "try again tomorrow, or ask for the limit to be raised"),
   unauthenticated: () => new ApiError("unauthenticated", "sign in first"),
 };
 

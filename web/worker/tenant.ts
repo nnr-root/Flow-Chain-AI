@@ -15,6 +15,10 @@ export type TenantDb = {
   reservation(id: string): Promise<Reservation | null>;
   /** Open reservations older than `ageMs` (younger ones may belong to a job that is just being queued). */
   openReservations(ageMs: number): Promise<Reservation[]>;
+  /** The open reservation of one run, if it has one. */
+  openReservationFor(runId: string): Promise<Reservation | null>;
+  /** What has been charged for a run so far (0 for a run the database does not know). */
+  chargedFor(runId: string): Promise<number>;
   /** Closes a reservation at what its run has spent in all; returns the amount charged. */
   settle(id: string, runTotalUsd: number): Promise<number>;
   /** `state: null` leaves the state as it is (only the time of the last store is recorded). */
@@ -42,6 +46,16 @@ export function tenantDb(): TenantDb | null {
       if (error) throw new Error(`listing open reservations: ${error.message}`);
       return (data ?? []).map(row);
     },
+    async openReservationFor(runId) {
+      const { data, error } = await db.from("reservations").select(FIELDS).eq("run_id", runId).eq("status", "open").maybeSingle();
+      if (error) throw new Error(`reading a run's reservation: ${error.message}`);
+      return data ? row(data) : null;
+    },
+    async chargedFor(runId) {
+      const { data, error } = await db.from("runs").select("charged_usd").eq("id", runId).maybeSingle();
+      if (error) throw new Error(`reading what a run was charged: ${error.message}`);
+      return data ? Number(data.charged_usd) : 0;
+    },
     async settle(id, runTotalUsd) {
       const { data, error } = await db.rpc("settle", { p_reservation_id: id, p_run_total_usd: runTotalUsd });
       if (error) throw new Error(`settling a reservation: ${error.message}`);
@@ -55,15 +69,30 @@ export function tenantDb(): TenantDb | null {
 }
 
 /**
- * What a run has spent in all, from its manifest's ledger: 0 when the run never got a manifest, undefined when
- * the manifest cannot be read (then nothing is settled on a guess).
+ * What a run has spent in all, from its manifest: its ledger, plus every provider job that was submitted and has
+ * not been charged yet. A submitted job is billed by the provider whether or not anyone waits for it, so a run
+ * stopped (or a worker killed) between submit and result has spent that money already; when the job is later
+ * collected, its ledger entry takes the place of this figure.
+ *
+ * `null` when the run has no manifest at all, `undefined` when the manifest cannot be read (then nothing is
+ * settled on a guess).
  */
-export function spendOf(runDir: string): number | undefined {
+export function spendOf(runDir: string): number | null | undefined {
   const file = join(runDir, "manifest.json");
-  if (!existsSync(file)) return 0;
+  if (!existsSync(file)) return null;
   try {
-    const ledger = (JSON.parse(readFileSync(file, "utf8")) as { ledger?: Array<{ usd?: unknown }> }).ledger ?? [];
-    const total = ledger.reduce((sum, e) => sum + (typeof e.usd === "number" && Number.isFinite(e.usd) ? e.usd : Number.NaN), 0);
+    const manifest = JSON.parse(readFileSync(file, "utf8")) as {
+      ledger?: Array<{ usd?: unknown }>;
+      scenes?: Array<{ jobs?: Record<string, { expectedUsd?: unknown; chargedUsd?: unknown; result?: unknown } | undefined> }>;
+    };
+    const amount = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : Number.NaN);
+    let total = (manifest.ledger ?? []).reduce((sum, e) => sum + amount(e.usd), 0);
+    for (const scene of manifest.scenes ?? []) {
+      for (const job of Object.values(scene.jobs ?? {})) {
+        // submitted, not collected: no result and nothing charged yet
+        if (job && job.result === undefined && !(amount(job.chargedUsd) > 0) && job.expectedUsd !== undefined) total += amount(job.expectedUsd);
+      }
+    }
     return Number.isFinite(total) ? Math.round(total * 10_000) / 10_000 : undefined;
   } catch {
     return undefined;

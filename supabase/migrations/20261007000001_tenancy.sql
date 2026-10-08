@@ -82,7 +82,7 @@ create table public.settings (
   only_row boolean primary key default true check (only_row),
   -- how many paid jobs one user may have waiting or running
   max_user_jobs integer not null default 2 check (max_user_jobs >= 1),
-  -- how much one user may register: runs that never got further than being created, brand kits, music tracks
+  -- how much one user may register: runs a day that never got further than being created, brand kits, music tracks
   max_unstarted_runs integer not null default 20 check (max_unstarted_runs >= 1),
   max_brand_kits integer not null default 50 check (max_brand_kits >= 1),
   max_music_tracks integer not null default 200 check (max_music_tracks >= 1)
@@ -157,8 +157,10 @@ begin
   -- the caller's row is locked, so the count below cannot be raced past
   perform 1 from public.users where id = v_user for update;
   if not found then raise exception 'unauthenticated'; end if;
-  -- anyone signed in can call this directly, with or without credit: registering runs is not free to do without end
-  if (select count(*) from public.runs where user_id = v_user and state = 'creating' and charged_usd = 0)
+  -- Anyone signed in can call this directly, with or without credit: registering runs is not free to do without
+  -- end. Only today's count: a run that never started must not shut its owner out for good.
+  if (select count(*) from public.runs
+      where user_id = v_user and state = 'creating' and charged_usd = 0 and created_at > now() - interval '1 day')
      >= (select max_unstarted_runs from public.settings) then
     raise exception 'too_many_runs';
   end if;

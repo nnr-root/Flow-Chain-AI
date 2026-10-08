@@ -92,7 +92,7 @@ export async function runProviderJob<Out extends { url: string; seed?: number; c
       controller,
       spec.submitTimeoutMs ?? TIMEOUTS.submit,
     );
-    job = { requestId, inputHash: ctx.inputHash, submittedAt: new Date().toISOString(), chargedUsd: 0 };
+    job = { requestId, inputHash: ctx.inputHash, submittedAt: new Date().toISOString(), expectedUsd: spec.costUsd, chargedUsd: 0 };
     state.jobs[stage] = job;
     await saveManifest(ctx.dir, ctx.manifest);
     ctx.log(`${spec.label}: submitted request ${requestId}`);

@@ -189,14 +189,23 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
         job({ reservationId: bReservation }), // someone else's
         job({ reservationId: aReservation }), // its own, but for $0.50, not the $4 the command would spend up to
         job({ reservationId: aReservation, userId: undefined }, "0.5"), // nobody's job
+        // "free" by its kind, spending by its command: the kind is not taken on trust
+        job({ kind: "rerender" }, "100"),
+        // the cap the credit was held for, and after it the one a command line would really use
+        { ...job({ reservationId: aReservation }, "0.5"), args: ["resume", id, "--budget", "0.5", "--cap", "0.5", "--cap", "500"] },
       ]) {
-        await queue.add("generate", data, { ...JOB_OPTIONS, jobId: id });
+        await queue.add(String(data.kind), data, { ...JOB_OPTIONS, jobId: id });
         await until(async () => (await queue.getJob(id)) === undefined);
       }
+      expect(await jobCalls(a)).toEqual([]);
+      expect(await jobCalls(b)).toEqual([]);
+      // and the one job that credit IS held for, exactly, runs (so the refusals above were not a worker refusing everything)
+      await queue.add("generate", job({ reservationId: aReservation }, "0.5"), { ...JOB_OPTIONS, jobId: id });
+      await until(async () => (await jobCalls(a)).length === 1);
     } finally {
       await queue.close();
     }
-    expect(await jobCalls(a)).toEqual([]);
+    expect(await jobCalls(a)).toEqual([["resume", id, "--budget", "0.5", "--cap", "0.5"]]);
     expect(await jobCalls(b)).toEqual([]);
   });
 
@@ -227,6 +236,60 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     await until(async () => (await openReservations()) === 0, 20_000);
     expect(await balance(a)).toBe(0.989); // 1 − 0.0055 − 0.0055: each run's script, nothing else
     expect(await jobCalls(a)).toHaveLength(1); // not run again
+  });
+
+  it("charges for a provider job that was submitted and never collected: stopping after the submit is not free", async () => {
+    await worker();
+    await grant(a, 1);
+    const id = await ownRun(a);
+    await priced(a, 0.5);
+    // the stand-in CLI "submits" a $0.20 clip and then waits for it
+    await behave(a, { pendingUsd: 0.2, sleepMs: 30_000 });
+    expect((await generate(as(aCookie, `/api/runs/${id}/generate`, { json: { approvedUsd: 0.5 } }), params({ id }))).status).toBe(202);
+    await until(async () => JSON.parse(await readFile(join(folder(a), id, "manifest.json"), "utf8")).scenes[0].jobs?.clips?.expectedUsd === 0.2);
+    expect((await stop(as(aCookie, `/api/runs/${id}/job`, { method: "DELETE" }), params({ id }))).status).toBe(200);
+    await until(async () => (await openReservations()) === 0);
+    // the script the run already had, and the clip the provider will bill for: 1 − 0.0055 − 0.2
+    expect(await balance(a)).toBe(0.7945);
+  });
+
+  it("gives credit back at once when the job it was held for could not be queued, and only to its owner", async () => {
+    // a reconcile pass so rare that it cannot be what settles here
+    await worker({ WORKER_RECONCILE_MS: "600000" });
+    await grant(a, 1);
+    const id = await ownRun(a);
+    expect((await a.client.rpc("reserve_credit", { p_run_id: id, p_kind: "generate", p_cap_usd: 0.4 })).error).toBeNull();
+    expect(await balance(a)).toBe(0.6);
+    const quick = new Queue(QUEUES.quick, { connection: admin });
+    try {
+      // somebody else asking changes nothing
+      await quick.add("release", { args: [], userId: b.id, runId: id }, JOB_OPTIONS);
+      await new Promise((r) => setTimeout(r, 1000));
+      expect(await openReservations()).toBe(1);
+      await quick.add("release", { args: [], userId: a.id, runId: id }, JOB_OPTIONS);
+      await until(async () => (await openReservations()) === 0, 10_000);
+    } finally {
+      await quick.close();
+    }
+    expect(await balance(a)).toBe(0.9945);
+  });
+
+  it("does not return the credit of a run that was charged before and has no manifest on this disk", async () => {
+    const w = await worker();
+    await grant(a, 1);
+    const id = await ownRun(a);
+    await priced(a, 0.2);
+    await behave(a, { spendUsd: 0.1 });
+    expect((await generate(as(aCookie, `/api/runs/${id}/generate`, { json: { approvedUsd: 0.2 } }), params({ id }))).status).toBe(202);
+    await until(async () => (await openReservations()) === 0);
+    expect(await balance(a)).toBe(0.8945);
+
+    // the wrong disk: the run's folder is not here, and credit is held for the run again
+    await rm(join(folder(a), id), { recursive: true });
+    expect((await a.client.rpc("reserve_credit", { p_run_id: id, p_kind: "generate", p_cap_usd: 0.3 })).error).toBeNull();
+    await until(() => w.output().includes("its credit stays held"), 20_000);
+    expect(await openReservations()).toBe(1);
+    expect(await balance(a)).toBe(0.5945);
   });
 
   it("limits how many long jobs one account has in line, and hides one user's job from another", async () => {

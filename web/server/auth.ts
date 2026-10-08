@@ -65,33 +65,22 @@ export async function googleUrl(req: Request, next: string | null): Promise<stri
   return data.url;
 }
 
-const LinkType = z.enum(["signup", "recovery", "email", "invite", "email_change"]);
-
 /**
  * Turns the code of a Google login or an emailed link into a session. Returns where to go next.
  *
- * A code only works in the browser that asked for it (its other half is in a cookie there). A token from an
- * email works anywhere, so it could be sent to someone else to sign them into the sender's account: it is
- * therefore never allowed to replace a session that already exists.
+ * Only a code is accepted. A code works in the one browser that asked for it (its other half is a cookie there),
+ * so a link cannot be made by one person to sign another into the maker's account. The token links some email
+ * templates use (`token_hash`) work in any browser and would allow exactly that; they are not taken.
  */
 export async function finishCallback(req: Request): Promise<string> {
   const url = new URL(req.url);
   const next = safeNext(url.searchParams.get("next"));
   const code = url.searchParams.get("code");
-  const tokenHash = url.searchParams.get("token_hash");
-  const type = LinkType.safeParse(url.searchParams.get("type"));
   // the login page shows its own words for each of these names (LINK_ERRORS), never text taken from an address
   const failed = (why: keyof typeof LINK_ERRORS) => `/login?error=${why}`;
-  if (code) {
-    const { error } = await auth().exchangeCodeForSession(code);
-    return error ? failed("link") : next;
-  }
-  if (tokenHash && type.success) {
-    if (scope()?.user) return failed("signed-in");
-    const { error } = await auth().verifyOtp({ token_hash: tokenHash, type: type.data });
-    return error ? failed("link") : next;
-  }
-  return failed("incomplete");
+  if (!code) return failed("incomplete");
+  const { error } = await auth().exchangeCodeForSession(code);
+  return error ? failed("link") : next;
 }
 
 export type Account = { email: string; balanceUsd: number };

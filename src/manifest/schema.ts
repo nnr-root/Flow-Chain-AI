@@ -106,6 +106,12 @@ export const ProviderJob = z.object({
   requestId: z.string(),
   inputHash: z.string(),
   submittedAt: z.string(),
+  /**
+   * What the job will cost when it completes, recorded at submit. A job that was submitted and never waited for
+   * (the run was stopped, the process killed) is still billed by the provider: whoever accounts for a run's
+   * spend from outside can count it from here until `chargedUsd` takes its place. Absent on older runs.
+   */
+  expectedUsd: z.number().optional(),
   chargedUsd: z.number().default(0),
   result: z.object({ url: z.string(), seed: z.number().optional() }).optional(),
 });

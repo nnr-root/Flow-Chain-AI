@@ -4,7 +4,8 @@ import type { PlanJson } from "@src/studio/commands";
 import { statusOf } from "@src/studio/status";
 import { DRAFT_CAP_USD, newTenantRun, reserve } from "./credit";
 import { ApiError } from "./http";
-import { cliJson, cliText, type JobView, startJob, studioHealth, viewJob } from "./jobs";
+import { round4 } from "@/lib/credit";
+import { cliJson, cliText, jobReady, type JobView, releaseJob, startJob, studioHealth, viewJob } from "./jobs";
 import { requireManifest } from "./runs";
 import { multiTenant } from "./tenant";
 import { draftArgs, kitDir, type Look, modesArg, musicPath, type NewVideo, rerenderArgs } from "./schemas";
@@ -34,11 +35,27 @@ export async function createDraft(input: NewVideo): Promise<{ runId: string; job
   if (multiTenant()) {
     // the run is registered as the user's, and the script's cost is held from their credit, before anything is queued
     const runId = await newTenantRun(input.topic);
-    const reservationId = await reserve(runId, "draft", DRAFT_CAP_USD);
-    return { runId, job: await startJob(runId, "draft", draftArgs(input, runId), DRAFT_CAP_USD, { reservationId }) };
+    return { runId, job: await startPaid(runId, "draft", draftArgs(input, runId), DRAFT_CAP_USD) };
   }
   const runId = newRunId();
   return { runId, job: await startJob(runId, "draft", draftArgs(input, runId)) };
+}
+
+/**
+ * Starts a job that spends. With accounts its cap is first held from the user's credit — after everything that
+ * can be known beforehand was checked (a worker is there, the run is free, the user has room in line), so a
+ * refusal on those grounds holds nothing. If the job still cannot be queued, the credit is given back at once.
+ */
+async function startPaid(runId: string, kind: "draft" | "generate" | "reroll", args: string[], capUsd: number): Promise<JobView> {
+  if (!multiTenant()) return startJob(runId, kind, args, kind === "draft" ? undefined : capUsd);
+  await jobReady(runId);
+  const reservationId = await reserve(runId, kind, capUsd);
+  try {
+    return await startJob(runId, kind, args, capUsd, { reservationId });
+  } catch (err) {
+    await releaseJob(runId);
+    throw err;
+  }
 }
 
 /** What an action would cost right now, from the CLI's own planner; nothing is changed. */
@@ -84,17 +101,17 @@ async function assertApproved(runId: string, approvedUsd: number, reroll?: Rerol
  * to the CLI twice: as `--budget`, so it does not ask, and as `--cap`, the ceiling on what the job spends in total.
  */
 export async function generate(runId: string, approvedUsd: number): Promise<JobView> {
-  await assertApproved(runId, approvedUsd);
-  // with accounts: the approved amount is held from the user's credit first; too little, and nothing is queued
-  const reservationId = multiTenant() ? await reserve(runId, "generate", approvedUsd) : undefined;
+  // one figure, to four decimals, for the plan check, the credit held and the command's cap
+  const approved = round4(approvedUsd);
+  await assertApproved(runId, approved);
   // no --yes: when a later checkpoint prices the rest above the approved amount, the CLI stops (exit 2) instead of spending
-  return startJob(runId, "generate", ["resume", runId, "--budget", String(approvedUsd), "--cap", String(approvedUsd)], approvedUsd, { reservationId });
+  return startPaid(runId, "generate", ["resume", runId, "--budget", String(approved), "--cap", String(approved)], approved);
 }
 
 export async function reroll(runId: string, target: RerollTarget, approvedUsd: number): Promise<JobView> {
-  await assertApproved(runId, approvedUsd, target);
-  const reservationId = multiTenant() ? await reserve(runId, "reroll", approvedUsd) : undefined;
-  return startJob(runId, "reroll", ["reroll", runId, "--scene", String(target.scene), "--stage", target.stage, "--budget", String(approvedUsd), "--cap", String(approvedUsd)], approvedUsd, { reservationId });
+  const approved = round4(approvedUsd);
+  await assertApproved(runId, approved, target);
+  return startPaid(runId, "reroll", ["reroll", runId, "--scene", String(target.scene), "--stage", target.stage, "--budget", String(approved), "--cap", String(approved)], approved);
 }
 
 /** Stores a look in the run without rendering: how a draft (or any unfinished run) keeps the look its preview shows. */

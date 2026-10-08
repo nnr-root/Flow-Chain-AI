@@ -18,6 +18,10 @@ export function runner(): JobRunner {
 
 export const startJob = (runId: string, kind: JobKind, args: string[], approvedUsd?: number, opts?: { reservationId?: string }): Promise<JobView> =>
   runner().start(runId, kind, args, approvedUsd, opts);
+/** Before credit is held for a job: would it be accepted right now? */
+export const jobReady = (runId: string): Promise<void> => runner().ready(runId);
+/** After credit was held for a job that could not be queued. */
+export const releaseJob = (runId: string): Promise<void> => runner().release(runId);
 export const stopJob = (runId: string): Promise<JobView> => runner().stop(runId);
 export const viewJob = (runId: string): Promise<JobView | null> => runner().view(runId);
 export const clearStaleLock = (runId: string): Promise<void> => runner().clearStaleLock(runId);

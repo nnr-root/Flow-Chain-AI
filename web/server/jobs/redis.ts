@@ -35,24 +35,73 @@ export type RunJobResult = { exitCode: number | null; stopped?: boolean };
 export type QuickJobData = { args: string[]; userId?: string; runId?: string };
 export type QuickJobResult = { stdout: string };
 
+const AMOUNT = /^\d+(\.\d+)?$/;
+/** What a draft's command may carry after `run --draft --yes --run-id <id>`: each at most once, in any order. */
+const DRAFT_VALUED = new Set([
+  "--topic", "--aspect", "--scenes", "--mode", "--provider", "--budget", "--caption-style", "--transition", "--bgm-gain", "--sfx-gain",
+  "--style", "--pin-modes", "--brand", "--bgm", "--hook", "--characters", "--seed", "--voice",
+]);
+const DRAFT_FLAGS = new Set(["--no-hook", "--no-sfx"]);
+/** The kind of job each command is: the kind decides whether credit must be held, so it cannot be claimed freely. */
+const KIND_OF: Record<string, JobKind> = { run: "draft", resume: "generate", reroll: "reroll", rerender: "rerender" };
+
 /**
- * What the worker agrees to run, whoever put the job in Redis: the commands the studio sends and no others.
- * The provider keys live with the worker, so it does not take the web's word that a job is one of these.
- * Returns why a job is refused, or nothing when it may run. This limits what can be run, not how much a run
- * may spend: the amounts are the web's to approve.
+ * What the worker agrees to run, whoever put the job in Redis. The provider keys live with the worker, so it
+ * does not take the web's word for anything:
+ *
+ * - only the commands the studio sends, each for the job's own run, and of the kind the job says it is;
+ * - a command that spends (`resume`, `reroll`) must have **exactly** the shape the studio builds, with one
+ *   amount as both its budget and its cap. A command line reads the last of two `--cap`s; a check that read
+ *   the first would approve one amount and run another, so nothing may be repeated or added;
+ * - a draft may carry only the options a draft has, each once. It buys the script and nothing else.
+ *
+ * Returns why a job is refused, or nothing when it may run. How much a paid command may spend is its cap, which
+ * the worker compares with the credit held for the job (a studio with accounts).
  */
-export function refusal(queue: keyof typeof QUEUES, args: unknown, runId?: string): string | undefined {
+export function refusal(queue: keyof typeof QUEUES, args: unknown, runId?: string, kind?: JobKind): string | undefined {
   if (!Array.isArray(args) || args.length === 0 || !args.every((a) => typeof a === "string")) return "the job has no command";
-  const [command] = args as string[];
+  const list = args as string[];
+  const [command] = list;
+  // Quick commands are free and change no money. They carry the user they are run for without proof: whoever
+  // can write to Redis can read any user's plan or change a draft's modes or look. Redis is reachable only by
+  // the web app and the worker.
   if (queue === "quick") return ["plan", "draft-modes", "look"].includes(command) ? undefined : `"${command}" is not a quick command`;
-  // a draft buys only the script and says so with --yes; everything else spends up to an approved amount and must stop to ask
+  if (!Object.hasOwn(KIND_OF, command)) return `"${command}" is not a job command`;
+  if (kind !== undefined && KIND_OF[command] !== kind) return `a ${kind} job may not run "${command}"`;
   // the job's run is the command's run: one job per run means nothing if a job may work on another
-  const target = command === "run" ? args[args.indexOf("--run-id") + 1] : args[1];
-  if (runId !== undefined && (target !== runId || (command === "run" && !args.includes("--run-id")))) return "the command is for another run than the job";
-  if (command === "run") return args.includes("--draft") ? undefined : "a run may only be started as a draft";
-  if (command === "rerender") return undefined;
-  if (command === "resume" || command === "reroll") return args.includes("--yes") ? `"${command}" may not be started with --yes` : undefined;
-  return `"${command}" is not a job command`;
+  const other = "the command is for another run than the job";
+  if (command === "rerender") return runId !== undefined && list[1] !== runId ? other : undefined;
+  if (command === "resume") {
+    if (list.includes("--yes")) return '"resume" may not be started with --yes';
+    if (runId !== undefined && list[1] !== runId) return other;
+    // bare, it can spend nothing (with no amount approved the CLI stops to ask, and nobody is there to answer)
+    if (list.length === 2) return undefined;
+    const ok = list.length === 6 && list[2] === "--budget" && list[4] === "--cap" && AMOUNT.test(list[3]) && list[3] === list[5];
+    return ok ? undefined : '"resume" must be: resume <run> --budget <usd> --cap <the same usd>';
+  }
+  if (command === "reroll") {
+    if (list.includes("--yes")) return '"reroll" may not be started with --yes';
+    if (runId !== undefined && list[1] !== runId) return other;
+    const ok =
+      list.length === 10 && list[2] === "--scene" && /^\d+$/.test(list[3]) && list[4] === "--stage" && /^[a-z]+$/.test(list[5]) &&
+      list[6] === "--budget" && list[8] === "--cap" && AMOUNT.test(list[7]) && list[7] === list[9];
+    return ok ? undefined : '"reroll" must be: reroll <run> --scene <n> --stage <name> --budget <usd> --cap <the same usd>';
+  }
+  // run: only ever as a draft
+  if (!list.includes("--draft")) return "a run may only be started as a draft";
+  if (list[1] !== "--draft" || list[2] !== "--yes" || list[3] !== "--run-id") return "a draft must begin: run --draft --yes --run-id <run>";
+  if (runId !== undefined && list[4] !== runId) return other;
+  const seen = new Set<string>();
+  for (let i = 5; i < list.length; i++) {
+    const option = list[i];
+    if (seen.has(option)) return `a draft may not repeat ${option}`;
+    seen.add(option);
+    if (DRAFT_FLAGS.has(option)) continue;
+    // an option's value is whatever follows it, also when it looks like an option: that is how the CLI reads it
+    if (!DRAFT_VALUED.has(option) || i + 1 >= list.length) return `a draft may not carry ${option}`;
+    i++;
+  }
+  return undefined;
 }
 
 /** How long the web waits for a quick job before telling the user the worker is busy or offline. */
