@@ -394,3 +394,29 @@ The owner chose to remove it once the live run had been spoken by the studio's o
 - The studio's readiness check asks for `RUNPOD_VOICE_ENDPOINT` in place of the two ElevenLabs settings.
 - With this, the pipeline talks to three services: Gemini (the script), RunPod (pictures, clips, voice) and R2.
 
+### 9.8 Live check, second run: the cost after the fix (2026-10-09)
+
+Run `20261009-185805-4f8fca` (4 scenes, modes 1,1,1,1, 21.4 s) on the fixed worker image, spoken by the
+studio's own voice, with ElevenLabs no longer in the code.
+
+| | This run | The same shape before today (2.4 §16) |
+|---|---|---|
+| Script | $0.011 (asked twice: the first answer failed its check) | $0.006 |
+| Voice, 4 lines | $0.019 ($0.0139 the first, about $0.0016 each after) | $0.105 |
+| Portrait and 4 keyframes | $0.038 | $0.025 |
+| 4 clips | $0.142 ($0.072 the first, about $0.023 each after) | $0.135 |
+| **Total** | **$0.21** | **$0.27** |
+
+- Keyframes and clips on a warm worker cost what they did before the hardening ($0.0018 and $0.023): clearing
+  ComfyUI's history alone does not unload anything.
+- The first keyframe took about a minute where it took 17 s before: the keyframe worker had stopped while the
+  script and the voice were made (30 s idle) and, with FlashBoot off, loaded its checkpoint again. That is what
+  FlashBoot being off costs here: about one cent a video.
+- Nothing this run uploaded was left in the bucket afterwards (`remove()`); 24 files from runs before today
+  are still there.
+- These are ledger figures from measured execution time, as in 2.4: not compared with an invoice.
+
+**Phase 5 at this point:** done and live-checked: fal purge, names, own database and sign-in (local and stack
+only), own voice, ElevenLabs purge, worker hardening. Not started: the picture and clip benchmark and model
+upgrade (§6.2, §6.3). Not decided: Gemini (D3).
+
