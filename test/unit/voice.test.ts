@@ -187,6 +187,6 @@ describe("which voice a new run gets", () => {
     expect(hosted.tts).not.toBeInstanceOf(RunpodTts);
     // a run on the hosted voice needs that service's key, and says so
     expect(() => createProviders(loadEnv({ ...base, RUNPOD_API_KEY: "rk" }), { llm: "l", tts: "eleven_multilingual_v2", image: "fal-ai/flux/dev", video: "fal-ai/kling" }, prices)).toThrow("ELEVENLABS_API_KEY is not set");
-    expect(runpodRates(prices)).toMatchObject({ voiceUsdPerSec: 0.000306, voiceSecPerLine: 1.5, voiceSecPerChar: 0.02, voiceColdStartSec: 40 });
+    expect(runpodRates(prices)).toMatchObject({ voiceUsdPerSec: 0.000306, voiceSecPerLine: 3, voiceSecPerChar: 0.02, voiceColdStartSec: 40 });
   });
 });

@@ -28,10 +28,10 @@ describe("the voice stage with the studio's own voice", () => {
     expect(inputs).toHaveProperty("language");
     expect(inputs.model).toBe(OWN);
     const chars = ctx.manifest.script!.scenes[1].narration.length;
-    const line = Math.round((1.5 + chars * 0.02) * 0.000306 * 10_000) / 10_000;
+    const line = Math.round((3 + chars * 0.02) * 0.000306 * 10_000) / 10_000;
     expect(ttsStage.estimateCostUsd(ctx, 1)).toBe(line);
     const first = ctx.manifest.script!.scenes[0].narration.length;
-    expect(ttsStage.estimateCostUsd(ctx, 0)).toBe(Math.round((1.5 + first * 0.02 + 40) * 0.000306 * 10_000) / 10_000);
+    expect(ttsStage.estimateCostUsd(ctx, 0)).toBe(Math.round((3 + first * 0.02 + 40) * 0.000306 * 10_000) / 10_000);
     // a line costs a fraction of what the hosted voice charged for it
     expect(line).toBeLessThan(ttsCost(ctx.prices, chars) / 10);
   });

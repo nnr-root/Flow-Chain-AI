@@ -49,11 +49,14 @@ def _post(path, body):
 
 
 def forget():
-    """Makes ComfyUI drop what the last job left in it (phase 5 spec §8): the list of prompts it ran, with their
-    texts, and the pictures and latents its nodes keep to save work. The next job on this worker is someone
-    else's. The loaded model weights stay: they are nobody's content, and loading them again costs a minute."""
+    """Makes ComfyUI drop its list of the prompts it ran, with their texts (phase 5 spec §8, §9.6).
+
+    Its nodes' cached results are left alone on purpose. They are not reachable by the next job (this handler is
+    ComfyUI's only client, and answers a job with that job's own files only) and the next prompt replaces them.
+    Asking ComfyUI to free them also threw away the loaded model weights: every job then loaded them again,
+    which the first live run showed as a tenfold longer keyframe and three times the cost of a video.
+    """
     _post("/history", {"clear": True})
-    _post("/free", {"unload_models": False, "free_memory": True})
 
 
 def wait(prompt_id, timeout_s, poll_s=1.0):

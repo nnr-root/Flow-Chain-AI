@@ -85,10 +85,10 @@ export function runpodRates(p: Prices) {
     referenceSec: p.runpodReferenceSec ?? 8,
     clipSecPerFrame: p.runpodClipSecPerFrame ?? 1.5,
     coldStartSec: p.runpodColdStartSec ?? 90,
-    // Measured on an RTX 4090 (phase 5 spec §9): 0.28 s of GPU per second of speech, about 15 characters a
-    // second, plus the listening and the encoding of each line.
+    // Measured on the live endpoint (phase 5 spec §9.6): a line of about 85 characters took 4.6 s of GPU, and
+    // the first line of a run another 40 s for the worker to load its models.
     voiceUsdPerSec: p.runpodVoiceUsdPerSec ?? 0.000306,
-    voiceSecPerLine: p.runpodVoiceSecPerLine ?? 1.5,
+    voiceSecPerLine: p.runpodVoiceSecPerLine ?? 3,
     voiceSecPerChar: p.runpodVoiceSecPerChar ?? 0.02,
     voiceColdStartSec: p.runpodVoiceColdStartSec ?? 40,
   };

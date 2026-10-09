@@ -360,3 +360,25 @@ the English clip; a customer cannot bring a voice.
 - **Open:** the voice endpoint took no job in its first ten minutes (hosts were probably still pulling the
   image); to be confirmed from a worker's log.
 
+### 9.6 Live check: the voice works; one hardening step was too dear (2026-10-09)
+
+Run `20261009-175401-f4a4f2` (`npm run smoke:runpod`: 4 scenes, modes 1,2,1,1, 21.6 s) finished on the first
+attempt, spoken by the studio's own voice.
+
+- **Voice: $0.014 for the four lines** ($0.0102 for the first, which paid for the worker loading its models;
+  $0.0012–0.0013 for each of the others). The same lines on ElevenLabs cost about $0.11. Before that, three
+  test lines directly on the endpoint: a first line 313 s after it was asked for (four minutes of a new host
+  pulling the image, then 42 s billed), then 5–7 s a line. So the unexplained wait of §9.5 was the image pull.
+- **Word times** come out in order, inside each clip, for every word of the script, in English and Turkish; a
+  year written in digits takes the span of the words it was read as.
+- Price defaults set from this: 3 s a line plus 0.02 s a character, 40 s once a run.
+- **The whole video cost $0.27, where about $0.13 was expected.** Keyframes took 54–66 s each (6 s before) and
+  clips $0.055 each (about $0.022 before). Cause: `comfy.forget()` asked ComfyUI to free its memory after every
+  job, and ComfyUI answered by dropping the loaded weights too, so every job loaded its model again. §9.4's
+  caveat was right to be one.
+- **Ruling:** the worker clears ComfyUI's prompt history after every job and no longer asks it to free its
+  cache. What a node cached from one job cannot be read by the next (the handler is ComfyUI's only client and
+  returns a job's own files only) and is replaced by the next prompt. Cost if wrong: a customer's last
+  intermediate picture stays in that worker's memory until its next job or its stop, readable by nobody else.
+- **Still to measure** after that fix: a video's cost again, and what FlashBoot being off adds to a start.
+
