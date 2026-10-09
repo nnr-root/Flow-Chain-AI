@@ -420,3 +420,57 @@ studio's own voice, with ElevenLabs no longer in the code.
 only), own voice, ElevenLabs purge, worker hardening. Not started: the picture and clip benchmark and model
 upgrade (§6.2, §6.3). Not decided: Gemini (D3).
 
+### 9.9 Benchmark: clips, hardware and pictures (2026-10-09)
+
+Temporary pods, the production worker image and graph for clips (Wan 2.2 I2V A14B fp8, 4 steps, RIFE ×2), one
+input keyframe. Seconds are wall time of one clip with the models already loaded, unless said.
+
+| GPU | 480×832, 65 frames | 720×1280, 65 frames | 720×1280, 81 frames | Peak memory |
+|---|---|---|---|---|
+| RTX 4090 (24 GB) | 63 s (with the load) | 157 s | 217 s | 23.6 GB: at the card's limit |
+| H100 (80 GB) | 29 s | 80 s | 109 s | 47 GB |
+
+Cost of one 65-frame clip at RunPod's serverless rates:
+
+| | 480p | 720p |
+|---|---|---|
+| RTX 4090 ($0.000306/s) | about $0.022 (the live runs' own figure) | $0.048 |
+| H100 ($0.00133/s) | $0.038 | $0.107 |
+
+- **An H100 is about twice as fast and costs 4.35 times as much: a clip costs about twice what it costs on the
+  4090.** The A100 ($0.000756/s) would have to make a 720p clip in 63 s to match the 4090; the H100 itself
+  needs 80 s. Neither is used. (The A100 pod never finished fetching its image in 26 minutes and was stopped
+  unmeasured; the RTX 5090 pod likewise. Both conclusions about them rest on the H100's numbers and the rates.)
+- **720p fits on the 24 GB card** and costs 2.2 times a 480p clip there: about +$0.10 on a four-clip video.
+- Flaw in the first clip run, kept out of the table: its repeated configurations were answered from ComfyUI's
+  cache in 10 and 22 s.
+
+**Pictures** (RTX 4090, 1088×1920, the pipeline's own prompts from run `20261009-185805-4f8fca`):
+
+| | FLUX.2 klein 4B | Z-Image Turbo | Today (SDXL + IP-Adapter, from the live runs) |
+|---|---|---|---|
+| One picture | 2.8 s at the final size | out of memory at this size on 24 GB | about 6 s, in two passes |
+| With a reference portrait | 4.5 s | not offered by the model | included |
+| Memory | 19.7 GB | over 23 GB | — |
+| Load | 51 s | 50 s | — |
+| Licence | Apache 2.0 | Apache 2.0 | OpenRAIL++-M |
+
+- **Today's pictures do not follow the scene.** Set beside each other, both SDXL keyframes of that run are the
+  same waist-up portrait by a window, where the script asked for a woman running up spiral stairs and for her
+  striking a match in the lantern room; the tower shot came out as a portrait too. The reference conditioning
+  that keeps the face also keeps the pose. This was not seen before because nobody had laid a run's prompts
+  beside its pictures.
+- **klein follows the scene** (stairs, canister, lens, match, the tower from below) and makes the anime and 3D
+  looks from the one model, where today each look has a checkpoint of its own.
+- **Identity with klein is not settled.** With the portrait and the words "the woman from the reference image"
+  in place of her description, the coat changed colour and the face was not held. The run that would settle it
+  (portrait and description together, several scenes) was not made.
+- Z-Image Turbo is out for this worker: it does not fit the card at the pipeline's size and takes no reference.
+
+**Spend:** this section about $3.5, the voice benchmark and its diagnosis $0.44: $3.96 of the $5 (D2). About
+$1.3 of it bought nothing: two pods that never got past fetching an image, and two runs lost to my scripts'
+mistakes (a missing `git`, a download cut off with no retry).
+
+**What this changes in §6:** §6.2: FLUX.2 klein 4B is the candidate; identity is the open question. §6.3: 720p
+on the RTX 4090 is affordable (a four-clip video at about $0.31). §6.5 stands, now with measurements.
+
