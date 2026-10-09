@@ -12,7 +12,7 @@ HERE = os.path.dirname(__file__)
 
 def entry(data, **over):
     return {"name": "w.bin", "url": "mem://w", "sha256": hashlib.sha256(data).hexdigest(), "size": len(data),
-            "dir": "loras", "for": ["keyframe"], **over}
+            "dir": "loras", "for": ["clip"], **over}
 
 
 def opener_for(data):
@@ -23,7 +23,9 @@ def test_the_shipped_list_is_complete_and_per_endpoint():
     entries = models.load(os.path.join(HERE, "..", "models.json"))
     assert len({e["name"] for e in entries}) == len(entries)
     assert all(len(e["sha256"]) == 64 and e["url"].startswith("https://huggingface.co/") for e in entries)
-    assert {k for e in entries for k in e["for"]} == {"keyframe", "clip"}
+    assert {k for e in entries for k in e["for"]} == {"clip"}
+    # the retired picture weights are gone from the list, so `fetch-models` takes them off the volume
+    assert not [e["name"] for e in entries if "xl" in e["name"].lower() or e["dir"] in ("checkpoints", "ipadapter", "clip_vision")]
 
 
 def test_downloads_verifies_and_then_skips(tmp_path):
@@ -41,9 +43,25 @@ def test_a_corrupt_download_leaves_nothing(tmp_path):
     assert not os.listdir(tmp_path / "loras")
 
 
-def test_only_fetches_the_endpoints_own_weights(tmp_path):
-    k, c = entry(b"k", name="k.bin"), entry(b"c", name="c.bin", **{"for": ["clip"]})
-    assert [e["name"] for e, _ in models.plan([k, c], str(tmp_path), "clip")] == ["c.bin"]
+def test_removes_from_its_own_folders_what_the_list_no_longer_names_and_nothing_else(tmp_path):
+    data = b"weights"
+    kept = entry(data, name="kept.safetensors", dir="diffusion_models")
+    models.fetch([kept], str(tmp_path), opener=opener_for(data))
+    for folder, name in (("checkpoints", "old-sdxl.safetensors"), ("text_encoders", "moved-to-image.safetensors"),
+                         ("diffusion_models", "older.safetensors"), ("klein-4b", "transformer.safetensors")):
+        (tmp_path / folder).mkdir(exist_ok=True)
+        (tmp_path / folder / name).write_bytes(b"x")
+    (tmp_path / "checkpoints" / "old-sdxl.safetensors.sha256").write_text("abc")
+    (tmp_path / "loras" / "sub").mkdir(parents=True)
+    (tmp_path / "loras" / "sub" / "someone-elses.bin").write_bytes(b"x")
+
+    assert models.purge([kept], str(tmp_path)) == ["old-sdxl.safetensors", "older.safetensors", "moved-to-image.safetensors"]
+    left = sorted(str(p.relative_to(tmp_path)) for p in tmp_path.rglob("*") if p.is_file())
+    assert left == ["diffusion_models/kept.safetensors", "diffusion_models/kept.safetensors.sha256",
+                    "klein-4b/transformer.safetensors", "loras/sub/someone-elses.bin"]
+    # what is listed is still seen as present afterwards: the next start downloads nothing
+    assert models.plan([kept], str(tmp_path))[0][1] == "skip"
+    assert models.purge([kept], str(tmp_path)) == []
 
 
 def test_refuses_an_incomplete_list(tmp_path):
@@ -53,16 +71,16 @@ def test_refuses_an_incomplete_list(tmp_path):
         models.load(str(path))
 
 
-def test_every_weight_the_graphs_load_is_in_the_pinned_list():
+def test_every_weight_the_graph_loads_is_on_the_volume_list_or_in_the_image():
     import re
 
     entries = models.load(os.path.join(HERE, "..", "models.json"))
     listed = {e["name"] for e in entries}
-    baked_into_the_image = {"rife49.pth"}  # the Dockerfile downloads it, so it is not on the volume
-    src = os.path.join(HERE, "..", "src", "flowchain_worker")
-    used = set()
-    for module in ("workflows.py", "presets.py"):
-        text = open(os.path.join(src, module)).read()
-        used |= set(re.findall(r'"([^"/]+\.(?:safetensors|pth|ckpt|bin|gguf))"', text))
-    assert len(used) >= 10
-    assert used - baked_into_the_image <= listed, sorted(used - baked_into_the_image - listed)
+    text = open(os.path.join(HERE, "..", "src", "flowchain_worker", "workflows.py")).read()
+    used = set(re.findall(r'"([^"/]+\.(?:safetensors|pth|ckpt|bin|gguf))"', text))
+    dockerfile = open(os.path.join(HERE, "..", "Dockerfile")).read()
+    in_image = {name for name in used if f"/{name}" in dockerfile}
+    assert len(used) == 7
+    # the text encoder, the VAE and RIFE are downloaded and checked by the Dockerfile; nothing is in both places
+    assert in_image == {"umt5_xxl_fp8_e4m3fn_scaled.safetensors", "wan_2.1_vae.safetensors", "rife49.pth"}
+    assert used - in_image == listed

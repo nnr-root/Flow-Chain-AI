@@ -579,3 +579,47 @@ plan had shown the portrait at $0.0009 against $0.0145–0.0197 spent.
   in the profile (§9.11). Left.
 
 Spent on this check: $0.19 + $0.29 + $0.02 = $0.50 of the $1 approved.
+
+### 9.13 One start for pictures, a clips-only worker, a smaller volume (2026-10-09, before its live check)
+
+The owner asked for five changes. What was done with each, and why:
+
+1. **Wan 2.2 → "Wan 2.7": not done, and Wan 2.2 is not removed.** There are no Wan 2.7 weights to run. The
+   publisher's model list (Hugging Face API, `author=Wan-AI`, read 2026-10-09) ends at the Wan 2.2 family
+   (the newest entries are Wan2.2-Animate-2 and Wan-Dancer, neither an image-to-video model for this use), and
+   the repackaged ComfyUI files stop at 2.2 too; Wan 2.5 to 2.7 are sold through hosted APIs only. Moving to
+   one would undo this phase (a second provider, prompts and pictures sent out, about $0.10 a second of video
+   against about $0.006 here). §6.3 stands: Wan 2.2 I2V A14B is the newest Wan with open weights. Deleting it
+   from the volume would have left the studio unable to make a clip.
+2. **Pictures in one session.** The portrait is now made after the voice and straight before the keyframes
+   (`script → tts → silence → modes → reference → keyframes → clips`), so the picture worker is started once a
+   run (§9.12 measured two starts, about 2 cents). The order asked for was pictures before the voice; that one
+   is not possible without buying pictures blind: which scenes get a picture is decided by the modes stage, from
+   the lengths of the spoken lines and the budget (2.2 spec §4.1), and the second confirmation prices the media
+   from them. Moving the portrait gets the same single start and keeps both. The second confirmation ("Media
+   plan") now comes before the first picture bought, the portrait included. The portrait's estimate is its 3 s
+   again; the run's one start stays counted with the first picture.
+3. **The earlier picture weights leave the volume.** The six SDXL-era files (24 GB) are out of
+   `workers/models.json`, and the clip worker's `fetch-models` now ends by removing, from the folders that are
+   its own, every file the list does not name (`models.purge`): only after everything listed is present and
+   checked, never in a sub-folder, never in the picture worker's folder. With them went what could only run on
+   them: the SDXL graph, its presets, the `keyframe` task of the clip worker's contract and handler, and the
+   IP-Adapter node in its image. This settles §9.11's ruling for good: a run made on the SDXL worker loads and
+   re-renders, and a picture of it cannot be made again.
+4. **Text encoder and VAE in the clip image.** `umt5_xxl_fp8_e4m3fn_scaled.safetensors` (6.7 GB) and
+   `wan_2.1_vae.safetensors` are downloaded and checked by SHA-256 in the Dockerfile, into ComfyUI's own model
+   folders, and are off the volume's list (so item 3's removal takes the volume's copies too: 7 GB more). The
+   two 14 GB experts and their LoRAs stay on the volume. The clip template's disk goes from 30 to 40 GB.
+   **Not measured:** that this halves a start. A worker's start also loads 14 GB from the volume, twice; the
+   image is 7 GB larger for a host that has never held it.
+5. **`idleTimeout` 30 → 90 s: not changed; the owner is asked.** RunPod bills a worker until it has stopped,
+   idle seconds included. Sixty more seconds on two endpoints is about 3.7 cents a video (some 19% of a 480p
+   video), and after item 2 no stage leaves a gap that long between two jobs of the same endpoint (clips follow
+   each other within seconds). It would cost more than the starts it was meant to save.
+
+The volume stays 110 GB (a volume cannot shrink): it will hold about 47 GB. Making a smaller one means a new
+volume and downloading the models again. Parked.
+
+**Unverified until the live check:** the clip image's build with the two files inside (size on the build
+machine; that ComfyUI finds them where they are); the removal on the real volume; a start's real seconds
+before and after; one start of the picture worker in a whole run.

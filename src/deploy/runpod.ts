@@ -27,7 +27,8 @@ export type DeployConfig = {
 
 export const DEFAULTS = {
   dataCenterId: "EU-RO-1",
-  // 63 GB of earlier weights and 16 GB for the picture model, with room to spare
+  // Holds 31 GB of clip weights and 16 GB for the picture model. It was grown for weights that are gone now
+  // (phase 5 spec §9.13), and a volume can never shrink: a smaller one means a new volume and a new download.
   volumeGb: 110,
   keyframeGpus: ["NVIDIA GeForce RTX 4090"],
   // 24 GB: Wan 2.2 fp8 loads one expert at a time; no 48 GB card was in stock in the volume's data centre (spec §16)
@@ -182,7 +183,8 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     R2_ACCESS_KEY_ID: `{{ RUNPOD_SECRET_${SECRET_NAMES.accessKeyId} }}`,
     R2_SECRET_ACCESS_KEY: `{{ RUNPOD_SECRET_${SECRET_NAMES.secretAccessKey} }}`,
   };
-  const templateBody = { imageName: cfg.image, containerDiskInGb: 30, env };
+  // 40: the image holds the text encoder and the VAE now (7 GB more), and the disk must hold it unpacked
+  const templateBody = { imageName: cfg.image, containerDiskInGb: 40, env };
   const template = await upsert(rest, "templates", existing.template, NAMES.template, { ...templateBody, isServerless: true }, templateBody);
   const pictureBody = { imageName: cfg.pictureImage, containerDiskInGb: 20, env };
   const pictureTemplate = await upsert(rest, "templates", existing.pictureTemplate, NAMES.pictureTemplate, { ...pictureBody, isServerless: true }, pictureBody);
@@ -219,12 +221,12 @@ export async function fetchModels(
   endpointId: string,
   only: "keyframe" | "clip",
   opts: { pollMs?: number; sleep?: (ms: number) => Promise<void>; timeoutMs?: number } = {},
-): Promise<{ downloaded: string[]; skipped: string[] }> {
+): Promise<{ downloaded: string[]; skipped: string[]; removed?: string[] }> {
   const { pollMs = 15_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), timeoutMs = 3_600_000 } = opts;
   const id = await client.run(endpointId, { task: "fetch-models", only }, { executionTimeout: timeoutMs, ttl: timeoutMs + 3_600_000 }, new AbortController().signal);
   for (let waited = 0; waited <= timeoutMs + 3_600_000; waited += pollMs) {
     const job = await client.status(endpointId, id);
-    if (job?.status === "COMPLETED") return job.output as { downloaded: string[]; skipped: string[] };
+    if (job?.status === "COMPLETED") return job.output as { downloaded: string[]; skipped: string[]; removed?: string[] };
     if (job === null || job.status === "FAILED" || job.status === "CANCELLED" || job.status === "TIMED_OUT") {
       throw new Error(`fetch-models on ${endpointId} ended ${job?.status ?? "unknown"}: ${JSON.stringify(job?.error ?? null)}`);
     }

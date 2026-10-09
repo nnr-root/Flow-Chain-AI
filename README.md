@@ -102,15 +102,19 @@ One-time setup (accounts and keys only):
    package public (GitHub → Packages → flowchain-worker → Package settings → Change visibility).
 4. `npm run runpod:deploy` creates the network volume, template and two endpoints, downloads the model weights
    onto the volume and writes `RUNPOD_KEYFRAME_ENDPOINT` / `RUNPOD_CLIP_ENDPOINT` into `.env`. It shows what it
-   will create, the monthly volume cost (≈ $5.60 for 80 GB) and the one-time model download it runs on the
+   will create, the monthly volume cost (≈ $7.70 for 110 GB) and the one-time model download it runs on the
    endpoints' GPUs (≈ $1–2), and asks first; re-running it updates in place. It uses the image tag built from the
    current `workers/` folder and stops if that image is not public on GHCR. `RUNPOD_WORKER_IMAGE` deploys another
    image instead, `RUNPOD_DATACENTER` picks another data centre (default `EU-RO-1`), and `--yes` skips the question.
 
 Then `npm run flowchain -- doctor`. `npm run smoke:runpod` makes a real 4-scene video and is a paid run.
 
-Runs with characters get one generated reference portrait (or a brand kit's `reference` image) that every keyframe
-is conditioned on; `reroll <runId> --stage reference --scene 1` generates a new portrait (keyframes are then
+Re-running `runpod:deploy` also takes off the volume any weight the clip worker no longer lists (the earlier
+picture models; the text encoder and VAE, which are inside the clip image now).
+
+Runs with characters get one generated reference portrait (or a brand kit's `reference` image), made after the
+voice and straight before the pictures so the picture worker starts once; every keyframe of a scene the
+character is in is conditioned on it; `reroll <runId> --stage reference --scene 1` generates a new portrait (keyframes are then
 redone from it). Clips are 480p (upscaled to the output size) with frame interpolation to 32 fps. GPU time is
 charged per job from RunPod's measured execution time; cold starts and idle time are not attributed per job.
 
@@ -134,9 +138,7 @@ answer. The first line on a host that has never run it waits about four minutes 
 
 The model stack is licensed for commercial use (VoxCPM2 and Whisper: Apache 2.0 and MIT).
 
-The picture and clip models are licensed for commercial use (SDXL / RealVisXL / Animagine under CreativeML Open RAIL++-M,
-IP-Adapter Apache 2.0, Wan 2.2 Apache 2.0). Open RAIL++-M requires its use restrictions to be passed on in your
-customer terms.
+The picture and clip models are licensed for commercial use (FLUX.2 klein 4B and Wan 2.2: Apache 2.0).
 
 ## Studio (web app)
 

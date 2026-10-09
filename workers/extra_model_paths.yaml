@@ -1,13 +1,7 @@
-# Model folders on the RunPod network volume (mounted at /runpod-volume). Replaces the base image's file,
-# which has no diffusion_models / text_encoders / ipadapter entries (needed by Wan 2.2 and IP-Adapter).
+# The clip model's folders on the RunPod network volume (mounted at /runpod-volume). The text encoder and the VAE
+# are not here: they are in the image, in ComfyUI's own models/text_encoders and models/vae.
 runpod_volume:
   base_path: /runpod-volume
-  checkpoints: models/checkpoints/
   loras: models/loras/
-  vae: models/vae/
-  clip_vision: models/clip_vision/
-  ipadapter: models/ipadapter/
   diffusion_models: models/diffusion_models/
   unet: models/diffusion_models/
-  text_encoders: models/text_encoders/
-  clip: models/text_encoders/

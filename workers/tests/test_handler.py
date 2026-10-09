@@ -67,14 +67,13 @@ def worker(tmp_path, monkeypatch):
     return h
 
 
-def keyframe_job(**over):
-    return {"id": "j1", "input": {"task": "keyframe", "workflow": "keyframe-sdxl@1", "prompt": "a fox",
-                                  "width": 1024, "height": 1024, "reference": PNG, **over}}
-
-
 def clip_job():
     return {"id": "j1", "input": {"task": "clip", "workflow": "clip-wan22-480p@1", "prompt": "m", "image": PNG,
                                   "frames": 33, "fps": 16, "width": 480, "height": 832}}
+
+
+def secret_job():
+    return {"id": "j1", "input": {**clip_job()["input"], "prompt": "a secret product launch"}}
 
 
 def leftovers(h):
@@ -82,8 +81,8 @@ def leftovers(h):
                   if p.is_file())
 
 
-@pytest.mark.parametrize("job", [keyframe_job(), clip_job()])
-def test_a_job_without_r2_settings_fails_before_any_gpu_work_naming_only_the_variables(worker, monkeypatch, job):
+def test_a_job_without_r2_settings_fails_before_any_gpu_work_naming_only_the_variables(worker, monkeypatch):
+    job = clip_job()
     monkeypatch.delenv("R2_BUCKET")
     monkeypatch.setenv("R2_ACCESS_KEY_ID", "")
     result = worker.handler(job)
@@ -96,16 +95,36 @@ def test_fetch_models_does_not_need_r2(worker, monkeypatch):
     for name in R2_ENV:
         monkeypatch.delenv(name)
     monkeypatch.setattr(worker.models, "load", lambda path: [])
-    assert worker.handler({"id": "j", "input": {"task": "fetch-models"}}) == {"downloaded": [], "skipped": []}
+    assert worker.handler({"id": "j", "input": {"task": "fetch-models"}}) == {"downloaded": [], "skipped": [], "removed": []}
 
 
-def test_a_finished_keyframe_leaves_no_input_or_output_behind(worker):
-    result = worker.handler(keyframe_job())
-    assert result["url"] == "https://r2.example/flowchain/j1.png"
-    assert leftovers(worker) == []
+def test_fetch_models_takes_retired_weights_off_the_volume_once_the_listed_ones_are_there(worker, monkeypatch, tmp_path):
+    volume = tmp_path / "volume"
+    (volume / "checkpoints").mkdir(parents=True)
+    (volume / "checkpoints" / "old-sdxl.safetensors").write_bytes(b"x")
+    monkeypatch.setattr(worker, "VOLUME_MODELS", str(volume))
+    monkeypatch.setattr(worker.models, "load", lambda path: [])
+
+    def failed(entries, root, only):
+        raise ValueError("w.bin: size 1 / sha256 abc do not match models.json")
+
+    # a download that fails removes nothing: the worker may still need what is there
+    monkeypatch.setattr(worker.models, "fetch", failed)
+    with pytest.raises(ValueError):
+        worker.handler({"id": "j", "input": {"task": "fetch-models", "only": "clip"}})
+    assert (volume / "checkpoints" / "old-sdxl.safetensors").exists()
+
+    monkeypatch.setattr(worker.models, "fetch", lambda entries, root, only: {"downloaded": [], "skipped": []})
+    out = worker.handler({"id": "j", "input": {"task": "fetch-models", "only": "clip"}})
+    assert out["removed"] == ["old-sdxl.safetensors"] and not (volume / "checkpoints" / "old-sdxl.safetensors").exists()
 
 
-def test_a_finished_clip_removes_its_mp4_too(worker):
+def test_a_picture_task_is_refused_before_any_gpu_work(worker):
+    out = worker.handler({"id": "j1", "input": {"task": "keyframe", "workflow": "keyframe-sdxl@1", "prompt": "a fox", "width": 1024, "height": 1024}})
+    assert "task must be 'clip' or 'fetch-models'" in out["error"] and worker.calls == []
+
+
+def test_a_finished_clip_leaves_no_input_output_or_mp4_behind(worker):
     result = worker.handler(clip_job())
     assert result["url"] == "https://r2.example/flowchain/j1.mp4"
     assert leftovers(worker) == []
@@ -127,14 +146,14 @@ def test_a_graph_that_cannot_be_queued_still_removes_the_written_inputs(worker, 
 
     monkeypatch.setattr(comfy, "queue", refuse)
     with pytest.raises(RuntimeError, match="refused the graph"):
-        worker.handler(keyframe_job())
+        worker.handler(clip_job())
     assert leftovers(worker) == []
 
 
 def test_a_timeout_interrupts_the_prompt_so_it_does_not_keep_the_gpu(worker):
-    worker.fail_wait = RuntimeError("ComfyUI did not finish prompt p1 within 110 s")
+    worker.fail_wait = RuntimeError("ComfyUI did not finish prompt p1 within 580 s")
     with pytest.raises(RuntimeError, match="did not finish"):
-        worker.handler(keyframe_job())
+        worker.handler(clip_job())
     # stopped first, then forgotten: what a prompt that is still running holds cannot be cleared
     assert worker.calls == ["ready", "wait", "interrupt", "forget"]
     assert leftovers(worker) == []
@@ -148,14 +167,14 @@ def test_a_failed_interrupt_does_not_hide_the_real_error(worker, monkeypatch):
 
     monkeypatch.setattr(comfy, "interrupt", down)
     with pytest.raises(RuntimeError, match="ComfyUI failed: oom"):
-        worker.handler(keyframe_job())
+        worker.handler(clip_job())
 
 
 def test_every_job_ends_with_comfyui_forgetting_it_whether_it_worked_or_not(worker, capsys):
     (worker.root / "comfy-temp" / "preview_00001_.png").write_bytes(b"someone's frame")
     (worker.root / "comfy-temp" / "sub").mkdir()
     (worker.root / "comfy-temp" / "sub" / "latent.bin").write_bytes(b"x")
-    out = worker.handler({"id": "j1", "input": {"task": "keyframe", "workflow": "keyframe-sdxl@1", "prompt": "a secret product launch", "width": 1088, "height": 1920}})
+    out = worker.handler(secret_job())
     assert "url" in out
     assert worker.calls[-1] == "forget"
     assert list((worker.root / "comfy-temp").iterdir()) == []
@@ -163,7 +182,7 @@ def test_every_job_ends_with_comfyui_forgetting_it_whether_it_worked_or_not(work
     worker.calls.clear()
     worker.fail_wait = RuntimeError("ComfyUI failed")
     with pytest.raises(RuntimeError, match="ComfyUI failed"):
-        worker.handler({"id": "j1", "input": {"task": "keyframe", "workflow": "keyframe-sdxl@1", "prompt": "a secret product launch", "width": 1088, "height": 1920}})
+        worker.handler(secret_job())
     assert worker.calls[-1] == "forget"
     # nothing the worker itself prints carries a word of the prompt (endpoint logs are kept for 90 days)
     assert "secret" not in capsys.readouterr().out
@@ -171,7 +190,7 @@ def test_every_job_ends_with_comfyui_forgetting_it_whether_it_worked_or_not(work
 
 def test_a_comfyui_that_cannot_forget_does_not_lose_the_job_and_says_so_without_its_content(worker, capsys):
     worker.fail_forget = RuntimeError("connection refused while clearing 'a secret product launch'")
-    out = worker.handler({"id": "j1", "input": {"task": "keyframe", "workflow": "keyframe-sdxl@1", "prompt": "a secret product launch", "width": 1088, "height": 1920}})
+    out = worker.handler(secret_job())
     assert "url" in out
     printed = capsys.readouterr().out
     assert "could not be made to forget job j1: RuntimeError" in printed

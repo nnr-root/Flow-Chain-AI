@@ -5,7 +5,10 @@ import json
 import os
 import urllib.request
 
-KINDS = ("keyframe", "clip")
+KINDS = ("clip",)
+# The folders on the volume that are this worker's: what the list no longer names is removed from them, and from
+# nowhere else (the picture worker keeps its model in a folder of its own on the same volume).
+OWNED = ("checkpoints", "loras", "vae", "clip_vision", "ipadapter", "diffusion_models", "text_encoders")
 
 
 def load(path):
@@ -83,3 +86,25 @@ def fetch(entries, root, only=None, opener=open_url):
         else:
             done["skipped"].append(entry["name"])
     return done
+
+
+def purge(entries, root):
+    """Removes every file in this worker's folders that the list does not name; returns the weights removed.
+
+    A weight that was retired, or moved into the image, would otherwise stay on the volume and be paid for by the
+    gigabyte every month. Sub-folders are left alone.
+    """
+    keep = set()
+    for e in entries:
+        keep |= {target(root, e), _marker(target(root, e))}
+    removed = []
+    for name in OWNED:
+        folder = os.path.join(root, name)
+        for file in sorted(os.listdir(folder)) if os.path.isdir(folder) else []:
+            path = os.path.join(folder, file)
+            if path in keep or not os.path.isfile(path):
+                continue
+            os.remove(path)
+            if not file.endswith((".sha256", ".part")):
+                removed.append(file)
+    return removed

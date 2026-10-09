@@ -100,6 +100,18 @@ describe("end-to-end with fakes", () => {
     expect(spent).toBeCloseTo(media.totalUsd, 6);
     expect(media.totalUsd).toBeGreaterThan(0);
   });
+
+  it("buys the portrait after the voice and straight before the pictures, inside the media plan", async () => {
+    const plans: Array<[string, Plan]> = [];
+    const { ctx } = await makeTestContext({ modes: [2, 2], shots: ["cut", "cut"] });
+    ctx.manifest.request.imageProfile = "runpod-klein@1";
+    await runPipeline(ctx, STAGES, { ...auto, onPlan: (p, label) => plans.push([label, p]) });
+    const bought = ctx.manifest.ledger.map((e) => e.stage);
+    // nothing between the portrait and the pictures: the picture worker is started once (phase 5 spec §9.13)
+    expect(bought.filter((s) => s !== "script")).toEqual(["tts", "tts", "reference", "keyframes", "keyframes"]);
+    const media = plans.find(([label]) => label === "Media plan")![1];
+    expect(media.items[0]).toMatchObject({ stage: "reference", scene: 0 });
+  });
 });
 
 describe("the spend cap (capUsd)", () => {

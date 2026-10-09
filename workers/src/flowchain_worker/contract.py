@@ -3,8 +3,8 @@
 import base64
 import binascii
 
-PRESETS = ("cinematic_history", "anime", "cyberpunk", "dark_fantasy", "photorealistic_8k", "3d_render")
-WORKFLOWS = {"keyframe": "keyframe-sdxl@1", "clip": "clip-wan22-480p@1"}
+# clips only: the picture task this worker once had went with its weights (phase 5 spec §9.13)
+WORKFLOWS = {"clip": "clip-wan22-480p@1"}
 MAX_SEED = 2**31 - 1
 MAX_IMAGE_BYTES = 9 * 1024 * 1024
 # 480p, and 720p (phase 5 spec §6.3): both fit the 24 GB card; the graph is the same
@@ -54,29 +54,16 @@ def validate(inp):
         _only(inp, ("task", "only"))
         only = inp.get("only")
         if only is not None and only not in WORKFLOWS:
-            raise ContractError("only must be 'keyframe' or 'clip'")
+            raise ContractError("only must be 'clip'")
         return {"task": task, "only": only}
     if task not in WORKFLOWS:
-        raise ContractError("task must be 'keyframe', 'clip' or 'fetch-models'")
+        raise ContractError("task must be 'clip' or 'fetch-models'")
     if inp.get("workflow") != WORKFLOWS[task]:
         raise ContractError(f"this worker runs workflow {WORKFLOWS[task]} for task {task}")
     seed = inp.get("seed")
     req = {"task": task, "workflow": inp["workflow"], "prompt": _text(inp.get("prompt"), "prompt")}
     if seed is not None:
         req["seed"] = _int(seed, "seed", 0, MAX_SEED)
-    if task == "keyframe":
-        _only(inp, ("task", "workflow", "prompt", "width", "height", "seed", "preset", "reference"))
-        req["width"] = _int(inp.get("width"), "width", 256, 2048)
-        req["height"] = _int(inp.get("height"), "height", 256, 2048)
-        if req["width"] % 8 or req["height"] % 8:
-            raise ContractError("width and height must be multiples of 8")
-        preset = inp.get("preset")
-        if preset is not None and preset not in PRESETS:
-            raise ContractError(f"preset must be one of {', '.join(PRESETS)}")
-        req["preset"] = preset
-        if inp.get("reference") is not None:
-            req["reference"] = _image(inp["reference"], "reference")
-        return req
     _only(inp, ("task", "workflow", "prompt", "image", "frames", "fps", "width", "height", "seed"))
     req["image"] = _image(inp.get("image"), "image")
     frames = _int(inp.get("frames"), "frames", 33, 81)

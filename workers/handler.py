@@ -8,7 +8,7 @@ import time
 import runpod
 
 from flowchain_worker import comfy, contract, encode, models, storage
-from flowchain_worker.workflows import RIFE_MULTIPLIER, clip_graph, keyframe_graph
+from flowchain_worker.workflows import RIFE_MULTIPLIER, clip_graph
 
 COMFY_INPUT = "/comfyui/input"
 COMFY_OUTPUT = "/comfyui/output"
@@ -16,7 +16,7 @@ COMFY_TEMP = "/comfyui/temp"
 TMP_DIR = "/tmp"
 VOLUME_MODELS = "/runpod-volume/models"
 MODELS_JSON = "/flowchain/models.json"
-TIMEOUT_S = {"keyframe": 110, "clip": 580}
+TIMEOUT_S = 580
 
 
 def _write_input(job_id, name, data):
@@ -62,7 +62,10 @@ def handler(job):
     except contract.ContractError as err:
         return {"error": f"invalid request: {err}"}
     if req["task"] == "fetch-models":
-        return models.fetch(models.load(MODELS_JSON), VOLUME_MODELS, req["only"])
+        entries = models.load(MODELS_JSON)
+        done = models.fetch(entries, VOLUME_MODELS, req["only"])
+        # only once everything listed is there and checked: a failed download removes nothing
+        return {**done, "removed": models.purge(entries, VOLUME_MODELS)}
 
     missing = storage.missing_env()
     if missing:
@@ -74,28 +77,19 @@ def handler(job):
     comfy.wait_ready()
     mp4 = os.path.join(TMP_DIR, f"{job_id}.mp4")
     try:
-        if req["task"] == "keyframe":
-            ref = _write_input(job_id, "reference", req["reference"]) if "reference" in req else None
-            graph = keyframe_graph(req, seed=seed, prefix=prefix, reference_file=ref)
-        else:
-            graph = clip_graph(req, seed=seed, prefix=prefix, image_file=_write_input(job_id, "image", req["image"]))
+        graph = clip_graph(req, seed=seed, prefix=prefix, image_file=_write_input(job_id, "image", req["image"]))
         prompt_id = comfy.queue(graph)
         try:
-            entry = comfy.wait(prompt_id, TIMEOUT_S[req["task"]])
+            entry = comfy.wait(prompt_id, TIMEOUT_S)
         except Exception:
             _interrupt_quietly()  # a timed-out prompt would otherwise keep the GPU busy for the next job
             raise
         files = comfy.output_files(entry, COMFY_OUTPUT)
-        if req["task"] == "keyframe":
-            result, ext, kind = files[-1], "png", "image/png"
-        else:
-            result = encode.frames_to_mp4(files, req["fps"] * RIFE_MULTIPLIER, mp4)
-            ext, kind = "mp4", "video/mp4"
-        url = storage.upload(result, f"flowchain/{job_id}.{ext}", kind)
+        result = encode.frames_to_mp4(files, req["fps"] * RIFE_MULTIPLIER, mp4)
+        url = storage.upload(result, f"flowchain/{job_id}.mp4", "video/mp4")
     finally:
         _forget(job_id)
-        for name in ("reference", "image"):
-            _remove(os.path.join(COMFY_INPUT, f"flowchain/{job_id}-{name}.png"))
+        _remove(os.path.join(COMFY_INPUT, f"flowchain/{job_id}-image.png"))
         _remove(mp4)
     return {"url": url, "seed": seed, "executionMs": int((time.monotonic() - started) * 1000)}
 

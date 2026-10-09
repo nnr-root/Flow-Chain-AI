@@ -10,7 +10,6 @@ export function needsKeyframe(m: Manifest, i: number): boolean {
   return m.script?.scenes[i]?.shot === "cut";
 }
 
-/** Spec §6.1. Without a preset (runs scripted before 2.2) the Phase 1 wording is kept, so cache keys stay valid. */
 /**
  * Whether scene i has a recurring character in its frame. Only a script that says no is read as no: one written
  * before the field existed is prompted exactly as it always was, so its stages keep their hashes.
@@ -20,6 +19,7 @@ export function showsCharacter(script: Script, i: number): boolean {
 }
 
 /**
+ * Spec §6.1. Without a preset (runs scripted before 2.2) the Phase 1 wording is kept, so cache keys stay valid.
  * A scene without the character is not told about them: a picture model given a description (and a portrait)
  * puts that person into a staircase or a lantern room that was meant to be empty (phase 5 spec §9.12).
  */

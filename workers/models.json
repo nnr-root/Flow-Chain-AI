@@ -1,65 +1,5 @@
 [
   {
-    "name": "RealVisXL_V5.0_fp16.safetensors",
-    "url": "https://huggingface.co/SG161222/RealVisXL_V5.0/resolve/main/RealVisXL_V5.0_fp16.safetensors",
-    "sha256": "6a35a7855770ae9820a3c931d4964c3817b6d9e3c6f9c4dabb5b3a94e5643b80",
-    "size": 6938065488,
-    "dir": "checkpoints",
-    "for": [
-      "keyframe"
-    ]
-  },
-  {
-    "name": "sd_xl_base_1.0.safetensors",
-    "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors",
-    "sha256": "31e35c80fc4829d14f90153f4c74cd59c90b779f6afe05a74cd6120b893f7e5b",
-    "size": 6938078334,
-    "dir": "checkpoints",
-    "for": [
-      "keyframe"
-    ]
-  },
-  {
-    "name": "animagine-xl-4.0.safetensors",
-    "url": "https://huggingface.co/cagliostrolab/animagine-xl-4.0/resolve/main/animagine-xl-4.0.safetensors",
-    "sha256": "1d5b43ff75b6ab598502d4c779d2fbfa3dceca51c60c3b609640a60772333916",
-    "size": 6938434056,
-    "dir": "checkpoints",
-    "for": [
-      "keyframe"
-    ]
-  },
-  {
-    "name": "sdxl_lightning_8step_lora.safetensors",
-    "url": "https://huggingface.co/ByteDance/SDXL-Lightning/resolve/main/sdxl_lightning_8step_lora.safetensors",
-    "sha256": "5aa30d94cdf7950a8b53a693682650ee061eddb128c5435a8f88defea73b2ac6",
-    "size": 393854592,
-    "dir": "loras",
-    "for": [
-      "keyframe"
-    ]
-  },
-  {
-    "name": "ip-adapter-plus-face_sdxl_vit-h.safetensors",
-    "url": "https://huggingface.co/h94/IP-Adapter/resolve/main/sdxl_models/ip-adapter-plus-face_sdxl_vit-h.safetensors",
-    "sha256": "677ad8860204f7d0bfba12d29e6c31ded9beefdf3e4bbd102518357d31a292c1",
-    "size": 847517512,
-    "dir": "ipadapter",
-    "for": [
-      "keyframe"
-    ]
-  },
-  {
-    "name": "CLIP-ViT-H-14-laion2B-s32B-b79K.safetensors",
-    "url": "https://huggingface.co/h94/IP-Adapter/resolve/main/models/image_encoder/model.safetensors",
-    "sha256": "6ca9667da1ca9e0b0f75e46bb030f7e011f44f86cbfb8d5a36590fcd7507b030",
-    "size": 2528373448,
-    "dir": "clip_vision",
-    "for": [
-      "keyframe"
-    ]
-  },
-  {
     "name": "wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
     "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/wan2.2_i2v_high_noise_14B_fp8_scaled.safetensors",
     "sha256": "6122e79d55e0f235698d11d657f3b196c5273c830da00b2b013c5a048d5e6a42",
@@ -75,26 +15,6 @@
     "sha256": "5471a457b6ac404202a5fbe6c11595a3d5641fc766b00f38763f72303fffc21e",
     "size": 14294742832,
     "dir": "diffusion_models",
-    "for": [
-      "clip"
-    ]
-  },
-  {
-    "name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
-    "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors",
-    "sha256": "c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68",
-    "size": 6735906897,
-    "dir": "text_encoders",
-    "for": [
-      "clip"
-    ]
-  },
-  {
-    "name": "wan_2.1_vae.safetensors",
-    "url": "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/vae/wan_2.1_vae.safetensors",
-    "sha256": "2fc39d31359a4b0a64f55876d8ff7fa8d780956ae2cb13463b0223e15148976b",
-    "size": 253815318,
-    "dir": "vae",
     "for": [
       "clip"
     ]

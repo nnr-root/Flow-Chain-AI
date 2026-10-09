@@ -29,7 +29,7 @@ describe("image profiles", () => {
   it("prices the klein worker by its own GPU seconds: a picture, a quick portrait, and a start once a run", () => {
     const klein = IMAGE_PROFILES["runpod-klein@1"];
     expect(klein.keyframeUsd(prices, size)).toBe(0.0018); // 6 s × $0.000306
-    expect(klein.referenceUsd(prices, size)).toBe(0.0193); // 3 s, and a start of its own
+    expect(klein.referenceUsd(prices, size)).toBe(0.0009); // 3 s
     expect(klein.runOverheadUsd(prices)).toBe(0.0184); // 60 s
     expect(klein.keyframeUsd(Prices.parse({ runpodPictureSec: 10 }), size)).toBe(0.0031);
   });

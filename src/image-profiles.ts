@@ -32,9 +32,9 @@ export const IMAGE_PROFILES: Record<ImageProfileId, ImageProfile> = {
   "runpod-klein@1": {
     id: "runpod-klein@1",
     keyframeUsd: (p) => round4(runpodRates(p).pictureSec * runpodRates(p).keyframeUsdPerSec),
-    // The portrait pays a start of its own: the voice is made between it and the first picture, and the worker
-    // has stopped by then (both live runs, phase 5 spec §9.12).
-    referenceUsd: (p) => round4((runpodRates(p).portraitSec + runpodRates(p).pictureColdStartSec) * runpodRates(p).keyframeUsdPerSec),
+    // The portrait is made straight before the pictures, on the same worker: the run's one start is counted
+    // once, with the first picture (runOverheadUsd), whichever of the two really waits for it.
+    referenceUsd: (p) => round4(runpodRates(p).portraitSec * runpodRates(p).keyframeUsdPerSec),
     runOverheadUsd: (p) => round4(runpodRates(p).pictureColdStartSec * runpodRates(p).keyframeUsdPerSec),
   },
 };

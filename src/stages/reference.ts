@@ -9,7 +9,7 @@ import { requireScript } from "./require.js";
 import type { Stage, StageContext } from "./types.js";
 import { showsCharacter } from "./visual.js";
 
-/** The portrait is square and SDXL-native: IP-Adapter crops faces to a square anyway. */
+/** The portrait is square: a face and shoulders need no more, and it is quick to make. */
 const REFERENCE_SIZE = { width: 1024, height: 1024 };
 
 const hasCharacters = (m: Manifest): boolean => {

@@ -25,8 +25,11 @@ export type RunOptions = {
   onPlan?: (plan: Plan, label: string) => void;
 };
 
-/** Second confirmation point: script and audio exist here, so every remaining estimate is exact. */
-export const MEDIA_CHECKPOINT: StageName = "keyframes";
+/**
+ * Second confirmation point: script and audio exist here, so every remaining estimate is exact. It comes before
+ * the first picture that is bought: the portrait where a run has one, the keyframes otherwise.
+ */
+export const MEDIA_CHECKPOINT: StageName[] = ["reference", "keyframes"];
 
 export class RunAborted extends Error {
   constructor(message = "Run aborted: the estimated cost was not confirmed.") {
@@ -163,8 +166,12 @@ export async function runPipeline(ctx: StageContext, stages: Stage[], opts: RunO
   };
 
   await checkpoint(stages, "Plan");
+  let mediaChecked = false;
   for (const [i, stage] of stages.entries()) {
-    if (i > 0 && stage.name === MEDIA_CHECKPOINT) await checkpoint(stages.slice(i), "Media plan");
+    if (i > 0 && !mediaChecked && MEDIA_CHECKPOINT.includes(stage.name)) {
+      mediaChecked = true;
+      await checkpoint(stages.slice(i), "Media plan");
+    }
     for (const scene of targets(stage, ctx.manifest)) {
       if (!forced.has(stage.name) && (await isFresh(ctx, stage, scene))) continue;
       await execute(ctx, stage, scene);

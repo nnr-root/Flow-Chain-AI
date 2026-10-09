@@ -32,7 +32,7 @@ read the one for the area you are changing before changing it (table at the end)
 
 | Path | What lives there |
 |---|---|
-| `src/cli.ts`, `src/pipeline.ts`, `src/stages/` | the CLI and its stages (script, tts, silence, modes, keyframes, clips, fit, captions, render) |
+| `src/cli.ts`, `src/pipeline.ts`, `src/stages/` | the CLI and its stages (script, tts, silence, modes, reference, keyframes, clips, fit, captions, render) |
 | `src/manifest/` | `manifest.json`: the schema, loading, saving. **The run's manifest is the truth about a run** |
 | `src/providers/` | Gemini, RunPod (pictures, clips, voice), R2; `types.ts` holds the interfaces the stages use |
 | `src/media/` | ffmpeg and Remotion helpers |
@@ -46,7 +46,7 @@ read the one for the area you are changing before changing it (table at the end)
 | `web/lib/` | code shared by server and browser; no secrets, few imports |
 | `db/migrations/` | the database: plain SQL, three files (accounts, tenancy, billing) |
 | `src/db/client.ts`, `src/auth/` | the one client for the studio's Postgres (`Db`), and password hashing |
-| `workers/` | the clip worker (Python, a ComfyUI graph for Wan 2.2 at 480p and 720p; its SDXL picture graph serves no new run) |
+| `workers/` | the clip worker (Python, a ComfyUI graph for Wan 2.2 at 480p and 720p; text encoder and VAE in its image, the rest on the volume) |
 | `worker-picture/` | the picture worker (Python, FLUX.2 klein 4B through diffusers; weights on the network volume) |
 | `worker-voice/`, `src/voice/`, `src/providers/runpod-voice.ts` | the voice worker (Python: VoxCPM2 + Whisper), laying a script's words over what was heard, the provider |
 | `deploy/` | Compose file, Dockerfiles, Caddy files for the server |
