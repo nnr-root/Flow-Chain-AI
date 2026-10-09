@@ -44,7 +44,7 @@ describe("serverConfig", () => {
   });
 
   it("never passes on the settings of the hosted models the studio stopped using, wherever they are still written", () => {
-    const cfg = serverConfig({ ...base, FAL_KEY: "server", PROVIDER_MODE: "fal" }, { FAL_KEY: "local", FAL_IMAGE_MODEL: "m", FAL_VIDEO_MODEL: "v", GEMINI_API_KEY: "g" });
+    const cfg = serverConfig({ ...base, FAL_KEY: "server", PROVIDER_MODE: "fal", ELEVENLABS_API_KEY: "server" }, { FAL_KEY: "local", FAL_IMAGE_MODEL: "m", FAL_VIDEO_MODEL: "v", ELEVENLABS_VOICE_ID: "v", ELEVENLABS_MODEL: "m", GEMINI_API_KEY: "g" });
     expect(cfg.worker).toEqual({ GEMINI_API_KEY: "g" });
   });
 

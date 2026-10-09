@@ -15,8 +15,9 @@ and `docs/superpowers/specs/2026-10-06-phase3.1-web-ui-player-design.md` (the st
 
 1. `brew install ffmpeg` (≥ 6 with libx264), Node ≥ 22.12
 2. `npm install`
-3. `cp .env.example .env` and fill in `GEMINI_API_KEY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`
-4. Set up the GPU endpoints that make the pictures and clips: see "The GPU worker" below (`npm run runpod:deploy`)
+3. `cp .env.example .env` and fill in `GEMINI_API_KEY`
+4. Set up the GPU endpoints that make the pictures, the clips and the voice: see "The GPU worker" below
+   (`npm run runpod:deploy`, then `npm run voice:deploy`)
 5. `npm run flowchain -- doctor` — every line must show ✓ (the first run downloads Remotion's headless
    Chrome, ≈ 100 MB, once)
 
@@ -115,10 +116,11 @@ charged per job from RunPod's measured execution time; cold starts and idle time
 ### The studio's own voice
 
 `npm run voice:deploy` creates one more endpoint, for the voiceover (VoxCPM2, with a Whisper model that says
-when each word was spoken, which the captions need), and writes `RUNPOD_VOICE_ENDPOINT` into `.env`. From then
-on new runs are spoken there, at about a tenth of a cent a line instead of about three cents; runs made before
-stay on ElevenLabs for as long as its key is in `.env`. It needs no volume and uploads nothing: a line goes in,
-its speech comes back in the answer. Its image is built by the same GitHub Action from `worker-voice/`; make the
+when each word was spoken, which the captions need), and writes `RUNPOD_VOICE_ENDPOINT` into `.env`. Every new
+run is spoken there: about a cent for the first line of a run (the worker loads its models) and about a tenth
+of a cent for each line after it. Runs made earlier with ElevenLabs still load and re-render; a line of theirs
+cannot be spoken again. It needs no volume and uploads nothing: a line goes in, its speech comes back in the
+answer. The first line on a host that has never run it waits about four minutes while the image is fetched. Its image is built by the same GitHub Action from `worker-voice/`; make the
 `flowchain-voice` package public once, like the other.
 
 - Two voices are in the image, `narrator-m` (the default) and `narrator-f`; `FLOWCHAIN_VOICE` or `--voice` picks

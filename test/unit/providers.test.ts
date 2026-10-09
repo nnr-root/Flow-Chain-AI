@@ -2,7 +2,6 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ElevenLabsTts, wordsFromAlignment } from "../../src/providers/elevenlabs.js";
 import { HttpError, isRetryable, NonRetryableError, UnusableResultError } from "../../src/providers/retry.js";
 import { buildScriptPrompt, scriptJsonSchema } from "../../src/providers/gemini.js";
 import { PRESETS } from "../../src/presets.js";
@@ -72,47 +71,5 @@ describe("gemini prompt and schema", () => {
     };
     expect(s.required).toContain("stylePreset");
     expect(s.properties.scenes.items.required).toEqual(expect.arrayContaining(["actionLevel", "suggestedTransition"]));
-  });
-});
-
-describe("elevenlabs", () => {
-  const alignment = {
-    characters: [..."Hi  yo"],
-    character_start_times_seconds: [0, 0.1, 0.2, 0.25, 0.3, 0.4],
-    character_end_times_seconds: [0.1, 0.2, 0.25, 0.3, 0.4, 0.5],
-  };
-
-  it("builds words from character alignment", () => {
-    expect(wordsFromAlignment(alignment)).toEqual([
-      { text: "Hi", start: 0, end: 0.2 },
-      { text: "yo", start: 0.3, end: 0.5 },
-    ]);
-  });
-
-  it("calls with-timestamps with continuity context and decodes the audio", async () => {
-    const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
-    const fakeFetch = (async (url: string | URL | Request, init?: RequestInit) => {
-      calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
-      return new Response(
-        JSON.stringify({ audio_base64: Buffer.from("MP3").toString("base64"), alignment, normalized_alignment: null }),
-        { status: 200 },
-      );
-    }) as typeof fetch;
-    const tts = new ElevenLabsTts("key", "eleven_multilingual_v2", fakeFetch);
-    const r = await tts.speak({ text: "Hi  yo", previousText: "Before.", voiceId: "voice/1" });
-    expect(calls[0].url).toBe(
-      "https://api.elevenlabs.io/v1/text-to-speech/voice%2F1/with-timestamps?output_format=mp3_44100_128",
-    );
-    expect(calls[0].body).toEqual({ text: "Hi  yo", model_id: "eleven_multilingual_v2", previous_text: "Before." });
-    expect(r.audio.toString()).toBe("MP3");
-    expect(r.words).toHaveLength(2);
-  });
-
-  it("surfaces HTTP errors with their status", async () => {
-    const fakeFetch = (async () => new Response("bad key", { status: 401 })) as typeof fetch;
-    const err = await new ElevenLabsTts("k", "m", fakeFetch).speak({ text: "x", voiceId: "v" }).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(HttpError);
-    expect((err as HttpError).status).toBe(401);
-    expect((err as Error).message).toBe("ElevenLabs TTS HTTP 401: bad key");
   });
 });

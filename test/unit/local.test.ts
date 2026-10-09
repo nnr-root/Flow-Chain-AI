@@ -50,6 +50,6 @@ describe("a studio on this machine", () => {
       expect(worker).not.toHaveProperty("STRIPE_SECRET_KEY");
     }
     // a key of the hosted models the studio stopped using is still in this .env: no process is handed it
-    for (const name of ["FAL_KEY", "PROVIDER_MODE"]) expect(localEnvs(input).worker, name).not.toHaveProperty(name);
+    for (const name of ["FAL_KEY", "PROVIDER_MODE", "ELEVENLABS_API_KEY"]) expect(localEnvs(input).worker, name).not.toHaveProperty(name);
   });
 });

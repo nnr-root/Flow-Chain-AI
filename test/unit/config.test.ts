@@ -6,15 +6,13 @@ import { keyframeSize, loadEnv, loadPrices, outputSize } from "../../src/config.
 
 const required = {
   GEMINI_API_KEY: "g",
-  ELEVENLABS_API_KEY: "e",
-  ELEVENLABS_VOICE_ID: "v",
 };
 
 describe("loadEnv", () => {
   it("applies defaults for optional variables", () => {
     const env = loadEnv(required);
     expect(env.GEMINI_MODEL).toBe("gemini-flash-latest");
-    expect(env.ELEVENLABS_MODEL).toBe("eleven_multilingual_v2");
+    expect(env.FLOWCHAIN_VOICE).toBe("narrator-m");
     expect(env.FLOWCHAIN_BUDGET_USD).toBe(3);
     expect(env.RUNS_DIR).toBe("./runs");
   });
@@ -25,8 +23,8 @@ describe("loadEnv", () => {
 
   it("names every missing required variable", () => {
     expect(() => loadEnv({ RUNS_DIR: "./r" })).toThrowError(/GEMINI_API_KEY/);
-    // the hosted voice's keys are asked for where a run needs them, not here: the studio's own voice needs neither
-    expect(loadEnv({ GEMINI_API_KEY: "g" }).ELEVENLABS_API_KEY).toBeUndefined();
+    // a key of the hosted voice the studio stopped using is not read at all, wherever it is still written
+    expect(loadEnv({ GEMINI_API_KEY: "g", ELEVENLABS_API_KEY: "old" })).not.toHaveProperty("ELEVENLABS_API_KEY");
   });
 
   it("rejects empty keys", () => {

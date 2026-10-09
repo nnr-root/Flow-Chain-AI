@@ -59,7 +59,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     expect(runner().mode).toBe("queue");
     const health = await studioHealth();
     expect(health.queue).toEqual({ mode: "queue", redis: true, worker: true });
-    expect(health.missing.slice(0, 3)).toEqual(["ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "RUNPOD_API_KEY"]);
+    expect(health.missing.slice(0, 3)).toEqual(["RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT"]);
     expect(JSON.stringify(health)).not.toContain("secret-g");
   });
 

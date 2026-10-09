@@ -1,6 +1,5 @@
 import { type Env, type Prices, runpodRates } from "../config.js";
 import type { Models } from "../manifest/schema.js";
-import { ElevenLabsTts } from "./elevenlabs.js";
 import { GeminiLlm } from "./gemini.js";
 import { parseModelId } from "./model-id.js";
 import { R2 } from "./r2.js";
@@ -51,13 +50,20 @@ export function createProviders(env: Env, models: Models, prices: Prices): Provi
     imageRef.provider === "retired" ? retired("pictures", imageRef.model) : new RunpodImage(runpodDeps(), imageRef);
   const video: VideoProvider =
     videoRef.provider === "retired" ? retired("clips", videoRef.model) : new RunpodVideo(runpodDeps(), videoRef);
-  // The voice follows the run too: a run spoken by the studio's own voice stays there, an earlier one stays on
-  // the service it was made with for as long as that service's key is here.
-  const voiceRef = models.tts.startsWith("runpod:") ? parseModelId(models.tts) : undefined;
+  // The voice follows the run too: a run spoken by the studio's own voice stays on the endpoint it was made
+  // with. An earlier run was spoken by a hosted voice the studio no longer buys from (phase 5 spec §5.2): its
+  // speech is on disk, so it re-renders; a line that would have to be spoken again says why it cannot be.
+  const voiceRef = parseModelId(models.tts);
   const tts: TtsProvider =
-    voiceRef?.provider === "runpod"
+    voiceRef.provider === "runpod"
       ? new RunpodTts({ client: new RunpodClient(need(env.RUNPOD_API_KEY, "RUNPOD_API_KEY", "this run uses the studio's own voice")), usdPerSec: runpodRates(prices).voiceUsdPerSec }, voiceRef)
-      : new ElevenLabsTts(need(env.ELEVENLABS_API_KEY, "ELEVENLABS_API_KEY", "this run's voice is ElevenLabs"), models.tts);
+      : {
+          speak: async () => {
+            throw new NonRetryableError(
+              `this run's voice came from ${voiceRef.model}, a hosted voice this studio no longer uses; it can be re-rendered (rerender), but no line can be spoken again for it — start a new run instead`,
+            );
+          },
+        };
   return {
     llm: new GeminiLlm(env.GEMINI_API_KEY, models.llm),
     tts,

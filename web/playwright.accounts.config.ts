@@ -73,7 +73,7 @@ export default defineConfig({
       // gets the database address that settles credit and the provider keys' stand-ins; the web process gets neither.
       command: [
         `(DATABASE_URL="$WORKER_DATABASE_URL" FLOWCHAIN_CLI="$WORKER_CLI" WORKER_RECONCILE_MS=2000 WORKER_RECONCILE_KNOWN_USERS_ONLY=1`,
-        `GEMINI_API_KEY=t ELEVENLABS_API_KEY=t ELEVENLABS_VOICE_ID=t RUNPOD_API_KEY=t RUNPOD_KEYFRAME_ENDPOINT=t RUNPOD_CLIP_ENDPOINT=t R2_ACCOUNT_ID=t R2_BUCKET=t R2_ACCESS_KEY_ID=t R2_SECRET_ACCESS_KEY=t node --import tsx worker/main.ts > ${data}/worker.log 2>&1 &)`,
+        `GEMINI_API_KEY=t RUNPOD_API_KEY=t RUNPOD_KEYFRAME_ENDPOINT=t RUNPOD_CLIP_ENDPOINT=t RUNPOD_VOICE_ENDPOINT=t R2_ACCOUNT_ID=t R2_BUCKET=t R2_ACCESS_KEY_ID=t R2_SECRET_ACCESS_KEY=t node --import tsx worker/main.ts > ${data}/worker.log 2>&1 &)`,
         // the signing secret is the web app's alone: the worker never sees a webhook
         `; npx next build --webpack && STRIPE_WEBHOOK_SECRET="$WEB_WEBHOOK_SECRET" exec npx next start -H 127.0.0.1 -p ${PORT}`,
       ].join(" "),

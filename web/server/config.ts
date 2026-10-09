@@ -64,8 +64,7 @@ function pipelineEnv(): Record<string, string | undefined> {
 }
 
 const NEEDS = [
-  "GEMINI_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID",
-  "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT",
+  "GEMINI_API_KEY", "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT", "RUNPOD_VOICE_ENDPOINT",
   "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
 ] as const;
 
@@ -81,8 +80,7 @@ export function health(): Health {
   const unset = (names: readonly string[]) => names.filter((n) => !env[n]?.trim());
   const budget = Number(env.FLOWCHAIN_BUDGET_USD);
   return {
-    // the hosted voice's two keys are needed only while the studio's own voice is not set up
-    missing: unset(NEEDS).filter((name) => !(name.startsWith("ELEVENLABS_") && env.RUNPOD_VOICE_ENDPOINT?.trim())),
+    missing: unset(NEEDS),
     defaults: { budgetUsd: Number.isFinite(budget) && budget > 0 ? budget : 3 },
   };
 }

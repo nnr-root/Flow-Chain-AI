@@ -382,3 +382,15 @@ attempt, spoken by the studio's own voice.
   intermediate picture stays in that worker's memory until its next job or its stop, readable by nobody else.
 - **Still to measure** after that fix: a video's cost again, and what FlashBoot being off adds to a start.
 
+### 9.7 ElevenLabs purge (2026-10-09)
+
+The owner chose to remove it once the live run had been spoken by the studio's own voice (click).
+
+- `src/providers/elevenlabs.ts`, `ELEVENLABS_*` and its `doctor` check are gone. A new run's voice is the voice
+  endpoint or nothing: `newRunVoice` says to run `npm run voice:deploy`.
+- A run whose `models.tts` is not `runpod:…` needs no key and re-renders; its `speak` refuses with one sentence
+  and is never retried. `ttsPer1kChars` stays as data for such runs' estimates. `RETIRED_KEYS` gained the three
+  `ELEVENLABS_*` names, so an owner's `.env` that still has them hands them to no process.
+- The studio's readiness check asks for `RUNPOD_VOICE_ENDPOINT` in place of the two ElevenLabs settings.
+- With this, the pipeline talks to three services: Gemini (the script), RunPod (pictures, clips, voice) and R2.
+

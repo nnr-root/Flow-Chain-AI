@@ -21,10 +21,10 @@ const OWNER_ONLY = ["STRIPE_WEBHOOK_ENDPOINT", "MAIL_DIR"];
 /** Where a test's stand-in Stripe is: the server only ever talks to the real one. */
 const TEST_ONLY = ["STRIPE_API_BASE"];
 /**
- * Settings of the hosted picture models the studio no longer buys from (phase 5 spec §5.1). An owner's `.env`
+ * Settings of the hosted picture models and voice the studio no longer buys from (phase 5 spec §5). An owner's `.env`
  * may still carry them; a key nothing uses must not be handed to a process, on a server or on this machine.
  */
-export const RETIRED_KEYS = ["FAL_KEY", "FAL_IMAGE_MODEL", "FAL_VIDEO_MODEL", "PROVIDER_MODE"];
+export const RETIRED_KEYS = ["FAL_KEY", "FAL_IMAGE_MODEL", "FAL_VIDEO_MODEL", "PROVIDER_MODE", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "ELEVENLABS_MODEL"];
 /**
  * What the web app gets in a studio with accounts: the mail server and Google sign-in (its alone: the worker
  * sends no email and signs nobody in), the job limit, and the bucket. Its address of the database is added on

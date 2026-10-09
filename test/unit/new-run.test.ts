@@ -8,8 +8,6 @@ import { FakeRunpodApi } from "../fakes/runpod.js";
 
 const base = {
   GEMINI_API_KEY: "g",
-  ELEVENLABS_API_KEY: "e",
-  ELEVENLABS_VOICE_ID: "v",
 };
 
 describe("newRunProviders", () => {

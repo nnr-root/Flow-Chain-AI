@@ -3,8 +3,8 @@
 Turns a topic into a captioned short video, and sells that as a studio with accounts and credit.
 Three parts share one repository:
 
-- **The pipeline** (`src/`, a CLI): topic → script (Gemini) → voiceover (ElevenLabs) → keyframes and clips
-  (self-hosted on RunPod) → a video rendered with Remotion.
+- **The pipeline** (`src/`, a CLI): topic → script (Gemini) → voiceover, keyframes and clips
+  (all three on the studio's own RunPod endpoints) → a video rendered with Remotion.
 - **The studio** (`web/`, Next.js): create, preview, approve and render videos in a browser; accounts,
   credit and payments.
 - **The worker** (`web/worker/`): takes jobs from a Redis queue, runs the CLI for each, settles credit,
@@ -34,7 +34,7 @@ read the one for the area you are changing before changing it (table at the end)
 |---|---|
 | `src/cli.ts`, `src/pipeline.ts`, `src/stages/` | the CLI and its stages (script, tts, silence, modes, keyframes, clips, fit, captions, render) |
 | `src/manifest/` | `manifest.json`: the schema, loading, saving. **The run's manifest is the truth about a run** |
-| `src/providers/` | Gemini, ElevenLabs, RunPod, R2; `types.ts` holds the interfaces the stages use |
+| `src/providers/` | Gemini, RunPod (pictures, clips, voice), R2; `types.ts` holds the interfaces the stages use |
 | `src/media/` | ffmpeg and Remotion helpers |
 | `src/billing/stripe.ts` | the Stripe HTTP client (shared by web, worker and `stripe:setup`) |
 | `src/deploy/`, `scripts/` | pure planners (`src/deploy`) and the commands that act (`scripts`) for the server, the database, Stripe |

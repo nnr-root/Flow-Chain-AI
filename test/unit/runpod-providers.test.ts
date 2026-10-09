@@ -219,9 +219,6 @@ describe("createProviders", () => {
   const env = {
     GEMINI_API_KEY: "g",
     GEMINI_MODEL: "m",
-    ELEVENLABS_API_KEY: "e",
-    ELEVENLABS_VOICE_ID: "v",
-    ELEVENLABS_MODEL: "t",
     FLOWCHAIN_BUDGET_USD: 3,
     FLOWCHAIN_VOICE: "narrator-m",
     RUNS_DIR: "./runs",

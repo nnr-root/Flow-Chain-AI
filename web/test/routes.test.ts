@@ -29,11 +29,11 @@ const jobDone = (id: string) => until(() => readJob(join(studio.runs, id))?.stat
 
 describe("reads", () => {
   it("health names what is missing and never a value", async () => {
-    await writeFile(join(studio.root, ".env"), "GEMINI_API_KEY=secret-g\nELEVENLABS_API_KEY=secret-e\nRUNPOD_API_KEY=secret-r\nFLOWCHAIN_BUDGET_USD=5\n");
+    await writeFile(join(studio.root, ".env"), "GEMINI_API_KEY=secret-g\nRUNPOD_VOICE_ENDPOINT=secret-e\nRUNPOD_API_KEY=secret-r\nFLOWCHAIN_BUDGET_USD=5\n");
     const res = await health(request("/api/health"), undefined);
     const text = await res.text();
     expect(JSON.parse(text)).toEqual({
-      missing: ["ELEVENLABS_VOICE_ID", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"],
+      missing: ["RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"],
       defaults: { budgetUsd: 5 },
       queue: { mode: "local" },
     });
@@ -129,7 +129,7 @@ describe("creating a draft", () => {
   it("refuses, naming the variables, while keys are missing — before any run exists", async () => {
     const res = await createDraft(request("/api/drafts", { json: { topic: "foxes", budgetUsd: 3 } }), undefined);
     expect(res.status).toBe(400);
-    expect(await error(res)).toMatchObject({ code: "missing_keys", message: "not set in .env: GEMINI_API_KEY, ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID, RUNPOD_API_KEY, RUNPOD_KEYFRAME_ENDPOINT, RUNPOD_CLIP_ENDPOINT, R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY" });
+    expect(await error(res)).toMatchObject({ code: "missing_keys", message: "not set in .env: GEMINI_API_KEY, RUNPOD_API_KEY, RUNPOD_KEYFRAME_ENDPOINT, RUNPOD_CLIP_ENDPOINT, RUNPOD_VOICE_ENDPOINT, R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY" });
     expect(await calls(studio)).toEqual([]);
   });
 

@@ -48,8 +48,8 @@ async function askConfirm(_plan: Plan, reason: string): Promise<boolean> {
   }
 }
 
-async function requireDoctor(env: Env, models: Models, voiceId?: string): Promise<void> {
-  const checks = await runDoctor(env, FONTS_DIR, models, voiceId);
+async function requireDoctor(env: Env, models: Models): Promise<void> {
+  const checks = await runDoctor(env, FONTS_DIR, models);
   if (checks.every((c) => c.ok)) return;
   console.error(formatChecks(checks));
   throw new Error("flowchain doctor failed: fix the items marked ✗ above");
@@ -211,7 +211,7 @@ program
   .option("--brand <dir>", "brand kit folder (brand.json, logo, optional font): watermark, font, colours, characters")
   .option("--characters <text>", "character bible used in every prompt (default: the brand kit's, else Gemini's)")
   .option("--seed <n>", "seed shared by every keyframe (default: random)")
-  .option("--voice <id>", "voice (default: FLOWCHAIN_VOICE with the studio's own voice, else ELEVENLABS_VOICE_ID)")
+  .option("--voice <id>", "voice: narrator-m or narrator-f (default: FLOWCHAIN_VOICE)")
   .option("--bgm <file>", "background music, ducked under the narration")
   .addOption(new Option("--caption-style <style>", "caption look (default: the preset's)").choices(CAPTION_CHOICES))
   .addOption(
@@ -269,7 +269,7 @@ program
       image: providers.image,
       video: providers.video,
     };
-    await requireDoctor(env, models, request.voiceId);
+    await requireDoctor(env, models);
     const runId = chosenRunId(o.runId);
     const dir = runDir(runId);
     if (kit) {
@@ -297,7 +297,7 @@ program
     await loadManifest(dir); // a clear error for an unknown run id, before any lock file is created
     await withRunLock(dir, async () => {
       const manifest = await loadManifest(dir);
-      await requireDoctor(env, manifest.models, manifest.request.voiceId);
+      await requireDoctor(env, manifest.models);
       const ctx = contextFor(dir, manifest, providersFor(env, manifest.models), renderConcurrency(o.renderConcurrency));
       await execute(ctx, { budgetUsd: budget(o.budget, env), capUsd: cap(o.cap), yes: o.yes, from: o.from });
     });
@@ -319,7 +319,7 @@ program
     await withRunLock(dir, async () => {
       const manifest = await loadManifest(dir);
       bumpNonce(manifest, Number(o.scene), o.stage);
-      await requireDoctor(env, manifest.models, manifest.request.voiceId);
+      await requireDoctor(env, manifest.models);
       const ctx = contextFor(dir, manifest, providersFor(env, manifest.models), renderConcurrency(o.renderConcurrency));
       // with an approved amount a reroll is capped like a resume; without one it asks whenever it would spend
       await execute(ctx, { budgetUsd: budget(o.budget, env), capUsd: cap(o.cap), yes: o.yes, reroll: o.budget === undefined });

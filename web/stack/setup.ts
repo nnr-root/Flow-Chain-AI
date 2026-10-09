@@ -38,7 +38,7 @@ async function up(): Promise<void> {
   sh(process.execPath, ["--import", "tsx", "e2e/make-fixtures.ts", runs], web);
   const hash = execFileSync("docker", ["run", "--rm", "caddy:2", "caddy", "hash-password", "--plaintext", PASSWORD], { encoding: "utf8" }).trim();
   // names the worker's key check looks for; the stand-in CLI never uses a value
-  const keys = ["GEMINI_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"];
+  const keys = ["GEMINI_API_KEY", "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT", "RUNPOD_VOICE_ENDPOINT", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"];
   writeFileSync(join(data, "worker.env"), keys.map((k) => `${k}=stack-test\n`).join(""));
   writeFileSync(join(data, "web.env"), "");
   writeFileSync(

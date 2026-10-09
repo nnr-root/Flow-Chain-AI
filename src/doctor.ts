@@ -9,7 +9,6 @@ import type { Models } from "./manifest/schema.js";
 import { CAPTION_STYLES } from "./media/remotion/styles.js";
 import { sfxFiles } from "./media/sfx.js";
 import { PRESETS } from "./presets.js";
-import { ElevenLabsTts } from "./providers/elevenlabs.js";
 import { parseModelId } from "./providers/model-id.js";
 import { R2 } from "./providers/r2.js";
 import { RunpodClient } from "./providers/runpod.js";
@@ -103,10 +102,8 @@ function runpodEndpointIds(env: Env, models?: Models): string[] {
 }
 
 /** `models` lets resume/reroll check the models frozen in the manifest instead of today's env. */
-export async function runDoctor(env: Env, fontsDir: string, models?: Models, voiceId?: string): Promise<Check[]> {
+export async function runDoctor(env: Env, fontsDir: string, models?: Models): Promise<Check[]> {
   const llmModel = models?.llm ?? env.GEMINI_MODEL;
-  const ttsModel = models?.tts ?? env.ELEVENLABS_MODEL;
-  const voice = voiceId ?? env.ELEVENLABS_VOICE_ID;
   // the studio's own voice: the endpoint of the run's frozen model, else the one new runs would use
   const ownVoice = models ? (models.tts.startsWith("runpod:") ? (parseModelId(models.tts) as { endpointId: string }).endpointId : undefined) : env.RUNPOD_VOICE_ENDPOINT;
   const fonts = captionFontFiles(fontsDir);
@@ -147,16 +144,17 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models, voi
           }),
         ]
       : []),
-    ownVoice
-      ? await attempt("voice endpoint", async () => {
-          if (!env.RUNPOD_API_KEY) throw new Error("RUNPOD_API_KEY is not set");
-          return checkRunpodEndpoints(new RunpodClient(env.RUNPOD_API_KEY), [ownVoice]);
-        })
-      : await attempt(`ElevenLabs voice ${voice ?? "(none)"}`, async () => {
-          if (!env.ELEVENLABS_API_KEY || !voice) throw new Error("ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID are not set, and there is no voice endpoint (npm run voice:deploy)");
-          await new ElevenLabsTts(env.ELEVENLABS_API_KEY, ttsModel).checkVoice(voice);
-          return "available";
-        }),
+    // a run spoken by a hosted voice the studio no longer uses has no voice to check: its speech is on disk
+    ...(ownVoice
+      ? [
+          await attempt("voice endpoint", async () => {
+            if (!env.RUNPOD_API_KEY) throw new Error("RUNPOD_API_KEY is not set");
+            return checkRunpodEndpoints(new RunpodClient(env.RUNPOD_API_KEY), [ownVoice]);
+          }),
+        ]
+      : models
+        ? []
+        : [{ name: "voice endpoint", ok: false, detail: "RUNPOD_VOICE_ENDPOINT is not set (npm run voice:deploy)" }]),
   ];
 }
 

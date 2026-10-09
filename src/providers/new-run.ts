@@ -35,17 +35,9 @@ export function frozenModePrices(prices: Prices): Prices {
   };
 }
 
-/**
- * The voice a new run is frozen with: the studio's own where its endpoint is set up (phase 5 spec §6.1), else
- * the hosted one it has used so far.
- */
+/** The voice a new run is frozen with: the studio's own (phase 5 spec §6.1). */
 export function newRunVoice(env: Env): { model: string; voiceId: string } {
-  if (env.RUNPOD_VOICE_ENDPOINT) {
-    const { voice } = RUNPOD_WORKFLOWS;
-    return { model: runpodModelId(env.RUNPOD_VOICE_ENDPOINT, voice.workflow, voice.version), voiceId: env.FLOWCHAIN_VOICE };
-  }
-  if (!env.ELEVENLABS_API_KEY || !env.ELEVENLABS_VOICE_ID) {
-    throw new Error("no voice is set up: run npm run voice:deploy (the studio's own voice), or set ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID");
-  }
-  return { model: env.ELEVENLABS_MODEL, voiceId: env.ELEVENLABS_VOICE_ID };
+  if (!env.RUNPOD_VOICE_ENDPOINT) throw new Error("RUNPOD_VOICE_ENDPOINT not set; run npm run voice:deploy first");
+  const { voice } = RUNPOD_WORKFLOWS;
+  return { model: runpodModelId(env.RUNPOD_VOICE_ENDPOINT, voice.workflow, voice.version), voiceId: env.FLOWCHAIN_VOICE };
 }

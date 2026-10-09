@@ -20,15 +20,11 @@ export function keyframeSize(aspect: Aspect): Size {
 const Env = z.object({
   GEMINI_API_KEY: z.string().min(1),
   GEMINI_MODEL: z.string().min(1).default("gemini-flash-latest"),
-  // Needed only while the voice is not the studio's own (no RUNPOD_VOICE_ENDPOINT): checked where it is used.
-  ELEVENLABS_API_KEY: z.string().min(1).optional(),
-  ELEVENLABS_VOICE_ID: z.string().min(1).optional(),
-  ELEVENLABS_MODEL: z.string().min(1).default("eleven_multilingual_v2"),
   FLOWCHAIN_BUDGET_USD: z.coerce.number().positive().default(3),
   RUNPOD_API_KEY: z.string().min(1).optional(),
   RUNPOD_KEYFRAME_ENDPOINT: z.string().min(1).optional(),
   RUNPOD_CLIP_ENDPOINT: z.string().min(1).optional(),
-  /** The studio's own voice (phase 5 spec §6.1). With it set, new runs are spoken there. */
+  /** The studio's own voice (phase 5 spec §6.1): where every new run is spoken. */
   RUNPOD_VOICE_ENDPOINT: z.string().min(1).optional(),
   /** Which of the voice worker's voices new runs use. */
   FLOWCHAIN_VOICE: z.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/).default("narrator-m"),
@@ -55,6 +51,7 @@ export const Prices = z.strictObject({
   fluxPerMegapixel: z.number().default(0.025),
   klingBase5s: z.number().default(0.25),
   klingPerExtraSec: z.number().default(0.05),
+  // (the hosted voice the studio no longer buys from: kept, like the three above, for the runs made with it)
   ttsPer1kChars: z.number().default(0.3),
   llmPerMInputTokens: z.number().default(0.3),
   llmPerMOutputTokens: z.number().default(2.5),

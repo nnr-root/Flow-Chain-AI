@@ -170,23 +170,24 @@ describe("the studio's own voice", () => {
 
 describe("which voice a new run gets", () => {
   const base = { GEMINI_API_KEY: "g" };
-  it("the studio's own once its endpoint is set up, and the hosted one until then", () => {
+  it("the studio's own, and nothing else", () => {
     expect(newRunVoice(loadEnv({ ...base, RUNPOD_VOICE_ENDPOINT: "ep-v" }))).toEqual({ model: "runpod:ep-v/voice-voxcpm2@1", voiceId: "narrator-m" });
-    expect(newRunVoice(loadEnv({ ...base, RUNPOD_VOICE_ENDPOINT: "ep-v", FLOWCHAIN_VOICE: "narrator-f", ELEVENLABS_API_KEY: "e", ELEVENLABS_VOICE_ID: "v" }))).toEqual({ model: "runpod:ep-v/voice-voxcpm2@1", voiceId: "narrator-f" });
-    expect(newRunVoice(loadEnv({ ...base, ELEVENLABS_API_KEY: "e", ELEVENLABS_VOICE_ID: "v" }))).toEqual({ model: "eleven_multilingual_v2", voiceId: "v" });
-    expect(() => newRunVoice(loadEnv(base))).toThrow("no voice is set up");
+    expect(newRunVoice(loadEnv({ ...base, RUNPOD_VOICE_ENDPOINT: "ep-v", FLOWCHAIN_VOICE: "narrator-f" }))).toEqual({ model: "runpod:ep-v/voice-voxcpm2@1", voiceId: "narrator-f" });
+    // the key of the hosted voice it used before no longer gets anyone a voice
+    expect(() => newRunVoice(loadEnv({ ...base, ELEVENLABS_API_KEY: "e", ELEVENLABS_VOICE_ID: "v" }))).toThrow("RUNPOD_VOICE_ENDPOINT not set; run npm run voice:deploy first");
     expect(() => loadEnv({ ...base, FLOWCHAIN_VOICE: "../x" })).toThrow();
   });
 
-  it("keeps each run on the voice it was made with", () => {
-    const env = loadEnv({ ...base, RUNPOD_API_KEY: "rk", RUNPOD_VOICE_ENDPOINT: "ep-new", ELEVENLABS_API_KEY: "e", ELEVENLABS_VOICE_ID: "v" });
+  it("keeps a run on the endpoint it was made with, and lets a run made on the hosted voice load without any key for it", async () => {
+    const env = loadEnv({ ...base, RUNPOD_API_KEY: "rk", RUNPOD_VOICE_ENDPOINT: "ep-new" });
     const prices = Prices.parse({});
     const own = createProviders(env, { llm: "l", tts: "runpod:ep-old/voice-voxcpm2@1", image: "fal-ai/flux/dev", video: "fal-ai/kling" }, prices);
     expect(own.tts).toBeInstanceOf(RunpodTts);
-    const hosted = createProviders(env, { llm: "l", tts: "eleven_multilingual_v2", image: "fal-ai/flux/dev", video: "fal-ai/kling" }, prices);
-    expect(hosted.tts).not.toBeInstanceOf(RunpodTts);
-    // a run on the hosted voice needs that service's key, and says so
-    expect(() => createProviders(loadEnv({ ...base, RUNPOD_API_KEY: "rk" }), { llm: "l", tts: "eleven_multilingual_v2", image: "fal-ai/flux/dev", video: "fal-ai/kling" }, prices)).toThrow("ELEVENLABS_API_KEY is not set");
+    const hosted = createProviders(loadEnv(base), { llm: "l", tts: "eleven_multilingual_v2", image: "fal-ai/flux/dev", video: "fal-ai/kling" }, prices);
+    // its speech is on disk: it re-renders. A line that would have to be spoken again is refused, never retried.
+    const refused = await hosted.tts.speak({ text: "x", voiceId: "v" }).catch((e: unknown) => e);
+    expect(refused).toBeInstanceOf(NonRetryableError);
+    expect((refused as Error).message).toMatch(/voice came from eleven_multilingual_v2, a hosted voice this studio no longer uses; it can be re-rendered/);
     expect(runpodRates(prices)).toMatchObject({ voiceUsdPerSec: 0.000306, voiceSecPerLine: 3, voiceSecPerChar: 0.02, voiceColdStartSec: 40 });
   });
 });
