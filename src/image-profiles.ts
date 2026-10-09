@@ -14,7 +14,7 @@ export type ImageProfile = {
 };
 
 export const IMAGE_PROFILES: Record<ImageProfileId, ImageProfile> = {
-  /** fal's Flux, priced per megapixel; it takes no reference image. */
+  /** A hosted Flux, priced per megapixel, with no reference image. No longer bought (phase 5 spec §5.1); kept for the runs made with it. */
   "fal-flux@1": {
     id: "fal-flux@1",
     keyframeUsd: imageCost,
@@ -30,7 +30,7 @@ export const IMAGE_PROFILES: Record<ImageProfileId, ImageProfile> = {
   },
 };
 
-/** A run's image profile; runs without one (made before 2.4) are on fal. */
+/** A run's image profile; runs without one were made before 2.4, on the hosted model. */
 export function imageProfileOf(id: ImageProfileId | undefined): ImageProfile {
   return IMAGE_PROFILES[id ?? "fal-flux@1"];
 }

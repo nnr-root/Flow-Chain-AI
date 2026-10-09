@@ -139,7 +139,7 @@ async function main(): Promise<void> {
   Sign up there (any address; no email is sent, the account works at once).
   Credit for an account:  npm run studio:local -- grant <email> 5      (in another terminal)
   Payments:               ${billing ? "Stripe test mode. Card 4242 4242 4242 4242, any future date, any CVC." : "off"}
-  Videos:                 REAL. A draft costs about a cent; a video about $${web.STUDIO_ENGINE === "runpod" ? "0.30" : "1.35"}, from your
+  Videos:                 REAL. A draft costs about a cent; a video about $0.30, from your
                           provider keys, never more than the amount you approve on its button.
   Emails it would send:   http://127.0.0.1:54324
 

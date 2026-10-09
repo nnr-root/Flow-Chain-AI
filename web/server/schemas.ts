@@ -28,7 +28,6 @@ export const NewVideo = z.object({
   style: z.union([PresetName, z.literal("auto")]).default("auto"),
   /** The starting position of every scene's mode switch. */
   motion: z.enum(["auto", "clips", "stills"]).default("auto"),
-  provider: z.enum(["fal", "runpod"]),
   /** Frozen with the run: the auto mode rules keep the estimate under it. */
   budgetUsd: z.number().positive().max(100),
   brandKit: Slug.nullable().default(null),
@@ -61,7 +60,7 @@ export const kitDir = (slug: string): string => join(roots().brandKits, slug);
 export function draftArgs(input: NewVideo, runId: string): string[] {
   const args = [
     "run", "--draft", "--yes", "--run-id", runId, "--topic", input.topic, "--aspect", input.aspect,
-    "--scenes", String(input.scenes), "--mode", "auto", "--provider", input.provider, "--budget", String(input.budgetUsd),
+    "--scenes", String(input.scenes), "--mode", "auto", "--budget", String(input.budgetUsd),
     "--caption-style", input.captionStyle, "--transition", input.transition,
     "--bgm-gain", String(input.musicGain), "--sfx-gain", String(input.sfxGain),
   ];

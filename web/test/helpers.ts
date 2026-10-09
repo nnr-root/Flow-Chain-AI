@@ -14,7 +14,7 @@ const KEYS = [
   "SUPABASE_URL", "SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", "STUDIO_USER_JOBS", "STUDIO_CACHE_DAYS",
   "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_API_BASE",
   "STUDIO_BUCKET", "STUDIO_S3_ENDPOINT", "STUDIO_R2_ACCOUNT_ID", "STUDIO_R2_ACCESS_KEY_ID", "STUDIO_R2_SECRET_ACCESS_KEY",
-  "GEMINI_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "FAL_KEY", "PROVIDER_MODE", "FLOWCHAIN_BUDGET_USD",
+  "GEMINI_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "FLOWCHAIN_BUDGET_USD",
   "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
 ];
 
@@ -41,9 +41,9 @@ export function useStudio(): Studio {
   return studio;
 }
 
-/** The keys a fal run needs, so the new-video form's check passes. */
-export function withFalKeys(): void {
-  Object.assign(process.env, { GEMINI_API_KEY: "g", ELEVENLABS_API_KEY: "e", ELEVENLABS_VOICE_ID: "v", FAL_KEY: "f" });
+/** The keys a run needs, so the new-video form's check passes. */
+export function withKeys(): void {
+  Object.assign(process.env, { GEMINI_API_KEY: "g", ELEVENLABS_API_KEY: "e", ELEVENLABS_VOICE_ID: "v", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s" });
 }
 
 const done = { status: "done" as const, inputHash: "h", costUsd: 0, finishedAt: "t" };

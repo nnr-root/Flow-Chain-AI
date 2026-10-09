@@ -39,7 +39,7 @@ export type QuickJobResult = { stdout: string };
 const AMOUNT = /^\d+(\.\d+)?$/;
 /** What a draft's command may carry after `run --draft --yes --run-id <id>`: each at most once, in any order. */
 const DRAFT_VALUED = new Set([
-  "--topic", "--aspect", "--scenes", "--mode", "--provider", "--budget", "--caption-style", "--transition", "--bgm-gain", "--sfx-gain",
+  "--topic", "--aspect", "--scenes", "--mode", "--budget", "--caption-style", "--transition", "--bgm-gain", "--sfx-gain",
   "--style", "--pin-modes", "--brand", "--bgm", "--hook", "--characters", "--seed", "--voice",
 ]);
 const DRAFT_FLAGS = new Set(["--no-hook", "--no-sfx"]);

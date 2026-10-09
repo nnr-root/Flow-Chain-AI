@@ -46,7 +46,7 @@ test("behind the login the studio works through the queue: a job waits its turn,
   // the web container holds no keys: it learns from the worker which are set, and that the worker is there
   const health = JSON.parse((await get("/api/health", { login: LOGIN })).body);
   expect(health.queue).toEqual({ mode: "queue", redis: true, worker: true });
-  expect(health.missing).toEqual({ always: [], fal: [], runpod: expect.any(Array) });
+  expect(health.missing).toEqual([]);
 
   // a finished run plays through the proxy (ranged media requests, the live feed)
   await page.goto(`/runs/${DONE_ID}`);

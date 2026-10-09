@@ -39,10 +39,9 @@
     "smoke:full": "tsx src/cli.ts run --topic \"A lighthouse keeper discovers the light is alive\" --scenes 4 --modes 1,1,2,1 --shots cut,continue,cut,cut --transition fade --bgm assets/music/example-bed.mp3",
     "smoke:auto": "tsx src/cli.ts run --topic \"A hacker races to stop a rogue AI before midnight\" --scenes 4 --mode auto --style cyberpunk --bgm assets/music/example-bed.mp3",
     "smoke:brand": "tsx src/cli.ts run --topic \"A lost robot learns to paint\" --scenes 4 --mode auto --style anime --brand assets/brand/example --bgm assets/music/example-bed.mp3",
-    "smoke:runpod": "tsx src/cli.ts run --topic \"A lighthouse keeper's daughter takes over the light\" --scenes 4 --mode auto --provider runpod --style cinematic_history --brand assets/brand/example --bgm assets/music/example-bed.mp3"
+    "smoke:runpod": "tsx src/cli.ts run --topic \"A lighthouse keeper's daughter takes over the light\" --scenes 4 --mode auto --style cinematic_history --brand assets/brand/example --bgm assets/music/example-bed.mp3"
   },
   "dependencies": {
-    "@fal-ai/client": "^1.10.1",
     "@google/genai": "^2.26.0",
     "@remotion/bundler": "4.0.532",
     "@remotion/captions": "4.0.532",

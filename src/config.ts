@@ -12,7 +12,7 @@ export function outputSize(aspect: Aspect): Size {
   return aspect === "9:16" ? { width: 1080, height: 1920 } : { width: 1920, height: 1080 };
 }
 
-/** Flux needs multiples of 16; the fit stage crops down to the output size. */
+/** Multiples of 16 (the picture models need them); the fit stage crops down to the output size. */
 export function keyframeSize(aspect: Aspect): Size {
   return aspect === "9:16" ? { width: 1088, height: 1920 } : { width: 1920, height: 1088 };
 }
@@ -20,16 +20,10 @@ export function keyframeSize(aspect: Aspect): Size {
 const Env = z.object({
   GEMINI_API_KEY: z.string().min(1),
   GEMINI_MODEL: z.string().min(1).default("gemini-flash-latest"),
-  /** fal provider (runs with unprefixed model ids). */
-  FAL_KEY: z.string().min(1).optional(),
-  FAL_IMAGE_MODEL: z.string().min(1).default("fal-ai/flux/dev"),
-  FAL_VIDEO_MODEL: z.string().min(1).default("fal-ai/kling-video/v2.1/standard/image-to-video"),
   ELEVENLABS_API_KEY: z.string().min(1),
   ELEVENLABS_VOICE_ID: z.string().min(1),
   ELEVENLABS_MODEL: z.string().min(1).default("eleven_multilingual_v2"),
   FLOWCHAIN_BUDGET_USD: z.coerce.number().positive().default(3),
-  /** The image/video provider for new runs; each run keeps its own (2.4 spec §3.4). */
-  PROVIDER_MODE: z.enum(["fal", "runpod"]).default("fal"),
   RUNPOD_API_KEY: z.string().min(1).optional(),
   RUNPOD_KEYFRAME_ENDPOINT: z.string().min(1).optional(),
   RUNPOD_CLIP_ENDPOINT: z.string().min(1).optional(),
@@ -51,6 +45,8 @@ export function loadEnv(source: Record<string, string | undefined> = process.env
 }
 
 export const Prices = z.strictObject({
+  // The first three price hosted models the studio no longer buys from (phase 5 spec §5.1). They stay because
+  // price tables frozen into older runs carry them, and those runs' recorded estimates are computed from them.
   fluxPerMegapixel: z.number().default(0.025),
   klingBase5s: z.number().default(0.25),
   klingPerExtraSec: z.number().default(0.05),

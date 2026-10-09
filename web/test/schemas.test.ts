@@ -9,7 +9,7 @@ import { draftArgs, Look, lookFlags, modesArg, NewVideo, RerollBody, rerenderArg
 import { useStudio } from "./helpers";
 
 const studio = useStudio();
-const base = { topic: "foxes", provider: "fal" as const, budgetUsd: 3 };
+const base = { topic: "foxes", budgetUsd: 3 };
 
 describe("the new-video form", () => {
   it("accepts exactly the CLI's choices", () => {
@@ -17,7 +17,7 @@ describe("the new-video form", () => {
     for (const style of PresetName.options) expect(NewVideo.parse({ ...base, style }).style).toBe(style);
     for (const captionStyle of [...CaptionStyleName.options, "preset"]) expect(NewVideo.safeParse({ ...base, captionStyle }).success).toBe(true);
     for (const transition of [...Transition.options, "auto"]) expect(NewVideo.safeParse({ ...base, transition }).success).toBe(true);
-    for (const bad of [{ aspect: "1:1" }, { style: "noir" }, { captionStyle: "comic" }, { transition: "wipe" }, { scenes: 13 }, { scenes: 0 }, { provider: "local" }, { topic: " " }, { budgetUsd: 0 }]) {
+    for (const bad of [{ aspect: "1:1" }, { style: "noir" }, { captionStyle: "comic" }, { transition: "wipe" }, { scenes: 13 }, { scenes: 0 }, { topic: " " }, { budgetUsd: 0 }]) {
       expect(NewVideo.safeParse({ ...base, ...bad }).success).toBe(false);
     }
   });
@@ -40,18 +40,19 @@ describe("the new-video form", () => {
     const minimal = draftArgs(NewVideo.parse(base), "20261006-120000-abcdef");
     expect(minimal).toEqual([
       "run", "--draft", "--yes", "--run-id", "20261006-120000-abcdef", "--topic", "foxes", "--aspect", "9:16", "--scenes", "4",
-      "--mode", "auto", "--provider", "fal", "--budget", "3", "--caption-style", "preset", "--transition", "auto",
+      "--mode", "auto", "--budget", "3", "--caption-style", "preset", "--transition", "auto",
       "--bgm-gain", "0.35", "--sfx-gain", "0.6",
     ]);
     const full = draftArgs(
       NewVideo.parse({
-        ...base, provider: "runpod", style: "anime", motion: "stills", brandKit: "acme", music: "upload:song.mp3",
+        ...base, style: "anime", motion: "stills", brandKit: "acme", music: "upload:song.mp3",
         hook: { mode: "custom", text: "Watch this" }, sfx: false, characters: "a red fox", seed: 7, voiceId: "v9",
       }),
       "20261006-120000-abcdef",
     );
     const after = (flag: string) => full[full.indexOf(flag) + 1];
-    expect(after("--provider")).toBe("runpod");
+    // the studio no longer chooses where pictures are made: every run is made on its own GPU endpoints
+    expect(full).not.toContain("--provider");
     expect(after("--style")).toBe("anime");
     expect(after("--pin-modes")).toBe("2");
     expect(after("--brand")).toBe(join(studio.root, "brand-kits/acme"));

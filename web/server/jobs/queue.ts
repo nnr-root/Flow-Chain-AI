@@ -12,7 +12,7 @@ import { exitCodeOf, readJobRecord, runFolder } from "./run-cli";
 import type { Job, JobRunner, JobView, StudioHealth } from "./types";
 
 /** What a studio that cannot reach its worker says about keys: nothing is known, so nothing is called missing. */
-const UNKNOWN: Health = { missing: { always: [], fal: [], runpod: [] }, defaults: { provider: "fal", budgetUsd: 3 } };
+const UNKNOWN: Health = { missing: [], defaults: { budgetUsd: 3 } };
 const HEALTH_TTL_MS = 5000;
 /** Shorter than the container health check's own limit (5 s): an unanswered question must not fail that check. */
 const HEALTH_WAIT_MS = 3000;

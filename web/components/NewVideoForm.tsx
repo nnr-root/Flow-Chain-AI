@@ -12,14 +12,13 @@ export type PresetCard = { name: string; description: string; font: string };
 
 const CAPTION_STYLES = ["preset", "hormozi", "mrbeast", "minimalist"];
 const TRANSITIONS = ["auto", "cut", "fade", "dissolve", "blur", "zoom", "glitch"];
-const PROVIDER_NOTE = { fal: "fal.ai: no setup, about $1.35–2.35 for four scenes", runpod: "your RunPod endpoints: about $0.27 for four scenes" };
 
 export function NewVideoForm({ health: initialHealth, kits, tracks: initialTracks, presets, topic = "" }: { health: StudioHealth; kits: KitSummary[]; tracks: Track[]; presets: PresetCard[]; topic?: string }) {
   const router = useRouter();
   const [health, setHealth] = useState(initialHealth);
   const [tracks, setTracks] = useState(initialTracks);
   const [f, setF] = useState({
-    topic, aspect: "9:16", scenes: 4, style: "auto", motion: "auto", provider: health.defaults.provider as "fal" | "runpod",
+    topic, aspect: "9:16", scenes: 4, style: "auto", motion: "auto",
     budgetUsd: health.defaults.budgetUsd, brandKit: "", music: "", musicGain: 0.35, hookMode: "gemini", hookText: "",
     sfx: true, sfxGain: 0.6, characters: "", seed: "", voiceId: "", captionStyle: "preset", transition: "auto",
   });
@@ -28,7 +27,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
   // with accounts a draft holds a little credit for the script
   const balance = useBalance();
   const set = <K extends keyof typeof f>(key: K, value: (typeof f)[K]) => setF((old) => ({ ...old, [key]: value }));
-  const missing = [...health.missing.always, ...health.missing[f.provider]];
+  const missing = health.missing;
   const offline = health.queue.mode === "queue" && !(health.queue.redis && health.queue.worker);
 
   // A page loaded while the worker was away knows neither its keys nor its defaults: ask again until it is
@@ -43,7 +42,6 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
           // the worker's defaults replace the stand-ins the page loaded with, unless the user chose meanwhile
           setF((old) => ({
             ...old,
-            provider: old.provider === initialHealth.defaults.provider ? (now.defaults.provider as "fal" | "runpod") : old.provider,
             budgetUsd: old.budgetUsd === initialHealth.defaults.budgetUsd ? now.defaults.budgetUsd : old.budgetUsd,
           }));
         },
@@ -60,7 +58,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
     setError("");
     try {
       const { runId } = await sendJson<{ runId: string }>("/api/drafts", {
-        topic: f.topic, aspect: f.aspect, scenes: f.scenes, style: f.style, motion: f.motion, provider: f.provider, budgetUsd: f.budgetUsd,
+        topic: f.topic, aspect: f.aspect, scenes: f.scenes, style: f.style, motion: f.motion, budgetUsd: f.budgetUsd,
         brandKit: f.brandKit || null, music: f.music || null, musicGain: f.musicGain,
         hook: f.hookMode === "custom" ? { mode: "custom", text: f.hookText } : { mode: f.hookMode },
         sfx: f.sfx, sfxGain: f.sfxGain, captionStyle: f.captionStyle, transition: f.transition,
@@ -132,19 +130,14 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         </div>
       </Panel>
 
-      <Panel title="Motion and provider">
+      <Panel title="Motion">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span>Scenes start as</span>
             <Segmented label="Motion" value={f.motion} onChange={(v) => set("motion", v)} options={[{ value: "auto", label: "Auto" }, { value: "clips", label: "All clips" }, { value: "stills", label: "All stills" }]} />
             <span className="text-xs text-dim">You can change each scene on the draft before anything is generated.</span>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-sm">
-            <span>Pictures and clips from</span>
-            <Segmented label="Provider" value={f.provider} onChange={(v) => set("provider", v)} options={[{ value: "fal", label: "fal.ai" }, { value: "runpod", label: "RunPod" }]} />
-            <span className="text-xs text-dim">{PROVIDER_NOTE[f.provider]}</span>
-          </div>
-          {missing.length > 0 && <ErrorNote>Not set in .env: {missing.join(", ")}. Add them in the repository's .env file to use this provider.</ErrorNote>}
+          {missing.length > 0 && <ErrorNote>Not set in .env: {missing.join(", ")}. Add them in the repository's .env file.</ErrorNote>}
         </div>
       </Panel>
 

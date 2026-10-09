@@ -37,11 +37,7 @@ function enginesOf(showcases: Showcase[]): Engine[] {
     }];
   };
   const engines = [...group("own", "Our own GPU"), ...group("hosted", "Hosted models")];
-  // The way this studio makes pictures unless a user chooses otherwise comes first: it is what the calculator
-  // starts on, and what the headline is held to. (STUDIO_ENGINE is the worker's PROVIDER_MODE, passed on by
-  // setup; a studio that does not say is taken to use hosted models, the pipeline's own default.)
-  const usual = process.env.STUDIO_ENGINE?.trim() === "runpod" ? "own" : "hosted";
-  return engines.sort((a, b) => Number(b.id === usual) - Number(a.id === usual));
+  return engines;
 }
 
 export default async function Page() {
@@ -65,9 +61,8 @@ export default async function Page() {
   // holds — their prices fresh, ours on sale — for the way this studio usually makes its pictures: the claim and
   // its evidence stand or fall together.
   const engines = enginesOf(SHOWCASES);
-  // (no video on the page made the usual way: nothing to hold the claim to, so it is not made)
-  const usual = process.env.STUDIO_ENGINE?.trim() === "runpod" ? "own" : "hosted";
-  const claim = engines[0]?.id === usual && clipsClaimHolds(engines[0].creditPerVideoUsd, engines[0].clipSeconds, items, others);
+  // (no video on the page made the way the studio makes them now: nothing to hold the claim to, so it is not made)
+  const claim = engines[0]?.id === "own" && clipsClaimHolds(engines[0].creditPerVideoUsd, engines[0].clipSeconds, items, others);
   return (
     <div data-testid="landing">
       <SiteNav signedIn={signedIn} sells={sells} free={free} />

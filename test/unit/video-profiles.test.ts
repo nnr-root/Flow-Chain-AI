@@ -19,8 +19,8 @@ describe("video profiles", () => {
     expect(VIDEO_PROFILES["kling-v2"].costUsd(prices, 10)).toBe(0.5);
   });
 
-  it("gives new runs kling-v2 and runs without a profile kling-v1", () => {
-    expect(NEW_RUN_VIDEO_PROFILE).toBe("kling-v2");
+  it("gives new runs the GPU clip profile and keeps runs without a profile on kling-v1", () => {
+    expect(NEW_RUN_VIDEO_PROFILE).toBe("wan22-480p@1");
     expect(videoProfileOf(undefined).id).toBe("kling-v1");
     expect(videoProfileOf("kling-v2").id).toBe("kling-v2");
   });

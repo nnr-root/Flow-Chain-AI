@@ -6,7 +6,6 @@ import { keyframeSize, loadEnv, loadPrices, outputSize } from "../../src/config.
 
 const required = {
   GEMINI_API_KEY: "g",
-  FAL_KEY: "f",
   ELEVENLABS_API_KEY: "e",
   ELEVENLABS_VOICE_ID: "v",
 };
@@ -15,8 +14,6 @@ describe("loadEnv", () => {
   it("applies defaults for optional variables", () => {
     const env = loadEnv(required);
     expect(env.GEMINI_MODEL).toBe("gemini-flash-latest");
-    expect(env.FAL_IMAGE_MODEL).toBe("fal-ai/flux/dev");
-    expect(env.FAL_VIDEO_MODEL).toBe("fal-ai/kling-video/v2.1/standard/image-to-video");
     expect(env.ELEVENLABS_MODEL).toBe("eleven_multilingual_v2");
     expect(env.FLOWCHAIN_BUDGET_USD).toBe(3);
     expect(env.RUNS_DIR).toBe("./runs");
@@ -27,11 +24,11 @@ describe("loadEnv", () => {
   });
 
   it("names every missing required variable", () => {
-    expect(() => loadEnv({ FAL_KEY: "f" })).toThrowError(/GEMINI_API_KEY[\s\S]*ELEVENLABS_API_KEY[\s\S]*ELEVENLABS_VOICE_ID/);
+    expect(() => loadEnv({ RUNS_DIR: "./r" })).toThrowError(/GEMINI_API_KEY[\s\S]*ELEVENLABS_API_KEY[\s\S]*ELEVENLABS_VOICE_ID/);
   });
 
   it("rejects empty keys", () => {
-    expect(() => loadEnv({ ...required, FAL_KEY: "" })).toThrowError(/FAL_KEY/);
+    expect(() => loadEnv({ ...required, RUNPOD_API_KEY: "" })).toThrowError(/RUNPOD_API_KEY/);
   });
 });
 

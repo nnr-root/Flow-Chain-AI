@@ -63,31 +63,25 @@ function pipelineEnv(): Record<string, string | undefined> {
   return { ...fromFile, ...process.env };
 }
 
-const NEEDS = {
-  always: ["GEMINI_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID"],
-  fal: ["FAL_KEY"],
-  runpod: [
-    "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT",
-    "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
-  ],
-} as const;
+const NEEDS = [
+  "GEMINI_API_KEY", "ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID",
+  "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT",
+  "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
+] as const;
 
 export type Health = {
-  /** Variable names that are not set, per provider (and for every run). */
-  missing: { always: string[]; fal: string[]; runpod: string[] };
-  defaults: { provider: "fal" | "runpod"; budgetUsd: number };
+  /** Names of the settings a new run needs that are not set. */
+  missing: string[];
+  defaults: { budgetUsd: number };
 };
 
-/** Which providers a new run could use, checked without any network call. */
+/** Whether a new run could be made, checked without any network call. */
 export function health(): Health {
   const env = pipelineEnv();
   const unset = (names: readonly string[]) => names.filter((n) => !env[n]?.trim());
   const budget = Number(env.FLOWCHAIN_BUDGET_USD);
   return {
-    missing: { always: unset(NEEDS.always), fal: unset(NEEDS.fal), runpod: unset(NEEDS.runpod) },
-    defaults: {
-      provider: env.PROVIDER_MODE === "runpod" ? "runpod" : "fal",
-      budgetUsd: Number.isFinite(budget) && budget > 0 ? budget : 3,
-    },
+    missing: unset(NEEDS),
+    defaults: { budgetUsd: Number.isFinite(budget) && budget > 0 ? budget : 3 },
   };
 }

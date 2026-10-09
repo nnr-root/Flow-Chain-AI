@@ -4,7 +4,7 @@ Turns a topic into a captioned short video, and sells that as a studio with acco
 Three parts share one repository:
 
 - **The pipeline** (`src/`, a CLI): topic → script (Gemini) → voiceover (ElevenLabs) → keyframes and clips
-  (fal, or self-hosted on RunPod) → a video rendered with Remotion.
+  (self-hosted on RunPod) → a video rendered with Remotion.
 - **The studio** (`web/`, Next.js): create, preview, approve and render videos in a browser; accounts,
   credit and payments.
 - **The worker** (`web/worker/`): takes jobs from a Redis queue, runs the CLI for each, settles credit,
@@ -34,7 +34,7 @@ read the one for the area you are changing before changing it (table at the end)
 |---|---|
 | `src/cli.ts`, `src/pipeline.ts`, `src/stages/` | the CLI and its stages (script, tts, silence, modes, keyframes, clips, fit, captions, render) |
 | `src/manifest/` | `manifest.json`: the schema, loading, saving. **The run's manifest is the truth about a run** |
-| `src/providers/` | Gemini, ElevenLabs, fal, RunPod, R2; `types.ts` holds the interfaces the stages use |
+| `src/providers/` | Gemini, ElevenLabs, RunPod, R2; `types.ts` holds the interfaces the stages use |
 | `src/media/` | ffmpeg and Remotion helpers |
 | `src/billing/stripe.ts` | the Stripe HTTP client (shared by web, worker and `stripe:setup`) |
 | `src/deploy/`, `scripts/` | pure planners (`src/deploy`) and the commands that act (`scripts`) for the server, the database, Stripe |
@@ -45,7 +45,7 @@ read the one for the area you are changing before changing it (table at the end)
 | `web/worker/` | `worker.ts` (the queue), `tenant.ts` (credit), `billing.ts` (Stripe fulfilment) |
 | `web/lib/` | code shared by server and browser; no secrets, few imports |
 | `supabase/migrations/` | the database: plain SQL, two files (tenancy, billing) |
-| `workers/` | the RunPod worker (Python, ComfyUI graphs for Flux + PuLID and Wan 2.2) |
+| `workers/` | the RunPod worker (Python, ComfyUI graphs for SDXL + IP-Adapter and Wan 2.2) |
 | `deploy/` | Compose file, Dockerfiles, Caddy files for the server |
 | `test/` | pipeline tests: `unit`, `stages`, `media`, `pipeline`, `db` |
 | `web/test/`, `web/e2e/`, `web/accounts/`, `web/stack/` | studio tests: vitest, and three Playwright suites |
@@ -230,12 +230,13 @@ graphify god-nodes --top 20       # the hubs
 | Rendering with Remotion | `2026-10-03-phase2.1-remotion-render-engine-design.md` |
 | Modes, transitions, style presets | `2026-10-04-phase2.2-content-intelligence-design.md` |
 | Hook, sound effects, brand kit, clip lengths | `2026-10-05-phase2.3-retention-brand-design.md` |
-| RunPod providers (Flux + PuLID, Wan 2.2) | `2026-10-05-phase2.4-runpod-providers-design.md` |
+| RunPod providers (SDXL + IP-Adapter, Wan 2.2) | `2026-10-05-phase2.4-runpod-providers-design.md` |
 | The studio web app and its player | `2026-10-06-phase3.1-web-ui-player-design.md` |
 | The queue, the worker, the server | `2026-10-07-phase3.2-job-queue-deployment-design.md` |
 | Accounts, credit, storage | `2026-10-07-phase3.3-multi-tenant-design.md` (§14–§15 win) |
 | Payments | `2026-10-08-phase3.4-stripe-billing-design.md` (§13–§15 win) |
 | The landing page, showcases, welcome credit | `2026-10-08-phase4-landing-page-design.md` (§13 wins) |
+| Own database and sign-in, own voice, one GPU provider, unnamed engines | `2026-10-09-phase5-independence-design.md` |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.
 

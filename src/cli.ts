@@ -148,7 +148,6 @@ type RunFlags = {
   brand?: string;
   characters?: string;
   seed?: string;
-  provider?: "fal" | "runpod";
   voice?: string;
   bgm?: string;
   captionStyle?: string;
@@ -211,10 +210,7 @@ program
   .option("--sfx-gain <0-1>", "sound-effect level relative to the narration (default: 0.6)")
   .option("--brand <dir>", "brand kit folder (brand.json, logo, optional font): watermark, font, colours, characters")
   .option("--characters <text>", "character bible used in every prompt (default: the brand kit's, else Gemini's)")
-  .option("--seed <n>", "Flux seed shared by every keyframe (default: random)")
-  .addOption(
-    new Option("--provider <name>", "image and video provider (default: PROVIDER_MODE, else fal)").choices(["fal", "runpod"]),
-  )
+  .option("--seed <n>", "seed shared by every keyframe (default: random)")
   .option("--voice <id>", "ElevenLabs voice id (default: ELEVENLABS_VOICE_ID)")
   .option("--bgm <file>", "background music, ducked under the narration")
   .addOption(new Option("--caption-style <style>", "caption look (default: the preset's)").choices(CAPTION_CHOICES))
@@ -236,8 +232,7 @@ program
     const budgetUsd = budget(o.budget, env);
     if (o.bgm && !existsSync(o.bgm)) throw new Error(`--bgm file not found: ${o.bgm}`);
     const kit: BrandKit | undefined = o.brand ? await loadBrandKit(o.brand) : undefined;
-    const providerMode = o.provider ?? env.PROVIDER_MODE;
-    const providers = newRunProviders(env, providerMode);
+    const providers = newRunProviders(env);
     const request = RunRequest.parse({
       topic: o.topic,
       aspect: o.aspect,
@@ -245,7 +240,7 @@ program
       modes,
       // auto runs freeze the budget and price table their mode rules use; a later --budget only changes when to ask
       modeBudgetUsd: modes ? undefined : budgetUsd,
-      modePrices: modes ? undefined : frozenModePrices(loadPrices(), providerMode),
+      modePrices: modes ? undefined : frozenModePrices(loadPrices()),
       modeOverrides: pins(o.pinModes, sceneCount),
       shots,
       style: o.style,

@@ -75,7 +75,7 @@ async function main(): Promise<void> {
     const done = await fetchModels(client, id, kind);
     console.log(`  downloaded ${done.downloaded.length}, already present ${done.skipped.length}`);
   }
-  console.log("Next: PROVIDER_MODE=runpod npm run flowchain -- doctor, then npm run smoke:runpod (paid).");
+  console.log("Next: npm run flowchain -- doctor, then npm run smoke:runpod (paid).");
 }
 
 main().catch((err: unknown) => {

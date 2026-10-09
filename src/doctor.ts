@@ -10,7 +10,6 @@ import { CAPTION_STYLES } from "./media/remotion/styles.js";
 import { sfxFiles } from "./media/sfx.js";
 import { PRESETS } from "./presets.js";
 import { ElevenLabsTts } from "./providers/elevenlabs.js";
-import { checkFal, createFal } from "./providers/fal.js";
 import { parseModelId } from "./providers/model-id.js";
 import { R2 } from "./providers/r2.js";
 import { RunpodClient } from "./providers/runpod.js";
@@ -66,10 +65,10 @@ export function captionFontFiles(fontsDir: string): string[] {
   return [...new Set(styles.map((s) => join(fontsDir, s.font.file)))];
 }
 
-/** Which image/video providers to check: a run's own (frozen) ones, else the one new runs would use. */
-export function providersInUse(env: Env, models?: Models): Set<"fal" | "runpod"> {
-  if (!models) return new Set([env.PROVIDER_MODE]);
-  return new Set([parseModelId(models.image).provider, parseModelId(models.video).provider]);
+/** Whether a run buys from the studio's own GPU endpoints; a run made on a retired hosted model has nothing to check. */
+export function usesGpu(models?: Models): boolean {
+  if (!models) return true;
+  return [models.image, models.video].some((id) => parseModelId(id).provider === "runpod");
 }
 
 /** Each RunPod endpoint answers /health (no job is bought). */
@@ -105,7 +104,6 @@ function runpodEndpointIds(env: Env, models?: Models): string[] {
 
 /** `models` lets resume/reroll check the models frozen in the manifest instead of today's env. */
 export async function runDoctor(env: Env, fontsDir: string, models?: Models, voiceId?: string): Promise<Check[]> {
-  const inUse = providersInUse(env, models);
   const llmModel = models?.llm ?? env.GEMINI_MODEL;
   const ttsModel = models?.tts ?? env.ELEVENLABS_MODEL;
   const voice = voiceId ?? env.ELEVENLABS_VOICE_ID;
@@ -130,16 +128,7 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models, voi
       await new GeminiLlm(env.GEMINI_API_KEY, llmModel).checkModel();
       return "available";
     }),
-    ...(inUse.has("fal")
-      ? [
-          await attempt("fal.ai key", async () => {
-            if (!env.FAL_KEY) throw new Error("FAL_KEY is not set");
-            await checkFal(createFal(env.FAL_KEY));
-            return "storage upload works";
-          }),
-        ]
-      : []),
-    ...(inUse.has("runpod")
+    ...(usesGpu(models)
       ? [
           await attempt("RunPod endpoints", async () => {
             if (!env.RUNPOD_API_KEY) throw new Error("RUNPOD_API_KEY is not set");

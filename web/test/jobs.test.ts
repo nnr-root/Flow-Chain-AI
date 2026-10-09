@@ -150,7 +150,7 @@ describe("jobs", () => {
   });
 
   it("gives the CLI the studio's environment without Next's own variables", () => {
-    const names = ["NODE_ENV", "NODE_OPTIONS", "NEXT_RUNTIME", "NEXT_PRIVATE_WORKER", "__NEXT_PRIVATE_ORIGIN", "__NEXT_PROCESSED_ENV", "NEXTAUTH_URL", "FAL_KEY", "PORT"];
+    const names = ["NODE_ENV", "NODE_OPTIONS", "NEXT_RUNTIME", "NEXT_PRIVATE_WORKER", "__NEXT_PRIVATE_ORIGIN", "__NEXT_PROCESSED_ENV", "NEXTAUTH_URL", "RUNPOD_API_KEY", "PORT"];
     const saved = Object.fromEntries(names.map((n) => [n, process.env[n]]));
     try {
       for (const n of names) process.env[n] = "x";
@@ -159,7 +159,7 @@ describe("jobs", () => {
         expect(env, n).not.toHaveProperty(n);
       }
       // everything else passes through, also names that merely start like Next's
-      expect(env).toMatchObject({ NEXTAUTH_URL: "x", FAL_KEY: "x", PORT: "x", PATH: process.env.PATH, RUNS_DIR: studio.runs, FLOWCHAIN_ROOT: studio.root });
+      expect(env).toMatchObject({ NEXTAUTH_URL: "x", RUNPOD_API_KEY: "x", PORT: "x", PATH: process.env.PATH, RUNS_DIR: studio.runs, FLOWCHAIN_ROOT: studio.root });
     } finally {
       for (const n of names) {
         if (saved[n] === undefined) delete process.env[n];

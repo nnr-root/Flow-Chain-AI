@@ -15,8 +15,9 @@ and `docs/superpowers/specs/2026-10-06-phase3.1-web-ui-player-design.md` (the st
 
 1. `brew install ffmpeg` (≥ 6 with libx264), Node ≥ 22.12
 2. `npm install`
-3. `cp .env.example .env` and fill in `GEMINI_API_KEY`, `FAL_KEY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`
-4. `npm run flowchain -- doctor` — every line must show ✓ (the first run downloads Remotion's headless
+3. `cp .env.example .env` and fill in `GEMINI_API_KEY`, `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`
+4. Set up the GPU endpoints that make the pictures and clips: see "The GPU worker" below (`npm run runpod:deploy`)
+5. `npm run flowchain -- doctor` — every line must show ✓ (the first run downloads Remotion's headless
    Chrome, ≈ 100 MB, once)
 
 ## Usage
@@ -36,9 +37,9 @@ npm run flowchain -- rerender <runId> --no-hook --sfx-gain 0.4 --no-brand       
 npm run flowchain -- rerender <runId> --hook-on --sfx                                     # free
 ```
 
-Mode 1 = Kling image-to-video, each continuing clip starting from the last frame viewers see of the
+Mode 1 = image-to-video, each continuing clip starting from the last frame viewers see of the
 previous (fitted) clip. Continue seams are always hard cuts.
-Mode 2 = Flux still animated with a Ken Burns camera move at render time (no video API cost).
+Mode 2 = a still picture animated with a Ken Burns camera move at render time (no clip is generated).
 
 `--mode auto` (the default) lets Gemini rate each scene's action level: high → Mode 1, low → Mode 2, medium →
 Mode 1 while the run fits the budget (`--budget`, frozen with the run), otherwise Mode 2, largest saving first.
@@ -60,7 +61,7 @@ regenerates them).
 
 A brand kit is a folder with `brand.json` (see `assets/brand/example`): a logo watermarked at a corner, and an
 optional font, text and accent colours and character bible. `--brand <dir>` copies it into the run;
-`--characters "…"` sets the character bible directly. Every keyframe of a run shares one Flux seed (`--seed`).
+`--characters "…"` sets the character bible directly. Every keyframe of a run shares one seed (`--seed`).
 
 Each run lives in `runs/<runId>/`: `manifest.json` (state, cache keys, cost ledger), `final.mp4`,
 `chain.png` (per scene: first frame of the raw clip and last frame of the fitted clip, or the keyframe for
@@ -74,21 +75,21 @@ For `--mode auto` runs, `--budget` (or `FLOWCHAIN_BUDGET_USD`) and the price tab
 the mode rules; a later `--budget` only changes when to ask. `resume --from <stage>` re-runs, and re-buys,
 that stage and every later one (so `--from modes` re-buys every keyframe and clip). On runs with a seed,
 `resume --from keyframes` (or an earlier stage) reproduces the same keyframes because the seed is fixed;
-`reroll --scene N --stage keyframes` gets new ones. Narration is capped at 16 words per scene, and a 5 s clip
-is bought whenever a scene's narration lasts at most 6 s (the fit step stretches it), so a typical 4-scene
-Mode 1 run is about $1.35. `rerender` never calls a paid API. `npm run smoke` runs a real 3-scene all-Mode-1
-video with `--shots cut,continue,continue`, so two real continuity seams are always exercised (≈ $0.90–1.65,
-depending on the 5/10 s clip lengths). `--shots` is a testing override; without it the LLM decides. `npm run
+`reroll --scene N --stage keyframes` gets new ones. Narration is capped at 16 words per scene, and a clip is
+only as long as its narration needs (the fit step stretches it by up to a quarter), so a typical 4-scene
+Mode 1 run is about $0.30. `rerender` never calls a paid API. `npm run smoke` runs a real 3-scene all-Mode-1
+video with `--shots cut,continue,continue`, so two real continuity seams are always exercised. `--shots` is a testing override; without it the LLM decides. `npm run
 smoke:auto` runs a real 4-scene `--mode auto --style cyberpunk` video with the example music bed, and `npm run
 smoke:brand` a 4-scene `--style anime` video with the example brand kit.
 
 Rendering a 16 s 1080×1920 video takes about 1.5 minutes on Apple Silicon (`--render-concurrency` tunes it).
 
-## RunPod (self-hosted keyframes and clips)
+## The GPU worker (keyframes and clips)
 
-Keyframes (SDXL with IP-Adapter character references) and clips (Wan 2.2 image-to-video) can run on your own
-RunPod Serverless endpoints instead of fal: roughly $0.20–0.35 per 4-scene video instead of ≈ $1.35. Each run
-keeps the provider it was created with, so older fal runs are never affected.
+Keyframes (SDXL with IP-Adapter character references) and clips (Wan 2.2 image-to-video) run on your own
+RunPod Serverless endpoints: roughly $0.20–0.35 per 4-scene video. This is the only way the studio makes
+pictures. Runs made earlier on hosted models (fal) still load and re-render for free, but they can no longer be
+resumed or rerolled: `resume` and `reroll` say so and buy nothing.
 
 One-time setup (accounts and keys only):
 
@@ -104,9 +105,7 @@ One-time setup (accounts and keys only):
    current `workers/` folder and stops if that image is not public on GHCR. `RUNPOD_WORKER_IMAGE` deploys another
    image instead, `RUNPOD_DATACENTER` picks another data centre (default `EU-RO-1`), and `--yes` skips the question.
 
-Then `npm run flowchain -- run --provider runpod …` (or `PROVIDER_MODE=runpod` in `.env`) and
-`PROVIDER_MODE=runpod npm run flowchain -- doctor`. `npm run smoke:runpod` makes a real 4-scene video on RunPod
-and is a paid run.
+Then `npm run flowchain -- doctor`. `npm run smoke:runpod` makes a real 4-scene video and is a paid run.
 
 Runs with characters get one generated reference portrait (or a brand kit's `reference` image) that every keyframe
 is conditioned on; `reroll <runId> --stage reference --scene 1` generates a new portrait (keyframes are then
@@ -362,8 +361,8 @@ its own layout, typefaces (files in the repository) and styles: nothing of it re
   `web/content/comparison.json`, where another company's price carries the address it was read at and the
   date. **An entry older than 90 days is no longer shown**, and when none is left the comparison table and
   the comparing headline go with it (the page then opens with a plain one). Read the prices again and update
-  the dates to keep them. The headline compares only when the comparison holds for the way your studio makes
-  pictures by default (`PROVIDER_MODE`, which `server:setup` passes to the web app as `STUDIO_ENGINE`).
+  the dates to keep them. The headline compares only while a video on the page was made the way the studio makes
+  them now, and the comparison holds for it.
 - **A free first draft (optional).** In the database's `settings` row, `welcome_credit_usd` (0 = off; 0.05
   covers a couple of script drafts and no clip) gives each new account that much once its address is
   confirmed, and `welcome_daily_cap_usd` (5) is the most given away in a day to all new accounts together.

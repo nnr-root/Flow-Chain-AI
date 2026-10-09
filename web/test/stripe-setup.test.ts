@@ -141,7 +141,7 @@ describe("npm run stripe:setup", () => {
     dir = await mkdtemp(join(tmpdir(), "stripe-setup-"));
     await mkdir(join(dir, "billing"));
     await copyFile(join(REPO, "billing/plans.json"), join(dir, "billing/plans.json"));
-    await writeFile(join(dir, ".env"), "GEMINI_API_KEY=keep-me\n# a comment\nFAL_KEY=and-me\n", { mode: 0o644 });
+    await writeFile(join(dir, ".env"), "GEMINI_API_KEY=keep-me\n# a comment\nRUNPOD_API_KEY=and-me\n", { mode: 0o644 });
   });
   afterEach(async () => {
     await stripe.stop();
@@ -158,7 +158,7 @@ describe("npm run stripe:setup", () => {
     // no --yes and no terminal: it does not wait for an answer that cannot come
     expect(await run([])).toMatchObject({ code: 1, out: expect.stringContaining("nobody to ask") });
     expect(writes()).toBe(0);
-    expect(readFileSync(join(dir, ".env"), "utf8")).toBe("GEMINI_API_KEY=keep-me\n# a comment\nFAL_KEY=and-me\n");
+    expect(readFileSync(join(dir, ".env"), "utf8")).toBe("GEMINI_API_KEY=keep-me\n# a comment\nRUNPOD_API_KEY=and-me\n");
   }, 120_000);
 
   it("sets the account up, writes the secret beside the other keys without showing it, and does nothing the second time", async () => {
@@ -166,7 +166,7 @@ describe("npm run stripe:setup", () => {
     expect(first).toMatchObject({ code: 0, out: expect.stringContaining("Wrote STRIPE_WEBHOOK_SECRET to .env.") });
     const [endpoint] = stripe.webhookEndpoints;
     expect(first.out).not.toContain(endpoint.secret);
-    expect(readFileSync(join(dir, ".env"), "utf8")).toBe(`GEMINI_API_KEY=keep-me\n# a comment\nFAL_KEY=and-me\nSTRIPE_WEBHOOK_SECRET=${endpoint.secret}\nSTRIPE_WEBHOOK_ENDPOINT=${endpoint.id}\n`);
+    expect(readFileSync(join(dir, ".env"), "utf8")).toBe(`GEMINI_API_KEY=keep-me\n# a comment\nRUNPOD_API_KEY=and-me\nSTRIPE_WEBHOOK_SECRET=${endpoint.secret}\nSTRIPE_WEBHOOK_ENDPOINT=${endpoint.id}\n`);
     expect(statSync(join(dir, ".env")).mode & 0o777).toBe(0o600);
     expect([...stripe.prices.values()].filter((p) => p.active).map((p) => p.metadata.key).sort()).toEqual(["pro", "starter", "topup-10", "topup-25"]);
 

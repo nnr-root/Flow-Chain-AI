@@ -18,6 +18,11 @@ const OWNER_ONLY = ["SUPABASE_DB_URL", "SUPABASE_DB_PASSWORD", "SUPABASE_ACCESS_
 /** Where a test's stand-in Stripe is: the server only ever talks to the real one. */
 const TEST_ONLY = ["STRIPE_API_BASE"];
 /**
+ * Settings of the hosted picture models the studio no longer buys from (phase 5 spec §5.1). An owner's `.env`
+ * may still carry them; a key nothing uses must not be handed to a process, on a server or on this machine.
+ */
+export const RETIRED_KEYS = ["FAL_KEY", "FAL_IMAGE_MODEL", "FAL_VIDEO_MODEL", "PROVIDER_MODE"];
+/**
  * What the web app gets in a studio with accounts: where the accounts live, their PUBLIC key, and the bucket.
  * Everything else — the provider keys, and above all the service-role key that settles credit — is the worker's alone.
  */
@@ -78,7 +83,7 @@ export function serverConfig(serverEnv: Record<string, string>, localEnv: Record
   const rawConcurrency = get("WORKER_CONCURRENCY");
   if (rawConcurrency !== undefined && !/^[1-9]\d*$/.test(rawConcurrency)) throw new Error("WORKER_CONCURRENCY must be a whole number, 1 or more");
 
-  const skip = new Set([...DEPLOY_KEYS, ...COMPOSE_OWNED, ...OWNER_ONLY, ...TEST_ONLY]);
+  const skip = new Set([...DEPLOY_KEYS, ...COMPOSE_OWNED, ...OWNER_ONLY, ...TEST_ONLY, ...RETIRED_KEYS]);
   const worker: Record<string, string> = {};
   for (const [key, value] of Object.entries(localEnv)) {
     if (!skip.has(key) && value.trim()) worker[key] = value.trim();
@@ -113,8 +118,6 @@ export function serverConfig(serverEnv: Record<string, string>, localEnv: Record
       if (worker[name]) web[name] = worker[name];
     }
   }
-  // The landing page says what a video costs "here": it is told which way this studio makes its pictures by default.
-  if (accounts) web.STUDIO_ENGINE = worker.PROVIDER_MODE === "runpod" ? "runpod" : "fal";
   // Payments (3.4). Both processes talk to Stripe: the web app opens checkouts, the worker reads what was paid.
   // The webhook's signing secret is the web app's alone — the worker never sees a webhook, only an event's id.
   const billing = !!worker.STRIPE_SECRET_KEY;

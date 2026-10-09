@@ -1,5 +1,7 @@
 /* The pure part of `npm run studio:local`: what each process of a studio on this machine is given, and what it is not. */
 
+import { RETIRED_KEYS } from "./server.js";
+
 export type LocalInputs = {
   /** This machine's `.env`: the provider keys, and whatever else is in it. */
   env: Record<string, string>;
@@ -21,6 +23,7 @@ const NEVER_LOCAL = [
   // the endpoint made for the public address: locally the signing secret is `stripe listen`'s
   "STRIPE_WEBHOOK_SECRET", "STRIPE_WEBHOOK_ENDPOINT", "STRIPE_API_BASE",
   "REDIS_URL", "NODE_ENV",
+  ...RETIRED_KEYS,
 ];
 
 /** A Supabase address on this machine. Anything else is refused: this command must never act on a hosted project. */
@@ -49,7 +52,6 @@ export function localEnvs(input: LocalInputs): { web: Record<string, string>; wo
     billing,
     web: {
       ...shared,
-      STUDIO_ENGINE: own.PROVIDER_MODE === "runpod" ? "runpod" : "fal",
       ...(own.STUDIO_USER_JOBS ? { STUDIO_USER_JOBS: own.STUDIO_USER_JOBS } : {}),
       ...(billing ? { STRIPE_WEBHOOK_SECRET: input.stripeListenSecret! } : {}),
     },

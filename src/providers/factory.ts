@@ -1,13 +1,13 @@
 import { type Env, type Prices, runpodRates } from "../config.js";
 import type { Models } from "../manifest/schema.js";
 import { ElevenLabsTts } from "./elevenlabs.js";
-import { createFal, FalImage, FalVideo, type FalLike } from "./fal.js";
 import { GeminiLlm } from "./gemini.js";
 import { parseModelId } from "./model-id.js";
 import { R2 } from "./r2.js";
 import { RunpodClient } from "./runpod.js";
 import { type RunpodDeps, RunpodImage, RunpodVideo } from "./runpod-providers.js";
-import type { ImageProvider, Providers, VideoProvider } from "./types.js";
+import { NonRetryableError } from "./retry.js";
+import type { ImageProvider, Providers, QueuedProvider, VideoProvider } from "./types.js";
 
 function need(value: string | undefined, name: string, why: string): string {
   if (!value) throw new Error(`${name} is not set; ${why}`);
@@ -15,14 +15,25 @@ function need(value: string | undefined, name: string, why: string): string {
 }
 
 /**
- * The providers for one run, chosen by the run's own (frozen) model ids, never by PROVIDER_MODE, so a fal run
- * stays on fal and a RunPod run stays on RunPod whenever it is resumed, rerolled or rerendered (2.4 spec §3.4).
+ * Stands in for a hosted model the studio stopped buying from (phase 5 spec §5.1). Everything already bought for
+ * such a run is on disk, so it re-renders for free; the first step that would buy something says why it cannot.
+ */
+export function retired<Req, Out>(what: string, model: string): QueuedProvider<Req, Out> {
+  const refuse = (): never => {
+    throw new NonRetryableError(
+      `this run's ${what} came from ${model}, a hosted model this studio no longer uses; it can be re-rendered (rerender), but nothing new can be bought for it — start a new run instead`,
+    );
+  };
+  return { prepare: async () => refuse(), submit: async () => refuse(), wait: async () => refuse() };
+}
+
+/**
+ * The providers for one run, chosen by the run's own (frozen) model ids, so a run keeps the endpoints and graphs
+ * it was made with whenever it is resumed, rerolled or rerendered (2.4 spec §3.4).
  */
 export function createProviders(env: Env, models: Models, prices: Prices): Providers {
   const imageRef = parseModelId(models.image);
   const videoRef = parseModelId(models.video);
-  let fal: FalLike | undefined;
-  const falClient = () => (fal ??= createFal(need(env.FAL_KEY, "FAL_KEY", "this run uses fal models")));
   let runpod: RunpodDeps | undefined;
   const runpodDeps = () =>
     (runpod ??= {
@@ -36,9 +47,9 @@ export function createProviders(env: Env, models: Models, prices: Prices): Provi
       rates: runpodRates(prices),
     });
   const image: ImageProvider =
-    imageRef.provider === "fal" ? new FalImage(falClient(), imageRef.model) : new RunpodImage(runpodDeps(), imageRef);
+    imageRef.provider === "retired" ? retired("pictures", imageRef.model) : new RunpodImage(runpodDeps(), imageRef);
   const video: VideoProvider =
-    videoRef.provider === "fal" ? new FalVideo(falClient(), videoRef.model) : new RunpodVideo(runpodDeps(), videoRef);
+    videoRef.provider === "retired" ? retired("clips", videoRef.model) : new RunpodVideo(runpodDeps(), videoRef);
   return {
     llm: new GeminiLlm(env.GEMINI_API_KEY, models.llm),
     tts: new ElevenLabsTts(env.ELEVENLABS_API_KEY, models.tts),

@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Prices, runpodRates } from "../../src/config.js";
 import { createProviders } from "../../src/providers/factory.js";
-import { FalImage, FalVideo } from "../../src/providers/fal.js";
 import { parseModelId, runpodModelId } from "../../src/providers/model-id.js";
 import type { R2 } from "../../src/providers/r2.js";
 import { NonRetryableError, UnusableResultError } from "../../src/providers/retry.js";
@@ -34,8 +33,8 @@ function deps(api: FakeRunpodApi, r2 = fakeR2()): RunpodDeps {
 }
 
 describe("model ids", () => {
-  it("routes runpod:<endpoint>/<workflow>@<version> to RunPod and anything else to fal", () => {
-    expect(parseModelId("fal-ai/flux/dev")).toEqual({ provider: "fal", model: "fal-ai/flux/dev" });
+  it("routes runpod:<endpoint>/<workflow>@<version> to the GPU endpoints and marks anything else as a retired hosted model", () => {
+    expect(parseModelId("fal-ai/flux/dev")).toEqual({ provider: "retired", model: "fal-ai/flux/dev" });
     expect(parseModelId(runpodModelId("abc123", "clip-wan22-480p", 1))).toEqual({
       provider: "runpod",
       endpointId: "abc123",
@@ -208,11 +207,8 @@ describe("createProviders", () => {
     ELEVENLABS_API_KEY: "e",
     ELEVENLABS_VOICE_ID: "v",
     ELEVENLABS_MODEL: "t",
-    FAL_IMAGE_MODEL: "fal-ai/flux/dev",
-    FAL_VIDEO_MODEL: "fal-ai/kling",
     FLOWCHAIN_BUDGET_USD: 3,
     RUNS_DIR: "./runs",
-    PROVIDER_MODE: "runpod" as const,
   };
   const runpodEnv = {
     ...env,
@@ -224,10 +220,14 @@ describe("createProviders", () => {
   };
   const prices = Prices.parse({});
 
-  it("keeps a fal run on fal whatever PROVIDER_MODE says", () => {
-    const p = createProviders({ ...env, FAL_KEY: "f" }, { llm: "l", tts: "t", image: "fal-ai/flux/dev", video: "fal-ai/kling" }, prices);
-    expect(p.image).toBeInstanceOf(FalImage);
-    expect(p.video).toBeInstanceOf(FalVideo);
+  it("loads a run made on a hosted model without any key for it, and refuses to buy anything more for it", async () => {
+    const p = createProviders(env, { llm: "l", tts: "t", image: "fal-ai/flux/dev", video: "fal-ai/kling" }, prices);
+    const why = /hosted model this studio no longer uses; it can be re-rendered \(rerender\), but nothing new can be bought/;
+    await expect(p.image.prepare({ prompt: "p", width: 16, height: 16 })).rejects.toThrow(why);
+    await expect(p.image.submit({ input: {} }, { signal: new AbortController().signal })).rejects.toThrow(why);
+    // a job such a run left pending can no longer be collected either: it is refused, never retried
+    await expect(p.video.wait("old-request", { timeoutMs: 1 })).rejects.toBeInstanceOf(NonRetryableError);
+    await expect(p.video.prepare({ imagePath: "x.png", prompt: "p", durationSec: 5 })).rejects.toThrow(/clips came from fal-ai\/kling/);
   });
 
   it("serves a RunPod run from its own endpoints, with RunPod's longer waits", () => {
@@ -244,9 +244,6 @@ describe("createProviders", () => {
   });
 
   it("names the missing key", () => {
-    expect(() =>
-      createProviders(env, { llm: "l", tts: "t", image: "fal-ai/flux/dev", video: "fal-ai/kling" }, prices),
-    ).toThrow("FAL_KEY is not set; this run uses fal models");
     expect(() =>
       createProviders(env, { llm: "l", tts: "t", image: "runpod:ep-k/keyframe-sdxl@1", video: "fal-ai/kling" }, prices),
     ).toThrow("RUNPOD_API_KEY is not set; this run uses RunPod");

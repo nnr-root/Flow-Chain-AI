@@ -29,6 +29,8 @@ export function wanFrames(narrationSec: number): number {
 }
 
 export const VIDEO_PROFILES: Record<VideoProfileId, VideoProfile> = {
+  // The two Kling profiles belong to runs made on a hosted model the studio no longer buys from (phase 5 spec
+  // §5.1); they stay so those runs' recorded clip lengths and estimates still compute.
   /** Runs made before 2.3: the shortest Kling length (5 or 10 s) that covers the narration. */
   "kling-v1": { id: "kling-v1", clipSec: (s) => (s <= 5 ? 5 : 10), costUsd: videoCost, runOverheadUsd: () => 0 },
   /** Kling's 5 s clip (≈ 5.04 s) also covers up to 6.0 s: the fit step slows it by at most ≈ 1.19×. */
@@ -43,7 +45,7 @@ export const VIDEO_PROFILES: Record<VideoProfileId, VideoProfile> = {
 };
 
 /** The profile new runs are created with. */
-export const NEW_RUN_VIDEO_PROFILE: VideoProfileId = "kling-v2";
+export const NEW_RUN_VIDEO_PROFILE: VideoProfileId = "wan22-480p@1";
 
 /** A run's profile; runs without one were created before 2.3 and keep the Phase 1 rule. */
 export function videoProfileOf(id: VideoProfileId | undefined): VideoProfile {

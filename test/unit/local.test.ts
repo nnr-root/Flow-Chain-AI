@@ -16,9 +16,9 @@ describe("a studio on this machine", () => {
     expect(billing).toBe(true);
     expect(web).toEqual({
       REDIS_URL: "redis://127.0.0.1:6399", SUPABASE_URL: supabase.url, SUPABASE_ANON_KEY: "anon",
-      STRIPE_SECRET_KEY: "sk_test_x", STRIPE_WEBHOOK_SECRET: "whsec_listen", STUDIO_ENGINE: "runpod",
+      STRIPE_SECRET_KEY: "sk_test_x", STRIPE_WEBHOOK_SECRET: "whsec_listen",
     });
-    expect(worker).toMatchObject({ GEMINI_API_KEY: "g", FAL_KEY: "f", RUNPOD_API_KEY: "r", SUPABASE_SERVICE_ROLE_KEY: "service", SUPABASE_URL: supabase.url, STRIPE_SECRET_KEY: "sk_test_x" });
+    expect(worker).toMatchObject({ GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", SUPABASE_SERVICE_ROLE_KEY: "service", SUPABASE_URL: supabase.url, STRIPE_SECRET_KEY: "sk_test_x" });
     // the listener's secret is the web app's alone, as on a server
     expect(worker).not.toHaveProperty("STRIPE_WEBHOOK_SECRET");
   });
@@ -44,7 +44,7 @@ describe("a studio on this machine", () => {
       expect(web).not.toHaveProperty("STRIPE_SECRET_KEY");
       expect(worker).not.toHaveProperty("STRIPE_SECRET_KEY");
     }
-    // without a default engine of its own the studio uses hosted models, and the page is told so
-    expect(localEnvs({ ...input, env: { ...env, PROVIDER_MODE: "" } }).web.STUDIO_ENGINE).toBe("fal");
+    // a key of the hosted models the studio stopped using is still in this .env: no process is handed it
+    for (const name of ["FAL_KEY", "PROVIDER_MODE"]) expect(localEnvs(input).worker, name).not.toHaveProperty(name);
   });
 });

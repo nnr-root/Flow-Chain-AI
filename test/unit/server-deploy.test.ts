@@ -14,13 +14,13 @@ const base = { SERVER_HOST: "203.0.113.7", STUDIO_HOST: "Studio.Example.com" };
 
 describe("serverConfig", () => {
   it("fills in the defaults and gives the worker this machine's keys", () => {
-    const cfg = serverConfig(base, { GEMINI_API_KEY: "g", FAL_KEY: " f ", EMPTY: " " });
+    const cfg = serverConfig(base, { GEMINI_API_KEY: "g", RUNPOD_API_KEY: " r ", EMPTY: " " });
     expect(cfg).toEqual({
       target: "root@203.0.113.7",
       dir: "/opt/flowchain",
       studioHost: "studio.example.com",
       studioUser: "studio",
-      worker: { GEMINI_API_KEY: "g", FAL_KEY: "f" },
+      worker: { GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r" },
       accounts: false,
       web: {},
       billing: false,
@@ -29,17 +29,22 @@ describe("serverConfig", () => {
 
   it("lets server.env replace and add worker settings, and keeps the deployment's own settings out of them", () => {
     const cfg = serverConfig(
-      { ...base, SERVER_USER: "deploy", SERVER_DIR: "/srv/studio", STUDIO_USER: "me", WORKER_CONCURRENCY: "3", PROVIDER_MODE: "runpod", FAL_KEY: "server" },
-      { FAL_KEY: "local", PROVIDER_MODE: "fal" },
+      { ...base, SERVER_USER: "deploy", SERVER_DIR: "/srv/studio", STUDIO_USER: "me", WORKER_CONCURRENCY: "3", GEMINI_MODEL: "pro", RUNPOD_API_KEY: "server" },
+      { RUNPOD_API_KEY: "local", GEMINI_MODEL: "flash" },
     );
     expect(cfg.target).toBe("deploy@203.0.113.7");
     expect(cfg.dir).toBe("/srv/studio");
     expect(cfg.concurrency).toBe(3);
-    expect(cfg.worker).toEqual({ FAL_KEY: "server", PROVIDER_MODE: "runpod" });
+    expect(cfg.worker).toEqual({ RUNPOD_API_KEY: "server", GEMINI_MODEL: "pro" });
   });
 
   it("keeps a local value off the server when server.env sets its name to nothing", () => {
-    const cfg = serverConfig({ ...base, RUNPOD_API_KEY: "", FAL_KEY: " " }, { RUNPOD_API_KEY: "local", FAL_KEY: "local", GEMINI_API_KEY: "g" });
+    const cfg = serverConfig({ ...base, RUNPOD_API_KEY: "", R2_BUCKET: " " }, { RUNPOD_API_KEY: "local", R2_BUCKET: "local", GEMINI_API_KEY: "g" });
+    expect(cfg.worker).toEqual({ GEMINI_API_KEY: "g" });
+  });
+
+  it("never passes on the settings of the hosted models the studio stopped using, wherever they are still written", () => {
+    const cfg = serverConfig({ ...base, FAL_KEY: "server", PROVIDER_MODE: "fal" }, { FAL_KEY: "local", FAL_IMAGE_MODEL: "m", FAL_VIDEO_MODEL: "v", GEMINI_API_KEY: "g" });
     expect(cfg.worker).toEqual({ GEMINI_API_KEY: "g" });
   });
 
@@ -83,17 +88,15 @@ describe("a studio with accounts", () => {
   const r2 = { R2_ACCOUNT_ID: "acc", R2_ACCESS_KEY_ID: "id", R2_SECRET_ACCESS_KEY: "secret" };
 
   it("gives the web app the public key and the bucket, and keeps every key that can spend or settle with the worker", () => {
-    const cfg = serverConfig(base, { ...supabase, ...r2, STUDIO_BUCKET: "studio", GEMINI_API_KEY: "g", FAL_KEY: "f", RUNPOD_API_KEY: "r", STUDIO_USER_JOBS: "3" });
+    const cfg = serverConfig(base, { ...supabase, ...r2, STUDIO_BUCKET: "studio", GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", STUDIO_USER_JOBS: "3" });
     expect(cfg.accounts).toBe(true);
-    expect(cfg.web).toEqual({ SUPABASE_URL: supabase.SUPABASE_URL, SUPABASE_ANON_KEY: "public", STUDIO_USER_JOBS: "3", STUDIO_BUCKET: "studio", STUDIO_ENGINE: "fal", ...r2 });
-    for (const secret of ["SUPABASE_SERVICE_ROLE_KEY", "GEMINI_API_KEY", "FAL_KEY", "RUNPOD_API_KEY"]) {
+    expect(cfg.web).toEqual({ SUPABASE_URL: supabase.SUPABASE_URL, SUPABASE_ANON_KEY: "public", STUDIO_USER_JOBS: "3", STUDIO_BUCKET: "studio", ...r2 });
+    for (const secret of ["SUPABASE_SERVICE_ROLE_KEY", "GEMINI_API_KEY", "RUNPOD_API_KEY"]) {
       expect(cfg.web).not.toHaveProperty(secret);
       expect(cfg.worker).toHaveProperty(secret);
     }
     // without a bucket the web app has no use for the R2 keys either
-    expect(serverConfig(base, { ...supabase, ...r2 }).web).toEqual({ SUPABASE_URL: supabase.SUPABASE_URL, SUPABASE_ANON_KEY: "public", STUDIO_ENGINE: "fal" });
-    // the landing page is told which way this studio makes its pictures: the worker's own setting, nothing secret
-    expect(serverConfig(base, { ...supabase, PROVIDER_MODE: "runpod" }).web.STUDIO_ENGINE).toBe("runpod");
+    expect(serverConfig(base, { ...supabase, ...r2 }).web).toEqual({ SUPABASE_URL: supabase.SUPABASE_URL, SUPABASE_ANON_KEY: "public" });
   });
 
   it("puts the proxy without a login in front, because the studio asks every visitor itself", () => {
