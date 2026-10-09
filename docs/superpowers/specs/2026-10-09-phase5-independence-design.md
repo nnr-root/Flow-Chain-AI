@@ -623,3 +623,30 @@ volume and downloading the models again. Parked.
 **Unverified until the live check:** the clip image's build with the two files inside (size on the build
 machine; that ComfyUI finds them where they are); the removal on the real volume; a start's real seconds
 before and after; one start of the picture worker in a whole run.
+
+### 9.14 Live check of §9.13 (2026-10-10)
+
+The owner's answers: stay on Wan 2.2; keep `idleTimeout` at 30 s; push, deploy and make one paid video.
+
+- **Image:** the clip image built with the text encoder and the VAE inside (15 minutes on the hosted builder).
+- **Deploy:** `fetch-models` on the clip endpoint found its four files and removed eight from the volume: the
+  six SDXL-era files, and the volume's copies of the text encoder and the VAE. The picture model was untouched
+  ("already present 4"). The deploy took 50 minutes, nearly all of it a host fetching the new image.
+- **Run `20261010-002332-b4284b`** (480p, four clips): **$0.147**, against $0.19 for the same request the day
+  before; 9 minutes against 12.
+
+| | Before (§9.12) | After |
+|---|---|---|
+| Portrait | $0.0145 | $0.0142 (it pays the one start now) |
+| Pictures, four | $0.0264 | $0.0060 (first: $0.0012) |
+| Clips, four | $0.1279 (first $0.0598) | $0.1045 (first $0.0494) |
+
+**What held:** the picture worker started once; ComfyUI found the text encoder and VAE in the image (four
+clips made); the scenes without the character are empty of people and of candles, and the two with her show the
+portrait's face doing what the scene says.
+
+**What did not:** a start of the clip worker is not halved. The first clip's cost over a warm one fell from
+about 3.7 to about 3.1 cents (roughly 120 s to 100 s): the two 14 GB experts still come from the volume. The
+default of 90 s for that start stands. Part of the lower clip total is shorter lines in this script.
+
+Spent: $0.15 for the video; the deploy's `fetch-models` jobs ran seconds.
