@@ -47,7 +47,7 @@ export function clipFrames(durationSec: number): number {
  * measured GPU time as its cost. A job RunPod has already forgotten (404 after its 30-minute result window)
  * is recovered from the bucket the worker uploaded to; its cost is then left to the stage's estimate.
  */
-abstract class RunpodQueued<Req, Out extends { url: string; costUsd?: number }> {
+abstract class RunpodQueued<Req, Out extends { url: string; costUsd?: number; remove?: () => Promise<void> }> {
   /**
    * A RunPod job carries its image inside the submit request (3–5 MB as base64), where fal uploads it during
    * `prepare`. On a slow uplink that took over the 60 s default twice in one live run (3.1 spec §16).
@@ -107,7 +107,7 @@ abstract class RunpodQueued<Req, Out extends { url: string; costUsd?: number }> 
               `is executionTime still in milliseconds?`,
           );
         }
-        return this.output(jobId, { url: out.url, seed: typeof out.seed === "number" ? out.seed : undefined }, cost);
+        return this.removable(jobId, this.output(jobId, { url: out.url, seed: typeof out.seed === "number" ? out.seed : undefined }, cost));
       }
       if (job.status === "FAILED" || job.status === "TIMED_OUT") {
         const why = job.status === "TIMED_OUT" ? "ran past its execution timeout" : `failed: ${JSON.stringify(job.error)}`;
@@ -128,7 +128,16 @@ abstract class RunpodQueued<Req, Out extends { url: string; costUsd?: number }> 
         `RunPod no longer knows job ${jobId} and its output ${key} is not in the bucket; reroll to buy a new one`,
       );
     }
-    return this.output(jobId, { url: await this.deps.r2.presignGet(key) }, undefined);
+    return this.removable(jobId, this.output(jobId, { url: await this.deps.r2.presignGet(key) }, undefined));
+  }
+
+  /**
+   * The output with the way to take it out of the bucket. Best effort: a file that could not be removed is
+   * no reason to lose a result that was paid for and is already here.
+   */
+  private removable(jobId: string, out: Out): Out {
+    const key = `flowchain/${jobId}.${this.ext}`;
+    return { ...out, remove: () => this.deps.r2.delete(key).catch(() => {}) };
   }
 }
 

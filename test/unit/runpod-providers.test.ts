@@ -14,11 +14,17 @@ import { makeImage, tempDir } from "../helpers/media.js";
 const rates = runpodRates(Prices.parse({}));
 const target = { endpointId: "ep-k", workflow: "keyframe-sdxl", version: 1 };
 
-/** An R2 stand-in: `present` lists the keys that exist. */
+/** An R2 stand-in: `present` lists the keys that exist; what was deleted is noted in `deleted`. */
+const deleted: string[] = [];
+let failDelete = false;
 function fakeR2(present: string[] = []): R2 {
   return {
     exists: async (key: string) => present.includes(key),
     presignGet: async (key: string) => `https://r2.example/${key}?signed`,
+    delete: async (key: string) => {
+      if (failDelete) throw new Error("R2 DELETE failed: HTTP 500");
+      deleted.push(key);
+    },
   } as unknown as R2;
 }
 
@@ -126,7 +132,7 @@ describe("RunPod waiting and billing", () => {
       { status: "IN_PROGRESS" },
       { status: "COMPLETED", output: { url: "https://r2/k.png", seed: 41 }, executionTime: 8000 },
     ]);
-    expect(await image.wait(id, { timeoutMs: 60_000 })).toEqual({
+    expect(await image.wait(id, { timeoutMs: 60_000 })).toMatchObject({
       url: "https://r2/k.png",
       seed: 41,
       costUsd: 0.0024, // 8 s x $0.000306/s = 0.002448, rounded to 4 decimals
@@ -139,7 +145,16 @@ describe("RunPod waiting and billing", () => {
     ]);
     const video = new RunpodVideo(deps(api), { ...target, endpointId: "ep-c", workflow: "clip-wan22-480p" });
     const id = await video.submit({ input: {} }, { signal: new AbortController().signal });
-    expect(await video.wait(id, { timeoutMs: 60_000 })).toEqual({ url: "https://r2/c.mp4", costUsd: 0.0367 }); // 120 s x $0.000306/s
+    const clip = await video.wait(id, { timeoutMs: 60_000 });
+    expect(clip).toMatchObject({ url: "https://r2/c.mp4", costUsd: 0.0367 }); // 120 s x $0.000306/s
+    // Once the run has its own copy, the worker's upload is taken out of the bucket: by the job's own key,
+    // never by anything in the answer. A removal that fails loses nothing that was paid for.
+    deleted.length = 0;
+    await clip.remove!();
+    expect(deleted).toEqual([`flowchain/${id}.mp4`]);
+    failDelete = true;
+    await expect(clip.remove!()).resolves.toBeUndefined();
+    failDelete = false;
   });
 
   it("treats FAILED and TIMED_OUT as billed but unusable, with the measured cost", async () => {
@@ -164,7 +179,7 @@ describe("RunPod waiting and billing", () => {
 
   it("leaves a COMPLETED job without execution time to the stage's estimate", async () => {
     const { image, id } = await submitted(() => [{ status: "COMPLETED", output: { url: "https://r2/k.png" } }]);
-    expect(await image.wait(id, { timeoutMs: 60_000 })).toEqual({ url: "https://r2/k.png", seed: -1 });
+    expect(await image.wait(id, { timeoutMs: 60_000 })).toMatchObject({ url: "https://r2/k.png", seed: -1 });
   });
 
   it("warns when a COMPLETED job measures exactly $0 despite an execution time", async () => {
@@ -188,7 +203,7 @@ describe("RunPod waiting and billing", () => {
   it("recovers a job RunPod has forgotten from the bucket, leaving its cost to the estimate", async () => {
     const found = await submitted(() => [{ status: "COMPLETED" }], fakeR2(["flowchain/job-1.png"]));
     found.api.expire(found.id);
-    expect(await found.image.wait(found.id, { timeoutMs: 60_000 })).toEqual({
+    expect(await found.image.wait(found.id, { timeoutMs: 60_000 })).toMatchObject({
       url: "https://r2.example/flowchain/job-1.png?signed",
       seed: -1,
     });

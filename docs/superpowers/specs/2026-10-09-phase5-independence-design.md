@@ -343,3 +343,20 @@ the English clip; a customer cannot bring a voice.
 - **Unverified until the live check:** that this ComfyUI version honours `free_memory` without unloading the
   weights; that R2 accepts the lifecycle call with these keys.
 
+### 9.5 Live check, first day (2026-10-09)
+
+- **The voice image built and runs** on a pod: PyTorch sees the GPU, both models load with no network in 22 s
+  (speaker) and 0.6 s (listener).
+- **It could not speak:** pip had quietly installed an older `voxcpm` (the newest one's demo page and RunPod's
+  SDK want different versions of one small package, and the resolver stepped back until they agreed). The two
+  are now installed in two steps, the library is pinned, and the build ends with a check that it can speak from
+  a reference clip. The image moved to PyTorch for CUDA 12.8, and the endpoint asks for hosts with it.
+- **FlashBoot:** RunPod creates an endpoint with it on whatever is asked, and takes "off" only as a change.
+  `upsert` now sends that change after a create.
+- **The bucket's expiry rule was refused** (HTTP 403: the workers' key may read and write objects, not change
+  the bucket). The pipeline now removes each upload itself as soon as it has its own copy (`remove()` on a
+  provider's output, by the job's own key); the rule is still tried, and its refusal is a note with the words
+  for setting it by hand. Left in the bucket only: what a run uploaded and never fetched.
+- **Open:** the voice endpoint took no job in its first ten minutes (hosts were probably still pulling the
+  image); to be confirmed from a worker's log.
+

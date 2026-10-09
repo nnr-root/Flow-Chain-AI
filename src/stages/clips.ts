@@ -98,6 +98,8 @@ export const clipsStage: Stage = {
       submitTimeoutMs: ctx.providers.video.submitMs,
     });
     await download(result.url, out);
+    // the run has its own copy now: the one the worker uploaded is taken out of the bucket
+    await result.remove?.();
     state.clip = { path: paths.clip(i), sourceUrl: result.url, duration: await probeDuration(out), requestedSec: seconds };
   },
 };

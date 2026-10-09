@@ -61,11 +61,15 @@ export type ImageRequest = {
   referenceImagePath?: string;
 };
 /** `costUsd`: what the job actually cost, when the provider bills by measured time (else the stage estimate). */
-export type ImageOutput = { url: string; seed: number; costUsd?: number };
+/**
+ * `remove`: takes the output away from where the provider left it, once the pipeline has its own copy (phase 5
+ * spec §8): a customer's picture or clip is not to lie in a bucket longer than the minutes it is needed there.
+ */
+export type ImageOutput = { url: string; seed: number; costUsd?: number; remove?: () => Promise<void> };
 export type ImageProvider = QueuedProvider<ImageRequest, ImageOutput>;
 
 export type VideoRequest = { imagePath: string; prompt: string; durationSec: number };
-export type VideoOutput = { url: string; costUsd?: number };
+export type VideoOutput = { url: string; costUsd?: number; remove?: () => Promise<void> };
 export type VideoProvider = QueuedProvider<VideoRequest, VideoOutput>;
 
 export type Providers = { llm: LlmProvider; tts: TtsProvider; image: ImageProvider; video: VideoProvider };

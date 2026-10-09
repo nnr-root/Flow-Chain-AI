@@ -72,6 +72,8 @@ export const keyframesStage: Stage = {
       submitTimeoutMs: ctx.providers.image.submitMs,
     });
     await download(result.url, await outPath(ctx, paths.keyframe(i)));
+    // the run has its own copy now: the one the worker uploaded is taken out of the bucket
+    await result.remove?.();
     ctx.manifest.scenes[i].keyframe = { path: paths.keyframe(i), seed: result.seed, sourceUrl: result.url };
   },
 };

@@ -70,10 +70,11 @@ async function main(): Promise<void> {
     RUNPOD_CLIP_ENDPOINT: deployed.clipEndpointId,
   });
   console.log("Wrote RUNPOD_KEYFRAME_ENDPOINT and RUNPOD_CLIP_ENDPOINT to .env.");
-  // What the workers upload is fetched within minutes: the bucket removes it after a day by itself.
+  // The pipeline removes each upload once it has its own copy. A rule on the bucket catches what is left when
+  // a run stops in between; it needs a key that may change the bucket's settings, which the workers' key is not.
   await new R2(cfg.r2).expireAfter("flowchain/", 1).then(
-    () => console.log("The bucket now removes the workers' uploads (flowchain/) after one day."),
-    (err: unknown) => console.warn(`Warning: the bucket's expiry rule could not be set (${err instanceof Error ? err.message : String(err)}); the workers' uploads stay until removed by hand.`),
+    () => console.log("The bucket now also removes anything left under flowchain/ after one day."),
+    () => console.log("Note: this R2 key may not set the bucket's rules, so no expiry rule was set. Uploads are still removed as soon as each is fetched; to also catch leftovers, add a rule in Cloudflare (R2 > the bucket > Settings > Object lifecycle: delete flowchain/ after 1 day)."),
   );
   const client = new RunpodClient(apiKey);
   for (const [kind, id] of [["keyframe", deployed.keyframeEndpointId], ["clip", deployed.clipEndpointId]] as const) {

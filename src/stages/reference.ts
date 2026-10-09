@@ -79,5 +79,7 @@ export const referenceStage: Stage = {
       submitTimeoutMs: image.submitMs,
     });
     await download(result.url, await outPath(ctx, paths.reference));
+    // the run has its own copy now: the one the worker uploaded is taken out of the bucket
+    await result.remove?.();
   },
 };
