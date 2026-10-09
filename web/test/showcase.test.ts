@@ -78,13 +78,13 @@ describe("the showcase videos", () => {
     expect(total).toBeLessThan(4_000_000);
   });
 
-  it.each(slugs)("%s has a receipt that adds up and says what made it", (slug) => {
-    const receipt = JSON.parse(readFileSync(join(root, slug, "receipt.json"), "utf8")) as { lines: Array<{ label: string; usd: number }>; totalUsd: number; engines: Record<string, string>; seconds: number; scenes: number; topic: string };
+  it.each(slugs)("%s has a receipt that adds up and says where it was made, and nothing of what made it", (slug) => {
+    const receipt = JSON.parse(readFileSync(join(root, slug, "receipt.json"), "utf8")) as { lines: Array<{ label: string; usd: number }>; totalUsd: number; seconds: number; scenes: number; topic: string };
     expect(receipt.lines.length).toBeGreaterThan(0);
     expect(Math.round(receipt.lines.reduce((sum, l) => sum + l.usd, 0) * 10_000)).toBe(Math.round(receipt.totalUsd * 10_000));
     expect(receipt.totalUsd).toBeGreaterThan(0);
-    for (const part of ["script", "voice", "pictures", "clips"]) expect(receipt.engines[part], part).toMatch(/\S/);
-    // where its pictures were made: what the calculator groups the videos by
+    expect(receipt).not.toHaveProperty("engines");
+    // where its pictures were made: only the ones made the way the studio makes them now are what a video costs today
     expect(["own", "hosted"]).toContain((receipt as { madeOn?: string }).madeOn);
     expect(receipt.seconds).toBeGreaterThan(5);
     expect(receipt.topic).toMatch(/\S/);

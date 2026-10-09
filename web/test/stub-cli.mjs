@@ -28,6 +28,8 @@ if (command === "plan") {
 } else {
   // resume, reroll, rerender: wait if asked (so a test can observe "running"), then end as asked
   console.log(`▶ ${command}`);
+  // the real pipeline's output names what it calls; the studio must keep those words from a customer
+  console.log("ElevenLabs voice ok; RunPod endpoint ab12cd34 healthy");
   const behave = readJson("_behave.json", {});
   // which of the server's own secrets reached this process (none should)
   if (behave.envNames) writeFileSync(join(runs, "_env.json"), JSON.stringify(Object.keys(process.env).filter((name) => /^SUPABASE_/.test(name))));

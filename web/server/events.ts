@@ -3,6 +3,8 @@ import { open, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { JOB_LOG, runner } from "./jobs";
 import { readRun, runDir } from "./runs";
+import { publicLog } from "@/lib/engines";
+import { multiTenant } from "@/lib/supabase/settings";
 
 const encoder = new TextEncoder();
 const frame = (event: string, data: unknown) => encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -59,7 +61,8 @@ export function runEvents(
           await handle.read(buf, 0, buf.length, size - buf.length);
           logAt = size;
           const lines = buf.toString("utf8").split("\n").map((l) => l.trimEnd()).filter(Boolean);
-          if (lines.length) send(frame("log", { lines }));
+          // (a customer is shown none of the pipeline's words that say how the studio is built: phase 5 spec §7)
+          if (lines.length) send(frame("log", { lines: multiTenant() ? publicLog(lines) : lines }));
         } finally {
           await handle.close();
         }

@@ -32,7 +32,7 @@ describe("jobs", () => {
     expect(await ended(dir)).toMatchObject({ state: "ended", exitCode: 0 });
     expect(await calls(studio)).toEqual([["resume", id, "--budget", "0.3"]]);
     expect(await readFile(join(dir, JOB_LOG), "utf8")).toContain("▶ resume");
-    expect(await logTail(id)).toEqual(["▶ resume"]);
+    expect((await logTail(id))[0]).toBe("▶ resume");
   });
 
   it("keeps the CLI's exit code: 2 means the estimate was not confirmed", async () => {

@@ -1,17 +1,14 @@
 "use client";
 import { useId, useState } from "react";
 import type { CatalogueItem } from "@/lib/billing";
+import { ENGINES } from "@/lib/engines";
 import { clipsCostUsd, type Comparison, quote } from "@/lib/site/calculator";
 
 const usd = (n: number): string => `$${n.toFixed(2)}`;
 
+/** What a video costs here, from the videos on the page that were made the way the studio makes them now. */
 export type Engine = {
-  id: string;
-  /** "Our own GPU", "Hosted models". */
-  name: string;
-  /** What the pictures are made with, in the receipts' words. */
-  models: string;
-  /** The mean credit a showcase video made this way used, and from how many videos that is. */
+  /** The mean credit such a showcase video used, and from how many videos that is. */
   creditPerVideoUsd: number;
   videos: number;
   /** The mean seconds of generated clips in such a video: what is compared with a company that sells clips. */
@@ -25,11 +22,9 @@ export type Engine = {
  * live catalogue, the showcase videos' receipts, and — for other companies — dated, sourced entries. The table
  * of other companies only appears when there are entries fresh enough to show.
  */
-export function Calculator({ items, engines, others, asOf }: { items: CatalogueItem[]; engines: Engine[]; others: Comparison[]; asOf: string }) {
+export function Calculator({ items, engine, others, asOf }: { items: CatalogueItem[]; engine: Engine; others: Comparison[]; asOf: string }) {
   const [videos, setVideos] = useState(20);
-  const [engineId, setEngineId] = useState(engines[0].id);
   const slider = useId();
-  const engine = engines.find((e) => e.id === engineId) ?? engines[0];
   const q = quote(videos, engine.creditPerVideoUsd, items);
   const seconds = Math.round(engine.clipSeconds * 10) / 10;
 
@@ -42,20 +37,10 @@ export function Calculator({ items, engines, others, asOf }: { items: CatalogueI
             <output htmlFor={slider} className="display float-right text-[2.6rem] leading-none" data-testid="calc-videos">{videos}</output>
           </label>
           <input id={slider} type="range" min={1} max={150} step={1} value={videos} onChange={(e) => setVideos(Number(e.target.value))} className="range mt-5 w-full" />
-          <fieldset className="mt-8">
-            <legend className="text-[1.02rem]">Pictures made with</legend>
-            <div className="mt-3 space-y-2.5">
-              {engines.map((e) => (
-                <label key={e.id} className="flex cursor-pointer items-baseline gap-3">
-                  <input type="radio" name="engine" value={e.id} checked={e.id === engineId} onChange={() => setEngineId(e.id)} className="accent-[var(--color-ink)]" />
-                  <span>
-                    {e.name} <span className="figures text-[0.8rem] text-graphite">about {usd(e.creditPerVideoUsd)} of credit a video</span>
-                    <span className="block text-[0.9rem] text-graphite">{e.models}</span>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          <p className="mt-8 text-[1.02rem]">
+            A video <span className="figures text-[0.8rem] text-graphite">about {usd(engine.creditPerVideoUsd)} of credit</span>
+            <span className="block text-[0.9rem] text-graphite">Pictures by {ENGINES.pictures}, clips by {ENGINES.clips}, voice by {ENGINES.voice}.</span>
+          </p>
         </div>
 
         <div className="lg:col-span-7">
@@ -73,7 +58,7 @@ export function Calculator({ items, engines, others, asOf }: { items: CatalogueI
             <p className="max-w-[36rem] text-[1.1rem]" data-testid="calc-answer">That many videos is more than what is on sale covers in one month. <a href="/pricing" className="underline underline-offset-4">See what is on sale.</a></p>
           )}
           <p className="mt-4 max-w-[36rem] text-[0.92rem] text-graphite">
-            “About {usd(engine.creditPerVideoUsd)}” is the mean of the {engine.videos === 1 ? "one video" : `${engine.videos} videos`} above made this way, about {Math.round(engine.seconds)} seconds each. Yours will use more or less with their length and how many scenes move; you are shown the most a video can cost before it is made.
+            “About {usd(engine.creditPerVideoUsd)}” is the mean of the {engine.videos === 1 ? "one video" : `${engine.videos} videos`} above that were made on our own engine, about {Math.round(engine.seconds)} seconds each. Yours will use more or less with their length and how many scenes move; you are shown the most a video can cost before it is made.
           </p>
         </div>
       </div>
@@ -96,8 +81,8 @@ export function Calculator({ items, engines, others, asOf }: { items: CatalogueI
               </thead>
               <tbody className="figures text-[0.9rem]">
                 <tr className="border-b border-hairline" data-testid="calc-row-ours">
-                  <th scope="row" className="py-3 pr-4 font-medium">Flow Chain, {engine.name.charAt(0).toLowerCase() + engine.name.slice(1)}</th>
-                  <td className="py-3 pr-4">The finished video. {engine.models}</td>
+                  <th scope="row" className="py-3 pr-4 font-medium">Flow Chain</th>
+                  <td className="py-3 pr-4">The finished video: script, voice, pictures, clips and the cut.</td>
                   <td className="py-3 pr-4 text-right">{usd(q.monthUsd)}</td>
                   <td className="py-3 text-right">{usd(q.perVideoUsd)}</td>
                 </tr>

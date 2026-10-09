@@ -23,11 +23,6 @@
     }
   ],
   "totalUsd": 0.3169,
-  "engines": {
-    "script": "Gemini",
-    "voice": "ElevenLabs",
-    "pictures": "SDXL, on our own GPU",
-    "clips": "Wan 2.2 at 480p, on our own GPU"
-  },
-  "madeOn": "own"
+  "madeOn": "own",
+  "clipHeight": 480
 }

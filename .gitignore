@@ -19,3 +19,4 @@ deploy/data/
 supabase/.temp/
 supabase/.branches/
 graphify-out/
+.superpowers/

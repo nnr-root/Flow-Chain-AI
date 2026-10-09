@@ -43,7 +43,7 @@ export type RunStatus = {
   sceneCount: number;
   modes: Mode[] | "auto";
   title?: string;
-  style: { name: string | null; source: "flag" | "gemini" | "pending" | "none" };
+  style: { name: string | null; source: "flag" | "auto" | "pending" | "none" };
   hook: string | null;
   render: Manifest["request"]["render"];
   characters?: string;
@@ -77,7 +77,7 @@ export function statusOf(m: Manifest): RunStatus {
     modes: r.modes ?? "auto",
     title: m.script?.title,
     style: preset
-      ? { name: preset.name, source: r.style ? "flag" : "gemini" }
+      ? { name: preset.name, source: r.style ? "flag" : "auto" }
       : { name: null, source: m.script ? "none" : "pending" },
     hook: hookTextFor(m),
     render: r.render,

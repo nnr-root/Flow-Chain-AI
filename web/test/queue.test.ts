@@ -289,7 +289,7 @@ describe.skipIf(!hasRedisServer())("the queue runner and the worker", () => {
     await expect(startJob(id, "generate", ["resume", id, "--budget", "1", "--cap", "1"])).rejects.toMatchObject({ code: "worker_offline" });
     await expect(cliText(["plan", id, "--json"])).rejects.toMatchObject({ code: "worker_offline" });
     // a new video is refused for that reason too, not waved through because no key is known to be missing
-    const video = { topic: "t", aspect: "9:16", scenes: 4, style: "auto", motion: "auto", budgetUsd: 3, captionStyle: "preset", transition: "auto", musicGain: 0.35, sfxGain: 0.6, sfx: true, hook: { mode: "gemini" } };
+    const video = { topic: "t", aspect: "9:16", scenes: 4, style: "auto", motion: "auto", budgetUsd: 3, captionStyle: "preset", transition: "auto", musicGain: 0.35, sfxGain: 0.6, sfx: true, hook: { mode: "auto" } };
     await expect(createDraft(video as Parameters<typeof createDraft>[0])).rejects.toMatchObject({ code: "worker_offline" });
     expect(await inRedis(id)).toBe(false);
     expect(await admin.keys("bull:*:[0-9]*")).toEqual([]);

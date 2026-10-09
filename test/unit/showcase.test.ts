@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { engineName, peaksOf, publications, receiptOf, republish, slugOf } from "../../src/deploy/showcase.js";
+import { peaksOf, publications, receiptOf, republish, slugOf } from "../../src/deploy/showcase.js";
 
 const models = { llm: "gemini-flash-latest", tts: "eleven_multilingual_v2", image: "runpod:abc123keyframe/keyframe-sdxl@1", video: "runpod:abc123clip/clip-wan22-480p@1" };
 
@@ -15,10 +15,12 @@ describe("a showcase video's receipt", () => {
     expect(receiptOf(ledger, models)).toEqual({
       lines: [{ label: "Script", usd: 0.0055 }, { label: "Voice", usd: 0.1146 }, { label: "Pictures", usd: 0.0375 }, { label: "Clips", usd: 0.1593 }],
       totalUsd: 0.3169,
-      engines: { script: "Gemini", voice: "ElevenLabs", pictures: "SDXL, on our own GPU", clips: "Wan 2.2 at 480p, on our own GPU" },
       madeOn: "own",
+      clipHeight: 480,
     });
-    expect(receiptOf(ledger, { ...models, image: "fal-ai/flux/dev", video: "fal-ai/kling-video/v2.1/standard/image-to-video" }).madeOn).toBe("hosted");
+    const hosted = receiptOf(ledger, { ...models, image: "fal-ai/flux/dev", video: "fal-ai/kling-video/v2.1/standard/image-to-video" });
+    expect(hosted.madeOn).toBe("hosted");
+    expect(hosted).not.toHaveProperty("clipHeight");
   });
 
   it("leaves out what cost nothing, keeps what it does not know under its own line, and refuses what is no amount", () => {
@@ -27,14 +29,14 @@ describe("a showcase video's receipt", () => {
     for (const usd of [Number.NaN, -1, Number.POSITIVE_INFINITY]) expect(() => receiptOf([{ stage: "clips", usd }], models)).toThrow("no amount");
   });
 
-  it("names a model in words only when it knows it, and otherwise shows what the run recorded", () => {
-    expect(engineName("fal-ai/flux/dev")).toBe("Flux, on fal");
-    expect(engineName("fal-ai/kling-video/v2.1/standard/image-to-video")).toBe("Kling 2.1, on fal");
-    expect(engineName("some-new-model")).toBe("some-new-model");
-    // a model on our own GPU that this file does not know yet: its workflow, never the endpoint it ran on
-    expect(engineName("runpod:abc123secret/clip-wan22-720p@2")).toBe("clip-wan22-720p@2, on our own GPU");
-    expect(engineName("runpod:abc123secret")).toBe("a model on our own GPU");
-    for (const model of ["runpod:abc123secret/clip-wan22-720p@2", "runpod:abc123secret", "runpod:abc123secret/keyframe-sdxl@1"]) expect(engineName(model)).not.toContain("abc123secret");
+  it("publishes no model, no company and no endpoint: only where the video was made, and the height of its clips", () => {
+    for (const video of ["runpod:abc123secret/clip-wan22-720p@2", "runpod:abc123secret/clip-wan22-480p@1", "runpod:abc123secret", "fal-ai/kling-video/v2.1/standard/image-to-video"]) {
+      const published = JSON.stringify(receiptOf([{ stage: "clips", usd: 0.05 }], { ...models, video }));
+      expect(published).not.toMatch(/abc123secret|runpod|wan|kling|fal|gemini|eleven|sdxl/i);
+    }
+    expect(receiptOf([], { ...models, video: "runpod:abc123secret/clip-wan22-720p@2" }).clipHeight).toBe(720);
+    // a graph whose name says no height: nothing is guessed
+    expect(receiptOf([], { ...models, video: "runpod:abc123secret/clip-next@1" })).not.toHaveProperty("clipHeight");
   });
 });
 

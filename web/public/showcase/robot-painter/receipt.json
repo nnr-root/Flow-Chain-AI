@@ -23,11 +23,5 @@
     }
   ],
   "totalUsd": 0.8124,
-  "engines": {
-    "script": "Gemini",
-    "voice": "ElevenLabs",
-    "pictures": "Flux, on fal",
-    "clips": "Kling 2.1, on fal"
-  },
   "madeOn": "hosted"
 }

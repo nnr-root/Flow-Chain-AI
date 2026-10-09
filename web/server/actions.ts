@@ -5,7 +5,7 @@ import { statusOf } from "@src/studio/status";
 import { DRAFT_CAP_USD, newTenantRun, reserve } from "./credit";
 import { ApiError } from "./http";
 import { round4 } from "@/lib/credit";
-import { cliJson, cliText, jobReady, type JobView, releaseJob, startJob, studioHealth, viewJob } from "./jobs";
+import { cliJson, cliText, jobReady, type JobView, releaseJob, startJob, studioHealthRaw, viewJob } from "./jobs";
 import { requireManifest } from "./runs";
 import { multiTenant } from "./tenant";
 import { draftArgs, kitDir, type Look, modesArg, musicPath, type NewVideo, rerenderArgs } from "./schemas";
@@ -20,12 +20,13 @@ type RerollTarget = { scene: number; stage: string };
 
 /** Buys the script for a new run and stops there. The keys a run needs must be set first. */
 export async function createDraft(input: NewVideo): Promise<{ runId: string; job: JobView }> {
-  const { missing, queue } = await studioHealth();
+  const { missing, queue } = await studioHealthRaw();
   // with the queue the keys are the worker's: when it cannot be asked, nothing is known about them
   if (queue.mode === "queue" && !(queue.redis && queue.worker)) {
     throw new ApiError(queue.redis ? "worker_offline" : "queue_unavailable", queue.redis ? "the worker is offline" : "the job queue is unavailable", "nothing was started; try again in a moment");
   }
   const unset = missing;
+  if (unset.length > 0 && multiTenant()) throw new ApiError("missing_keys", "the studio is not ready to make videos yet", "nothing was started; try again later");
   if (unset.length > 0) {
     const where = queue.mode === "queue" ? "set them in .env or deploy/server.env and run npm run server:setup again" : "add them to .env in the repository, then try again";
     throw new ApiError("missing_keys", `${queue.mode === "queue" ? "the worker has no" : "not set in .env:"} ${unset.join(", ")}`, where);

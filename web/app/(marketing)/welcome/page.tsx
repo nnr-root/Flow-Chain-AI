@@ -23,21 +23,20 @@ export const dynamic = "force-dynamic";
 
 const H2 = "display max-w-[50rem] text-[clamp(2rem,1.2rem+3.2vw,3.5rem)] leading-[1.02] tracking-[-0.025em]";
 
-/** The showcase videos as the calculator's two ways of making pictures, each with what its videos really used. */
-function enginesOf(showcases: Showcase[]): Engine[] {
-  const names = (of: Showcase[], part: "pictures" | "clips") => [...new Set(of.map((s) => s.receipt.engines[part].replace(/, on .*/, "")))].join(" or ");
-  const group = (id: "own" | "hosted", name: string): Engine[] => {
-    const of = showcases.filter((s) => s.receipt.madeOn === id);
-    return of.length === 0 ? [] : [{
-      id, name, videos: of.length,
-      models: `${names(of, "pictures")} and ${names(of, "clips")}`,
-      creditPerVideoUsd: mean(of.map((s) => s.receipt.totalUsd)),
-      clipSeconds: mean(of.map((s) => s.making.scenes.filter((scene) => scene.kind === "clip").reduce((sum, scene) => sum + scene.seconds, 0))),
-      seconds: mean(of.map((s) => s.receipt.seconds)),
-    }];
+/**
+ * What a video costs here, for the calculator: the mean of the videos on the page that were made the way the
+ * studio makes them now. A video made before that, on rented models, stays on the shelf with its receipt but is
+ * not what a customer would pay today, so it is not counted.
+ */
+function engineOf(showcases: Showcase[]): Engine | null {
+  const of = showcases.filter((s) => s.receipt.madeOn === "own");
+  if (of.length === 0) return null;
+  return {
+    videos: of.length,
+    creditPerVideoUsd: mean(of.map((s) => s.receipt.totalUsd)),
+    clipSeconds: mean(of.map((s) => s.making.scenes.filter((scene) => scene.kind === "clip").reduce((sum, scene) => sum + scene.seconds, 0))),
+    seconds: mean(of.map((s) => s.receipt.seconds)),
   };
-  const engines = [...group("own", "Our own GPU"), ...group("hosted", "Hosted models")];
-  return engines;
 }
 
 export default async function Page() {
@@ -60,9 +59,9 @@ export default async function Page() {
   // The headline compares with other companies only while the calculator below can show the comparison and it
   // holds — their prices fresh, ours on sale — for the way this studio usually makes its pictures: the claim and
   // its evidence stand or fall together.
-  const engines = enginesOf(SHOWCASES);
+  const engine = engineOf(SHOWCASES);
   // (no video on the page made the way the studio makes them now: nothing to hold the claim to, so it is not made)
-  const claim = engines[0]?.id === "own" && clipsClaimHolds(engines[0].creditPerVideoUsd, engines[0].clipSeconds, items, others);
+  const claim = engine !== null && clipsClaimHolds(engine.creditPerVideoUsd, engine.clipSeconds, items, others);
   return (
     <div data-testid="landing">
       <SiteNav signedIn={signedIn} sells={sells} free={free} />
@@ -98,10 +97,10 @@ export default async function Page() {
           <div className="mt-12"><Shelf showcases={SHOWCASES} /></div>
         </section>
 
-        {items.length > 0 && engines.length > 0 && (
+        {items.length > 0 && engine && (
           <section className="mt-28" aria-labelledby="calculator-title">
             <h2 id="calculator-title" className={H2}>What your month would cost</h2>
-            <div className="mt-12"><Calculator items={items} engines={engines} others={others} asOf={asOf} /></div>
+            <div className="mt-12"><Calculator items={items} engine={engine} others={others} asOf={asOf} /></div>
           </section>
         )}
 
@@ -114,7 +113,7 @@ export default async function Page() {
 
         <section className="mt-28" aria-labelledby="faq-title">
           <h2 id="faq-title" className={H2}>Before you ask</h2>
-          <div className="mt-10"><Faq usedCents={SHOWCASES.map((s) => Math.round(s.receipt.totalUsd * 100))} sells={sells} ownClips={SHOWCASES.find((s) => s.receipt.madeOn === "own")?.receipt.engines.clips ?? ""} /></div>
+          <div className="mt-10"><Faq usedCents={SHOWCASES.map((s) => Math.round(s.receipt.totalUsd * 100))} sells={sells} clipHeight={SHOWCASES.find((s) => s.receipt.madeOn === "own" && s.receipt.clipHeight)?.receipt.clipHeight} /></div>
         </section>
 
         <section className="mt-28 border-t border-ink/30 pt-14" aria-labelledby="close-title">

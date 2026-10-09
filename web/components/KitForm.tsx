@@ -140,7 +140,7 @@ export function KitForm({ defaultFont }: { defaultFont: { family: string; file: 
           <Field label="Characters" hint="Optional. Used in every picture prompt of videos made with this kit.">
             <textarea rows={2} maxLength={600} value={f.characters} onChange={(e) => set("characters", e.target.value)} />
           </Field>
-          <Field label="Character portrait" hint="Optional PNG or JPG, up to 6 MB. RunPod videos keep this face."><input type="file" accept=".png,.jpg,.jpeg" onChange={(e) => setPortrait(e.target.files?.[0] ?? null)} /></Field>
+          <Field label="Character portrait" hint="Optional PNG or JPG, up to 6 MB. Every picture of a video keeps this character."><input type="file" accept=".png,.jpg,.jpeg" onChange={(e) => setPortrait(e.target.files?.[0] ?? null)} /></Field>
         </div>
         <div className="mt-4 space-y-3">
           <ErrorNote>{error}</ErrorNote>

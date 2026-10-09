@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 import { expect, type Page, test } from "@playwright/test";
+import { namesInternals } from "../lib/engines";
 import { freshComparisons } from "../lib/site/calculator";
 import { data } from "../playwright.accounts.config";
 
@@ -25,6 +26,12 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await welcomeOff();
 });
+
+/** Nothing a customer can read on the page in front of them says how the studio is built (phase 5 spec §7). */
+async function namesNothing(page: Page) {
+  const said = (await page.locator("body").innerText()).split("\n").filter(namesInternals);
+  expect(said, `${page.url()} names an internal`).toEqual([]);
+}
 
 async function signIn(page: Page, who: { email: string; password: string }) {
   await page.goto("/login");
@@ -143,6 +150,10 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   // (the answer about cost quotes the receipts on this very page)
   await expect(page.getByTestId("faq").locator("details").first()).toContainText("23, 32 and 81 cents");
   await expect(page.locator('[data-cta="closing-signup"]')).toHaveText("Create an account");
+  // every receipt, the making of a video, the calculator and the questions are open on this page by now
+  for (const answer of await page.getByTestId("faq").locator("details").all()) await answer.evaluate((d) => ((d as HTMLDetailsElement).open = true));
+  await namesNothing(page);
+  await expect(page.getByTestId("receipt").first()).toContainText("FlowChain Motion");
   // a video on the shelf is played in the Stage at the top
   await page.getByTestId("shelf-play-robot-painter").click();
   await expect(player).toHaveAttribute("data-slug", "robot-painter");
@@ -209,6 +220,14 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await expect.poll(() => balance(A.email), { timeout: 30_000 }).toBe(0.7945);
   const calls = readFileSync(join(mine, "_calls.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l) as string[]);
   expect(calls).toContainEqual(["resume", runId, "--budget", "0.31", "--cap", "0.31"]);
+  // The job's output is on the run's page. The pipeline said which provider it called and on which endpoint;
+  // the customer is told that a step reported, and none of those words.
+  await page.reload();
+  await page.getByText("Job output").click();
+  await expect(page.getByTestId("log")).toContainText("▶ resume");
+  await expect(page.getByTestId("log")).toContainText("the details are kept with the studio");
+  await expect(page.getByTestId("log")).not.toContainText("ab12cd34");
+  await namesNothing(page);
 
   await page.goto("/account");
   await expect(page.getByTestId("balance")).toHaveText("$0.79");

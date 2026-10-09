@@ -185,6 +185,37 @@ proven on hardware the studio does not control.
 
 (Each piece adds its section here when it lands. A later section wins over an earlier one.)
 
+### 9.1 fal purge and names (2026-10-09)
+
+Landed directly on `main`, two commits.
+
+- **fal is gone from everything that runs.** `src/providers/fal.ts`, `@fal-ai/client`, `FAL_*`, `PROVIDER_MODE`,
+  `--provider`, the form's provider choice and `STUDIO_ENGINE` are removed. A run whose model ids are not
+  `runpod:…` gets a stand-in provider (`retired()` in `src/providers/factory.ts`) that refuses `prepare`, `submit`
+  and `wait` with one sentence; such a run needs no key, loads and re-renders. `serverConfig` and `localEnvs`
+  drop `RETIRED_KEYS`, so a `FAL_KEY` still written in an owner's `.env` is handed to no process.
+- **Kept as data:** the `fal-flux@1`, `kling-v1`, `kling-v2` profiles and the three price fields, with comments
+  saying why. `NEW_RUN_VIDEO_PROFILE` is now `wan22-480p@1`. `test/unit/compat.test.ts` is untouched and passes.
+- **Names.** `web/lib/engines.ts` holds `ENGINES` (D8) and `INTERNAL_NAMES`. A published receipt no longer has
+  `engines`; it keeps `madeOn` (`own` | `hosted`) and gains `clipHeight`, read from the graph's name. The three
+  published receipts were rewritten to that shape (same runs, same ledgers).
+- **Found while doing it, and closed:**
+  - the studio showed a customer the pipeline's raw output ("Job output"), which names providers, models,
+    endpoint ids and provider error text. With accounts it now goes through `publicLog`: a line that names an
+    internal is replaced whole. The owner's local studio still shows it as it is;
+  - `/api/health` listed the names of unset keys to any signed-in user; with accounts it now answers
+    `["not_ready"]`, and the draft route says "the studio is not ready to make videos yet";
+  - `"gemini"` was a value in the form's API (`hook.mode`) and in a run's status (`style.source`): both are
+    `"auto"` now.
+- **The landing page has one way of making a video.** The calculator lost its engine choice; its per-video
+  figure is the mean of the showcases made on the studio's own GPU. The showcase made on rented models stays on
+  the shelf with its receipt, carries no engine name, and is not counted. The headline's claim no longer
+  depends on a setting: it holds while a video on the page was made the current way and the comparison holds.
+- **Tests:** `web/test/names.test.ts` (published files; the source of `web/app`, `web/components`, `web/lib` with
+  comments and import lines removed; the scanner's own ability to fail; `publicLog`; the readiness answer).
+- **Not done here:** `web/lib/supabase/settings.ts` and `web/lib/billing.ts` are exempt from the source scan until
+  §4 replaces them. The CLI's own help text and the README name providers: they are the owner's, not a customer's.
+
 ## 10. Sources (read 2026-10-09)
 
 RunPod: pricing page; docs "Data security and legal compliance", "Endpoint settings"; guide "Keep data secure on

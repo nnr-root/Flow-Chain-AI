@@ -1,4 +1,5 @@
 import type { Showcase } from "@/lib/site/showcases";
+import { ENGINES } from "@/lib/engines";
 
 const exact = (usd: number): string => `$${usd.toFixed(4)}`;
 
@@ -36,6 +37,8 @@ export function MakingStrip({ showcase }: { showcase: Showcase }) {
   const cost = (label: string) => receipt.lines.find((l) => l.label === label)?.usd ?? 0;
   const clips = making.scenes.filter((s) => s.kind === "clip").length;
   const stills = making.scenes.length - clips;
+  // an engine is named only on a video it made (one made before the studio had its own carries no name)
+  const own = receipt.madeOn === "own";
   return (
     <ol className="-mx-6 flex snap-x snap-mandatory gap-0 overflow-x-auto px-6 pb-2 lg:mx-0 lg:grid lg:grid-cols-5 lg:overflow-visible lg:px-0" data-testid="making">
       <Step n={1} name="Topic" cost="free">
@@ -46,11 +49,11 @@ export function MakingStrip({ showcase }: { showcase: Showcase }) {
         <ol className="space-y-2">
           {making.scenes.map((s, i) => <li key={i}>{s.narration}</li>)}
         </ol>
-        <p className="mt-3 text-graphite">Written by {receipt.engines.script}: one line a scene, with a picture and a camera move for each.</p>
+        <p className="mt-3 text-graphite">Written for you: one line a scene, with a picture and a camera move for each.</p>
       </Step>
       <Step n={3} name="Voice" cost={exact(cost("Voice"))}>
         <Waveform peaks={making.voice.peaks} />
-        <p className="mt-3 text-graphite">Spoken by {receipt.engines.voice}, with the pauses trimmed. Everything after is timed to these {making.voice.seconds.toFixed(1)} seconds.</p>
+        <p className="mt-3 text-graphite">{own ? `Spoken by ${ENGINES.voice}` : "Spoken"}, with the pauses trimmed. Everything after is timed to these {making.voice.seconds.toFixed(1)} seconds.</p>
       </Step>
       <Step n={4} name="Pictures" cost={exact(cost("Pictures") + cost("Clips"))}>
         <ul className="grid grid-cols-4 gap-1.5">
@@ -63,7 +66,7 @@ export function MakingStrip({ showcase }: { showcase: Showcase }) {
         </ul>
         <p className="mt-3 text-graphite">
           {clips} moving {clips === 1 ? "clip" : "clips"}{stills > 0 ? ` and ${stills} ${stills === 1 ? "still" : "stills"} with a camera move` : ""}, each cut to the length of its line.
-          Pictures: {receipt.engines.pictures}. Clips: {receipt.engines.clips}.
+          {own && ` Pictures by ${ENGINES.pictures}, clips by ${ENGINES.clips}.`}
         </p>
       </Step>
       <Step n={5} name="The cut" cost="free">

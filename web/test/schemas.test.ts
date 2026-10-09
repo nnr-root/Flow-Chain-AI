@@ -25,7 +25,7 @@ describe("the new-video form", () => {
   it("fills the pipeline's defaults", () => {
     expect(NewVideo.parse(base)).toMatchObject({
       aspect: "9:16", scenes: 4, style: "auto", motion: "auto", brandKit: null, music: null, musicGain: 0.35,
-      hook: { mode: "gemini" }, sfx: true, sfxGain: 0.6, captionStyle: "preset", transition: "auto",
+      hook: { mode: "auto" }, sfx: true, sfxGain: 0.6, captionStyle: "preset", transition: "auto",
     });
   });
 

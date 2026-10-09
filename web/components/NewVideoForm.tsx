@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { errorText, getJson, sendForm, sendJson } from "@/lib/api";
 import { CreditNote, tooLittle, useBalance } from "@/lib/balance";
 import { DRAFT_CAP_USD } from "@/lib/credit";
+import { NOT_READY } from "@/lib/engines";
 import type { StudioHealth } from "@/server/jobs";
 import type { KitSummary, Track } from "@/server/library";
 import { Button, ErrorNote, Field, Panel, Segmented } from "./ui";
@@ -19,7 +20,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
   const [tracks, setTracks] = useState(initialTracks);
   const [f, setF] = useState({
     topic, aspect: "9:16", scenes: 4, style: "auto", motion: "auto",
-    budgetUsd: health.defaults.budgetUsd, brandKit: "", music: "", musicGain: 0.35, hookMode: "gemini", hookText: "",
+    budgetUsd: health.defaults.budgetUsd, brandKit: "", music: "", musicGain: 0.35, hookMode: "auto", hookText: "",
     sfx: true, sfxGain: 0.6, characters: "", seed: "", voiceId: "", captionStyle: "preset", transition: "auto",
   });
   const [busy, setBusy] = useState(false);
@@ -113,7 +114,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
 
       <Panel title="Style">
         <div role="radiogroup" aria-label="Style preset" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {[{ name: "auto", description: "Gemini picks the preset that fits the topic", font: "" }, ...presets].map((p) => (
+          {[{ name: "auto", description: "The preset that fits the topic is picked for you", font: "" }, ...presets].map((p) => (
             <button
               key={p.name}
               type="button"
@@ -122,7 +123,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
               onClick={() => set("style", p.name)}
               className={`rounded-lg border p-3 text-left ${f.style === p.name ? "border-accent bg-accent/10" : "border-line hover:border-dim"}`}
             >
-              <span className="block text-sm font-medium">{p.name === "auto" ? "Let Gemini choose" : p.name.replaceAll("_", " ")}</span>
+              <span className="block text-sm font-medium">{p.name === "auto" ? "Choose for me" : p.name.replaceAll("_", " ")}</span>
               <span className="mt-1 block text-xs text-dim">{p.description}</span>
               {p.font && <span className="mt-1 block text-xs text-dim">captions: {p.font}</span>}
             </button>
@@ -137,7 +138,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
             <Segmented label="Motion" value={f.motion} onChange={(v) => set("motion", v)} options={[{ value: "auto", label: "Auto" }, { value: "clips", label: "All clips" }, { value: "stills", label: "All stills" }]} />
             <span className="text-xs text-dim">You can change each scene on the draft before anything is generated.</span>
           </div>
-          {missing.length > 0 && <ErrorNote>Not set in .env: {missing.join(", ")}. Add them in the repository's .env file.</ErrorNote>}
+          {missing.length > 0 && <ErrorNote>{missing[0] === NOT_READY ? "The studio is not ready to make videos yet. Please try again later." : `Not set in .env: ${missing.join(", ")}. Add them in the repository's .env file.`}</ErrorNote>}
         </div>
       </Panel>
 
@@ -175,7 +176,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           <Field label="Hook title">
             <select value={f.hookMode} onChange={(e) => set("hookMode", e.target.value)}>
-              <option value="gemini">Gemini writes it</option>
+              <option value="auto">Written for you</option>
               <option value="custom">My own text</option>
               <option value="off">No hook</option>
             </select>
@@ -194,10 +195,10 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
           <Field label="Seed" hint="Empty = random. The same seed keeps pictures repeatable.">
             <input inputMode="numeric" pattern="[0-9]*" value={f.seed} onChange={(e) => set("seed", e.target.value)} />
           </Field>
-          <Field label="Characters" hint="Used in every picture prompt. Empty = the brand kit's, else Gemini's.">
+          <Field label="Characters" hint="Used in every picture prompt. Empty = the brand kit's, else written with the script.">
             <textarea rows={2} maxLength={600} value={f.characters} onChange={(e) => set("characters", e.target.value)} />
           </Field>
-          <Field label="Voice id" hint="Empty = ELEVENLABS_VOICE_ID from .env">
+          <Field label="Voice id" hint="Empty = the studio's own voice">
             <input value={f.voiceId} onChange={(e) => set("voiceId", e.target.value)} />
           </Field>
         </div>

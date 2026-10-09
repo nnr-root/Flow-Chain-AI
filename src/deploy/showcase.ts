@@ -9,36 +9,18 @@ export type Receipt = {
   lines: ReceiptLine[];
   /** The sum of the lines: the credit the video used. */
   totalUsd: number;
-  /** The models that made it, in words. */
-  engines: { script: string; voice: string; pictures: string; clips: string };
-  /** Where the pictures and clips were generated: on the studio's own GPU, or by a hosted service. */
+  /**
+   * Whether the pictures and clips were made the way the studio makes them now, on its own GPU ("own"), or on
+   * the hosted models it used before ("hosted"). Which models those are is never published (phase 5 spec §7).
+   */
   madeOn: "own" | "hosted";
+  /** The height its clips were generated at (480), where the run's own record says. */
+  clipHeight?: number;
 };
 
 const LINE_OF: Record<string, ReceiptLine["label"]> = { script: "Script", tts: "Voice", reference: "Pictures", keyframes: "Pictures", clips: "Clips" };
 const ORDER: ReceiptLine["label"][] = ["Script", "Voice", "Pictures", "Clips", "Other"];
 const round4 = (n: number): number => Math.round(n * 10_000) / 10_000;
-
-/**
- * A model's name as a visitor can read it. Only names this file knows are translated; anything else is shown as
- * the run recorded it, rather than guessed at — except that a model on our own GPU is recorded with the id of
- * the endpoint it ran on, which is nobody else's business: that part is never shown.
- */
-export function engineName(model: string): string {
-  const known: Array<[RegExp, string]> = [
-    [/^gemini/i, "Gemini"],
-    [/^eleven/i, "ElevenLabs"],
-    [/^fal-ai\/flux/i, "Flux, on fal"],
-    [/^fal-ai\/kling-video\/v2\.1/i, "Kling 2.1, on fal"],
-    [/^runpod:[^/]+\/keyframe-sdxl@/i, "SDXL, on our own GPU"],
-    [/^runpod:[^/]+\/keyframe-flux/i, "Flux, on our own GPU"],
-    [/^runpod:[^/]+\/clip-wan22-480p@/i, "Wan 2.2 at 480p, on our own GPU"],
-  ];
-  const name = known.find(([pattern]) => pattern.test(model))?.[1];
-  if (name) return name;
-  const own = /^runpod:[^/]*\/(.+)$/i.exec(model);
-  return own ? `${own[1]}, on our own GPU` : model.replace(/^runpod:.*/i, "a model on our own GPU");
-}
 
 /** What a run cost, grouped the way a video is made. Every figure comes from the run's own ledger. */
 export function receiptOf(ledger: LedgerEntry[], models: { llm: string; tts: string; image: string; video: string }): Receipt {
@@ -48,12 +30,14 @@ export function receiptOf(ledger: LedgerEntry[], models: { llm: string; tts: str
     const label = LINE_OF[entry.stage] ?? "Other";
     sums.set(label, (sums.get(label) ?? 0) + entry.usd);
   }
+  const height = /^runpod:[^/]+\/[a-z0-9-]*?-(\d{3,4})p@/i.exec(models.video);
   const lines = ORDER.filter((label) => (sums.get(label) ?? 0) > 0).map((label) => ({ label, usd: round4(sums.get(label)!) }));
   return {
     lines,
     totalUsd: round4(lines.reduce((sum, line) => sum + line.usd, 0)),
-    engines: { script: engineName(models.llm), voice: engineName(models.tts), pictures: engineName(models.image), clips: engineName(models.video) },
     madeOn: /^runpod:/i.test(models.video) ? "own" : "hosted",
+    // (the graph's name carries the height it generates at; the endpoint's id before it is nobody's business)
+    ...(height ? { clipHeight: Number(height[1]) } : {}),
   };
 }
 

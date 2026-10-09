@@ -12,8 +12,6 @@ const cents = (usd: number): string => `${Math.round(usd * 100)} cents`;
 export function Shelf({ showcases }: { showcases: Showcase[] }) {
   const still = useReducedMotion() ?? false;
   const own = showcases.filter((s) => s.receipt.madeOn === "own");
-  /** The same in every one of them, and so not what makes the difference. */
-  const shared = (part: "script" | "voice") => new Set(showcases.map((s) => s.receipt.engines[part])).size === 1;
   const hosted = showcases.filter((s) => !own.includes(s));
   const moving = (s: Showcase) => s.making.scenes.filter((scene) => scene.kind === "clip").length;
   /** "32 cents, with 3 moving scenes": the two things that make one video's cost comparable with another's. */
@@ -38,8 +36,8 @@ export function Shelf({ showcases }: { showcases: Showcase[] }) {
       </ul>
       {own.length > 0 && hosted.length > 0 && (
         <p className="mt-12 max-w-[44rem] text-[1.1rem] leading-[1.5]" data-testid="shelf-compare">
-          Made on our own GPU: {own.map(cost).join("; ")}. Made with hosted models: {hosted.map(cost).join("; ")}.
-          {shared("script") && shared("voice") ? "The script writer, the voice and the cut are the same in all of them; what differs is" : "What differs most is"} which models make the pictures, and where they run.
+          Made on our own engine, as every video is now: {own.map(cost).join("; ")}. Made before it, on models we rented: {hosted.map(cost).join("; ")}.
+          The difference is where the pictures and the clips are made.
         </p>
       )}
       <p className="mt-4 max-w-[44rem] text-[0.92rem] text-graphite">

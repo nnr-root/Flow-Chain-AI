@@ -34,10 +34,10 @@ export const NewVideo = z.object({
   music: MusicId.nullable().default(null),
   musicGain: Gain.default(0.35),
   hook: z.discriminatedUnion("mode", [
-    z.object({ mode: z.literal("gemini") }),
+    z.object({ mode: z.literal("auto") }),
     z.object({ mode: z.literal("custom"), text: HookText }),
     z.object({ mode: z.literal("off") }),
-  ]).default({ mode: "gemini" }),
+  ]).default({ mode: "auto" }),
   sfx: z.boolean().default(true),
   sfxGain: Gain.default(0.6),
   characters: z.string().trim().max(600).optional(),

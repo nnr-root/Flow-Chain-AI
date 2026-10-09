@@ -130,6 +130,12 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - **"The real renderer" must stay true:** the page restyles a video by choosing among looks that
   `looksOf()` computed with the studio's own `previewProps`; `web/test/restyle.test.ts` compares every
   combination with it. Do not compute captions, cuts or sounds in the browser.
+- **No customer-facing surface names a model, a provider or a key** (phase 5 spec §7). The names customers are
+  given are in `web/lib/engines.ts` (`ENGINES`); the names they are never given are in `INTERNAL_NAMES` there, and
+  `web/test/names.test.ts` holds the published showcase files and the source of every page, component and
+  shared module to it. In a studio with accounts a job's output goes through `publicLog`, and the health answer
+  says that a setting is missing, not which. The copy says "our engine": never "proprietary" or "built by us".
+  Exceptions on purpose: Stripe where a customer pays; other companies in the dated price comparison.
 - Showcases are published by `npm run make:showcase` (free) and listed by hand in
   `web/lib/site/showcases.ts`; what is published must never carry a machine path or a GPU endpoint id.
 - Design: the spec's §3 (and its amended list of banned details) is binding for anything on this side.

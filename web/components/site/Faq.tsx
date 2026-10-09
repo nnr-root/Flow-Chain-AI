@@ -10,11 +10,11 @@ type Facts = {
   used: string;
   /** The studio takes payments: only then are plans, top-ups and Stripe something to ask about. */
   sells: boolean;
-  /** The resolution clips are generated at on the studio's own GPU ("480p"), from a video on the page; empty when none was made there. */
-  ownResolution: string;
+  /** The height clips are generated at (480), from a video on the page made the way the studio makes them now; absent when none says. */
+  clipHeight?: number;
 };
 
-const questions = ({ used, sells, ownResolution }: Facts): Array<{ q: string; a: string[] }> => [
+const questions = ({ used, sells, clipHeight }: Facts): Array<{ q: string; a: string[] }> => [
   {
     q: "What will a video cost me?",
     a: [
@@ -30,14 +30,14 @@ const questions = ({ used, sells, ownResolution }: Facts): Array<{ q: string; a:
     q: "What happens if a video fails half-way, or I stop it?",
     a: [
       "It waits for you. Nothing is retried on its own, and when you continue, nothing that was already made is bought again.",
-      "You pay for what was made, and for anything that had already been sent to a model when it stopped: the model's maker charges for that whether or not the result is collected.",
+      "You pay for what was made, and for anything that was already being generated when it stopped: that computing time is used whether or not the result is collected.",
     ],
   },
   {
     q: "What can it not do?",
     a: [
       `It makes short videos of up to ${inWords(MAX_SCENES)} scenes, upright (9:16) or wide (16:9), from one sentence. It is not an editor with a timeline: you choose the look, the cuts, the opening title, the music and the brand, and you can have any single scene made again.`,
-      `Writing inside the pictures — a label on a bottle, a street sign — comes out as scribble, as it does with most picture models.${ownResolution ? ` On our own GPU the moving clips are generated at ${ownResolution} and set into a full-HD video.` : ""}`,
+      `Writing inside the pictures — a label on a bottle, a street sign — comes out as scribble, as it does with most picture engines.${clipHeight ? ` The moving clips are generated at ${clipHeight}p and set into a full-HD video.` : ""}`,
     ],
   },
   {
@@ -57,12 +57,12 @@ const questions = ({ used, sells, ownResolution }: Facts): Array<{ q: string; a:
 ];
 
 /** `usedCents`: what each showcase video on the page used, from its receipt, so the answer quotes the page's own figures. */
-export function Faq({ usedCents, sells, ownClips }: { usedCents: number[]; sells: boolean; ownClips: string }) {
+export function Faq({ usedCents, sells, clipHeight }: { usedCents: number[]; sells: boolean; clipHeight?: number }) {
   const sorted = [...usedCents].sort((a, b) => a - b).map(String);
   const used = sorted.length > 1 ? `${sorted.slice(0, -1).join(", ")} and ${sorted.at(-1)} cents` : `${sorted[0] ?? "a few"} cents`;
   return (
     <div className="max-w-[52rem]" data-testid="faq">
-      {questions({ used, sells, ownResolution: /\b(\d{3,4}p)\b/.exec(ownClips)?.[1] ?? "" }).map(({ q, a }) => (
+      {questions({ used, sells, clipHeight }).map(({ q, a }) => (
         <details key={q} className="group border-t border-hairline last:border-b">
           <summary className="flex cursor-pointer list-none items-baseline justify-between gap-6 py-5 text-[1.2rem] marker:hidden [&::-webkit-details-marker]:hidden">
             {q}
