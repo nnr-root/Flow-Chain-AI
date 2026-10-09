@@ -5,8 +5,8 @@ import { join } from "node:path";
 import { parseEnv } from "node:util";
 import { describe, expect, it } from "vitest";
 import {
-  backupEnv, backupScript, backupUnits, composeCommand, composeEnv, composeEnvText, dockerEnvText, generatePassword, paths,
-  prepareScript, serverConfig, shellQuote, unpackScript, upScript,
+  backupEnv, backupScript, backupUnits, composeCommand, composeEnv, composeEnvText, databaseEnvs, dbEnvText, dbSecrets, dbUpScript, dockerEnvText,
+  generatePassword, paths, prepareScript, psqlCommand, serverConfig, shellQuote, unpackScript, upScript,
 } from "../../src/deploy/server.js";
 import { tempDir } from "../helpers/media.js";
 
@@ -84,44 +84,94 @@ describe("serverConfig", () => {
 });
 
 describe("a studio with accounts", () => {
-  const supabase = { SUPABASE_URL: "https://abc.supabase.co", SUPABASE_ANON_KEY: "public", SUPABASE_SERVICE_ROLE_KEY: "service" };
+  const accounts = { STUDIO_ACCOUNTS: "1", SMTP_URL: "smtps://user:pass@smtp.example.com", MAIL_FROM: "Flow Chain <hello@example.com>" };
+  const mail = { SMTP_URL: accounts.SMTP_URL, MAIL_FROM: accounts.MAIL_FROM };
   const r2 = { R2_ACCOUNT_ID: "acc", R2_ACCESS_KEY_ID: "id", R2_SECRET_ACCESS_KEY: "secret" };
+  const secrets = { owner: "owner-password-0123456789", web: "web-password-0123456789ab", worker: "worker-password-012345678" };
 
-  it("gives the web app the public key and the bucket, and keeps every key that can spend or settle with the worker", () => {
-    const cfg = serverConfig(base, { ...supabase, ...r2, STUDIO_BUCKET: "studio", GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", STUDIO_USER_JOBS: "3" });
+  it("gives the web app the mail server and the bucket, and keeps every key that can spend with the worker", () => {
+    const cfg = serverConfig(base, { ...accounts, ...r2, STUDIO_BUCKET: "studio", GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", STUDIO_USER_JOBS: "3" });
     expect(cfg.accounts).toBe(true);
-    expect(cfg.web).toEqual({ SUPABASE_URL: supabase.SUPABASE_URL, SUPABASE_ANON_KEY: "public", STUDIO_USER_JOBS: "3", STUDIO_BUCKET: "studio", ...r2 });
-    for (const secret of ["SUPABASE_SERVICE_ROLE_KEY", "GEMINI_API_KEY", "RUNPOD_API_KEY"]) {
+    expect(cfg.web).toEqual({ ...mail, STUDIO_USER_JOBS: "3", STUDIO_BUCKET: "studio", ...r2 });
+    for (const secret of ["GEMINI_API_KEY", "RUNPOD_API_KEY"]) {
       expect(cfg.web).not.toHaveProperty(secret);
       expect(cfg.worker).toHaveProperty(secret);
     }
+    // the mail server is the web app's alone: the worker sends no email and signs nobody in
+    for (const name of ["SMTP_URL", "MAIL_FROM", "STUDIO_ACCOUNTS"]) expect(cfg.worker).not.toHaveProperty(name);
     // without a bucket the web app has no use for the R2 keys either
-    expect(serverConfig(base, { ...supabase, ...r2 }).web).toEqual({ SUPABASE_URL: supabase.SUPABASE_URL, SUPABASE_ANON_KEY: "public" });
+    expect(serverConfig(base, { ...accounts, ...r2 }).web).toEqual(mail);
   });
 
-  it("puts the proxy without a login in front, because the studio asks every visitor itself", () => {
-    const cfg = serverConfig(base, supabase);
-    expect(composeEnv(cfg)).toEqual({
-      STUDIO_HOST: "studio.example.com",
-      // one word for the proxy's file and for what the web app insists on
-      STUDIO_AUTH: "supabase",
-      CADDYFILE: "Caddyfile.accounts",
-      DATA_DIR: "/opt/flowchain/data",
-      WORKER_ENV_FILE: "/opt/flowchain/worker.env",
-      WEB_ENV_FILE: "/opt/flowchain/web.env",
-    });
-  });
-
-  it("keeps the keys to the database itself on the owner's machine: neither container gets them", () => {
-    const cfg = serverConfig(base, { ...supabase, SUPABASE_DB_URL: "postgresql://postgres:secret@db.abc.supabase.co:5432/postgres", SUPABASE_DB_PASSWORD: "secret", SUPABASE_ACCESS_TOKEN: "sbp_x" });
-    for (const name of ["SUPABASE_DB_URL", "SUPABASE_DB_PASSWORD", "SUPABASE_ACCESS_TOKEN"]) {
+  it("gives each service its own address of the database: the web app's cannot settle, the worker's is not the web app's", () => {
+    const { web, worker } = databaseEnvs(secrets);
+    expect(web).toEqual({ DATABASE_URL: "postgres://studio_web:web-password-0123456789ab@db:5432/flowchain" });
+    expect(worker).toEqual({ DATABASE_URL: "postgres://studio_worker:worker-password-012345678@db:5432/flowchain" });
+    // neither is the owner's, which no running service is ever given
+    expect(JSON.stringify([web, worker])).not.toContain(secrets.owner);
+    // and whatever this machine's .env says about a database never reaches the server
+    const cfg = serverConfig(base, { ...accounts, DATABASE_URL: "postgres://postgres:local@127.0.0.1:54330/flowchain", POSTGRES_PASSWORD: "local", MAIL_DIR: "/tmp/mail" });
+    for (const name of ["DATABASE_URL", "POSTGRES_PASSWORD", "MAIL_DIR"]) {
       expect(cfg.worker).not.toHaveProperty(name);
       expect(cfg.web).not.toHaveProperty(name);
     }
   });
 
+  it("makes the database's passwords once, keeps them, and refuses a file that holds only some of them", () => {
+    let n = 0;
+    const made = dbSecrets({}, () => `generated-password-${++n}`);
+    expect(made).toEqual({ secrets: { owner: "generated-password-1", web: "generated-password-2", worker: "generated-password-3" }, made: true });
+    const stored = parseEnv(dbEnvText(made.secrets)) as Record<string, string>;
+    expect(dbSecrets(stored, () => "never")).toEqual({ secrets: made.secrets, made: false });
+    // new passwords for a database that already has others would lock every service out of it
+    expect(() => dbSecrets({ POSTGRES_PASSWORD: "x" })).toThrow("some of the database's passwords but not all three");
+    // what the real generator makes needs no quoting anywhere it travels
+    expect(dbSecrets({}).secrets.web).toMatch(/^[A-Za-z0-9_-]{32}$/);
+  });
+
+  it("puts the proxy without a login in front, because the studio asks every visitor itself, and starts the database", () => {
+    const cfg = serverConfig(base, accounts);
+    expect(composeEnv(cfg, undefined, secrets)).toEqual({
+      STUDIO_HOST: "studio.example.com",
+      // one word for the proxy's file and for what the web app insists on
+      STUDIO_AUTH: "accounts",
+      CADDYFILE: "Caddyfile.accounts",
+      COMPOSE_PROFILES: "accounts",
+      POSTGRES_PASSWORD: secrets.owner,
+      DATA_DIR: "/opt/flowchain/data",
+      WORKER_ENV_FILE: "/opt/flowchain/worker.env",
+      WEB_ENV_FILE: "/opt/flowchain/web.env",
+    });
+    expect(() => composeEnv(cfg)).toThrow("needs its database's passwords");
+    // a studio without accounts starts no database at all
+    expect(composeEnv(serverConfig(base, {}), "$2a$14$hash")).not.toHaveProperty("COMPOSE_PROFILES");
+  });
+
+  it("starts the database alone, and reaches it only through its own container", () => {
+    const cfg = serverConfig(base, accounts);
+    expect(dbUpScript(cfg)).toContain("up -d --wait --wait-timeout 300 db\n");
+    expect(psqlCommand(cfg)).toMatch(/ exec -T db psql -U postgres -d flowchain -v ON_ERROR_STOP=1 -q$/);
+    expect(psqlCommand(cfg, { tuples: true, transaction: true })).toMatch(/ -q -At --single-transaction$/);
+    // no password is ever on a command line: psql runs inside the container, as its owner
+    expect(psqlCommand(cfg)).not.toMatch(/password|PGPASSWORD|postgres:\/\//i);
+  });
+
+  it("backs the database up as a copy the database itself took, and never its files as they are being written", () => {
+    const cfg = serverConfig({ ...base, BACKUP_BUCKET: "studio-backup" }, { ...accounts, ...r2 });
+    const script = backupScript(cfg, cfg.backup!);
+    expect(script).toContain("exec -T db pg_dump -U postgres -Fc flowchain > /opt/flowchain/data/db-backup/flowchain.dump.tmp");
+    expect(script).toContain("mv /opt/flowchain/data/db-backup/flowchain.dump.tmp /opt/flowchain/data/db-backup/flowchain.dump");
+    expect(script).toContain("for folder in runs brand-kits uploads db-backup; do");
+    expect(script).not.toMatch(/data\/postgres/);
+    // the dump comes first, so a dump that fails fails the backup before anything is copied
+    expect(script.indexOf("pg_dump")).toBeLessThan(script.indexOf("for folder"));
+    // without accounts there is nothing to dump
+    const plain = serverConfig({ ...base, BACKUP_BUCKET: "studio-backup" }, r2);
+    expect(backupScript(plain, plain.backup!)).not.toContain("pg_dump");
+  });
+
   it("gives the web app the bucket's own keys where it has them, not the pipeline's as well", () => {
-    const cfg = serverConfig(base, { ...supabase, ...r2, STUDIO_BUCKET: "studio", STUDIO_R2_ACCESS_KEY_ID: "own-id", STUDIO_R2_SECRET_ACCESS_KEY: "own-secret" });
+    const cfg = serverConfig(base, { ...accounts, ...r2, STUDIO_BUCKET: "studio", STUDIO_R2_ACCESS_KEY_ID: "own-id", STUDIO_R2_SECRET_ACCESS_KEY: "own-secret" });
     expect(cfg.web).toMatchObject({ STUDIO_R2_ACCESS_KEY_ID: "own-id", STUDIO_R2_SECRET_ACCESS_KEY: "own-secret", R2_ACCOUNT_ID: "acc" });
     expect(cfg.web).not.toHaveProperty("R2_ACCESS_KEY_ID");
     expect(cfg.web).not.toHaveProperty("R2_SECRET_ACCESS_KEY");
@@ -131,7 +181,7 @@ describe("a studio with accounts", () => {
 
   it("gives both processes the Stripe key, and the webhook's signing secret to the web app alone", () => {
     const stripe = { STRIPE_SECRET_KEY: "sk_test_x", STRIPE_WEBHOOK_SECRET: "whsec_x" };
-    const cfg = serverConfig(base, { ...supabase, ...stripe, STRIPE_API_BASE: "http://127.0.0.1:3134", STRIPE_WEBHOOK_ENDPOINT: "we_1" });
+    const cfg = serverConfig(base, { ...accounts, ...stripe, STRIPE_API_BASE: "http://127.0.0.1:3134", STRIPE_WEBHOOK_ENDPOINT: "we_1" });
     expect(cfg.billing).toBe(true);
     expect(cfg.web).toMatchObject(stripe);
     expect(cfg.worker.STRIPE_SECRET_KEY).toBe("sk_test_x");
@@ -142,33 +192,40 @@ describe("a studio with accounts", () => {
     // nor does setup's own note of which endpoint the secret is of
     expect(cfg.worker).not.toHaveProperty("STRIPE_WEBHOOK_ENDPOINT");
     expect(cfg.web).not.toHaveProperty("STRIPE_WEBHOOK_ENDPOINT");
-    // and the worker's own key for settling credit is still not the web app's
-    expect(cfg.web).not.toHaveProperty("SUPABASE_SERVICE_ROLE_KEY");
 
-    const without = serverConfig(base, { ...supabase, STRIPE_WEBHOOK_SECRET: "whsec_x" });
+    const without = serverConfig(base, { ...accounts, STRIPE_WEBHOOK_SECRET: "whsec_x" });
     expect(without.billing).toBe(false);
     expect(without.web).not.toHaveProperty("STRIPE_WEBHOOK_SECRET");
     expect(without.worker).not.toHaveProperty("STRIPE_WEBHOOK_SECRET");
     // off on the server alone
-    expect(serverConfig({ ...base, STRIPE_SECRET_KEY: "" }, { ...supabase, ...stripe }).billing).toBe(false);
+    expect(serverConfig({ ...base, STRIPE_SECRET_KEY: "" }, { ...accounts, ...stripe }).billing).toBe(false);
   });
 
   it("refuses payments without accounts, or without the webhook that confirms them", () => {
     expect(() => serverConfig(base, { STRIPE_SECRET_KEY: "sk_test_x", STRIPE_WEBHOOK_SECRET: "whsec_x" })).toThrow("payments need a studio with accounts");
-    expect(() => serverConfig(base, { ...supabase, STRIPE_SECRET_KEY: "sk_test_x" })).toThrow("run npm run stripe:setup first");
+    expect(() => serverConfig(base, { ...accounts, STRIPE_SECRET_KEY: "sk_test_x" })).toThrow("run npm run stripe:setup first");
   });
 
-  it("turns accounts off on the server alone when server.env sets the project's address to nothing", () => {
-    const cfg = serverConfig({ ...base, SUPABASE_URL: "" }, supabase);
+  it("turns accounts on or off by one setting, and off on the server alone when server.env says so", () => {
+    expect(serverConfig(base, mail).accounts).toBe(false);
+    const cfg = serverConfig({ ...base, STUDIO_ACCOUNTS: "0" }, accounts);
     expect(cfg.accounts).toBe(false);
     expect(cfg.web).toEqual({});
     expect(composeEnv(cfg, "$2a$14$hash")).toMatchObject({ STUDIO_AUTH: "proxy", CADDYFILE: "Caddyfile" });
+    expect(() => serverConfig({ ...base, STUDIO_ACCOUNTS: "maybe" }, mail)).toThrow("STUDIO_ACCOUNTS must be 1");
   });
 
-  it("refuses half a project: both of its keys or none", () => {
-    expect(() => serverConfig(base, { SUPABASE_URL: "https://abc.supabase.co", SUPABASE_ANON_KEY: "public" })).toThrow("SUPABASE_SERVICE_ROLE_KEY is not");
-    expect(() => serverConfig(base, { SUPABASE_URL: "https://abc.supabase.co", SUPABASE_SERVICE_ROLE_KEY: "service" })).toThrow("SUPABASE_ANON_KEY is not");
-    expect(serverConfig(base, { SUPABASE_ANON_KEY: "public" }).accounts).toBe(false);
+  it("refuses accounts without a mail server: an address nobody confirmed is nobody's", () => {
+    expect(() => serverConfig(base, { STUDIO_ACCOUNTS: "1", MAIL_FROM: "x@example.com" })).toThrow("SMTP_URL is not set");
+    expect(() => serverConfig(base, { STUDIO_ACCOUNTS: "1", SMTP_URL: "smtp://x" })).toThrow("MAIL_FROM is not set");
+  });
+
+  it("takes Google sign-in whole or not at all, and gives it to the web app alone", () => {
+    const google = { GOOGLE_CLIENT_ID: "id.apps.googleusercontent.com", GOOGLE_CLIENT_SECRET: "secret" };
+    const cfg = serverConfig(base, { ...accounts, ...google });
+    expect(cfg.web).toMatchObject(google);
+    for (const name of Object.keys(google)) expect(cfg.worker).not.toHaveProperty(name);
+    expect(() => serverConfig(base, { ...accounts, GOOGLE_CLIENT_ID: "id" })).toThrow("go together");
   });
 });
 

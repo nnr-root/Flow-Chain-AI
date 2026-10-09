@@ -15,8 +15,6 @@
   },
   "dependencies": {
     "@remotion/player": "4.0.532",
-    "@supabase/ssr": "^0.12.7",
-    "@supabase/supabase-js": "^2.117.3",
     "@tailwindcss/postcss": "^4.3.3",
     "bullmq": "^6.3.11",
     "ioredis": "^6.0.0",

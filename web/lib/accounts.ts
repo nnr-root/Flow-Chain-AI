@@ -1,29 +1,35 @@
-/* Whether the studio has accounts, and where they live. No imports: the proxy and the server both read this. */
-
-export type SupabaseSettings = { url: string; anonKey: string };
+/* Whether the studio has accounts, and what its sign-in pages share. No imports: the proxy and the server both read this. */
 
 /**
- * With `SUPABASE_URL` set the studio is multi-tenant: every request belongs to a signed-in user and sees only
+ * With `DATABASE_URL` set the studio is multi-tenant: every request belongs to a signed-in user and sees only
  * that user's runs, kits and tracks. Without it the studio is the single-user app it was, with no accounts.
  */
-export const multiTenant = (): boolean => !!process.env.SUPABASE_URL?.trim();
+export const multiTenant = (): boolean => !!process.env.DATABASE_URL?.trim();
 
 /**
  * On a server the stack says which login the studio is meant to have (`STUDIO_AUTH`, set by server:setup):
- * `proxy` (the proxy asks for the one login) or `supabase` (the studio asks every visitor to sign in). The proxy
- * is chosen from the same word. If it says "supabase" and this process has no accounts configured — a settings
+ * `proxy` (the proxy asks for the one login) or `accounts` (the studio asks every visitor to sign in). The proxy
+ * is chosen from the same word. If it says "accounts" and this process has no database configured — a settings
  * file that was not written, or edited — the studio would be open to anyone: it then answers nothing at all.
  */
-export const loginMissing = (): boolean => process.env.STUDIO_AUTH?.trim() === "supabase" && !multiTenant();
+export const loginMissing = (): boolean => process.env.STUDIO_AUTH?.trim() === "accounts" && !multiTenant();
 export const LOGIN_MISSING = "The studio is set up to have accounts but has none configured, so it answers nothing. Run npm run server:setup again.";
 
-/** The project's address and its public key (safe in a browser: row-level security is what protects the data). */
-export function supabaseSettings(): SupabaseSettings {
-  const url = process.env.SUPABASE_URL?.trim();
-  const anonKey = process.env.SUPABASE_ANON_KEY?.trim();
-  if (!url || !anonKey) throw new Error("SUPABASE_URL and SUPABASE_ANON_KEY must both be set for a studio with accounts");
-  return { url, anonKey };
-}
+/**
+ * The studio's own cookies. All are HttpOnly: no script in a page reads them, so a flaw in a page cannot hand
+ * a session to someone else.
+ *  - the session: a random secret; the database keeps its hash and knows whose it is;
+ *  - the browser's half of an emailed link: a link signs a visitor in only where this cookie is;
+ *  - what a sign-in at Google was started with, for the minutes it takes.
+ */
+export const SESSION_COOKIE = "fc_session";
+export const BROWSER_COOKIE = "fc_browser";
+export const OAUTH_COOKIE = "fc_oauth";
+/** Whether visitors can sign in with Google: only where the owner has set it up (its two settings, on the server). */
+export const googleOn = (): boolean => !!process.env.GOOGLE_CLIENT_ID?.trim() && !!process.env.GOOGLE_CLIENT_SECRET?.trim();
+
+/** A session lasts this long from the sign-in. */
+export const SESSION_DAYS = 30;
 
 /**
  * Where a visitor is sent after signing in: a path on this site and nothing else (never another site's address).

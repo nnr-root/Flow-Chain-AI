@@ -1,6 +1,6 @@
 import { ZodError } from "zod";
 import { hostName, isAllowedHost } from "@/lib/hosts";
-import { LOGIN_MISSING, loginMissing, multiTenant } from "@/lib/supabase/settings";
+import { LOGIN_MISSING, loginMissing, multiTenant } from "@/lib/accounts";
 
 export type ErrorCode =
   | "validation" | "not_found" | "job_active" | "busy" | "estimate_changed" | "not_draft" | "missing_keys"
@@ -79,12 +79,13 @@ export function route<C>(opts: { write: boolean; public?: boolean; external?: bo
       if (loginMissing()) return new Response(JSON.stringify({ error: { code: "internal", message: LOGIN_MISSING } }), { status: 503, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
       if (!multiTenant()) return await handler(req, ctx);
       // loaded only where there are accounts: the single-user studio and the worker never need it
-      const [{ requestSession, sessionUser }, { inScope }] = await Promise.all([import("./session"), import("./tenant")]);
+      const [{ requestSession, userOfSession }, { inScope }, { db }, { SESSION_COOKIE }] = await Promise.all([import("./session"), import("./tenant"), import("./db"), import("@/lib/accounts")]);
       const session = requestSession(req);
       try {
-        const user = await sessionUser(session.client);
+        const user = await userOfSession(session.cookies.get(SESSION_COOKIE));
         if (!user && !opts.public) throw new ApiError("unauthenticated", "sign in first");
-        return session.finish(await inScope({ user: user ?? undefined, db: session.client }, () => handler(req, ctx)));
+        // the handler asks the database in this user's name, or (a public route, nobody signed in) in nobody's
+        return session.finish(await inScope({ user: user ?? undefined, db: user ? db().as(user.id) : db(), cookies: session.cookies }, () => handler(req, ctx)));
       } catch (err) {
         return session.finish(errorResponse(err));
       }

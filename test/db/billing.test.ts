@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { freshRunId, localSupabase, newUser, serviceClient, type TestUser } from "../helpers/supabase.js";
+import { freshRunId, localDb, newUser, serviceClient, type TestUser } from "../helpers/db.js";
 
 /*
- * Paying for credit, in the database alone (the local Supabase stack): the two kinds of credit, what a Stripe
+ * Paying for credit, in the database alone (the local Postgres container): the two kinds of credit, what a Stripe
  * event may do and may not do twice, and that none of it is a user's to call. Other test files use the same
  * database at the same time: every test makes its own users, runs and event ids.
  */
-const supa = localSupabase();
+const supa = localDb();
 let n = 0;
 const unique = (prefix: string) => `${prefix}_${Date.now().toString(36)}${(n++).toString(36)}${Math.random().toString(36).slice(2, 8)}`;
 

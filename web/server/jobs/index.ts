@@ -1,6 +1,6 @@
 import { localRunner } from "./local";
 import { queueRunner } from "./queue";
-import { multiTenant } from "@/lib/supabase/settings";
+import { multiTenant } from "@/lib/accounts";
 import { redisUrl } from "./redis";
 import type { JobKind, JobRunner, JobView, StudioHealth } from "./types";
 import { NOT_READY, publicLog } from "@/lib/engines";
@@ -20,7 +20,7 @@ export * from "./types";
 export function runner(): JobRunner {
   const url = redisUrl();
   // with accounts the web must never run the CLI itself: it holds no provider keys and no key to settle credit
-  if (!url && multiTenant()) throw new Error("a studio with accounts (SUPABASE_URL) needs the job queue: set REDIS_URL and run the worker");
+  if (!url && multiTenant()) throw new Error("a studio with accounts (DATABASE_URL) needs the job queue: set REDIS_URL and run the worker");
   return url ? queueRunner(url) : localRunner;
 }
 

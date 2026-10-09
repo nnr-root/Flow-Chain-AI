@@ -1,20 +1,23 @@
 import { randomBytes } from "node:crypto";
+import { databaseUrl } from "./db.js";
 import { posix } from "node:path";
 
 /* The pure parts of `npm run server:*` (3.2 spec §8.4): settings, the files written on the server, command lines. */
 
 /** Settings that describe the deployment itself; everything else in `deploy/server.env` is the worker's. */
 const DEPLOY_KEYS = [
-  "SERVER_HOST", "SERVER_USER", "SERVER_DIR", "STUDIO_HOST", "STUDIO_USER", "WORKER_CONCURRENCY",
+  "SERVER_HOST", "SERVER_USER", "SERVER_DIR", "STUDIO_HOST", "STUDIO_USER", "STUDIO_ACCOUNTS", "WORKER_CONCURRENCY",
   "BACKUP_BUCKET", "BACKUP_R2_ACCOUNT_ID", "BACKUP_R2_ACCESS_KEY_ID", "BACKUP_R2_SECRET_ACCESS_KEY",
 ];
 /** Set by the Compose file for the server's own layout: a local value must never reach the worker. */
 const COMPOSE_OWNED = [
   "RUNS_DIR", "BRAND_KITS_DIR", "STUDIO_UPLOADS_DIR", "REDIS_URL", "FLOWCHAIN_CLI", "FLOWCHAIN_ROOT",
   "STUDIO_SITE", "STUDIO_PASSWORD_HASH", "DATA_DIR", "WORKER_ENV_FILE", "WEB_ENV_FILE", "CADDYFILE", "STUDIO_AUTH", "NODE_ENV",
+  // the server's database is its own container: its address and passwords are made on the server by server:setup
+  "DATABASE_URL", "POSTGRES_PASSWORD", "COMPOSE_PROFILES",
 ];
-/** What stays on the owner's machine: the keys to the database itself, which nothing on the server needs. */
-const OWNER_ONLY = ["SUPABASE_DB_URL", "SUPABASE_DB_PASSWORD", "SUPABASE_ACCESS_TOKEN", "STRIPE_WEBHOOK_ENDPOINT"];
+/** What stays on the owner's machine: nothing on the server needs it. */
+const OWNER_ONLY = ["STRIPE_WEBHOOK_ENDPOINT", "MAIL_DIR"];
 /** Where a test's stand-in Stripe is: the server only ever talks to the real one. */
 const TEST_ONLY = ["STRIPE_API_BASE"];
 /**
@@ -23,10 +26,13 @@ const TEST_ONLY = ["STRIPE_API_BASE"];
  */
 export const RETIRED_KEYS = ["FAL_KEY", "FAL_IMAGE_MODEL", "FAL_VIDEO_MODEL", "PROVIDER_MODE"];
 /**
- * What the web app gets in a studio with accounts: where the accounts live, their PUBLIC key, and the bucket.
- * Everything else — the provider keys, and above all the service-role key that settles credit — is the worker's alone.
+ * What the web app gets in a studio with accounts: the mail server and Google sign-in (its alone: the worker
+ * sends no email and signs nobody in), the job limit, and the bucket. Its address of the database is added on
+ * the server (`databaseEnvs`). Everything else — the provider keys, and above all the database address that
+ * can settle credit — is the worker's alone.
  */
-const WEB_KEYS = ["SUPABASE_URL", "SUPABASE_ANON_KEY", "STUDIO_USER_JOBS"];
+const WEB_ONLY_KEYS = ["SMTP_URL", "MAIL_FROM", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"];
+const WEB_KEYS = [...WEB_ONLY_KEYS, "STUDIO_USER_JOBS"];
 const WEB_BUCKET_KEYS = [
   "STUDIO_BUCKET", "STUDIO_S3_ENDPOINT", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
   "STUDIO_R2_ACCOUNT_ID", "STUDIO_R2_ACCESS_KEY_ID", "STUDIO_R2_SECRET_ACCESS_KEY",
@@ -43,7 +49,7 @@ export type ServerConfig = {
   concurrency?: number;
   /** The worker's environment: the provider keys and settings. */
   worker: Record<string, string>;
-  /** A studio with accounts (`SUPABASE_URL`): visitors sign in at the studio itself, and the proxy has no login. */
+  /** A studio with accounts (`STUDIO_ACCOUNTS=1`): visitors sign in at the studio itself, and the proxy has no login. */
   accounts: boolean;
   /** The web app's environment: empty without accounts. */
   web: Record<string, string>;
@@ -106,25 +112,31 @@ export function serverConfig(serverEnv: Record<string, string>, localEnv: Record
     if (!/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket)) throw new Error(`BACKUP_BUCKET is not a bucket name: "${bucket}"`);
     backup = { bucket, accountId: part("R2_ACCOUNT_ID"), accessKeyId: part("R2_ACCESS_KEY_ID"), secretAccessKey: part("R2_SECRET_ACCESS_KEY") };
   }
-  const accounts = !!worker.SUPABASE_URL;
+  const rawAccounts = (get("STUDIO_ACCOUNTS") ?? localEnv.STUDIO_ACCOUNTS?.trim() ?? "").toLowerCase();
+  if (rawAccounts && !["1", "true", "yes", "0", "false", "no"].includes(rawAccounts)) throw new Error("STUDIO_ACCOUNTS must be 1 (the studio has accounts) or 0");
+  const accounts = ["1", "true", "yes"].includes(rawAccounts);
   const web: Record<string, string> = {};
   if (accounts) {
-    for (const name of ["SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY"]) {
-      if (!worker[name]) throw new Error(`SUPABASE_URL is set but ${name} is not: a studio with accounts needs both of the project's keys`);
+    // Without a mailbox to reach, an address is taken at its word: fine on the owner's own machine, and on a
+    // server how a welcome credit is farmed and how someone signs up as somebody else. So it is not offered.
+    for (const name of ["SMTP_URL", "MAIL_FROM"]) {
+      if (!worker[name]) throw new Error(`STUDIO_ACCOUNTS is on but ${name} is not set: a studio with accounts confirms every address by email (see deploy/server.env.example)`);
     }
+    if (!!worker.GOOGLE_CLIENT_ID !== !!worker.GOOGLE_CLIENT_SECRET) throw new Error("GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET go together: set both for Google sign-in, or neither");
     for (const name of [...WEB_KEYS, ...(worker.STUDIO_BUCKET ? WEB_BUCKET_KEYS : [])]) {
       // the bucket's own keys, where it has them, are the ones the web app uses: the pipeline's are then not its business
       if (worker[`STUDIO_${name}`] && name.startsWith("R2_")) continue;
       if (worker[name]) web[name] = worker[name];
     }
   }
+  for (const name of WEB_ONLY_KEYS) delete worker[name];
   // Payments (3.4). Both processes talk to Stripe: the web app opens checkouts, the worker reads what was paid.
   // The webhook's signing secret is the web app's alone — the worker never sees a webhook, only an event's id.
   const billing = !!worker.STRIPE_SECRET_KEY;
   const webhookSecret = worker.STRIPE_WEBHOOK_SECRET;
   delete worker.STRIPE_WEBHOOK_SECRET;
   if (billing) {
-    if (!accounts) throw new Error("STRIPE_SECRET_KEY is set but SUPABASE_URL is not: payments need a studio with accounts");
+    if (!accounts) throw new Error("STRIPE_SECRET_KEY is set but STUDIO_ACCOUNTS is not on: payments need a studio with accounts");
     if (!webhookSecret) throw new Error("STRIPE_SECRET_KEY is set but STRIPE_WEBHOOK_SECRET is not: run npm run stripe:setup first (it creates the webhook and writes its secret to .env)");
     web.STRIPE_SECRET_KEY = worker.STRIPE_SECRET_KEY;
     web.STRIPE_WEBHOOK_SECRET = webhookSecret;
@@ -143,13 +155,45 @@ export function paths(cfg: ServerConfig) {
   return {
     app: at("app"), data: at("data"), archive: at("app.tar"),
     composeEnv: at("compose.env"), workerEnv: at("worker.env"), webEnv: at("web.env"), backupEnv: at("backup.env"), backupScript: at("backup.sh"),
+    dbEnv: at("db.env"),
     composeFile: at("app/deploy/compose.yaml"),
   };
 }
 
-export const DATA_FOLDERS = ["runs", "brand-kits", "uploads", "redis", "caddy"];
-/** What a backup holds: everything a run, a brand kit or an upload is made of. Redis and certificates are not. */
+export const DATA_FOLDERS = ["runs", "brand-kits", "uploads", "redis", "caddy", "postgres", "db-backup"];
+/**
+ * What a backup holds: everything a run, a brand kit or an upload is made of, and (with accounts) the night's
+ * copy of the database. Redis, certificates and the database's own files are not: a copy of files that are
+ * being written is not a backup.
+ */
 export const BACKUP_FOLDERS = ["runs", "brand-kits", "uploads"];
+export const DB_BACKUP_FOLDER = "db-backup";
+
+/** The database's three passwords: made on the first setup, kept on the server (`db.env`), reused ever after. */
+export type DbSecrets = { owner: string; web: string; worker: string };
+
+/** A password nobody chose, safe wherever it travels (letters, digits, - and _ only). */
+export const generateDbPassword = (): string => randomBytes(24).toString("base64url");
+
+/** The secrets a server already has, or new ones. A file that holds only some of them is not guessed at. */
+export function dbSecrets(stored: Record<string, string>, generate: () => string = generateDbPassword): { secrets: DbSecrets; made: boolean } {
+  const have = { owner: stored.POSTGRES_PASSWORD?.trim(), web: stored.DB_WEB_PASSWORD?.trim(), worker: stored.DB_WORKER_PASSWORD?.trim() };
+  const count = Object.values(have).filter(Boolean).length;
+  if (count === 3) return { secrets: have as DbSecrets, made: false };
+  if (count > 0) throw new Error("the server's db.env holds some of the database's passwords but not all three: it was edited by hand; restore it, or remove it together with the data/postgres folder to start an empty database");
+  return { secrets: { owner: generate(), web: generate(), worker: generate() }, made: true };
+}
+
+export const dbEnvText = (secrets: DbSecrets): string =>
+  composeEnvText({ POSTGRES_PASSWORD: secrets.owner, DB_WEB_PASSWORD: secrets.web, DB_WORKER_PASSWORD: secrets.worker });
+
+/** Each service's own address of the database, inside the stack's private network. */
+export function databaseEnvs(secrets: DbSecrets): { web: Record<string, string>; worker: Record<string, string> } {
+  return {
+    web: { DATABASE_URL: databaseUrl("studio_web", secrets.web, "db:5432") },
+    worker: { DATABASE_URL: databaseUrl("studio_worker", secrets.worker, "db:5432") },
+  };
+}
 
 /** One argument, safe inside a POSIX shell command line. */
 export const shellQuote = (value: string): string => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(value) ? value : `'${value.replaceAll("'", `'\\''`)}'`);
@@ -182,14 +226,15 @@ export function dockerEnvText(values: Record<string, string>): string {
  * The stack's own settings: what `deploy/compose.yaml` interpolates. Without accounts the proxy asks for the one
  * login (`passwordHash`); with them it has none and the studio asks every visitor to sign in.
  */
-export function composeEnv(cfg: ServerConfig, passwordHash?: string): Record<string, string> {
+export function composeEnv(cfg: ServerConfig, passwordHash?: string, db?: DbSecrets): Record<string, string> {
   const p = paths(cfg);
   if (!cfg.accounts && !passwordHash) throw new Error("a studio without accounts needs the proxy's login");
+  if (cfg.accounts && !db) throw new Error("a studio with accounts needs its database's passwords");
   return {
     STUDIO_HOST: cfg.studioHost,
     // one word decides both the proxy's file and what the web app insists on: they cannot disagree
     ...(cfg.accounts
-      ? { STUDIO_AUTH: "supabase", CADDYFILE: "Caddyfile.accounts" }
+      ? { STUDIO_AUTH: "accounts", CADDYFILE: "Caddyfile.accounts", COMPOSE_PROFILES: "accounts", POSTGRES_PASSWORD: db!.owner }
       : { STUDIO_AUTH: "proxy", CADDYFILE: "Caddyfile", STUDIO_USER: cfg.studioUser, STUDIO_PASSWORD_HASH: passwordHash! }),
     DATA_DIR: p.data,
     WORKER_ENV_FILE: p.workerEnv,
@@ -249,6 +294,20 @@ export function unpackScript(cfg: ServerConfig, sha256: string): string {
   ].join("\n");
 }
 
+/** `psql` inside the database's own container, as its owner, reading SQL from stdin. The password never leaves the server. */
+export function psqlCommand(cfg: ServerConfig, opts: { tuples?: boolean; transaction?: boolean } = {}): string {
+  return composeCommand(cfg, ...psqlArgs(opts));
+}
+
+/** What follows `docker compose` to run `psql` in the database's container (the stack test uses the same words). */
+export const psqlArgs = (opts: { tuples?: boolean; transaction?: boolean } = {}): string[] =>
+  ["exec", "-T", "db", "psql", "-U", "postgres", "-d", "flowchain", "-v", "ON_ERROR_STOP=1", "-q", ...(opts.tuples ? ["-At"] : []), ...(opts.transaction ? ["--single-transaction"] : [])];
+
+/** Starts the database alone and waits until it answers: migrations are applied before anything that uses it starts. */
+export function dbUpScript(cfg: ServerConfig): string {
+  return ["set -eu", composeCommand(cfg, "up", "-d", "--wait", "--wait-timeout", "300", "db"), ""].join("\n");
+}
+
 /** Builds and starts the stack and waits until it is healthy; a running job is given time to finish first. */
 export function upScript(cfg: ServerConfig): string {
   return [
@@ -282,11 +341,21 @@ export function backupEnv(backup: BackupConfig): Record<string, string> {
  */
 export function backupScript(cfg: ServerConfig, backup: BackupConfig): string {
   const p = paths(cfg);
+  const folders = [...BACKUP_FOLDERS, ...(cfg.accounts ? [DB_BACKUP_FOLDER] : [])];
+  const dump = shellQuote(posix.join(p.data, DB_BACKUP_FOLDER, "flowchain.dump"));
   return [
     "#!/bin/sh",
     "# Written by `npm run server:setup`: copies the studio's data to the backup bucket.",
     "set -eu",
-    `for folder in ${BACKUP_FOLDERS.join(" ")}; do`,
+    // A consistent copy of the database, taken by the database itself; written whole before it replaces last
+    // night's, so a dump that fails half-way leaves the good one in place (and fails the backup).
+    ...(cfg.accounts
+      ? [
+          `${composeCommand(cfg, "exec", "-T", "db", "pg_dump", "-U", "postgres", "-Fc", "flowchain")} > ${dump}.tmp`,
+          `mv ${dump}.tmp ${dump}`,
+        ]
+      : []),
+    `for folder in ${folders.join(" ")}; do`,
     `  docker run --rm --env-file ${shellQuote(p.backupEnv)} -v ${shellQuote(p.data)}/"$folder":/src:ro rclone/rclone:1 \\`,
     `    copy /src ${shellQuote(`r2:${backup.bucket}/flowchain-backup`)}/"$folder" --transfers 8`,
     "done",

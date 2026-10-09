@@ -1,19 +1,18 @@
-import { createClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
-import { localSupabase, newUser, serviceClient, type TestUser } from "../helpers/supabase.js";
+import { localDb, newUser, serviceClient, type TestUser, visitorDb } from "../helpers/db.js";
 
 /*
- * Welcome credit in the database (Phase 4 spec §8), against the local Supabase stack. The setting that turns it
+ * Welcome credit in the database (Phase 4 spec §8), against the local Postgres container. The setting that turns it
  * on is one row every account shares, and other test files make accounts at the same time: so it is never
  * changed here. The grant takes its amount and its cap as parameters, and is tested through them; what is given
  * away "today" is counted from wherever it stands when a test starts.
  */
-const supa = localSupabase();
+const supa = localDb();
 
 describe.skipIf(!supa)("welcome credit", () => {
   const s = supa!;
   const db = () => serviceClient(s);
-  const anon = () => createClient(s.url, s.anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const anon = () => visitorDb(s);
   const welcome = async (u: { id: string }, amount: unknown, cap: unknown) => {
     const { data, error } = await db().rpc("grant_welcome_credit", { p_user_id: u.id, p_amount: amount, p_cap: cap });
     if (error) throw new Error(error.message);

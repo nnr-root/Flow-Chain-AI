@@ -1,4 +1,4 @@
-# The studio on one server: proxy (HTTPS + login) → web → redis ← worker.
+# The studio on one server: proxy (HTTPS + login) → web → redis ← worker, and with accounts their database (db).
 # Settings come from the env file `npm run server:setup` writes on the server; see deploy/server.env.example.
 name: flowchain
 
@@ -47,9 +47,10 @@ services:
     environment:
       <<: *data
       STUDIO_HOST: ${STUDIO_HOST:?set STUDIO_HOST to the studio's public host name}
-      # which login the studio is meant to have; the web app refuses everything if it is "supabase" and it has no accounts
-      STUDIO_AUTH: ${STUDIO_AUTH:?set STUDIO_AUTH to proxy (the proxy asks for the login) or supabase (the studio does)}
-    # with accounts: where they live and the bucket's keys; never a provider key, never the key that settles credit
+      # which login the studio is meant to have; the web app refuses everything if it is "accounts" and it has no database
+      STUDIO_AUTH: ${STUDIO_AUTH:?set STUDIO_AUTH to proxy (the proxy asks for the login) or accounts (the studio does)}
+    # with accounts: its own address of the database (a role that cannot settle or grant), the mail server and the
+    # bucket's keys; never a provider key, never the address that settles credit
     env_file:
       - ${WEB_ENV_FILE:?set WEB_ENV_FILE to the web app's settings file (it may be empty)}
     volumes:
@@ -60,6 +61,10 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      db:
+        condition: service_healthy
+        # (only in a studio with accounts: without them there is no database to wait for)
+        required: false
     networks: [front, back]
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3131/api/ping').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
@@ -93,6 +98,30 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      db:
+        condition: service_healthy
+        required: false
+    networks: [back]
+
+  # The accounts, the credit and the payments (phase 5 spec §4). Started only in a studio with accounts
+  # (COMPOSE_PROFILES=accounts, written by server:setup). It listens on the private network alone: the web app
+  # and the worker reach it, each as a role of its own; nothing outside the server can.
+  db:
+    image: postgres:17
+    profiles: [accounts]
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_DB: flowchain
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    volumes:
+      - ${DATA_DIR:-./data}/postgres:/var/lib/postgresql/data
+    healthcheck:
+      # over TCP: on its first start the server runs once on a socket only, to set itself up, and is not there yet
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "flowchain"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
     networks: [back]
 
   redis:
@@ -110,7 +139,7 @@ services:
       retries: 10
     networks: [back]
 
-# the proxy reaches the web app and nothing else; Redis is known only to the web app and the worker
+# the proxy reaches the web app and nothing else; Redis and the database are known only to the web app and the worker
 networks:
   front:
   back:

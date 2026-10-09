@@ -18,7 +18,7 @@ import { closeQueue } from "@/server/jobs/queue";
 import { JOB_OPTIONS, QUEUES } from "@/server/jobs/redis";
 import { ObjectStore } from "@/server/store/s3";
 import { keys } from "@/server/store/sync";
-import { freshRunId, localSupabase, newUser, serviceClient, type TestUser } from "../../test/helpers/supabase";
+import { freshRunId, localDb, newUser, serviceClient, type TestUser } from "../../test/helpers/db";
 import { draftManifest, finishedManifest, params, until, useStudio } from "./helpers";
 import { hasDocker, startStore, type TestStore } from "./minio";
 import { hasRedisServer, startRedis, startWorkerProcess, type TestRedis, type TestWorker } from "./redis";
@@ -26,10 +26,10 @@ import { as, cookiesOf, saveRunFor, withAccounts } from "./tenant";
 
 /*
  * Credit, end to end: the web holds a user's credit, the real worker (its own process, the stub CLI) checks it,
- * runs the job in the owner's folder and settles what it cost. Needs the local Supabase stack and
+ * runs the job in the owner's folder and settles what it cost. Needs the local database and
  * `redis-server`; skipped without either. Nothing here can reach a provider.
  */
-const supa = localSupabase();
+const supa = localDb();
 const studio = useStudio();
 let redis: TestRedis;
 let admin: Redis;
@@ -100,7 +100,7 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
   const worker = async (env: Record<string, string> = {}): Promise<TestWorker> => {
     const w = startWorkerProcess({
       REDIS_URL: redis.url, FLOWCHAIN_ROOT: studio.root, RUNS_DIR: studio.runs, FLOWCHAIN_CLI: process.env.FLOWCHAIN_CLI!,
-      SUPABASE_URL: s.url, SUPABASE_ANON_KEY: s.anonKey, SUPABASE_SERVICE_ROLE_KEY: s.serviceKey, WORKER_RECONCILE_MS: "1000",
+      DATABASE_URL: s.worker, WORKER_RECONCILE_MS: "1000",
       // other test files use the same database at the same time: this worker leaves their users' credit alone
       WORKER_RECONCILE_KNOWN_USERS_ONLY: "1",
       GEMINI_API_KEY: "g", ELEVENLABS_API_KEY: "e", ELEVENLABS_VOICE_ID: "v", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s", ...bucket?.env, ...env,
@@ -117,7 +117,7 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     withAccounts(s);
     if (bucket) Object.assign(process.env, bucket.env);
     [a, b] = await Promise.all([newUser(s, "a"), newUser(s, "b")]);
-    [aCookie, bCookie] = await Promise.all([cookiesOf(a), cookiesOf(b)]);
+    [aCookie, bCookie] = await Promise.all([cookiesOf(s, a), cookiesOf(s, b)]);
     await Promise.all([mkdir(folder(a), { recursive: true }), mkdir(folder(b), { recursive: true })]);
   });
 

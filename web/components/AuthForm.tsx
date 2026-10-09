@@ -10,7 +10,7 @@ const SUBMIT: Record<Mode, string> = { login: "Sign in", signup: "Create account
 const ENDPOINT: Record<Mode, string> = { login: "/api/auth/login", signup: "/api/auth/signup", reset: "/api/auth/reset", "new-password": "/api/auth/password" };
 
 /** The one form behind every sign-in page. `next` is where to go afterwards (a path on this site, checked by the server). */
-export function AuthForm({ mode, next = "/", error: initialError = "" }: { mode: Mode; next?: string; error?: string }) {
+export function AuthForm({ mode, next = "/", error: initialError = "", info = "", google = false }: { mode: Mode; next?: string; error?: string; info?: string; google?: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -39,6 +39,7 @@ export function AuthForm({ mode, next = "/", error: initialError = "" }: { mode:
   return (
     <div className="mx-auto mt-16 max-w-sm space-y-5 rounded-xl border border-line bg-panel p-6">
       <h1 className="text-lg font-semibold">{TITLE[mode]}</h1>
+      {info && !notice && <p role="status" data-testid="auth-info" className="rounded-lg border border-good/40 bg-good/10 px-3 py-2 text-sm text-good">{info}</p>}
       {notice ? (
         <p role="status" data-testid="auth-notice" className="rounded-lg border border-good/40 bg-good/10 px-3 py-2 text-sm text-good">{notice}</p>
       ) : (
@@ -57,7 +58,7 @@ export function AuthForm({ mode, next = "/", error: initialError = "" }: { mode:
           <Button type="submit" tone="primary" className="w-full" disabled={busy}>{busy ? "One moment…" : SUBMIT[mode]}</Button>
         </form>
       )}
-      {(mode === "login" || mode === "signup") && !notice && (
+      {google && (mode === "login" || mode === "signup") && !notice && (
         <a href={`/auth/google?next=${encodeURIComponent(next)}`} className="block rounded-lg border border-line px-3 py-1.5 text-center text-sm font-medium hover:border-dim" data-testid="auth-google">
           Continue with Google
         </a>

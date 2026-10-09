@@ -197,7 +197,8 @@ your machine: `redis-server` in one terminal, then `REDIS_URL=redis://127.0.0.1:
 
 ## Accounts, credit and storage
 
-With `SUPABASE_URL` set the studio has accounts. Without it, nothing below applies and the studio is the
+With `STUDIO_ACCOUNTS=1` in `deploy/server.env` the studio has accounts, kept in a database of its own that
+runs on the same server (Postgres, in the stack). Without it, nothing below applies and the studio is the
 single-user app described above.
 
 - **Signing in.** Anyone can create an account with an email address and a password, or with Google. Each user
@@ -207,7 +208,7 @@ single-user app described above.
   amount you approve on its button, the worker runs it capped at that amount, and what it did not spend comes
   back; a draft holds $0.02 for its script (about $0.006). The account page shows the balance and every
   movement. With too little credit the button says so and nothing starts. You add credit with
-  `npm run studio:grant -- --email <address> --usd 5` (`--usd -2` takes some back; it prints which project it
+  `npm run studio:grant -- --email <address> --usd 5` (`--usd -2` takes some back; it prints which studio it
   acted on).
 - **What is charged.** What the run's own record says was spent, plus anything that was sent to a provider and
   not collected: a clip, picture, narration or script request that was on its way when the job was stopped is
@@ -228,49 +229,57 @@ single-user app described above.
 
 Once, by hand:
 
-1. Create a Supabase project. Under Authentication keep **Confirm email** on (an address must then be confirmed
-   before its account can sign in) and set up your own SMTP sender before inviting strangers: the built-in one
-   sends only a few emails an hour.
-2. Turn on Google there, with a Google OAuth client whose redirect URI is
-   `https://<project>.supabase.co/auth/v1/callback`. Set the site URL to `https://<your studio>` and allow
-   `https://<your studio>/auth/callback` as a redirect.
-3. Create the bucket.
-4. Put `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_DB_URL` (the connection
-   string) and `STUDIO_BUCKET` in `.env`.
+1. An SMTP service for the two emails the studio sends (the link that confirms an address, the link to choose
+   a new password): put `SMTP_URL` (for example `smtps://user:password@smtp.example.com`) and `MAIL_FROM`
+   (`Flow Chain <hello@yourdomain>`) in `.env`. Setup refuses accounts without them: an address nobody
+   confirmed is nobody's.
+2. Optional, for "Continue with Google": a Google OAuth client whose redirect URI is
+   `https://<your studio>/auth/callback`; put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`. Without
+   them the button is not shown.
+3. Create the bucket and put `STUDIO_BUCKET` in `.env`.
+4. Put `STUDIO_ACCOUNTS=1` in `deploy/server.env`.
 
-Then `npm run db:migrate` creates the tables (the Supabase CLI takes the connection string as an argument, so
-it shows in your own machine's process list while it runs), and `npm run server:setup` deploys. Setup gives
-the web app only the project's public key, the bucket and its keys, and the job limit; the worker alone gets
-the provider keys and the key that settles credit; the connection string is sent to neither. When you update
-a server that was set up before accounts existed, run `npm run server:setup` once more (not just
-`server:deploy`): the stack now has to be told which login it has.
+Then `npm run server:setup` does the rest: it starts the database, makes its three passwords (they are kept
+on the server only, in `db.env`, and never shown), creates the tables, and deploys. `npm run server:deploy`
+brings the database up to the deployed commit before it starts the new code; `npm run db:migrate` does only
+that. The web app gets its own address of the database, the mail server, the bucket and its keys; the worker
+alone gets the provider keys and the address that can settle credit.
 
-How it holds: a signed-in user can talk to the database directly, so the database itself only lets a user read
-their own rows, and every write goes through a function that checks who is calling; settling and granting
-credit can only be done by the worker's key. The worker runs a paid job only when credit is held for exactly
-that job, whoever queued it. Accounts always work through the queue (`REDIS_URL`). A studio that is set up to
-have accounts and finds none configured answers nothing at all, rather than run without a login.
+How it holds: the web app connects as a role that can only read a user's own rows and run the functions a
+user may run; every write goes through a function that checks who is calling; settling, granting and
+fulfilling payments can only be done by the worker's role, whose password the web app never has. The worker
+runs a paid job only when credit is held for exactly that job, whoever queued it. Accounts always work through
+the queue (`REDIS_URL`). A studio that is set up to have accounts and finds none configured answers nothing at
+all, rather than run without a login.
 
 What to know:
 
-- Every sign-in reaches Supabase from the server's one address, and Supabase limits attempts per address: the
-  studio's own per-visitor limit keeps one visitor from using that up for everyone, but a project that many
-  people use needs its limits raised (Authentication → Rate limits) and, for open sign-up, a CAPTCHA there.
+- **The web app tells the database who the visitor is.** It checks the session first, but the database takes
+  its word. So a flaw that let someone run code in the web app could read any user's rows and hold any user's
+  credit. It could still not grant credit, settle, or fulfil a payment. (With a hosted accounts service the
+  database checked each visitor's token itself; running your own trades that away.)
+- **The database is yours to look after.** It listens only inside the server (nothing outside can reach it),
+  and with `BACKUP_BUCKET` set a copy of it is taken every night by the database itself and stored with the
+  runs. Without a backup bucket there is no copy anywhere: accounts, balances and the record of every payment
+  are on that one disk.
+- **A migration that was applied is never edited.** Setup and deploy compare each file in `db/migrations/`
+  with what the database had applied and refuse to go on if one has changed; put every change in a new file.
+- Passwords are kept as salted scrypt hashes, sessions and emailed links as the SHA-256 of a random secret: a
+  copy of the database signs nobody in. A session lasts 30 days; changing a password ends every other one.
+- Guessing at passwords is limited per visitor (twenty attempts in five minutes), never per account: nobody
+  can lock someone else out by guessing. One address is sent at most three emails an hour.
 - Free work is not limited in number: re-renders and price checks cost you nothing at a provider but use the
   server's CPU. Two long jobs per account at a time is the only brake.
 - With a bucket, a file the disk lacks is loaded by the browser straight from R2. Allow the studio's address in
   the bucket's CORS settings (GET, from `https://<your studio>`), or fonts loaded that way will be refused.
+- The links in confirmation and reset emails sign in only the browser that asked for them: a link that worked
+  anywhere could be used to sign someone into another person's account. Opened elsewhere, a confirmation link
+  still confirms the address (the visitor then signs in with their password); a reset link does nothing.
+- An account that has a history of payments cannot be deleted: its ledger is kept.
 
-- The links in confirmation and reset emails work in the browser that asked for them, not on another device:
-  the studio only accepts links of that kind, because a link that works anywhere could be used to sign someone
-  into another person's account. Email templates changed to the `token_hash` form are not supported.
-- An account that has a history of payments cannot be deleted in the Supabase dashboard: its ledger is kept.
-- The migration file was changed while this phase was built. A database that had it applied before must be
-  reset (`npm run db:reset` for the local one).
-
-To try it on your machine: `npm run db:start` (a local Supabase in Docker), then start Redis, the worker and
-the studio with `SUPABASE_URL`, `SUPABASE_ANON_KEY` (and `SUPABASE_SERVICE_ROLE_KEY` for the worker) from
-`npx supabase status`.
+To try it on your machine: `npm run studio:local` (below) starts everything, the database included. For the
+database alone: `npm run db:start` (Postgres in Docker, on 127.0.0.1:54330), `npm run db:reset` to empty it and
+load it again from `db/migrations/`.
 
 ## Payments
 
@@ -341,7 +350,8 @@ and the web app with accounts, and Stripe's test mode when `.env` has a test key
 installed and logged in. It opens the studio in the browser; Ctrl+C stops all of it.
 `npm run studio:local -- grant <email> 5` gives an account credit in the local database.
 
-It never uses a hosted Supabase project or the real bucket, whatever `.env` says, and never a live Stripe key.
+It never uses a database other than the local one, a mail server or the real bucket, whatever `.env` says, and
+never a live Stripe key. It sends no email: an account works as soon as it is created.
 It does use your provider keys: a video generated there is really generated and paid for, up to the amount
 approved on its button.
 
@@ -367,8 +377,8 @@ its own layout, typefaces (files in the repository) and styles: nothing of it re
   covers a couple of script drafts and no clip) gives each new account that much once its address is
   confirmed, and `welcome_daily_cap_usd` (5) is the most given away in a day to all new accounts together.
   The page says "Make a free draft" only while a new account would really be given enough for one; a
-  sentence typed there is in the new-video form after sign-up. Turn it on in the Supabase dashboard's SQL
-  editor: `update settings set welcome_credit_usd = 0.05;`.
+  sentence typed there is in the new-video form after sign-up. Turn it on with
+  `npm run studio:welcome -- --usd 0.05` (`--usd 0` turns it off; `--cap 5` sets the day's limit).
 - **Before real money:** `/terms` and `/privacy` say that they are not written yet. Replace them.
 
 ## Tests
@@ -381,7 +391,7 @@ throwaway Redis (needs `redis-server` on the PATH; these tests are skipped witho
 the server's images and drives the whole Compose stack through the proxy's login with the stand-in CLI, and
 checks the Compose and proxy files of both kinds of deployment (needs Docker; the first build takes several
 minutes). The tests of accounts, credit and storage are part of `npm test`
-and are skipped unless the local Supabase stack is running (`npm run db:start`; storage also needs Docker for
+and are skipped unless the local database is running (`npm run db:start`; storage also needs Docker for
 a stand-in bucket). `npm run test:accounts` drives the studio with accounts in a browser: the landing page (the live player, the
 calculator, a topic carried through sign-up, welcome credit, how fast it paints on a slowed-down phone),
 sign-up, credit, a video, buying a top-up and a plan, and a second user who sees none of it. It turns a

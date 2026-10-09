@@ -33,9 +33,8 @@ describe("what a customer is sent names no model, no provider and no key", () =>
   });
 
   it("in the source of the pages, the components and the code they share", () => {
-    // Not held to it: the list of names itself, and the two modules that read the database's settings from the
-    // server's environment (they are replaced with the database, phase 5 spec §4; nothing in them is page text).
-    const exempt = ["lib/engines.ts", "lib/supabase/settings.ts", "lib/billing.ts"].map((f) => join(web, f));
+    // (not held to it: the list of names itself)
+    const exempt = ["lib/engines.ts"].map((f) => join(web, f));
     const sources = ["app", "components", "lib"].flatMap((dir) => files(join(web, dir), (f) => /\.(ts|tsx)$/.test(f) && !exempt.includes(f)));
     expect(sources.length).toBeGreaterThan(60);
     const hits = sources.flatMap((file) =>
@@ -46,7 +45,7 @@ describe("what a customer is sent names no model, no provider and no key", () =>
   it("the check itself can fail: it finds a name in page text, and not in a comment or an import", () => {
     expect(shipped('<p>Voices by ElevenLabs</p>').split("\n").some(namesInternals)).toBe(true);
     expect(shipped('const hint = "Empty = GEMINI_API_KEY from .env";').split("\n").some(namesInternals)).toBe(true);
-    expect(shipped('// RunPod bills by the second\nimport { x } from "@/lib/supabase/settings";\n/* Wan 2.2 */ const a = 1;').split("\n").some(namesInternals)).toBe(false);
+    expect(shipped('// RunPod bills by the second\nimport { x } from "@/lib/accounts";\n/* Wan 2.2 */ const a = 1;').split("\n").some(namesInternals)).toBe(false);
     // the names customers are given are not internal names, and neither is where they pay
     for (const said of [...Object.values(ENGINES), "Paid on Stripe's pages", "Flow Chain", "Runway", "a falling leaf", "Run a pod of dolphins"]) expect(namesInternals(said), said).toBe(false);
   });

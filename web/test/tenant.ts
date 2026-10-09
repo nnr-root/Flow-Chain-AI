@@ -1,29 +1,20 @@
 import { join } from "node:path";
 import type { Manifest } from "@src/manifest/schema";
 import { saveManifest } from "@src/manifest/store";
-import { sessionClient } from "@/server/session";
-import type { LocalSupabase, TestUser } from "../../test/helpers/supabase";
+import { SESSION_COOKIE } from "@/lib/accounts";
+import { type LocalDb, openSession, type TestUser } from "../../test/helpers/db";
 import { request, type Studio } from "./helpers";
 
-/* Helpers for the tests of a studio with accounts: they need the local Supabase stack (`npm run db:start`). */
+/* Helpers for the tests of a studio with accounts: they need the local database (`npm run db:start`). */
 
-/** Points the studio under test at the local stack: from here on it has accounts. */
-export function withAccounts(s: LocalSupabase): void {
-  Object.assign(process.env, { SUPABASE_URL: s.url, SUPABASE_ANON_KEY: s.anonKey });
+/** Points the studio under test at the local database, as the web app's own role: from here on it has accounts. */
+export function withAccounts(s: LocalDb): void {
+  process.env.DATABASE_URL = s.web;
 }
 
-/** The session cookies a browser would hold after signing in as `user`, as a Cookie header. */
-export async function cookiesOf(user: Pick<TestUser, "email" | "password">): Promise<string> {
-  const jar = new Map<string, string>();
-  const client = sessionClient({
-    getAll: () => [...jar].map(([name, value]) => ({ name, value })),
-    setAll: (cookies) => {
-      for (const c of cookies) jar.set(c.name, c.value);
-    },
-  });
-  const { error } = await client.auth.signInWithPassword({ email: user.email, password: user.password });
-  if (error) throw new Error(`could not sign in as ${user.email}: ${error.message}`);
-  return [...jar].map(([name, value]) => `${name}=${value}`).join("; ");
+/** The session cookie a browser would hold after signing in as `user`, as a Cookie header. */
+export async function cookiesOf(s: LocalDb, user: Pick<TestUser, "id">): Promise<string> {
+  return `${SESSION_COOKIE}=${await openSession(s, user.id)}`;
 }
 
 /** A request from the studio's own pages by someone who is signed in. */

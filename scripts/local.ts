@@ -14,9 +14,10 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
-import { createClient } from "@supabase/supabase-js";
 import { execa } from "execa";
 import { EVENT_TYPES } from "../src/billing/stripe.js";
+import { Db } from "../src/db/client.js";
+import { localUrls } from "../src/deploy/db.js";
 import { localEnvs } from "../src/deploy/local.js";
 
 const PORT = 3131;
@@ -32,19 +33,14 @@ function readEnv(): Record<string, string> {
   }
 }
 
-/** The local stack's address and keys; the stack is started when it is not running (the first time takes minutes). */
-async function localSupabase(): Promise<{ url: string; anonKey: string; serviceKey: string }> {
-  const status = () => execa("npx", ["supabase", "status", "-o", "env"], { reject: false });
-  let r = await status();
-  if (r.exitCode !== 0) {
-    console.log("Starting the local database (Docker) …");
-    await execa("npm", ["run", "-s", "db:start"], { stdio: "inherit" });
-    r = await status();
-  }
-  const value = (name: string) => new RegExp(`^${name}="?([^"\n]+)"?$`, "m").exec(String(r.stdout))?.[1] ?? "";
-  const found = { url: value("API_URL"), anonKey: value("ANON_KEY"), serviceKey: value("SERVICE_ROLE_KEY") };
-  if (!found.url || !found.anonKey || !found.serviceKey) throw new Error("the local database is not running and could not be started: is Docker running? (npm run db:start)");
-  return found;
+/** The local database's addresses; it is started, and brought up to date, when it is not (the first time pulls an image). */
+async function localDatabase(): Promise<{ web: string; worker: string }> {
+  // (the same command a developer runs: it starts the container if needed and applies what is pending)
+  await execa("npx", ["tsx", "scripts/db.ts", "start"], { stdio: ["ignore", "ignore", "inherit"] }).catch(() => {
+    throw new Error("the local database is not running and could not be started: is Docker running? (npm run db:start)");
+  });
+  const { web, worker } = localUrls();
+  return { web, worker };
 }
 
 /** Starts a process whose output goes to this terminal under a name; it is stopped with everything else. */
@@ -82,10 +78,11 @@ async function grant(args: string[]): Promise<void> {
   const [email, amount] = args;
   const usd = Number(amount);
   if (!email?.includes("@") || !Number.isFinite(usd) || usd === 0) throw new Error("usage: npm run studio:local -- grant <email> <usd>");
-  const supabase = await localSupabase();
-  localEnvs({ env: {}, supabase, redisUrl: "" }); // (refuses anything but the local database)
-  const db = createClient(supabase.url, supabase.serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const database = await localDatabase();
+  localEnvs({ env: {}, database, redisUrl: "" }); // (refuses anything but the local database)
+  const db = Db.connect(database.worker, { max: 1 });
   const { data, error } = await db.rpc("grant_credit", { p_email: email, p_amount_usd: usd, p_note: "local" });
+  await db.end();
   if (error) throw new Error(error.message === "not_found" ? `no account with the address ${email} in the local database: sign up at ${URL} first` : error.message);
   console.log(`${email} now has $${Number(data).toFixed(2)} in the local database.`);
 }
@@ -99,7 +96,7 @@ async function main(): Promise<void> {
     process.exit(2);
   }
   const env = readEnv();
-  const supabase = await localSupabase();
+  const database = await localDatabase();
 
   // Payments: Stripe's test mode, with the Stripe CLI passing its events on to this machine.
   let listenSecret: string | undefined;
@@ -113,7 +110,7 @@ async function main(): Promise<void> {
 
   const redisDir = join(tmpdir(), `flowchain-local-redis-${process.pid}`);
   mkdirSync(redisDir, { recursive: true });
-  const { web, worker, billing } = localEnvs({ env, supabase, redisUrl: `redis://127.0.0.1:${REDIS_PORT}`, stripeListenSecret: listenSecret });
+  const { web, worker, billing } = localEnvs({ env, database, redisUrl: `redis://127.0.0.1:${REDIS_PORT}`, stripeListenSecret: listenSecret });
 
   process.on("SIGINT", () => void stop(0));
   process.on("SIGTERM", () => void stop(0));
@@ -141,7 +138,6 @@ async function main(): Promise<void> {
   Payments:               ${billing ? "Stripe test mode. Card 4242 4242 4242 4242, any future date, any CVC." : "off"}
   Videos:                 REAL. A draft costs about a cent; a video about $0.30, from your
                           provider keys, never more than the amount you approve on its button.
-  Emails it would send:   http://127.0.0.1:54324
 
   Ctrl+C stops everything.
 ────────────────────────────────────────────────────────────────────────

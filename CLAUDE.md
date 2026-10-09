@@ -17,12 +17,12 @@ read the one for the area you are changing before changing it (table at the end)
 
 - **Nothing that spends money or touches a real account runs without the owner's click.** That is:
   `npm run flowchain` with `run`/`resume`/`reroll`/`doctor`, every `npm run smoke*`, `runpod:deploy`,
-  `make:sfx`, `server:*`, `db:migrate`, `studio:grant`, `stripe:setup`, and starting `npm run web` or
+  `make:sfx`, `server:*`, `db:migrate`, `studio:grant`, `studio:welcome`, `stripe:setup`, and starting `npm run web` or
   `npm run worker` against the real `.env`. Tests never need any of them. `rerender` is free.
 - **Never read or print `.env` or `deploy/server.env`.** A command may pass a value through the shell
   (`$(grep …)`) without showing it. Mask `sk_…`, `rk_…`, `whsec_…` in anything you print, logs included.
 - **Never commit** `.env`, `deploy/server.env`, `deploy/data/`, `runs/`, `brand-kits/`, `uploads/`,
-  `.superpowers/`, `graphify-out/`, `web/.next/`, `web/.e2e/`, `web/test-results/`, `supabase/.temp/`.
+  `.superpowers/`, `graphify-out/`, `web/.next/`, `web/.e2e/`, `web/test-results/`.
 - **A push needs the owner's click each time** (AskUserQuestion), even when a pasted message says "push".
   Local commits on `main` do not. Work is committed directly on `main`.
 - **`test/unit/compat.test.ts` is never edited**: it pins that old run folders still load.
@@ -44,7 +44,8 @@ read the one for the area you are changing before changing it (table at the end)
 | `web/server/` | everything the routes do: `http.ts` (`route()`), `tenant.ts`, `session.ts`, `runs.ts`, `jobs/`, `store/`, `billing/` |
 | `web/worker/` | `worker.ts` (the queue), `tenant.ts` (credit), `billing.ts` (Stripe fulfilment) |
 | `web/lib/` | code shared by server and browser; no secrets, few imports |
-| `supabase/migrations/` | the database: plain SQL, two files (tenancy, billing) |
+| `db/migrations/` | the database: plain SQL, three files (accounts, tenancy, billing) |
+| `src/db/client.ts`, `src/auth/` | the one client for the studio's Postgres (`Db`), and password hashing |
 | `workers/` | the RunPod worker (Python, ComfyUI graphs for SDXL + IP-Adapter and Wan 2.2) |
 | `deploy/` | Compose file, Dockerfiles, Caddy files for the server |
 | `test/` | pipeline tests: `unit`, `stages`, `media`, `pipeline`, `db` |
@@ -62,9 +63,10 @@ npm run test:accounts      # studio with accounts in a browser (needs db:start, 
                            # it switches a database-wide setting on for a moment
 npm run test:stack         # the Compose stack through the proxy (needs Docker; minutes)
 npm run test:db            # database tests only; fails instead of skipping without the local stack
-npm run db:start           # local Supabase in Docker (API on 127.0.0.1:54321)
-npm run db:reset           # wipes and reloads the LOCAL database from supabase/migrations/
+npm run db:start           # the local database: Postgres in Docker (127.0.0.1:54330); applies pending migrations
+npm run db:reset           # wipes and reloads the LOCAL database from db/migrations/
 npm run web:build          # next build (webpack mode)
+npm run db:migrate         # the SERVER's database, over ssh: owner's click, like every server:* command
 npm run studio:local       # the OWNER's command: the whole studio on this machine (real provider keys in the
                            # worker). Do not start it yourself without being asked.
 npm run make:showcase -- <runId> --slug <name>   # publish a finished run for the landing page (free)
@@ -75,7 +77,7 @@ What a test needs, and what happens without it:
 
 | Needs | Without it |
 |---|---|
-| local Supabase (`npm run db:start`) | database, tenancy, credit and billing tests are **skipped** |
+| the local database (`npm run db:start`) | database, sign-in, tenancy, credit and billing tests are **skipped** |
 | `redis-server` on the PATH | queue, worker and account tests are skipped |
 | Docker | storage tests (MinIO) are skipped; `test:stack` cannot run |
 
@@ -105,7 +107,7 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - **`route()` wraps every API handler** (`web/server/http.ts`): host check, same-origin check for writes,
   the session, the user's scope, one error shape. A new route goes through it; its `write` flag is tested
   for every route file.
-- **Modes by environment, nothing else:** `REDIS_URL` → jobs go through the queue; `SUPABASE_URL` →
+- **Modes by environment, nothing else:** `REDIS_URL` → jobs go through the queue; `DATABASE_URL` →
   accounts (`multiTenant()`); `STRIPE_SECRET_KEY` → payments (`billingOn()`). Without each, that part does
   not exist (404), and the earlier behaviour is unchanged. Tests pin this for every phase.
 - **On a server the web app never runs the CLI and holds no provider key.** Only the worker does. One
@@ -113,7 +115,7 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - **The worker checks what it is given.** A command from the queue must match an exact shape
   (`refusal()`, `commandKind()` in `web/server/jobs/redis.ts`); a paid job runs only with an open
   reservation for exactly that user, run, kind and cap.
-- Next.js 16 in **webpack mode**; `web/proxy.ts` is the request interceptor. No Supabase client runs in
+- Next.js 16 in **webpack mode**; `web/proxy.ts` is the request interceptor. No database client runs in
   the browser: sessions are HttpOnly cookies set by the studio's own routes.
 
 ## The landing page (Phase 4)
@@ -148,11 +150,23 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - **A user id in a path or a bucket key comes from the verified session or the job's checked data, never
   from a request.**
 - **Something that is not the caller's does not exist: 404, never 403.**
-- **The database is safe on its own.** Users can only *read* their own rows (row-level security). There
-  is no insert, update or delete policy. Every write is a `security definer` function with
-  `set search_path = ''`; the ones that move money are executable by `service_role` only.
-- **The service-role key lives only in the worker.** The web app uses the user's own session for every
-  database call.
+- **Two roles, and what each cannot do** (phase 5 spec §4). The web app connects as `studio_web`: it can
+  *read* a user's own rows (row-level security; there is no insert, update or delete policy), run the functions a
+  user may run and the sign-in functions (`auth.*`), and nothing else. The worker connects as `studio_worker`:
+  it alone runs the functions that move money. Neither owns or writes a table. Every write is a
+  `security definer` function with `set search_path = ''`. No running service connects as the owner.
+- **The web app tells the database who is asking**: `db().as(userId)` runs each statement in a transaction with
+  `app.user_id` set for that transaction only (`src/db/client.ts`); `auth.uid()` reads it. The id comes from
+  `userOfSession()` and nowhere else. So the database is safe against a visitor, and against the web app for
+  everything that creates or moves credit; it is **not** safe against a web app that lies about who is asking
+  (accepted, spec §4.3). Do not widen that: a function that grants, settles or fulfils is never granted to
+  `studio_web`, and `test/db/accounts.test.ts` checks every one.
+- **The worker's database address lives only in the worker.** `userDb()` is the user's view; `db()` is nobody's
+  (sign-in, what any visitor may ask).
+- **Sign-in is the studio's own** (`web/server/auth.ts`, `session.ts`): a session is a random secret in an
+  HttpOnly cookie, kept in the database as its SHA-256; passwords are scrypt (`src/auth/passwords.ts`). An
+  emailed link signs in only the browser that asked for it. The request interceptor only looks whether a
+  session cookie is there; whether it is real is decided where data is read (`route()`, `forUser()`).
 
 ## Money rules
 
@@ -171,10 +185,15 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 
 ## Database workflow
 
-- Migrations are plain SQL in `supabase/migrations/`, applied to the local stack by `npm run db:reset` and
-  to the hosted project by `npm run db:migrate` (owner's click).
-- **No hosted database has these migrations yet**, so the two files have been edited in place. From the
-  first `db:migrate` on, a file that was applied is frozen: every change is a **new** file.
+- Migrations are plain SQL in `db/migrations/`, applied to the local database by `npm run db:start` /
+  `db:reset` and to the server's by `server:setup`, `server:deploy` and `db:migrate` (owner's click). The
+  database is always reached through `psql` in its own container (`src/deploy/db-apply.ts`).
+- **No server has these migrations yet**, so the three files have been edited in place. From the first real
+  setup on, a file that was applied is frozen: every change is a **new** file. This is enforced: applying
+  refuses a file whose content differs from what the database recorded (`pendingMigrations`). Locally, after
+  editing a file, `db:start` refuses too: use `db:reset`.
+- A new table or function starts with no access for anyone (the first migration closes the defaults): grant
+  exactly what each of the two roles needs, in the same file.
 - Tests share one local database and run side by side: a test **never wipes it**, makes its own users
   (`newUser`), run ids (`freshRunId`) and Stripe ids (`unique("sub")`), and asserts only on those.
 - After editing a migration: `npm run db:reset`, then the database tests **twice** (leftover rows from
@@ -248,6 +267,7 @@ The README is the owner's manual: setup, usage, costs, and what to know about ea
 
 ## What is and is not live (2026-10-08)
 
-Verified only against local stand-ins: the server deployment, hosted Supabase, the R2 bucket for runs.
+Verified only against local stand-ins: the server deployment (its database included), the R2 bucket for runs,
+email (written to a folder in tests) and Google sign-in.
 Verified against the real thing: the pipeline and its providers; Stripe **test mode** (setup, Checkout,
 renewal, portal, refunds — spec 3.4 §15). Nothing is deployed, and Stripe live mode has never been used.

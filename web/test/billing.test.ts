@@ -11,17 +11,17 @@ import { POST as webhook } from "@/app/api/stripe/webhook/route";
 import { forgetCatalogue } from "@/server/billing/catalogue";
 import { closeQueue } from "@/server/jobs/queue";
 import { JOB_OPTIONS, QUEUES } from "@/server/jobs/redis";
-import { localSupabase, newUser, serviceClient, type TestUser } from "../../test/helpers/supabase";
+import { localDb, newUser, serviceClient, type TestUser } from "../../test/helpers/db";
 import { request, until, useStudio } from "./helpers";
 import { hasRedisServer, startRedis, startWorkerProcess, type TestRedis, type TestWorker } from "./redis";
 import { type FakeEvent, type FakeStripe, startStripe } from "./stripe";
 import { as, cookiesOf, withAccounts } from "./tenant";
 
 /*
- * Payments end to end, against the stand-in Stripe, the local Supabase stack, a throwaway Redis and the real
+ * Payments end to end, against the stand-in Stripe, the local database, a throwaway Redis and the real
  * worker in its own process. Skipped without the stack or `redis-server`.
  */
-const supa = localSupabase();
+const supa = localDb();
 const studio = useStudio();
 let redis: TestRedis;
 let admin: Redis;
@@ -62,7 +62,7 @@ describe.skipIf(!supa || !hasRedisServer())("payments", () => {
   const worker = async (env: Record<string, string> = {}): Promise<TestWorker> => {
     const w = startWorkerProcess({
       REDIS_URL: redis.url, FLOWCHAIN_ROOT: studio.root, RUNS_DIR: studio.runs, FLOWCHAIN_CLI: process.env.FLOWCHAIN_CLI!,
-      SUPABASE_URL: s.url, SUPABASE_ANON_KEY: s.anonKey, SUPABASE_SERVICE_ROLE_KEY: s.serviceKey,
+      DATABASE_URL: s.worker,
       WORKER_RECONCILE_KNOWN_USERS_ONLY: "1", ...stripe.env, ...env,
     });
     workers.push(w);
@@ -94,7 +94,7 @@ describe.skipIf(!supa || !hasRedisServer())("payments", () => {
     withAccounts(s);
     Object.assign(process.env, stripe.env);
     [a, b] = await Promise.all([newUser(s, "a"), newUser(s, "b")]);
-    [aCookie, bCookie] = await Promise.all([cookiesOf(a), cookiesOf(b)]);
+    [aCookie, bCookie] = await Promise.all([cookiesOf(s, a), cookiesOf(s, b)]);
     await Promise.all([mkdir(join(studio.runs, a.id), { recursive: true }), mkdir(join(studio.runs, b.id), { recursive: true })]);
   });
 

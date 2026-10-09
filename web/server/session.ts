@@ -1,61 +1,74 @@
-import { createServerClient, parseCookieHeader, serializeCookieHeader } from "@supabase/ssr";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { supabaseSettings } from "@/lib/supabase/settings";
+import { BROWSER_COOKIE, OAUTH_COOKIE, SESSION_COOKIE } from "@/lib/accounts";
+import { db } from "./db";
+import { hashOf } from "@src/auth/passwords";
 import type { TenantUser } from "./tenant";
 
-/* The visitor's Supabase session, kept in cookies. Used by route(), the pages and the proxy. */
-
-type Cookie = { name: string; value: string; options?: Record<string, unknown> };
-export type CookieJar = { getAll: () => Array<{ name: string; value: string }>; setAll: (cookies: Cookie[]) => void };
+/* The visitor's session: a random secret in a cookie, checked against the database. Used by route() and the pages. */
 
 /**
- * How the session cookies are set. No script in the page ever needs them (the studio's own routes do the signing
+ * How the studio's cookies are set. No script in the page ever needs them (the studio's own routes do the signing
  * in), so none can read them: a flaw in a page cannot hand the session to someone else.
  */
 export const cookieOptions = (secure: boolean) => ({ path: "/", sameSite: "lax" as const, httpOnly: true, secure });
 
-/** A client that acts as whoever the cookies say is signed in; row-level security applies to everything it does. */
-export function sessionClient(jar: CookieJar, opts: { secure?: boolean } = {}): SupabaseClient {
-  const { url, anonKey } = supabaseSettings();
-  return createServerClient(url, anonKey, { cookies: jar, cookieOptions: cookieOptions(opts.secure ?? false) }) as unknown as SupabaseClient;
+/** A request's cookies by name. */
+export function readCookies(header: string | null): Map<string, string> {
+  const jar = new Map<string, string>();
+  for (const part of (header ?? "").split(";")) {
+    const at = part.indexOf("=");
+    if (at < 1) continue;
+    const name = part.slice(0, at).trim();
+    // the first of a name wins, as browsers send the most specific first
+    if (!jar.has(name)) jar.set(name, part.slice(at + 1).trim());
+  }
+  return jar;
 }
 
 /**
- * Who is signed in. The token is verified (by its signature, or by asking the auth server): what a cookie claims
- * is never taken at its word.
+ * Who a session's secret belongs to. The cookie is never taken at its word: the database is asked, with the
+ * secret's hash, and answers only for a session that has not run out.
  */
-export async function sessionUser(client: SupabaseClient): Promise<TenantUser | null> {
-  const { data, error } = await client.auth.getClaims();
-  const claims = data?.claims;
-  if (error || !claims?.sub) return null;
-  return { id: claims.sub, email: typeof claims.email === "string" ? claims.email : "" };
+export async function userOfSession(secret: string | undefined): Promise<TenantUser | null> {
+  // (our secrets are 43 characters of base64url; anything else is not one, and the database is not asked)
+  if (!secret || !/^[A-Za-z0-9_-]{43}$/.test(secret)) return null;
+  const { data, error } = await db().rpc<Array<{ user_id: string; email: string }>>("auth.whose_session", { p_token_hash: hashOf(secret) });
+  if (error) throw new Error(`the session could not be checked: ${error.message}`);
+  const row = data?.[0];
+  return row ? { id: row.user_id, email: row.email } : null;
 }
 
+const NAMES = [SESSION_COOKIE, BROWSER_COOKIE, OAUTH_COOKIE] as const;
+export type CookieName = (typeof NAMES)[number];
+
+/** The cookies of one request, and the ones its answer will set. */
+export type RequestCookies = {
+  get(name: CookieName): string | undefined;
+  /** `maxAgeSec`: how long the browser keeps it. */
+  set(name: CookieName, value: string, maxAgeSec: number): void;
+  clear(name: CookieName): void;
+};
+
 /** The session of a plain `Request`: cookies are read from its header, and the ones to set are collected for the answer. */
-export function requestSession(req: Request): { client: SupabaseClient; finish: (res: Response) => Response } {
-  const incoming = parseCookieHeader(req.headers.get("cookie") ?? "").map((c) => ({ name: c.name, value: c.value ?? "" }));
-  const outgoing = new Map<string, Cookie>();
+export function requestSession(req: Request): { cookies: RequestCookies; finish: (res: Response) => Response } {
+  const incoming = readCookies(req.headers.get("cookie"));
+  const outgoing = new Map<CookieName, { value: string; maxAge: number }>();
   const secure = siteOrigin(req).startsWith("https://");
-  const client = sessionClient({
-    getAll: () => incoming,
-    setAll: (cookies) => {
-      for (const c of cookies) {
-        outgoing.set(c.name, c);
-        const at = incoming.findIndex((i) => i.name === c.name);
-        if (at >= 0) incoming[at] = { name: c.name, value: c.value };
-        else incoming.push({ name: c.name, value: c.value });
-      }
-    },
-  }, { secure });
+  const cookies: RequestCookies = {
+    get: (name) => (outgoing.has(name) ? outgoing.get(name)!.value || undefined : incoming.get(name)),
+    set: (name, value, maxAgeSec) => void outgoing.set(name, { value, maxAge: Math.floor(maxAgeSec) }),
+    clear: (name) => void outgoing.set(name, { value: "", maxAge: 0 }),
+  };
   const finish = (res: Response): Response => {
     if (outgoing.size === 0) return res;
     const headers = new Headers(res.headers);
-    for (const c of outgoing.values()) headers.append("set-cookie", serializeCookieHeader(c.name, c.value, { ...c.options, ...cookieOptions(secure) }));
+    for (const [name, c] of outgoing) {
+      headers.append("set-cookie", `${name}=${c.value}; Path=/; Max-Age=${c.maxAge}; HttpOnly; SameSite=Lax${secure ? "; Secure" : ""}`);
+    }
     // an answer that carries someone's session must never be stored and served to anyone else
     headers.set("cache-control", "private, no-store");
     return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
   };
-  return { client, finish };
+  return { cookies, finish };
 }
 
 /**

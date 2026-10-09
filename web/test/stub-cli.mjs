@@ -32,7 +32,7 @@ if (command === "plan") {
   console.log("ElevenLabs voice ok; RunPod endpoint ab12cd34 healthy");
   const behave = readJson("_behave.json", {});
   // which of the server's own secrets reached this process (none should)
-  if (behave.envNames) writeFileSync(join(runs, "_env.json"), JSON.stringify(Object.keys(process.env).filter((name) => /^SUPABASE_/.test(name))));
+  if (behave.envNames) writeFileSync(join(runs, "_env.json"), JSON.stringify(Object.keys(process.env).filter((name) => /^(DATABASE_URL|REDIS_URL|SMTP_URL|MAIL_|GOOGLE_|WORKER_)/.test(name))));
   // "submits" a provider job and then waits for it: stopped here, the job is submitted and never collected
   if (behave.pendingUsd && existsSync(join(runs, args[1], "manifest.json"))) {
     const file = join(runs, args[1], "manifest.json");

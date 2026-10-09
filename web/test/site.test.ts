@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CARRIED_CHARS, startAddress } from "@/components/site/TopicStart";
-import { safeNext } from "@/lib/supabase/settings";
+import { safeNext } from "@/lib/accounts";
 
 /** A topic typed on the landing page must arrive in the new-video form as typed, and lead nowhere else. */
 describe("the landing page's way in", () => {

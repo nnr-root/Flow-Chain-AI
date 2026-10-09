@@ -1,4 +1,8 @@
+import { createHash } from "node:crypto";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { NextRequest } from "next/server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -25,21 +29,22 @@ import { POST as reroll } from "@/app/api/runs/[id]/reroll/route";
 import { GET as run } from "@/app/api/runs/[id]/route";
 import { POST as unlock } from "@/app/api/runs/[id]/unlock/route";
 import { GET as callback } from "@/app/auth/callback/route";
-import { linkError, safeNext } from "@/lib/supabase/settings";
+import { GET as googleStart } from "@/app/auth/google/route";
+import { linkError, safeNext } from "@/lib/accounts";
 import { roots } from "@/server/config";
 import { resetAttempts } from "@/server/limits";
 import { closeQueue } from "@/server/jobs/queue";
-import { localSupabase, newUser, type TestUser } from "../../test/helpers/supabase";
+import { localDb, newUser, ownerDb, type TestUser } from "../../test/helpers/db";
 import { draftManifest, finishedManifest, nextRunId, params, request, useStudio } from "./helpers";
 import { hasRedisServer, startRedis, type TestRedis } from "./redis";
 import { as, cookiesFrom, cookiesOf, saveRunFor, withAccounts } from "./tenant";
 
 /*
- * The studio with accounts, against the local Supabase stack: who may see what. Skipped when the stack is not
+ * The studio with accounts, against the local database: who may see what. Skipped when the database is not
  * running (`npm run db:start`) or there is no `redis-server`: with accounts the studio always works through
  * the queue, so it needs a Redis even where no job is started.
  */
-const supa = localSupabase();
+const supa = localDb();
 let redis: TestRedis;
 beforeAll(async () => {
   if (supa && hasRedisServer()) redis = await startRedis();
@@ -89,7 +94,7 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
     resetAttempts();
     process.env.REDIS_URL = redis.url;
     [a, b] = await Promise.all([newUser(s, "a"), newUser(s, "b")]);
-    [aCookie, bCookie] = await Promise.all([cookiesOf(a), cookiesOf(b)]);
+    [aCookie, bCookie] = await Promise.all([cookiesOf(s, a), cookiesOf(s, b)]);
   });
 
   it("shows a visitor without a session the landing page at the bare address, and sends every other page to the login", async () => {
@@ -104,38 +109,44 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
     const to = new URL(deep.headers.get("location")!);
     expect([deep.status, to.pathname + to.search]).toEqual([307, "/login?next=%2Fruns%2F20261006-120000-e2e001"]);
     // the landing page under its own name, and the pages anyone may open, pass as they are
-    for (const open of ["/welcome", "/login", "/pricing"]) expect((await ask(open))!.headers.get("x-middleware-rewrite"), open).toBeNull();
-    // with a session the bare address is the studio: nothing is rewritten
-    const mine = (await ask("/", aCookie))!;
-    expect([mine.headers.get("x-middleware-rewrite"), mine.headers.get("location")]).toEqual([null, null]);
+    for (const open of ["/welcome", "/login", "/pricing", "/api/runs", "/_next/static/x.js"]) expect(await ask(open), open).toBeUndefined();
+    // with a session cookie the bare address is the studio: nothing is rewritten here. (Whether the session is
+    // real is decided where the data is read; a cookie someone made up gets this far and no further, below.)
+    expect(await ask("/", aCookie)).toBeUndefined();
+    expect(await ask("/runs/20261006-120000-e2e001", aCookie)).toBeUndefined();
   });
 
   it("answers nobody who is not signed in, except on the sign-in routes", async () => {
     expect((await runs(request("/api/runs"), undefined)).status).toBe(401);
     expect(await code(await health(request("/api/health"), undefined))).toBe("unauthenticated");
     expect((await run(request("/api/runs/x"), params({ id: nextRunId() }))).status).toBe(401);
-    // a cookie that merely claims to be a session is not one
-    const garbled = aCookie.replace(/=base64-[A-Za-z0-9_-]{20}/, "=base64-AAAAAAAAAAAAAAAAAAAA");
+    // a cookie that merely looks like a session is not one: a secret the studio never gave out signs nobody in
+    const garbled = aCookie.replace(/=.{20}/, `=${"A".repeat(20)}`);
+    expect(garbled).not.toBe(aCookie);
     expect((await runs(as(garbled, "/api/runs"), undefined)).status).toBe(401);
+    for (const not of ["fc_session=", "fc_session=short", `fc_session=${"x".repeat(5000)}`, "fc_session=../../etc/passwd"]) expect((await runs(as(not, "/api/runs"), undefined)).status, not).toBe(401);
     expect((await runs(as(aCookie, "/api/runs"), undefined)).status).toBe(200);
   });
 
-  it("is not fooled by a well-formed token that names another user: the signature decides", async () => {
-    // a's real session, with the user id inside its token swapped for b's and a's signature kept
-    const [name, value] = [aCookie.slice(0, aCookie.indexOf("=")), aCookie.slice(aCookie.indexOf("=") + 1)];
-    expect(aCookie).not.toContain("; "); // one cookie holds the session here
-    const session = JSON.parse(Buffer.from(value.replace(/^base64-/, ""), "base64url").toString()) as { access_token: string; user: { id: string } };
-    const [header, payload, signature] = session.access_token.split(".");
-    const claims = JSON.parse(Buffer.from(payload, "base64url").toString()) as Record<string, unknown>;
-    const forgedToken = [header, Buffer.from(JSON.stringify({ ...claims, sub: b.id, email: b.email })).toString("base64url"), signature].join(".");
-    const forged = `${name}=base64-${Buffer.from(JSON.stringify({ ...session, access_token: forgedToken, user: { ...session.user, id: b.id } })).toString("base64url")}`;
-
+  it("takes a session's secret and nothing in its place: not a user's id, not what the database keeps of the secret", async () => {
     const mine = nextRunId();
     await saveRunFor(studio, b, finishedManifest(mine));
-    const res = await runs(as(forged, "/api/runs"), undefined);
-    // refused outright, or at the very least never answered as b
-    expect(res.status === 401 || !JSON.stringify(await res.json()).includes(mine)).toBe(true);
-    expect((await run(as(forged, `/api/runs/${mine}`), params({ id: mine }))).status).not.toBe(200);
+    const secret = bCookie.slice(bCookie.indexOf("=") + 1);
+    // what the database stores is the secret's hash: a copy of the sessions table signs nobody in
+    const stored = createHash("sha256").update(secret).digest();
+    const [row] = await ownerDb(s).query<{ n: number }>("select count(*)::int as n from auth.sessions where token_hash = $1", [stored]);
+    expect(row.n).toBe(1);
+    for (const forged of [b.id, stored.toString("base64url"), stored.toString("hex"), Buffer.from(b.id).toString("base64url")]) {
+      const res = await runs(as(`fc_session=${forged}`, "/api/runs"), undefined);
+      expect(res.status, forged).toBe(401);
+      expect((await run(as(`fc_session=${forged}`, `/api/runs/${mine}`), params({ id: mine }))).status).toBe(401);
+    }
+    // a's own session shows a's runs, never b's, whatever else the request claims
+    const asA = await runs(as(`${aCookie}; user=${b.id}`, "/api/runs", { headers: { "x-user-id": b.id } }), undefined);
+    expect([asA.status, JSON.stringify(await asA.json()).includes(mine)]).toEqual([200, false]);
+    // and a session that has run out is no session
+    await ownerDb(s).query("update auth.sessions set expires_at = now() - interval '1 second' where token_hash = $1", [stored]);
+    expect((await runs(as(bCookie, "/api/runs"), undefined)).status).toBe(401);
   });
 
   it("signs in with a password, keeps the session in cookies, and signs out", async () => {
@@ -148,7 +159,7 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
     const ok = await login(request("/api/auth/login", { json: { email: a.email.toUpperCase(), password: a.password } }), undefined);
     expect(ok.status).toBe(200);
     const cookie = cookiesFrom(ok);
-    expect(cookie).toMatch(/^sb-.+-auth-token/);
+    expect(cookie).toMatch(/^fc_session=[A-Za-z0-9_-]{43}$/);
     // no script in a page can read the session, and an answer that carries one is never stored
     for (const line of ok.headers.getSetCookie()) expect(line).toMatch(/; HttpOnly/i);
     expect(ok.headers.get("cache-control")).toBe("private, no-store");
@@ -158,32 +169,249 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
     const out = await logout(as(cookie, "/api/auth/logout", { json: {} }), undefined);
     expect(out.status).toBe(200);
     expect(cookiesFrom(out, cookie)).toBe("");
+    // signed out at the server, not only in this browser: the cookie someone kept a copy of is dead too
+    expect((await accountRoute(as(cookie, "/api/account"), undefined)).status).toBe(401);
   });
 
   it("creates an account that starts with nothing to spend, and lets its owner change the password", async () => {
     const email = `new-${Date.now().toString(36)}@example.test`;
-    const made = await signup(request("/api/auth/signup", { json: { email, password: "first-password" } }), undefined);
-    // the local stack does not ask for email confirmation; production does (`confirm: true`, and no session yet)
+    const made = await signup(request("/api/auth/signup", { json: { email: `  ${email.toUpperCase()} `, password: "first-password" } }), undefined);
+    // this studio sends no email (no mail server is set): the account works at once. One that does asks for the link first.
     expect(await made.json()).toEqual({ confirm: false });
     const cookie = cookiesFrom(made);
     expect(await (await accountRoute(as(cookie, "/api/account"), undefined)).json()).toEqual({ account: { email, balanceUsd: 0 }, ledger: [] });
+    // the password is kept as a salted hash, never as it was typed
+    const [kept] = await ownerDb(s).query<{ password_hash: string }>("select password_hash from auth.users where email = $1", [email]);
+    expect(kept.password_hash).toMatch(/^scrypt\$32768\$8\$1\$[A-Za-z0-9_-]{22}\$[A-Za-z0-9_-]{43}$/);
+    expect(kept.password_hash).not.toContain("first-password");
 
     expect((await signup(request("/api/auth/signup", { json: { email, password: "short" } }), undefined)).status).toBe(400);
-    // signing up with an address that has an account answers like a new one: "check your inbox"
+    // the address is taken: nobody is signed in to someone else's account, and its password stays what it was
     const again = await signup(request("/api/auth/signup", { json: { email, password: "another-password" } }), undefined);
-    expect([again.status, await again.json()]).toEqual([200, { confirm: true }]);
-    expect(cookiesFrom(again)).not.toMatch(/auth-token(\.\d+)?=/); // and signs nobody in
+    expect(again.status).toBe(400);
+    expect(cookiesFrom(again)).not.toMatch(/fc_session=/);
+    expect((await login(request("/api/auth/login", { json: { email, password: "another-password" } }), undefined)).status).toBe(401);
+
     expect((await password(request("/api/auth/password", { json: { password: "second-password" } }), undefined)).status).toBe(401);
+    // signed in twice: the one that changes the password stays, the other is signed out
+    const elsewhere = cookiesFrom(await login(request("/api/auth/login", { json: { email, password: "first-password" } }), undefined));
+    expect((await accountRoute(as(elsewhere, "/api/account"), undefined)).status).toBe(200);
     expect((await password(as(cookie, "/api/auth/password", { json: { password: "second-password" } }), undefined)).status).toBe(200);
+    expect((await accountRoute(as(cookie, "/api/account"), undefined)).status).toBe(200);
+    expect((await accountRoute(as(elsewhere, "/api/account"), undefined)).status).toBe(401);
     expect((await login(request("/api/auth/login", { json: { email, password: "first-password" } }), undefined)).status).toBe(401);
     expect((await login(request("/api/auth/login", { json: { email, password: "second-password" } }), undefined)).status).toBe(200);
   });
 
-  it("answers a reset request the same way whether or not the address has an account", async () => {
-    const known = await reset(request("/api/auth/reset", { json: { email: a.email } }), undefined);
-    const unknown = await reset(request("/api/auth/reset", { json: { email: "nobody@example.test" } }), undefined);
-    expect([known.status, await known.json()]).toEqual([unknown.status, await unknown.json()]);
-    expect(known.status).toBe(200);
+  describe("where the studio sends email", () => {
+    const mails = () => (existsSync(process.env.MAIL_DIR!) ? readdirSync(process.env.MAIL_DIR!) : []).sort().map((f) => JSON.parse(readFileSync(join(process.env.MAIL_DIR!, f), "utf8")) as { kind: string; to: string; link: string; text: string });
+    const follow = (link: string, cookie = "") => callback(as(cookie, link.replace("http://127.0.0.1:3131", "")), undefined);
+    beforeEach(() => {
+      process.env.MAIL_DIR = join(studio.root, "mail");
+    });
+
+    it("an account is nobody's until its address is confirmed, and the link signs in only the browser that asked", async () => {
+      const email = `confirm-${Date.now().toString(36)}@example.test`;
+      const made = await signup(request("/api/auth/signup", { json: { email, password: "first-password", next: "/new?topic=foxes" } }), undefined);
+      expect(await made.json()).toEqual({ confirm: true });
+      const browser = cookiesFrom(made);
+      // no session yet, and the password alone does not sign in
+      expect(browser).not.toMatch(/fc_session=/);
+      const early = await login(request("/api/auth/login", { json: { email, password: "first-password" } }), undefined);
+      expect([early.status, ((await early.json()) as { error: { message: string } }).error.message]).toEqual([401, "confirm your email address first"]);
+      // (and someone who does not know the password is not told the account exists)
+      expect(((await (await login(request("/api/auth/login", { json: { email, password: "wrong-password" } }), undefined)).json()) as { error: { message: string } }).error.message).toBe("wrong email or password");
+
+      const [mail] = mails();
+      expect([mail.kind, mail.to]).toEqual(["confirm", email]);
+      expect(mail.link).toMatch(/^http:\/\/127\.0\.0\.1:3131\/auth\/callback\?code=[A-Za-z0-9_-]{43}&next=%2Fnew%3Ftopic%3Dfoxes$/);
+      expect(mail.text).toContain(mail.link);
+
+      // Opened in another browser (someone was sent the link): the address is confirmed, and nobody is signed in there.
+      const elsewhere = await follow(mail.link);
+      expect(elsewhere.headers.get("location")).toBe("http://127.0.0.1:3131/login?confirmed=1");
+      expect(cookiesFrom(elsewhere)).not.toMatch(/fc_session=/);
+      // a link works once
+      expect((await follow(mail.link, browser)).headers.get("location")).toBe("http://127.0.0.1:3131/login?error=link");
+      expect((await login(request("/api/auth/login", { json: { email, password: "first-password" } }), undefined)).status).toBe(200);
+    });
+
+    it("opened in the browser that signed up, the link signs in and goes on to where the visitor was heading", async () => {
+      const email = `same-${Date.now().toString(36)}@example.test`;
+      const made = await signup(request("/api/auth/signup", { json: { email, password: "first-password", next: "/new?topic=foxes" } }), undefined);
+      const browser = cookiesFrom(made);
+      const back = await follow(mails()[0].link, browser);
+      expect(back.headers.get("location")).toBe("http://127.0.0.1:3131/new?topic=foxes");
+      const cookie = cookiesFrom(back, browser);
+      expect(await (await accountRoute(as(cookie, "/api/account"), undefined)).json()).toMatchObject({ account: { email } });
+      // a link never leads off this site, whatever was asked for at sign-up
+      const other = `away-${Date.now().toString(36)}@example.test`;
+      const away = await signup(request("/api/auth/signup", { json: { email: other, password: "first-password", next: "https://evil.example/x" } }), undefined);
+      expect((await follow(mails().find((m) => m.to === other)!.link, cookiesFrom(away))).headers.get("location")).toBe("http://127.0.0.1:3131/");
+    });
+
+    it("answers a sign-up for a taken address like a new one, and gives an unconfirmed account to whoever proves the mailbox", async () => {
+      // a confirmed account: the same answer, no email, nothing changed
+      const taken = await signup(request("/api/auth/signup", { json: { email: a.email, password: "attacker-password" } }), undefined);
+      expect([taken.status, await taken.json()]).toEqual([200, { confirm: true }]);
+      expect(mails()).toEqual([]);
+      expect((await login(request("/api/auth/login", { json: { email: a.email, password: "attacker-password" } }), undefined)).status).toBe(401);
+
+      // Someone signs up with an address that is not theirs and cannot confirm it. Its owner signs up later:
+      // the account becomes theirs, with their password, and the first link is dead.
+      const email = `squat-${Date.now().toString(36)}@example.test`;
+      const squatter = cookiesFrom(await signup(request("/api/auth/signup", { json: { email, password: "squatter-password" } }), undefined));
+      const first = mails()[0].link;
+      const owner = cookiesFrom(await signup(request("/api/auth/signup", { json: { email, password: "owner-password-1" }, headers: { "x-forwarded-for": "203.0.113.20" } }), undefined));
+      expect((await follow(first, squatter)).headers.get("location")).toBe("http://127.0.0.1:3131/login?error=link");
+      const second = mails().filter((m) => m.to === email).at(-1)!.link;
+      expect(second).not.toBe(first);
+      expect((await follow(second, owner)).headers.get("location")).toBe("http://127.0.0.1:3131/");
+      expect((await login(request("/api/auth/login", { json: { email, password: "squatter-password" } }), undefined)).status).toBe(401);
+      expect((await login(request("/api/auth/login", { json: { email, password: "owner-password-1" } }), undefined)).status).toBe(200);
+    });
+
+    it("answers a reset request the same way whether or not the address has an account, and mails only the one that has", async () => {
+      const known = await reset(request("/api/auth/reset", { json: { email: a.email } }), undefined);
+      const unknown = await reset(request("/api/auth/reset", { json: { email: "nobody@example.test" } }), undefined);
+      expect([known.status, await known.json()]).toEqual([unknown.status, await unknown.json()]);
+      expect(known.status).toBe(200);
+      expect(mails().map((m) => [m.kind, m.to])).toEqual([["reset", a.email]]);
+    });
+
+    it("lets the browser that asked choose a new password with the link, once, and signs every older session out", async () => {
+      const asked = await reset(request("/api/auth/reset", { json: { email: a.email } }), undefined);
+      const browser = cookiesFrom(asked);
+      const link = mails()[0].link;
+      // in any other browser the link does nothing, and is not used up
+      const elsewhere = await follow(link);
+      expect(elsewhere.headers.get("location")).toBe("http://127.0.0.1:3131/login?error=link");
+      expect(cookiesFrom(elsewhere)).not.toMatch(/fc_session=/);
+
+      const back = await follow(link, browser);
+      expect(back.headers.get("location")).toBe("http://127.0.0.1:3131/reset/new");
+      const cookie = cookiesFrom(back, browser);
+      expect((await password(as(cookie, "/api/auth/password", { json: { password: "brand-new-password" } }), undefined)).status).toBe(200);
+      expect((await login(request("/api/auth/login", { json: { email: a.email, password: a.password } }), undefined)).status).toBe(401);
+      expect((await login(request("/api/auth/login", { json: { email: a.email, password: "brand-new-password" } }), undefined)).status).toBe(200);
+      // whoever was signed in with the old password is out
+      expect((await accountRoute(as(aCookie, "/api/account"), undefined)).status).toBe(401);
+      expect((await follow(link, browser)).headers.get("location")).toBe("http://127.0.0.1:3131/login?error=link");
+    });
+
+    it("does not mail one address without end", async () => {
+      const ask = () => reset(request("/api/auth/reset", { json: { email: b.email }, headers: { "x-forwarded-for": `203.0.113.${Math.floor(Math.random() * 200) + 1}` } }), undefined);
+      for (let i = 0; i < 3; i++) expect((await ask()).status).toBe(200);
+      const fourth = await ask();
+      expect([fourth.status, await code(fourth)]).toEqual([429, "busy"]);
+      expect(mails().filter((m) => m.to === b.email)).toHaveLength(3);
+    });
+  });
+
+  describe("signing in with Google", () => {
+    /** What the stand-in for Google's token address was sent, and what it answers with next. */
+    let asked: URLSearchParams[] = [];
+    let answer: (form: URLSearchParams) => { status: number; claims?: Record<string, unknown> } = () => ({ status: 500 });
+    let google: Server;
+    const CLIENT = "client-123.apps.googleusercontent.com";
+    const idToken = (claims: Record<string, unknown>) => `${Buffer.from('{"alg":"RS256"}').toString("base64url")}.${Buffer.from(JSON.stringify(claims)).toString("base64url")}.signature`;
+    beforeAll(async () => {
+      google = createServer((req, res) => {
+        let body = "";
+        req.on("data", (chunk: Buffer) => (body += chunk.toString()));
+        req.on("end", () => {
+          const form = new URLSearchParams(body);
+          asked.push(form);
+          const { status, claims } = answer(form);
+          res.writeHead(status, { "content-type": "application/json" }).end(JSON.stringify(claims ? { id_token: idToken(claims), access_token: "unused" } : { error: "invalid_grant" }));
+        });
+      });
+      await new Promise<void>((done) => google.listen(0, "127.0.0.1", done));
+    });
+    afterAll(() => google?.close());
+    beforeEach(() => {
+      asked = [];
+      Object.assign(process.env, { GOOGLE_CLIENT_ID: CLIENT, GOOGLE_CLIENT_SECRET: "google-secret", GOOGLE_TOKEN_URL: `http://127.0.0.1:${(google.address() as AddressInfo).port}/token` });
+    });
+    /** Starts a sign-in as a browser would: where Google is asked, and the cookie this browser now holds. */
+    const start = async (next = "/new?topic=foxes") => {
+      const res = await googleStart(request(`/auth/google?next=${encodeURIComponent(next)}`), undefined);
+      const to = new URL(res.headers.get("location")!);
+      return { res, to, cookie: cookiesFrom(res), state: to.searchParams.get("state")!, nonce: to.searchParams.get("nonce")! };
+    };
+    const good = (nonce: string, email: string, more: Record<string, unknown> = {}) => ({
+      status: 200,
+      claims: { iss: "https://accounts.google.com", aud: CLIENT, exp: Math.floor(Date.now() / 1000) + 300, nonce, sub: `google-${email}`, email, email_verified: true, ...more },
+    });
+    const finish = (cookie: string, state: string, code = "code-from-google") => callback(as(cookie, `/auth/callback?code=${code}&state=${state}`), undefined);
+
+    it("is not offered where the owner has not set it up", async () => {
+      delete process.env.GOOGLE_CLIENT_SECRET;
+      const res = await googleStart(request("/auth/google"), undefined);
+      expect([res.status, await code(res)]).toEqual([400, "validation"]);
+    });
+
+    it("sends the visitor to Google with what ties the answer to this browser, and signs in whoever Google vouches for", async () => {
+      const { res, to, cookie, state, nonce } = await start();
+      expect(res.status).toBe(302);
+      expect(`${to.origin}${to.pathname}`).toBe("https://accounts.google.com/o/oauth2/v2/auth");
+      expect(Object.fromEntries(to.searchParams)).toMatchObject({ client_id: CLIENT, redirect_uri: "http://127.0.0.1:3131/auth/callback", response_type: "code", scope: "openid email", code_challenge_method: "S256" });
+      // what the browser keeps is out of any script's reach, and for minutes only
+      expect(res.headers.getSetCookie().find((c) => c.startsWith("fc_oauth="))).toMatch(/; Max-Age=600; HttpOnly; SameSite=Lax/);
+      // the secret never goes to Google's page: only its hash does
+      expect(decodeURIComponent(cookie)).not.toContain(to.searchParams.get("code_challenge")!);
+
+      const email = `gina-${Date.now().toString(36)}@example.test`;
+      answer = () => good(nonce, email.toUpperCase());
+      const back = await finish(cookie, state);
+      expect(back.headers.get("location")).toBe("http://127.0.0.1:3131/new?topic=foxes");
+      // what Google's token address was asked: the code, this studio's secret, and the proof that the same browser is back
+      const [form] = asked;
+      expect(Object.fromEntries(form)).toMatchObject({ code: "code-from-google", client_id: CLIENT, client_secret: "google-secret", grant_type: "authorization_code", redirect_uri: "http://127.0.0.1:3131/auth/callback" });
+      expect(createHash("sha256").update(form.get("code_verifier")!).digest("base64url")).toBe(to.searchParams.get("code_challenge"));
+      const session = cookiesFrom(back, cookie);
+      expect(session).toMatch(/fc_session=/);
+      expect(session).not.toMatch(/fc_oauth=/); // used once
+      expect(await (await accountRoute(as(session, "/api/account"), undefined)).json()).toEqual({ account: { email, balanceUsd: 0 }, ledger: [] });
+      // signing in again is the same account, and an account with that address and a password is joined, not doubled
+      const again = await start("/");
+      answer = () => good(again.nonce, email);
+      await finish(again.cookie, again.state);
+      const joined = await start("/");
+      answer = () => good(joined.nonce, a.email);
+      const asA = cookiesFrom(await finish(joined.cookie, joined.state), joined.cookie);
+      expect(await (await accountRoute(as(asA, "/api/account"), undefined)).json()).toMatchObject({ account: { email: a.email } });
+      expect((await ownerDb(s).query("select 1 from auth.users where email = any($1)", [[email, a.email]])).length).toBe(2);
+    });
+
+    it("signs nobody in when anything about the answer is not as it must be", async () => {
+      const email = `nope-${Date.now().toString(36)}@example.test`;
+      const refused = async (how: string, run: (s: Awaited<ReturnType<typeof start>>) => Promise<Response>) => {
+        const res = await run(await start());
+        expect(res.headers.get("location"), how).toBe("http://127.0.0.1:3131/login?error=incomplete");
+        expect(cookiesFrom(res), how).not.toMatch(/fc_session=/);
+      };
+      await refused("another browser's state", async (b) => { answer = () => good(b.nonce, email); return finish(b.cookie, (await start()).state); });
+      await refused("no cookie: the answer came to a browser that did not ask", async (b) => { answer = () => good(b.nonce, email); return finish("", b.state); });
+      await refused("an identity made for another request", async (b) => { answer = () => good("someone-elses-nonce-0123456789", email); return finish(b.cookie, b.state); });
+      await refused("an address Google has not verified", async (b) => { answer = () => good(b.nonce, email, { email_verified: false }); return finish(b.cookie, b.state); });
+      await refused("a token made for another application", async (b) => { answer = () => good(b.nonce, email, { aud: "other-app" }); return finish(b.cookie, b.state); });
+      await refused("a token from somebody who is not Google", async (b) => { answer = () => good(b.nonce, email, { iss: "https://accounts.evil.example" }); return finish(b.cookie, b.state); });
+      await refused("a token that has run out", async (b) => { answer = () => good(b.nonce, email, { exp: Math.floor(Date.now() / 1000) - 5 }); return finish(b.cookie, b.state); });
+      await refused("a code Google refuses", async (b) => { answer = () => ({ status: 400 }); return finish(b.cookie, b.state); });
+      expect((await ownerDb(s).query("select 1 from auth.users where email = $1", [email])).length).toBe(0);
+      // and the answer cannot be replayed: what the browser held is gone after the first try
+      const once = await start();
+      answer = () => good(once.nonce, email);
+      const first = await finish(once.cookie, once.state);
+      expect(first.headers.get("location")).toBe("http://127.0.0.1:3131/new?topic=foxes");
+      expect((await finish(cookiesFrom(first, once.cookie), once.state)).headers.get("location")).toBe("http://127.0.0.1:3131/login?error=incomplete");
+    });
+  });
+
+  it("offers no reset where the studio sends no email, and says so", async () => {
+    const res = await reset(request("/api/auth/reset", { json: { email: a.email } }), undefined);
+    expect([res.status, await code(res)]).toEqual([400, "validation"]);
   });
 
   it("sends a link that proves nothing back to the login page, and never to another site", async () => {
@@ -198,7 +426,7 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
     for (const who of [request, (path: string) => as(aCookie, path)]) {
       const token = await callback(who("/auth/callback?token_hash=abc&type=recovery"), undefined);
       expect(token.headers.get("location")).toBe("http://127.0.0.1:3131/login?error=incomplete");
-      expect(cookiesFrom(token)).not.toMatch(/auth-token(\.\d+)?=/);
+      expect(cookiesFrom(token)).not.toMatch(/fc_session=/);
     }
 
     // on a server the links in emails are built from the configured name, never from what a request claims
@@ -267,7 +495,7 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
   });
 
   it("lets one visitor's wrong guesses lock out that visitor, not everybody", async () => {
-    // every sign-in reaches the accounts service from this server's one address: the studio counts per visitor itself
+    // guesses are counted per visitor, never per account: guessing at someone's password must not lock them out
     const from = (address: string, password: string) =>
       login(request("/api/auth/login", { json: { email: a.email, password }, headers: { "x-forwarded-for": `198.51.100.7, ${address}` } }), undefined);
     for (let i = 0; i < 20; i++) expect((await from("203.0.113.5", "not-the-password")).status).toBe(401);

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { multiTenant } from "../lib/supabase/settings";
+import { Db } from "@src/db/client";
+import { multiTenant } from "../lib/accounts";
 
 /*
  * The worker's side of accounts: it has no user session, so it talks to the database with the service role —
@@ -25,13 +25,21 @@ export type TenantDb = {
   setRunState(runId: string, state: string | null, storedAt?: string): Promise<void>;
 };
 
+let pool: { url: string; db: Db } | undefined;
+
+/** The worker's connection, as the role that may settle and fulfil (`studio_worker`); one pool per process. */
+export function workerDb(): Db {
+  const url = process.env.DATABASE_URL?.trim();
+  if (!url) throw new Error("DATABASE_URL is not set: with accounts the worker needs it to settle what jobs cost");
+  if (pool?.url !== url) pool = { url, db: Db.connect(url, { max: 5 }) };
+  return pool.db;
+}
+
 /** The database as the worker uses it, or null in a studio without accounts. */
 export function tenantDb(): TenantDb | null {
   if (!multiTenant()) return null;
-  const url = process.env.SUPABASE_URL!.trim();
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set: with accounts the worker needs it to settle what jobs cost");
-  const db: SupabaseClient = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+  // the worker's own address of the database: it signs in as `studio_worker`, the one role that may settle
+  const db = workerDb();
   const row = (r: Record<string, unknown>): Reservation => ({ ...(r as Reservation), cap_usd: Number(r.cap_usd) });
   const FIELDS = "id,user_id,run_id,kind,cap_usd,status,created_at";
   return {

@@ -1,8 +1,8 @@
 -- Flow Chain studio: who owns what, and how much credit each user has (3.3 spec §4).
 --
--- One rule for everything below: a signed-in user can call this database directly with their own token, so it
--- must be safe on its own. Users can only READ their own rows. Every write goes through a function that checks
--- who is calling; the functions that settle or grant money can only be run with the service role (the worker).
+-- One rule for everything below: whatever asks in a user's name can only READ that user's rows. Every write goes
+-- through a function that checks who is calling (`auth.uid()`, first migration); the functions that settle or
+-- grant money can only be run by the worker's role (`studio_worker`), never by the web app's (`studio_web`).
 
 create table public.users (
   id uuid primary key references auth.users (id) on delete cascade,
@@ -107,25 +107,20 @@ alter table public.brand_kits enable row level security;
 alter table public.music_tracks enable row level security;
 alter table public.settings enable row level security;
 
-create policy "own row" on public.users for select to authenticated using (id = (select auth.uid()));
-create policy "own rows" on public.runs for select to authenticated using (user_id = (select auth.uid()));
-create policy "own rows" on public.reservations for select to authenticated using (user_id = (select auth.uid()));
-create policy "own rows" on public.ledger for select to authenticated using (user_id = (select auth.uid()));
-create policy "own rows" on public.brand_kits for select to authenticated using (user_id = (select auth.uid()));
-create policy "own rows" on public.music_tracks for select to authenticated using (user_id = (select auth.uid()));
--- settings: no policy, so nobody but the service role reads it
+create policy "own row" on public.users for select to studio_web using (id = (select auth.uid()));
+create policy "own rows" on public.runs for select to studio_web using (user_id = (select auth.uid()));
+create policy "own rows" on public.reservations for select to studio_web using (user_id = (select auth.uid()));
+create policy "own rows" on public.ledger for select to studio_web using (user_id = (select auth.uid()));
+create policy "own rows" on public.brand_kits for select to studio_web using (user_id = (select auth.uid()));
+create policy "own rows" on public.music_tracks for select to studio_web using (user_id = (select auth.uid()));
+-- settings: no policy and no grant, so no service reads it but through a function
 
--- Privileges, closed by default. Supabase grants everything in `public` to `anon` and `authenticated` as it is
--- created, and Postgres lets everyone execute a new function; row-level security alone would then be the only
--- wall. Here both walls stand: a user's role may select from the six tables and nothing else, and whatever a
--- LATER migration adds starts with no access at all until that migration grants it.
-revoke all on all tables in schema public from anon, authenticated;
-revoke all on all sequences in schema public from anon, authenticated;
-grant select on public.users, public.runs, public.reservations, public.ledger, public.brand_kits, public.music_tracks to authenticated;
-alter default privileges for role postgres in schema public revoke all on tables from anon, authenticated;
-alter default privileges for role postgres in schema public revoke all on sequences from anon, authenticated;
-alter default privileges for role postgres in schema public revoke execute on functions from anon, authenticated;
-alter default privileges for role postgres revoke execute on functions from public;
+-- Privileges, closed by default (first migration): row-level security is one wall, and this is the other. The
+-- web app's role may select from the six tables and nothing else; the worker's role reads the three it settles
+-- from. Neither may write a table: every write is a function. Whatever a LATER migration adds starts with no
+-- access at all until that migration grants it.
+grant select on public.users, public.runs, public.reservations, public.ledger, public.brand_kits, public.music_tracks to studio_web;
+grant select on public.users, public.runs, public.reservations to studio_worker;
 
 -- ---------------------------------------------------------------------------------------------------------
 -- A new account gets its row, with nothing to spend — or, where the owner has set one, a small welcome credit
@@ -333,7 +328,7 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------------------------------------
--- What only the worker (service role) may do.
+-- What only the worker (`studio_worker`) may do.
 
 -- Closes a reservation at what its job really cost. The charge is the run's total spend, as its manifest
 -- records it, minus what was already charged for that run: nothing a user sends enters the sum, and calling
@@ -393,15 +388,15 @@ end $$;
 -- Functions are executable by everyone unless told otherwise: say exactly who may run what. (The default
 -- privileges above were changed before these functions were created, but only for what comes later in the
 -- same role's name; this makes it certain for the ones here.)
-revoke execute on all functions in schema public from public, anon, authenticated;
+revoke execute on all functions in schema public from public;
 grant execute on function
   public.create_run(text, text), public.reserve_credit(text, text, numeric),
   public.register_brand_kit(text, text), public.remove_brand_kit(text), public.library_room(text),
   public.register_track(text, text, bigint), public.remove_track(text)
-  to authenticated;
+  to studio_web;
 grant execute on function
   public.settle(uuid, numeric), public.set_run_state(text, text, timestamptz), public.grant_credit(text, numeric, text),
   public.grant_welcome_credit(uuid, numeric, numeric)
-  to service_role;
+  to studio_worker;
 -- anyone, signed in or not: it says only whether a new account would be given something
-grant execute on function public.welcome_offer() to anon, authenticated;
+grant execute on function public.welcome_offer() to studio_web;

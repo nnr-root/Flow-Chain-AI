@@ -3,7 +3,7 @@ import Link from "next/link";
 import { QueueBanner } from "@/components/QueueBanner";
 import { usd } from "@/lib/api";
 import { billingOn } from "@/lib/billing";
-import { multiTenant } from "@/lib/supabase/settings";
+import { multiTenant } from "@/lib/accounts";
 import { headerAccount } from "@/server/page";
 import "./globals.css";
 

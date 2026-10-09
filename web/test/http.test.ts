@@ -139,7 +139,7 @@ describe("a studio that is meant to have accounts and has none configured", () =
     const { proxy } = await import("@/proxy");
     const { NextRequest } = await import("next/server");
     expect((await ping(request("/api/ping"), undefined)).status).toBe(200);
-    process.env.STUDIO_AUTH = "supabase";
+    process.env.STUDIO_AUTH = "accounts";
     try {
       for (const res of [await ping(request("/api/ping"), undefined), await runs(request("/api/runs"), undefined)]) {
         expect(res.status).toBe(503);

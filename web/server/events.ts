@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { JOB_LOG, runner } from "./jobs";
 import { readRun, runDir } from "./runs";
 import { publicLog } from "@/lib/engines";
-import { multiTenant } from "@/lib/supabase/settings";
+import { multiTenant } from "@/lib/accounts";
 
 const encoder = new TextEncoder();
 const frame = (event: string, data: unknown) => encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);

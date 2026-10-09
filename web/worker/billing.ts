@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Db } from "@src/db/client";
 import { creditOf, EVENT_TYPES, pathId, type StripeApi, StripeError, stripeApi, usdOf } from "@src/billing/stripe";
 import { UUID } from "../server/tenant";
+import { workerDb } from "./tenant";
 
 /*
  * The worker's side of billing: it alone turns a Stripe payment into credit. It never takes anyone's word for
@@ -30,14 +31,11 @@ class Unfulfillable extends Error {}
 
 export function billing(log: (message: string) => void): Billing | null {
   const stripe = stripeApi();
-  const url = process.env.SUPABASE_URL?.trim();
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
-  if (!stripe || !url || !key) return null;
-  const db: SupabaseClient = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
-  return createBilling(stripe, db, log);
+  if (!stripe || !process.env.DATABASE_URL?.trim()) return null;
+  return createBilling(stripe, workerDb(), log);
 }
 
-export function createBilling(stripe: StripeApi, db: SupabaseClient, log: (message: string) => void): Billing {
+export function createBilling(stripe: StripeApi, db: Db, log: (message: string) => void): Billing {
   const call = async (name: string, args: Record<string, unknown>): Promise<string> => {
     const { data, error } = await db.rpc(name, args);
     if (error) throw new Error(`${name}: ${error.message}`);

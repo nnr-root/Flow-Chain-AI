@@ -222,3 +222,63 @@ RunPod: pricing page; docs "Data security and legal compliance", "Endpoint setti
 cloud GPUs". Wiz, CVE-2025-23266. VoxCPM2 and Chatterbox model cards; "A Comprehensive Objective Evaluation of
 Modern Text-to-Speech for Turkish" (arXiv 2610.06057). Wan-Video on GitHub; fuser.studio licence comparison;
 zenn.dev LTX-2.3 vs Wan 2.2 benchmark. FLUX.2 klein 4B model card; thundercompute.com image model comparison.
+
+### 9.2 Own database and sign-in (2026-10-09)
+
+Landed directly on `main`. Supabase is gone: no package, no folder, no setting, no word of it in code.
+
+- **Shape.** `db/migrations/` has three files: `accounts` (new: the two roles, the `auth` schema, its
+  functions), `tenancy` and `billing` (carried over; only who may do what changed). The money SQL is untouched,
+  and its tests, the 648-case matrix included, pass on plain Postgres 17 as they were written.
+- **Roles (differs from §4.2 in one way).** There is no separate role for a visitor and a member: `studio_web`
+  is both, and a statement without `app.user_id` is nobody (the functions refuse it, row-level security shows
+  it nothing). `studio_worker` has `bypassrls`, select on the four tables it reads, and no table write: less
+  than the old service role, which could write every table.
+- **One client** (`src/db/client.ts`, `Db`): `rpc`, `from(...)` and `query`, shaped like the calls the code
+  already made, so call sites and tests changed little. `as(userId)` wraps each statement in its own
+  transaction with `app.user_id` set locally.
+- **Sign-in.** As §4.2, with these decisions made while building:
+  - *Google's id token is not signature-checked.* It is taken straight from Google's token address over TLS,
+    in answer to this server's own request with its secret; its issuer, audience, expiry, nonce and
+    `email_verified` are checked. This is what OpenID Connect Core §3.1.3.7 allows for the code flow, and it
+    replaces §4.2's "verified against Google's published keys".
+  - *An emailed link signs in only the browser that asked for it* (a second secret in an HttpOnly cookie, its
+    hash stored with the link). Opened elsewhere, a confirmation link confirms the address and sends the
+    visitor to sign in; a reset link does nothing and is not used up. This keeps the rule the earlier design
+    had: a link cannot be made by one person to sign another into the maker's account.
+  - *An account nobody confirmed belongs to whoever proves the mailbox*: a later sign-up or a Google sign-in
+    with that address replaces its password and ends its links and sessions.
+  - *No limit per address on signing in* (it would let anyone lock a user out); guessing is limited per
+    visitor. One address is sent at most three emails an hour.
+  - *Without a mail server an account works at once*, and a sign-up for a taken address is refused in words
+    (it cannot be answered like a new one without signing someone into another's account). On a server
+    `serverConfig` refuses accounts without `SMTP_URL` and `MAIL_FROM`.
+  - The request interceptor no longer checks the session: it looks whether the cookie is there. Whether it is
+    real is decided by `route()` and `forUser()`, which ask the database. A made-up cookie reaches the login
+    page and a 401, which the browser test checks.
+- **Server.** `STUDIO_ACCOUNTS=1` turns accounts on. `server:setup` makes the three passwords once (kept in
+  `db.env` on the server), starts the `db` service alone, applies the migrations of the deployed commit through
+  `psql` in the database's own container, sets the two roles' passwords, then starts the rest. `server:deploy`
+  and `db:migrate` do the same migration step. `studio:grant` and the new `studio:welcome` reach the database
+  the same way. The nightly backup takes a `pg_dump` first.
+- **Enforced now:** an applied migration whose file changed is refused (`pendingMigrations`).
+- **Found by the tests, and fixed:**
+  - a database container answers its health check before it has made its database; `migrate` now waits for
+    the first statement to succeed (found by `test:stack`);
+  - inside its own container the Postgres image trusts loopback connections without a password. Nothing else
+    runs there, and the services connect over the private network, where the password is required (the stack
+    test checks a wrong one is refused);
+  - a function named like an SQL keyword (`session_user`) was renamed `whose_session`.
+- **Tests:** `test/db/accounts.test.ts` (23: the roles' walls, identity per statement on one shared
+  connection, every sign-in function), `test/unit/db-migrations.test.ts` (13), sign-in through the real routes
+  with email written to a folder and a stand-in for Google's token address (`web/test/tenancy.test.ts`), a
+  third whole-stack test (migrations through Compose, role limits, no published port, the proxy cannot reach
+  the database). Suite at this point: vitest 86+ files / about 800 tests; studio browser 6; accounts browser 4;
+  stack 3.
+- **Not done / to know:**
+  - the trade of §4.3 stands as accepted;
+  - no "sign out everywhere", no change of address, no deleting an account in the studio;
+  - emails are plain text;
+  - Google sign-in and SMTP have only been run against stand-ins;
+  - nothing here has run on a real server yet.
+

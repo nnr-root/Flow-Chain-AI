@@ -42,7 +42,7 @@ create table public.plan_refunds_out (
   primary key (user_id, plan_period)
 );
 alter table public.plan_refunds_out enable row level security;
-revoke all on public.plan_refunds_out from public, anon, authenticated;
+revoke all on public.plan_refunds_out from public, studio_web;
 
 alter table public.ledger drop constraint ledger_kind_check;
 alter table public.ledger add constraint ledger_kind_check
@@ -91,12 +91,13 @@ create table public.stripe_events (
 alter table public.subscriptions enable row level security;
 alter table public.payments enable row level security;
 alter table public.stripe_events enable row level security;
-create policy "own row" on public.subscriptions for select to authenticated using (user_id = (select auth.uid()));
-create policy "own rows" on public.payments for select to authenticated using (user_id = (select auth.uid()));
+create policy "own row" on public.subscriptions for select to studio_web using (user_id = (select auth.uid()));
+create policy "own rows" on public.payments for select to studio_web using (user_id = (select auth.uid()));
 -- (said outright, whichever role applies this file: nothing but reading their own rows, and nothing of the events)
-revoke all on public.subscriptions, public.payments, public.stripe_events from public, anon, authenticated;
--- stripe_events: no policy, so nobody but the service role reads it
-grant select on public.subscriptions, public.payments to authenticated;
+revoke all on public.subscriptions, public.payments, public.stripe_events from public, studio_web;
+-- stripe_events: no policy, and no grant to the web app: only the worker reads it
+grant select on public.subscriptions, public.payments to studio_web;
+grant select on public.stripe_events to studio_worker;
 
 -- ---------------------------------------------------------------------------------------------------------
 -- Holding and settling credit, now of two kinds.
@@ -431,13 +432,13 @@ end $$;
 
 -- Default privileges already keep users away from everything above (first migration). Said outright all the
 -- same for the functions, since two of them replace ones users may call:
-revoke execute on all functions in schema public from public, anon, authenticated;
+revoke execute on all functions in schema public from public;
 grant execute on function
   public.create_run(text, text), public.reserve_credit(text, text, numeric), public.library_room(text),
   public.register_brand_kit(text, text), public.remove_brand_kit(text),
   public.register_track(text, text, bigint), public.remove_track(text)
-  to authenticated;
-grant execute on function public.welcome_offer() to anon, authenticated;
+  to studio_web;
+grant execute on function public.welcome_offer() to studio_web;
 grant execute on function
   public.settle(uuid, numeric), public.set_run_state(text, text, timestamptz), public.grant_credit(text, numeric, text),
   public.grant_welcome_credit(uuid, numeric, numeric),
@@ -447,4 +448,4 @@ grant execute on function
   public.sync_subscription(text, uuid, text, text, text, text, timestamptz, boolean),
   public.end_subscription(text, uuid, text),
   public.refund_payment(text, text, numeric)
-  to service_role;
+  to studio_worker;

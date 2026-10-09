@@ -1,14 +1,19 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { multiTenant } from "@/lib/supabase/settings";
+import type { Db } from "@src/db/client";
+import { multiTenant } from "@/lib/accounts";
+import type { RequestCookies } from "./session";
 
-export { multiTenant } from "@/lib/supabase/settings";
+export { multiTenant } from "@/lib/accounts";
 
 /* Who the code is working for right now. Set once per request (or per job in the worker) and read wherever a path or a row is chosen. */
 
 export type TenantUser = { id: string; email: string };
-/** `db` is a client that carries the user's own token, so row-level security binds it; the worker has none. */
-export type Scope = { user?: TenantUser; db?: SupabaseClient };
+/**
+ * `db` asks the database in the user's name (row-level security then shows it that user's rows only) or, for a
+ * visitor who is not signed in, in nobody's; the worker has none. `cookies`: the request's own, for the routes
+ * that sign someone in or out.
+ */
+export type Scope = { user?: TenantUser; db?: Db; cookies?: RequestCookies };
 
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -33,8 +38,8 @@ export function currentUser(): TenantUser | undefined {
   return user;
 }
 
-/** The user's own database client (row-level security applies to it). */
-export function userDb(): SupabaseClient {
+/** The database as the current user may see it (row-level security applies to everything asked through it). */
+export function userDb(): Db {
   const db = store.getStore()?.db;
   if (!db) throw new Error("no database client in scope");
   return db;

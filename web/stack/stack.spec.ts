@@ -2,7 +2,10 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { request } from "node:http";
-import { HOST, PASSWORD, PORT, runs, USER } from "./stack";
+import { execFileSync } from "node:child_process";
+import { migrate, migrationFiles, type Psql, setRolePasswords } from "@src/deploy/db-apply";
+import { psqlArgs } from "@src/deploy/server";
+import { compose, composeEnv, DB_PASSWORDS, HOST, PASSWORD, PORT, repo, runs, USER } from "./stack";
 
 const DONE_ID = "20261006-120000-e2e001";
 const DRAFT_ID = "20261006-120100-e2e002";
@@ -74,4 +77,49 @@ test("behind the login the studio works through the queue: a job waits its turn,
   expect(calls()).toContainEqual(["resume", DRAFT_ID, "--budget", "0.31", "--cap", "0.31"]);
   expect(calls().flat()).not.toContain("--yes");
   expect(errors).toEqual([]);
+});
+
+test("the stack's own database: made through the door setup uses, reached only from inside, each role held to its part", async () => {
+  /** `docker compose` for this stack with the database's profile on; what it printed, or an error that carries what it said. */
+  const dc = (args: string[], input = ""): string => {
+    try {
+      return execFileSync("docker", [...compose, "--profile", "accounts", ...args], { cwd: repo, env: composeEnv(), input, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
+    } catch (err) {
+      throw new Error(String((err as { stderr?: string }).stderr || err));
+    }
+  };
+  // started alone, as server:setup starts it before anything that uses it
+  dc(["up", "-d", "--wait", "--wait-timeout", "300", "db"]);
+  const psql: Psql = async (sql, opts) => dc(psqlArgs(opts), sql);
+  const files = migrationFiles(join(repo, "db/migrations"));
+  expect(await migrate(psql, files)).toEqual(files.map((f) => f.name));
+  await setRolePasswords(psql, DB_PASSWORDS);
+  // a second deploy finds nothing to do
+  expect(await migrate(psql, files)).toEqual([]);
+
+  /**
+   * One statement as a service's role with its password, over the stack's private network: by the name the
+   * web app and the worker use. (Inside the container itself the image trusts its own loopback; nothing but
+   * the database runs there.)
+   */
+  const as = (role: string, password: string, sql: string) =>
+    dc(["exec", "-T", "-e", `PGPASSWORD=${password}`, "db", "psql", "-h", "db", "-U", role, "-d", "flowchain", "-At", "-v", "ON_ERROR_STOP=1", "-c", sql]).trim();
+  expect(as("studio_web", DB_PASSWORDS.web, "select count(*) from public.users")).toBe("0");
+  expect(as("studio_web", DB_PASSWORDS.web, "select public.welcome_offer()")).toBe("0");
+  expect(() => as("studio_web", DB_PASSWORDS.web, "select public.grant_credit('a@example.test', 1, '')")).toThrow(/permission denied/);
+  expect(() => as("studio_web", DB_PASSWORDS.web, "select * from auth.users")).toThrow(/permission denied/);
+  // the worker's role runs it (and is told there is no such account), and writes no table itself
+  expect(() => as("studio_worker", DB_PASSWORDS.worker, "select public.grant_credit('a@example.test', 1, '')")).toThrow(/not_found/);
+  expect(() => as("studio_worker", DB_PASSWORDS.worker, "update public.settings set welcome_credit_usd = 5")).toThrow(/permission denied/);
+  // a role's password is its own
+  expect(() => as("studio_web", DB_PASSWORDS.worker, "select 1")).toThrow(/password authentication failed/);
+  expect(() => as("studio_worker", "", "select 1")).toThrow(/password|no password/i);
+
+  // It has no door to the outside: no port of it is published on this machine …
+  const container = dc(["ps", "-q", "db"]).trim();
+  expect(JSON.parse(execFileSync("docker", ["inspect", "-f", "{{json .NetworkSettings.Ports}}", container], { encoding: "utf8" }))).toEqual({ "5432/tcp": null });
+  // … the web app and the worker reach it by name, and the proxy, which faces the internet, cannot even find it
+  const reach = "require('net').connect(5432, 'db').on('connect', () => process.exit(0)).on('error', () => process.exit(1))";
+  for (const service of ["web", "worker"]) expect(() => dc(["exec", "-T", service, "node", "-e", reach]), service).not.toThrow();
+  expect(() => dc(["exec", "-T", "proxy", "sh", "-c", "nc -z -w 3 db 5432"])).toThrow();
 });

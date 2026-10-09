@@ -1,14 +1,16 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createClient } from "@supabase/supabase-js";
 import { expect, type Page, test } from "@playwright/test";
+import { Db } from "@src/db/client";
+import { localUrls } from "@src/deploy/db";
 import { namesInternals } from "../lib/engines";
 import { freshComparisons } from "../lib/site/calculator";
 import { data } from "../playwright.accounts.config";
 
 const DRAFT_ID = "20261006-120100-e2e002";
-const service = createClient(process.env.ACCOUNTS_SUPABASE_URL!, process.env.ACCOUNTS_SERVICE_KEY!, { auth: { persistSession: false } });
+// the owner of the LOCAL database: for granting credit, turning a setting and looking at what happened
+const service = Db.connect(localUrls().owner, { max: 2 });
 const stamp = Date.now().toString(36);
 const A = { email: `ann-${stamp}@example.test`, password: "ann-password-1" };
 const B = { email: `bob-${stamp}@example.test`, password: "bob-password-1" };
@@ -380,16 +382,13 @@ test("a visitor types a topic on the landing page, creates an account, and finds
     await expect(page.getByTestId("ledger")).toContainText("welcome");
     // An address that is confirmed later, by the emailed link (as in production): nothing until then, the
     // welcome when it is, and nothing for being confirmed again or changing the address afterwards.
-    const later = await service.auth.admin.createUser({ email: `dee-${stamp}@example.test`, password: "dee-password-1", email_confirm: false });
-    expect(later.error).toBeNull();
-    const dee = later.data.user!;
+    const [dee] = await service.query<{ id: string }>("insert into auth.users (email) values ($1) returning id", [`dee-${stamp}@example.test`]);
     const has = async () => Number((await service.from("users").select("balance_usd").eq("id", dee.id).single()).data!.balance_usd);
     expect(await has()).toBe(0);
-    expect((await service.auth.admin.updateUserById(dee.id, { email_confirm: true })).error).toBeNull();
+    await service.query("update auth.users set email_confirmed_at = now() where id = $1", [dee.id]);
     await expect.poll(has).toBe(0.05);
-    const moved = await service.auth.admin.updateUserById(dee.id, { email: `dee2-${stamp}@example.test`, email_confirm: true });
-    expect(moved.error).toBeNull();
-    expect(moved.data.user?.email).toBe(`dee2-${stamp}@example.test`);
+    await service.query("update auth.users set email = $1, email_confirmed_at = now() where id = $2", [`dee2-${stamp}@example.test`, dee.id]);
+    expect((await service.from("users").select("email").eq("id", dee.id).single()).data).toEqual({ email: `dee2-${stamp}@example.test` });
     expect(await has()).toBe(0.05);
     // once: nothing more for signing in again
     await page.getByTestId("sign-out").click();
@@ -409,6 +408,15 @@ test("the pages anyone may read are there, say what is not written yet, and the 
   }
   await page.goto("/");
   for (const link of ["Terms", "Privacy"]) await expect(page.getByRole("contentinfo").getByRole("link", { name: link })).toBeVisible();
+
+  // A cookie that only looks like a session gets past the first look (which sees a cookie is there) and no
+  // further: the studio asks the database whose it is, finds nobody, and sends the visitor to sign in.
+  await page.context().addCookies([{ name: "fc_session", value: "A".repeat(43), url: "http://127.0.0.1:3133" }]);
+  await page.goto("/");
+  await expect(page).toHaveURL(/\/login$/);
+  expect((await page.request.get("/api/runs")).status()).toBe(401);
+  await page.context().clearCookies();
+  await page.goto("/");
 
   // A mid-range phone on a middling connection: a processor four times slower than this machine's, 1.6 Mbit/s
   // down, 150 ms away. The first screen's largest thing must be painted within 2.5 s, and nothing may jump as

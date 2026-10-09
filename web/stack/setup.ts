@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { compose, composeEnv, data, HOST, PASSWORD, PORT, repo, runs, USER, web } from "./stack";
+import { compose, composeEnv, data, DB_PASSWORDS, HOST, PASSWORD, PORT, repo, runs, USER, web } from "./stack";
 
 /**
  * Brings up the real Compose stack on this machine — proxy with the login, web, worker, Redis — over a fixture
@@ -10,7 +10,7 @@ import { compose, composeEnv, data, HOST, PASSWORD, PORT, repo, runs, USER, web 
 const sh = (cmd: string, args: string[], cwd = repo) => execFileSync(cmd, args, { cwd, env: composeEnv(), stdio: ["ignore", "inherit", "inherit"] });
 const down = () => {
   try {
-    sh("docker", [...compose, "down", "-v", "--remove-orphans"]);
+    sh("docker", [...compose, "--profile", "accounts", "down", "-v", "--remove-orphans"]);
   } catch {
     // nothing was up (or no env file yet)
   }
@@ -34,7 +34,7 @@ async function up(): Promise<void> {
     // on Linux the containers' files belong to root: remove them the way they were made
     sh("docker", ["run", "--rm", "-v", `${join(data, "..")}:/e2e`, "caddy:2", "rm", "-rf", "/e2e/stack"]);
   }
-  for (const dir of ["runs", "brand-kits", "uploads", "redis", "caddy"]) mkdirSync(join(data, dir), { recursive: true });
+  for (const dir of ["runs", "brand-kits", "uploads", "redis", "caddy", "postgres", "db-backup"]) mkdirSync(join(data, dir), { recursive: true });
   sh(process.execPath, ["--import", "tsx", "e2e/make-fixtures.ts", runs], web);
   const hash = execFileSync("docker", ["run", "--rm", "caddy:2", "caddy", "hash-password", "--plaintext", PASSWORD], { encoding: "utf8" }).trim();
   // names the worker's key check looks for; the stand-in CLI never uses a value
@@ -53,6 +53,8 @@ async function up(): Promise<void> {
       `WEB_ENV_FILE=${join(data, "web.env")}`,
       "CADDYFILE=Caddyfile",
       "STUDIO_AUTH=proxy",
+      // not started with the stack (this one has the proxy's login, not accounts): one test starts the database alone
+      `POSTGRES_PASSWORD=${DB_PASSWORDS.owner}`,
       `STACK_PORT=${PORT}`,
       "",
     ].join("\n"),
@@ -65,7 +67,7 @@ async function up(): Promise<void> {
   // and as a server with accounts gets them: the other proxy file, no proxy login
   execFileSync("docker", ["compose", "-f", join(repo, "deploy/compose.yaml"), "config", "--quiet"], {
     cwd: repo, stdio: ["ignore", "inherit", "inherit"],
-    env: { ...composeEnv(), STUDIO_HOST: "studio.example.com", WORKER_ENV_FILE: join(data, "worker.env"), WEB_ENV_FILE: join(data, "web.env"), CADDYFILE: "Caddyfile.accounts", STUDIO_AUTH: "supabase" },
+    env: { ...composeEnv(), STUDIO_HOST: "studio.example.com", WORKER_ENV_FILE: join(data, "worker.env"), WEB_ENV_FILE: join(data, "web.env"), CADDYFILE: "Caddyfile.accounts", STUDIO_AUTH: "accounts", COMPOSE_PROFILES: "accounts", POSTGRES_PASSWORD: DB_PASSWORDS.owner },
   });
   sh("docker", ["run", "--rm", "-e", "STUDIO_SITE=studio.example.com",
     "-v", `${join(repo, "deploy/Caddyfile.accounts")}:/etc/caddy/Caddyfile:ro`, "caddy:2", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]);

@@ -4,7 +4,7 @@
  * With `STRIPE_SECRET_KEY` set (and accounts, which billing needs) users can buy credit themselves. Without it
  * nothing of billing exists: no pricing page, no webhook, and credit is granted by hand as before.
  */
-export const billingOn = (): boolean => !!process.env.STRIPE_SECRET_KEY?.trim() && !!process.env.SUPABASE_URL?.trim();
+export const billingOn = (): boolean => !!process.env.STRIPE_SECRET_KEY?.trim() && !!process.env.DATABASE_URL?.trim();
 
 /** One thing that can be bought: a subscription plan or a one-off top-up, as Stripe lists it. */
 export type CatalogueItem = {

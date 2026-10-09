@@ -1,14 +1,13 @@
-import { createClient } from "@supabase/supabase-js";
 import { beforeEach, describe, expect, it } from "vitest";
-import { freshRunId, localSupabase, newUser, serviceClient, type TestUser } from "../helpers/supabase.js";
+import { freshRunId, localDb, newUser, serviceClient, type TestUser, visitorDb } from "../helpers/db.js";
 
 /*
- * The database on its own, against the local Supabase stack: a signed-in user talks to it directly here, the
- * way anyone can with their own token, without the studio in between. Skipped when the stack is not running.
+ * The database on its own, against the local Postgres container: each user's client here is the web app's own
+ * role asking in that user's name, without the studio in between. Skipped when the database is not running.
  * Other test files use the same database at the same time: every test here makes its own users and run ids
  * and looks only at them.
  */
-const supa = localSupabase();
+const supa = localDb();
 const TABLES = ["users", "runs", "reservations", "ledger", "brand_kits", "music_tracks"] as const;
 
 describe.skipIf(!supa)("tenancy in the database", () => {
@@ -63,7 +62,7 @@ describe.skipIf(!supa)("tenancy in the database", () => {
 
   it("shows someone who is not signed in nothing at all", async () => {
     await run(a, RUN_A);
-    const anon = createClient(s.url, s.anonKey, { auth: { persistSession: false } });
+    const anon = visitorDb(s);
     for (const table of [...TABLES, "settings"]) {
       const { data } = await anon.from(table).select("*");
       expect(data ?? [], table).toEqual([]);
@@ -109,7 +108,7 @@ describe.skipIf(!supa)("tenancy in the database", () => {
     await grant(a, 1);
     await run(a, RUN_A);
     const { data: reservation } = await reserve(a, RUN_A, 1);
-    const anon = createClient(s.url, s.anonKey, { auth: { persistSession: false } });
+    const anon = visitorDb(s);
     for (const [name, args] of [
       ["settle", { p_reservation_id: reservation, p_run_total_usd: 0 }],
       ["grant_credit", { p_email: a.email, p_amount_usd: 100, p_note: "" }],
@@ -263,7 +262,7 @@ describe.skipIf(!supa)("tenancy in the database", () => {
 
   it("follows an account's address when it changes, so credit goes to whoever signs in with it now", async () => {
     const moved = `moved-${a.id.slice(0, 8)}@example.test`;
-    expect((await service().auth.admin.updateUserById(a.id, { email: moved, email_confirm: true })).error).toBeNull();
+    await service().query("update auth.users set email = $1 where id = $2", [moved, a.id]);
     expect((await service().rpc("grant_credit", { p_email: a.email, p_amount_usd: 1 })).error?.message).toBe("not_found");
     expect((await service().rpc("grant_credit", { p_email: `  ${moved.toUpperCase()} `, p_amount_usd: 1 })).data).toBe(1);
     expect(await balance(a)).toBe(1);

@@ -1,4 +1,4 @@
-import { sessionClient } from "../session";
+import { db } from "../db";
 
 /** How long an answer is kept. (A test that switches the setting and looks at once sets WELCOME_OFFER_TTL_MS to 0.) */
 const ttlMs = (): number => {
@@ -16,7 +16,7 @@ export async function welcomeOffer(now = Date.now()): Promise<number> {
   if (cached && now - cached.at < ttlMs()) return cached.offer;
   let offer = 0;
   try {
-    const { data, error } = await sessionClient({ getAll: () => [], setAll: () => {} }).rpc("welcome_offer");
+    const { data, error } = await db().rpc("welcome_offer");
     const value = Number(data);
     if (!error && Number.isFinite(value) && value > 0) offer = value;
   } catch {

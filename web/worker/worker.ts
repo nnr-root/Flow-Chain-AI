@@ -6,7 +6,7 @@ import { type Job as QueueJob, Queue, Worker } from "bullmq";
 import type { Redis } from "ioredis";
 import { RUN_ID } from "@src/studio/commands";
 import { DRAFT_CAP_USD } from "../lib/credit";
-import { multiTenant } from "../lib/supabase/settings";
+import { multiTenant } from "../lib/accounts";
 import { baseRoots, health, roots } from "../server/config";
 import {
   commandKind, consumerConnection, KEYS, type QuickJobData, type QuickJobResult, QUEUES, refusal, type RunJobData, type RunJobResult,

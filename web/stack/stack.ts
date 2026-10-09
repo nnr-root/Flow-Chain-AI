@@ -14,6 +14,8 @@ export const USER = "studio";
 /** Not a secret: this login protects a throwaway stack on this machine for the length of one test run. */
 export const PASSWORD = "stack-test-password";
 export const PROJECT = "flowchain-stacktest";
+/** The test database's passwords: like the login, they protect a throwaway stack for the length of one run. */
+export const DB_PASSWORDS = { owner: "stack-owner-password-0123", web: "stack-web-password-012345", worker: "stack-worker-password-0123" };
 export const compose = ["compose", "-p", PROJECT, "--env-file", join(data, "compose.env"), "-f", join(repo, "deploy/compose.yaml"), "-f", join(repo, "deploy/compose.test.yaml")];
 
 /**
@@ -21,5 +23,5 @@ export const compose = ["compose", "-p", PROJECT, "--env-file", join(data, "comp
  * env file, so a developer's own DATA_DIR or WORKER_ENV_FILE would point the test stack — whose worker clears
  * run locks at start — at real data. None of the stack's settings may come from the shell.
  */
-const OWN = ["STUDIO_HOST", "STUDIO_SITE", "STUDIO_USER", "STUDIO_PASSWORD_HASH", "DATA_DIR", "WORKER_ENV_FILE", "WEB_ENV_FILE", "CADDYFILE", "STUDIO_AUTH", "WORKER_CONCURRENCY", "STACK_PORT", "PROXY_HTTP_PORT", "PROXY_HTTPS_PORT", "COMPOSE_FILE", "COMPOSE_PROJECT_NAME", "COMPOSE_PROFILES"];
+const OWN = ["STUDIO_HOST", "STUDIO_SITE", "STUDIO_USER", "STUDIO_PASSWORD_HASH", "DATA_DIR", "WORKER_ENV_FILE", "WEB_ENV_FILE", "CADDYFILE", "STUDIO_AUTH", "WORKER_CONCURRENCY", "STACK_PORT", "PROXY_HTTP_PORT", "PROXY_HTTPS_PORT", "COMPOSE_FILE", "COMPOSE_PROJECT_NAME", "COMPOSE_PROFILES", "POSTGRES_PASSWORD", "DATABASE_URL"];
 export const composeEnv = (): NodeJS.ProcessEnv => Object.fromEntries(Object.entries(process.env).filter(([name]) => !OWN.includes(name))) as NodeJS.ProcessEnv;

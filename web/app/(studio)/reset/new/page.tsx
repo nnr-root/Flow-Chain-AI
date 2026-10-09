@@ -1,5 +1,5 @@
 import { AuthForm } from "@/components/AuthForm";
-import { linkError, safeNext } from "@/lib/supabase/settings";
+import { linkError, safeNext } from "@/lib/accounts";
 import { accountsOnly } from "@/server/page";
 
 export const dynamic = "force-dynamic";
