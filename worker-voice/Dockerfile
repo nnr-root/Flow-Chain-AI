@@ -5,8 +5,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -r
 # PyTorch built for CUDA 12.8, with its CUDA libraries inside the wheels: the endpoint asks for hosts whose
 # driver is at least that (an older driver runs this build on the CPU, which the first live check met).
 RUN pip install --no-cache-dir torch torchaudio --index-url https://download.pytorch.org/whl/cu128
-COPY requirements.txt /flowchain/requirements.txt
-RUN pip install --no-cache-dir -r /flowchain/requirements.txt && pip freeze > /flowchain/versions.txt
+COPY requirements.txt requirements-runpod.txt /flowchain/
+# In two steps: the voice library's own demo page (never used here) wants an older version of a small package
+# than RunPod's SDK does, and asked for together they cannot be installed at all. The SDK's need wins; the check
+# at the end of this file proves the voice library still loads.
+RUN pip install --no-cache-dir -r /flowchain/requirements.txt \
+ && pip install --no-cache-dir -r /flowchain/requirements-runpod.txt \
+ && pip freeze > /flowchain/versions.txt
 ENV HF_HOME=/flowchain/models
 ARG WHISPER=large-v3-turbo
 RUN python -c "from huggingface_hub import snapshot_download; snapshot_download('openbmb/VoxCPM2')" \
@@ -19,5 +24,5 @@ COPY handler.py /handler.py
 ENV PYTHONPATH=/flowchain/src PYTHONUNBUFFERED=1
 # The voice library must be one that speaks from a reference clip: an older one installs without complaint and
 # fails on the first line (the first live check met that too). Checked here, so such an image is never pushed.
-RUN python -c "import inspect; from voxcpm import VoxCPM; assert 'reference_wav_path' in inspect.signature(VoxCPM._generate).parameters, 'this voxcpm cannot speak from a reference clip'"
+RUN python -c "import runpod, faster_whisper, soundfile; import inspect; from voxcpm import VoxCPM; assert 'reference_wav_path' in inspect.signature(VoxCPM._generate).parameters, 'this voxcpm cannot speak from a reference clip'"
 CMD ["python", "-u", "/handler.py"]
