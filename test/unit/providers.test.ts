@@ -70,6 +70,6 @@ describe("gemini prompt and schema", () => {
       properties: { scenes: { items: { required: string[] } } };
     };
     expect(s.required).toContain("stylePreset");
-    expect(s.properties.scenes.items.required).toEqual(expect.arrayContaining(["actionLevel", "suggestedTransition"]));
+    expect(s.properties.scenes.items.required).toEqual(expect.arrayContaining(["actionLevel", "suggestedTransition", "showsCharacter"]));
   });
 });

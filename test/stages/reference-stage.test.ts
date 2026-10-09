@@ -38,6 +38,34 @@ describe("reference stage", () => {
     for (const k of keyframes) expect(k.prompt).toContain("a red fox");
   });
 
+  it("asks the klein worker for a bare portrait: what stands beside the character would come back in every scene", async () => {
+    const { ctx, fakes } = await makeTestContext({ modes: [1], seed: 5 });
+    ctx.manifest.request.imageProfile = "runpod-klein@1";
+    await runPipeline(ctx, STAGES, auto);
+    const portrait = fakes.image.submits[0].prompt;
+    expect(portrait.startsWith("Character reference portrait of a red fox.")).toBe(true);
+    expect(portrait).toContain("empty hands, nothing else in the frame");
+  });
+
+  it("gives a scene without the character neither the portrait nor the description", async () => {
+    const { ctx, fakes } = await makeTestContext({ modes: [1, 1], shots: ["cut", "cut"], seed: 5, script: () => fakeScript(2, { shots: ["cut", "cut"], shown: [false, true] }) });
+    ctx.manifest.request.imageProfile = "runpod-klein@1";
+    await runPipeline(ctx, STAGES, auto);
+    const [, ...keyframes] = fakes.image.submits;
+    expect(keyframes.map((k) => k.referenceImagePath)).toEqual([undefined, abs(ctx, paths.reference)]);
+    expect(keyframes[0].prompt).not.toContain("a red fox");
+    expect(((await keyframesStage.inputsFor(ctx, 0)) as { reference?: string }).reference).toBeUndefined();
+    expect(await keyframesStage.inputsFor(ctx, 1)).toMatchObject({ reference: expect.stringMatching(/^[0-9a-f]{64}$/) });
+  });
+
+  it("makes no portrait for a script in which the character never appears", async () => {
+    const { ctx, fakes } = await makeTestContext({ modes: [1, 1], shots: ["cut", "cut"], script: () => fakeScript(2, { shots: ["cut", "cut"], shown: [false, false] }) });
+    ctx.manifest.request.imageProfile = "runpod-klein@1";
+    await runPipeline(ctx, STAGES, auto);
+    expect(targets(referenceStage, ctx.manifest)).toEqual([]);
+    expect(fakes.image.submits.map((r) => r.referenceImagePath)).toEqual([undefined, undefined]);
+  });
+
   it("does not apply when the script has no characters", async () => {
     const { ctx, fakes } = await makeTestContext({
       modes: [1],

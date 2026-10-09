@@ -521,3 +521,61 @@ build itself); `snapshot_download` to the volume; load time from the volume; a p
 keyframe follows its scene and keeps the face in a whole run; a 720p clip through the endpoint within its
 timeout.
 
+
+### 9.12 Live check: the picture worker and 720p clips (2026-10-09)
+
+Two paid videos on the three endpoints, same topic, four scenes, all four as clips.
+
+| | Run `…212102-c7ebcf` (480p) | Run `…214323-85cfa6` (720p) |
+|---|---|---|
+| Script | $0.0055 | $0.0055 |
+| Portrait | $0.0145 | $0.0197 |
+| Voice, four lines | $0.0184 | $0.0166 |
+| Pictures, four | $0.0264 (0.0202, then ≈ 0.002 each) | $0.0203 (0.0154, then 0.0013–0.0018) |
+| Clips, four | $0.1279 (0.0598, then ≈ 0.023 each) | $0.2243 (0.0826, then 0.043–0.052) |
+| **Total** | **$0.19** | **$0.29** (estimated before: $0.32) |
+| Wall time | 12 min | 27 min |
+
+**What held:** the images built; the model reached the volume and loads from it (a stopped worker's first
+picture: about 60 s, 1.5–2 cents); a picture with the portrait takes ≈ 6 s of GPU, without it ≈ 4 s; the face,
+hair and clothes are the same person in every scene she is in, doing what the scene says; 720p clips came back
+at 720×1280, each within the endpoint's limit (≈ 170 s once warm); nothing was left in the bucket after either
+run. The price defaults of §9.11 stand.
+
+**What was wrong, and was changed.** The new model does what its prompt says, where the one before it mostly
+did not, and three habits of the prompts showed at once in the first run: the same woman stood, hands clasped,
+beside a candle in all four pictures, two of which were meant to be an empty staircase and an empty lantern room.
+
+1. **Every scene was told about the character, and given her portrait.** The script now says, scene by scene,
+   whether a recurring character is in frame (`showsCharacter`, required of the script model, optional when
+   stored). A scene that says no gets neither the description (picture and motion prompt) nor the portrait; a
+   script whose every scene says no has no portrait stage. A script without the field is read as before, so
+   earlier runs keep their prompts and their hashes.
+2. **The portrait carried a pose and props.** On this worker it is asked for first and bare (arms at the
+   sides, empty hands, nothing else in frame), with the look after it. The second run's portrait is a plain
+   studio figure, and the two character scenes no longer copy its stance.
+3. **The preset's own words were drawn.** `cinematic_history` opened every picture prompt with "natural window
+   and candle light, period-accurate costumes and props": the second run had candles on a cliff edge and a
+   stranger in costume on an empty gallery. It now reads "natural light, period-accurate details". The four
+   pictures of the second run were made again directly with that wording (4 jobs, $0.02): no candles, no
+   stranger, the character unchanged. The second run's own video still has the earlier pictures.
+
+**Also changed:** the portrait's estimate now counts a start of its own. The voice is made between the portrait
+and the first picture, the picture worker has stopped by then (30 s idle), and both runs paid two starts. The
+plan had shown the portrait at $0.0009 against $0.0145–0.0197 spent.
+
+**Rulings and parked:**
+
+- A run made today with `cinematic_history` or on the klein profile has other prompt text now, so a `resume` or
+  a reroll of it would make its pictures and clips again. Ruling: accepted (two test runs; nothing is deployed;
+  `rerender` is unaffected).
+- `dark_fantasy` still names candlelight in its prefix: it is that preset's look, and is left. The other
+  presets' prefixes name no object. Parked: a look at each preset's pictures on this model before launch.
+- Two starts of the picture worker per run (≈ 2 cents) could become one by making the portrait after the
+  voice. Parked: it means moving a stage in the plan, for a cent or two.
+- A 720p video took 27 minutes, 14 of them waiting for the clip worker's first job (billed for 270 s of it).
+  Parked: the studio's form says "HD (720p)" without saying it takes about twice as long.
+- The run's model id for clips reads `clip-wan22-480p@1` at 720p too: the workflow is the same and the size is
+  in the profile (§9.11). Left.
+
+Spent on this check: $0.19 + $0.29 + $0.02 = $0.50 of the $1 approved.

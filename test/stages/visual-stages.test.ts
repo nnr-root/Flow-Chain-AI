@@ -45,6 +45,15 @@ describe("prompts", () => {
     expect(imagePrompt(script, 0, null)).toBe("flat test pattern. a red fox. Palette: teal, orange. image 1");
     expect(motionPrompt(script, 0, null)).toBe("motion 1. Keep style consistent: flat test pattern. a red fox.");
   });
+  it("tells a scene without the character nothing about them, and reads a script that does not say as before", () => {
+    const two = fakeScript(2, { shown: [true, false] });
+    expect(imagePrompt(two, 1, null)).toBe("flat test pattern. Palette: teal, orange. image 2");
+    expect(motionPrompt(two, 1, null)).toBe("motion 2. Keep style consistent: flat test pattern.");
+    expect(imagePrompt(two, 1, PRESETS.cyberpunk)).not.toContain("a red fox");
+    const old = fakeScript(1);
+    delete (old.scenes[0] as { showsCharacter?: boolean }).showsCharacter;
+    expect(imagePrompt(old, 0, null)).toBe("flat test pattern. a red fox. Palette: teal, orange. image 1");
+  });
   it("wraps the image prompt in the preset's prefix and suffix", () => {
     const p = PRESETS.cyberpunk;
     expect(imagePrompt(script, 0, p)).toBe(

@@ -4,7 +4,7 @@ import { TIMEOUTS } from "../providers/retry.js";
 import { runProviderJob } from "./job.js";
 import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
-import { referenceImageOf } from "./reference.js";
+import { referenceFor } from "./reference.js";
 import { fileSha256 } from "../manifest/hash.js";
 import { requireScript } from "./require.js";
 import { MAX_SEED, type Manifest } from "../manifest/schema.js";
@@ -29,11 +29,11 @@ export const keyframesStage: Stage = {
   deps: (m) => [
     { stage: "script" },
     ...autoModeDeps(m),
-    // RunPod runs condition every keyframe on the reference portrait (2.4 spec §5.2)
+    // RunPod runs condition keyframes on the reference portrait (2.4 spec §5.2)
     ...(takesReference(m.request.imageProfile) ? [{ stage: "reference" as const, scene: 0 }] : []),
   ],
   inputsFor: async (ctx, scene) => {
-    const reference = referenceImageOf(ctx.manifest);
+    const reference = referenceFor(ctx.manifest, scene!);
     return {
       model: ctx.manifest.models.image,
       prompt: imagePrompt(requireScript(ctx.manifest), scene!, effectivePreset(ctx.manifest)),
@@ -57,7 +57,7 @@ export const keyframesStage: Stage = {
       label: `keyframe scene ${i + 1}`,
       costUsd: imageProfileOf(ctx.manifest.request.imageProfile).keyframeUsd(ctx.prices, ctx.keyframeSize),
       prepare: () => {
-        const reference = referenceImageOf(ctx.manifest);
+        const reference = referenceFor(ctx.manifest, i);
         return ctx.providers.image.prepare({
           prompt,
           ...ctx.keyframeSize,

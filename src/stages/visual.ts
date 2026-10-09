@@ -11,17 +11,31 @@ export function needsKeyframe(m: Manifest, i: number): boolean {
 }
 
 /** Spec §6.1. Without a preset (runs scripted before 2.2) the Phase 1 wording is kept, so cache keys stay valid. */
+/**
+ * Whether scene i has a recurring character in its frame. Only a script that says no is read as no: one written
+ * before the field existed is prompted exactly as it always was, so its stages keep their hashes.
+ */
+export function showsCharacter(script: Script, i: number): boolean {
+  return script.scenes[i].showsCharacter !== false;
+}
+
+/**
+ * A scene without the character is not told about them: a picture model given a description (and a portrait)
+ * puts that person into a staircase or a lantern room that was meant to be empty (phase 5 spec §9.12).
+ */
 export function imagePrompt(script: Script, i: number, preset: StylePreset | null): string {
   const b = script.styleBible;
   const scene = script.scenes[i].imagePrompt;
-  if (!preset) return `${b.artStyle}. ${b.characters}. Palette: ${b.palette}. ${scene}`;
-  return `${preset.imagePrefix}. ${b.characters}. Palette: ${b.palette}. ${scene}. ${preset.imageSuffix}`;
+  const who = showsCharacter(script, i) ? `${b.characters}. ` : "";
+  if (!preset) return `${b.artStyle}. ${who}Palette: ${b.palette}. ${scene}`;
+  return `${preset.imagePrefix}. ${who}Palette: ${b.palette}. ${scene}. ${preset.imageSuffix}`;
 }
 
 export function motionPrompt(script: Script, i: number, preset: StylePreset | null): string {
   const b = script.styleBible;
   const motion = preset ? `${script.scenes[i].motionPrompt}. ${preset.motionKeywords}` : script.scenes[i].motionPrompt;
-  return `${motion}. Keep style consistent: ${b.artStyle}. ${b.characters}.`;
+  const who = showsCharacter(script, i) ? ` ${b.characters}.` : "";
+  return `${motion}. Keep style consistent: ${b.artStyle}.${who}`;
 }
 
 /**

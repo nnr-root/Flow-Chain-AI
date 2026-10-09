@@ -19,6 +19,8 @@ export type FakeScriptOptions = {
   transitions?: SuggestedTransition[];
   stylePreset?: PresetName;
   hook?: string;
+  /** Which scenes have the character in frame; all of them unless said. */
+  shown?: boolean[];
 };
 
 export function fakeScript(sceneCount: number, opts: FakeScriptOptions = {}) {
@@ -35,6 +37,7 @@ export function fakeScript(sceneCount: number, opts: FakeScriptOptions = {}) {
       camera: opts.cameras?.[i] ?? "zoom_in",
       actionLevel: opts.actionLevels?.[i] ?? "high",
       suggestedTransition: opts.transitions?.[i] ?? "fade",
+      showsCharacter: opts.shown?.[i] ?? true,
     })),
   };
 }

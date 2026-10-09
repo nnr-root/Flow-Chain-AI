@@ -36,6 +36,9 @@ export type SuggestedTransition = z.infer<typeof SuggestedTransition>;
 const actionLevel = ActionLevel.describe(
   "high = fast or complex motion worth real video; medium = some motion; low = still, contemplative or text-like",
 );
+const showsCharacter = z
+  .boolean()
+  .describe("true when a recurring character from styleBible.characters is visible in this scene's frame; false for a place, an object or a detail without them");
 const suggestedTransition = SuggestedTransition.describe(
   "How the cut into this scene should feel: cut = punchy, fade/dissolve = time passing or mood shift, zoom_transition = energetic jump",
 );
@@ -49,6 +52,8 @@ export const SceneSpec = z.object({
   /** Optional when stored, so scripts written before 2.2 still load; Gemini must always send it (LlmSceneSpec). */
   actionLevel: actionLevel.optional(),
   suggestedTransition: suggestedTransition.optional(),
+  /** Optional when stored: a script written before phase 5 says nothing, and is read as it always was (in every scene). */
+  showsCharacter: showsCharacter.optional(),
 });
 export type SceneSpec = z.infer<typeof SceneSpec>;
 
@@ -67,8 +72,8 @@ export const Script = z.object({
 });
 export type Script = z.infer<typeof Script>;
 
-/** Gemini's answer (sent as the response schema): the 2.2 fields are required. */
-export const LlmSceneSpec = SceneSpec.extend({ actionLevel, suggestedTransition });
+/** Gemini's answer (sent as the response schema): the fields added since are required. */
+export const LlmSceneSpec = SceneSpec.extend({ actionLevel, suggestedTransition, showsCharacter });
 export const LlmScript = Script.extend({
   stylePreset: PresetName.describe("The style preset that best fits the topic"),
   scenes: z.array(LlmSceneSpec).min(1).max(MAX_SCENES),

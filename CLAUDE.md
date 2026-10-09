@@ -272,5 +272,5 @@ The README is the owner's manual: setup, usage, costs, and what to know about ea
 Verified only against local stand-ins: the server deployment (its database included), the R2 bucket for runs,
 email (written to a folder in tests) and Google sign-in.
 Verified against the real thing: the pipeline on the studio's own three GPU endpoints (pictures, clips, voice;
-spec phase 5 §9.6–9.8); Stripe **test mode** (setup, Checkout, renewal, portal, refunds — spec 3.4 §15).
+spec phase 5 §9.6–9.8, §9.12); Stripe **test mode** (setup, Checkout, renewal, portal, refunds — spec 3.4 §15).
 Nothing is deployed to a server, and Stripe live mode has never been used.

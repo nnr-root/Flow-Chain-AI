@@ -7,6 +7,7 @@ import { effectivePreset } from "./look.js";
 import { outPath, paths } from "./paths.js";
 import { requireScript } from "./require.js";
 import type { Stage, StageContext } from "./types.js";
+import { showsCharacter } from "./visual.js";
 
 /** The portrait is square and SDXL-native: IP-Adapter crops faces to a square anyway. */
 const REFERENCE_SIZE = { width: 1024, height: 1024 };
@@ -22,8 +23,11 @@ const hasCharacters = (m: Manifest): boolean => {
  * (every run made before 2.4) has no target and never plans it.
  */
 export function referenceApplies(m: Manifest, scene: number): boolean {
-  return scene === 0 && takesReference(m.request.imageProfile) && !m.request.referenceImage && hasCharacters(m);
+  return scene === 0 && takesReference(m.request.imageProfile) && !m.request.referenceImage && hasCharacters(m) && someoneAppears(m);
 }
+
+/** A script whose every scene is without the character needs no portrait. Before the script exists, assume one does. */
+const someoneAppears = (m: Manifest): boolean => !m.script || m.script.scenes.some((_s, i) => showsCharacter(m.script!, i));
 
 /** The run-relative portrait keyframes are conditioned on, if the run has one. */
 export function referenceImageOf(m: Manifest): string | undefined {
@@ -31,11 +35,26 @@ export function referenceImageOf(m: Manifest): string | undefined {
   return m.request.referenceImage ?? (referenceApplies(m, 0) ? paths.reference : undefined);
 }
 
+/** The portrait scene i's keyframe is conditioned on: none for a scene the character is not in. */
+export function referenceFor(m: Manifest, scene: number): string | undefined {
+  if (m.script && !showsCharacter(m.script, scene)) return undefined;
+  return referenceImageOf(m);
+}
+
 function portraitPrompt(m: Manifest): string {
   const script = requireScript(m);
   const preset = effectivePreset(m);
   const look = preset ? preset.imagePrefix : script.styleBible.artStyle;
   const finish = preset ? ` ${preset.imageSuffix}` : "";
+  // The klein worker copies what it is shown: clasped hands and whatever stood beside the portrait came back in
+  // every scene (phase 5 spec §9.12). Its portrait is asked for first and bare, with the look after it.
+  if (m.request.imageProfile === "runpod-klein@1") {
+    return (
+      `Character reference portrait of ${script.styleBible.characters}. ` +
+      "Neutral front-facing waist-up portrait, arms relaxed at the sides, empty hands, nothing else in the frame: " +
+      `no furniture, no objects, no window. Plain light grey studio backdrop, soft even light. ${look}.`
+    );
+  }
   return (
     `${look}. Character reference portrait of ${script.styleBible.characters}. ` +
     `Neutral front-facing waist-up portrait, plain light grey background, soft even studio light.${finish}`

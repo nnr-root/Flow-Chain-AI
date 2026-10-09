@@ -88,7 +88,7 @@ Rendering a 16 s 1080×1920 video takes about 1.5 minutes on Apple Silicon (`--r
 ## The GPU worker (keyframes and clips)
 
 Pictures (FLUX.2 klein, which keeps a character from a portrait) and clips (Wan 2.2 image-to-video) run on
-your own RunPod Serverless endpoints: roughly $0.20 per 4-scene video at 480p, about $0.30 with 720p clips
+your own RunPod Serverless endpoints: roughly $0.20 per 4-scene video at 480p, about $0.30 and twice the wait with 720p clips
 (`--clips 720p`, or "HD" in the studio's form). This is the only way the studio makes
 pictures. Runs made earlier on hosted models (fal) still load and re-render for free, but they can no longer be
 resumed or rerolled: `resume` and `reroll` say so and buy nothing.

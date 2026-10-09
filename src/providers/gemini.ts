@@ -31,10 +31,11 @@ export function buildScriptPrompt(req: ScriptRequest): string {
     "- hook: 2-6 punchy words shown as a big title over the first 3 seconds; tease the payoff without giving it away; no emojis, hashtags or quotes.",
     "- styleBible.artStyle: one visual style used by every scene (medium, lighting, lens, mood), matching the style preset.",
     req.characters
-      ? `- styleBible.characters: use exactly: "${req.characters}". Refer to these characters consistently in every scene.`
+      ? `- styleBible.characters: use exactly: "${req.characters}". Refer to these characters consistently in every scene they appear in.`
       : '- styleBible.characters: a precise, reusable description of every recurring character (age, clothing, hair, colors), or "none".',
     "- styleBible.palette: 3-5 dominant colors.",
     `- imagePrompt: what a single still frame of the scene shows, ${orientation}. Do not describe the art style or repeat the style bible; they are added automatically. Never ask for text, captions, logos or watermarks.`,
+    "- showsCharacter: true only when a recurring character is visible in the scene's frame, and then the imagePrompt says what they are doing; false for a scene of a place, an object or a detail, whose imagePrompt must not mention them.",
     "- motionPrompt: camera movement plus subject motion during the scene in one or two sentences, physically plausible for a 5-10 second clip.",
     '- shot: "continue" if the scene happens in the same place and moment as the previous scene and should flow on from its last frame; "cut" for a new location, time or framing. Scene 1 must be "cut".',
     "- camera: the programmatic camera move used if this scene is rendered from a still image.",

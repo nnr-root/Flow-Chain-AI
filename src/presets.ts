@@ -30,7 +30,7 @@ export const PRESETS: Record<PresetName, StylePreset> = {
     name: "cinematic_history",
     description: "historical events and figures, documentary drama",
     artStyle: "cinematic 35mm film still, natural light, period-accurate costumes and props, muted earth tones",
-    imagePrefix: "Cinematic 35mm film still, natural window and candle light, period-accurate costumes and props",
+    imagePrefix: "Cinematic 35mm film still, natural light, period-accurate details",
     imageSuffix: "Shallow depth of field, subtle film grain, muted earth tones, high detail",
     motionKeywords: "Slow, steady cinematic camera, natural motion, gentle film grain",
     caption: {
