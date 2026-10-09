@@ -325,3 +325,21 @@ real run's captions.
 
 **Known limits:** digits are read as the voice reads them; languages other than Turkish and English speak from
 the English clip; a customer cannot bring a voice.
+
+### 9.4 Worker privacy (2026-10-09, before its live check)
+
+- **After every job, on every path,** the picture and clip worker has ComfyUI drop its prompt history and its
+  nodes' cached pictures and latents (`comfy.forget()`: `/history` cleared, `/free` with the weights kept), and
+  empties ComfyUI's scratch folder. A ComfyUI that cannot be reached for this does not lose the job; the worker
+  says so in one line that carries the job's id and nothing of its content.
+- **FlashBoot is off** on all three endpoints: no worker state is kept across a stop. What that costs in start
+  time is measured by the live check.
+- **The workers' uploads expire after a day** (`R2.expireAfter("flowchain/", 1)`, set by `runpod:deploy`; a
+  refusal is a warning, not a failed deploy). The voice worker uploads nothing.
+- Nothing a worker prints carries a prompt, a line or a file name (tests read the handlers' output).
+- **Not done:** the volume is not mounted read-only (the platform offers no such mount for a serverless
+  worker); the worker writes under it only in `fetch-models`. GPU memory is not zeroed between jobs: the next
+  job's own tensors overwrite it, and no other customer's container shares the process.
+- **Unverified until the live check:** that this ComfyUI version honours `free_memory` without unloading the
+  weights; that R2 accepts the lifecycle call with these keys.
+

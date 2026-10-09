@@ -12,6 +12,7 @@ from flowchain_worker.workflows import RIFE_MULTIPLIER, clip_graph, keyframe_gra
 
 COMFY_INPUT = "/comfyui/input"
 COMFY_OUTPUT = "/comfyui/output"
+COMFY_TEMP = "/comfyui/temp"
 TMP_DIR = "/tmp"
 VOLUME_MODELS = "/runpod-volume/models"
 MODELS_JSON = "/flowchain/models.json"
@@ -32,6 +33,19 @@ def _remove(path):
         os.remove(path)
     except FileNotFoundError:
         pass
+
+
+def _forget(job_id):
+    """After every job, however it ended: nothing of it stays in ComfyUI or on this worker's disk."""
+    try:
+        comfy.forget()
+    except Exception as err:  # the job's own result or error is what is answered; this is said, without any of its content
+        print(f"flowchain: ComfyUI could not be made to forget job {job_id}: {type(err).__name__}", flush=True)
+    shutil.rmtree(os.path.join(COMFY_OUTPUT, "flowchain", job_id), ignore_errors=True)
+    # previews and other scratch files ComfyUI's nodes write are not named by job: the folder is emptied
+    for name in os.listdir(COMFY_TEMP) if os.path.isdir(COMFY_TEMP) else []:
+        path = os.path.join(COMFY_TEMP, name)
+        shutil.rmtree(path, ignore_errors=True) if os.path.isdir(path) else _remove(path)
 
 
 def _interrupt_quietly():
@@ -79,7 +93,7 @@ def handler(job):
             ext, kind = "mp4", "video/mp4"
         url = storage.upload(result, f"flowchain/{job_id}.{ext}", kind)
     finally:
-        shutil.rmtree(os.path.join(COMFY_OUTPUT, "flowchain", job_id), ignore_errors=True)
+        _forget(job_id)
         for name in ("reference", "image"):
             _remove(os.path.join(COMFY_INPUT, f"flowchain/{job_id}-{name}.png"))
         _remove(mp4)

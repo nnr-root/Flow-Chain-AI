@@ -182,7 +182,9 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     workersMax: 1,
     idleTimeout: 30, // seconds: keeps the worker warm between a run's sequential jobs
     executionTimeoutMs,
-    flashboot: true,
+    // off: FlashBoot keeps a worker's state after it stops, and a worker is meant to keep nothing of a job
+    // (phase 5 spec §8). The price is a slower start of a worker that was stopped.
+    flashboot: false,
     networkVolumeId: volume.id,
     dataCenterIds: [cfg.dataCenterId],
   });

@@ -124,6 +124,8 @@ describe("runpod deploy", () => {
     const { rest, store } = fakeRest();
     await applyDeploy(rest, cfg, () => {});
     expect(store.endpoints.map((e) => e.idleTimeout)).toEqual([30, 30]);
+    // a worker keeps nothing of a job after it stops: no state is carried over to its next start
+    expect(store.endpoints.map((e) => e.flashboot)).toEqual([false, false]);
   });
 
   it("grows a smaller volume, leaves a big enough one alone and refuses one in another data centre", async () => {

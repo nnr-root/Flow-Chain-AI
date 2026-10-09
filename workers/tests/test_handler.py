@@ -20,7 +20,7 @@ def worker(tmp_path, monkeypatch):
     spec = importlib.util.spec_from_file_location("worker_handler", os.path.join(HERE, "..", "handler.py"))
     h = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(h)
-    for name, folder in (("COMFY_INPUT", "in"), ("COMFY_OUTPUT", "out"), ("TMP_DIR", "tmp")):
+    for name, folder in (("COMFY_INPUT", "in"), ("COMFY_OUTPUT", "out"), ("COMFY_TEMP", "comfy-temp"), ("TMP_DIR", "tmp")):
         (tmp_path / folder).mkdir()
         monkeypatch.setattr(h, name, str(tmp_path / folder))
     for name, value in R2_ENV.items():
@@ -53,6 +53,14 @@ def worker(tmp_path, monkeypatch):
     monkeypatch.setattr(comfy, "wait", wait)
     monkeypatch.setattr(comfy, "interrupt", lambda: h.calls.append("interrupt"), raising=False)
     monkeypatch.setattr(comfy, "output_files", output_files)
+    h.fail_forget = None
+
+    def forget():
+        h.calls.append("forget")
+        if h.fail_forget:
+            raise h.fail_forget
+
+    monkeypatch.setattr(comfy, "forget", forget)
     monkeypatch.setattr(encode, "frames_to_mp4", frames_to_mp4)
     monkeypatch.setattr(storage, "upload", lambda path, key, kind: f"https://r2.example/{key}")
     h.root = tmp_path
@@ -127,7 +135,8 @@ def test_a_timeout_interrupts_the_prompt_so_it_does_not_keep_the_gpu(worker):
     worker.fail_wait = RuntimeError("ComfyUI did not finish prompt p1 within 110 s")
     with pytest.raises(RuntimeError, match="did not finish"):
         worker.handler(keyframe_job())
-    assert worker.calls == ["ready", "wait", "interrupt"]
+    # stopped first, then forgotten: what a prompt that is still running holds cannot be cleared
+    assert worker.calls == ["ready", "wait", "interrupt", "forget"]
     assert leftovers(worker) == []
 
 
@@ -140,3 +149,31 @@ def test_a_failed_interrupt_does_not_hide_the_real_error(worker, monkeypatch):
     monkeypatch.setattr(comfy, "interrupt", down)
     with pytest.raises(RuntimeError, match="ComfyUI failed: oom"):
         worker.handler(keyframe_job())
+
+
+def test_every_job_ends_with_comfyui_forgetting_it_whether_it_worked_or_not(worker, capsys):
+    (worker.root / "comfy-temp" / "preview_00001_.png").write_bytes(b"someone's frame")
+    (worker.root / "comfy-temp" / "sub").mkdir()
+    (worker.root / "comfy-temp" / "sub" / "latent.bin").write_bytes(b"x")
+    out = worker.handler({"id": "j1", "input": {"task": "keyframe", "workflow": "keyframe-sdxl@1", "prompt": "a secret product launch", "width": 1088, "height": 1920}})
+    assert "url" in out
+    assert worker.calls[-1] == "forget"
+    assert list((worker.root / "comfy-temp").iterdir()) == []
+
+    worker.calls.clear()
+    worker.fail_wait = RuntimeError("ComfyUI failed")
+    with pytest.raises(RuntimeError, match="ComfyUI failed"):
+        worker.handler({"id": "j1", "input": {"task": "keyframe", "workflow": "keyframe-sdxl@1", "prompt": "a secret product launch", "width": 1088, "height": 1920}})
+    assert worker.calls[-1] == "forget"
+    # nothing the worker itself prints carries a word of the prompt (endpoint logs are kept for 90 days)
+    assert "secret" not in capsys.readouterr().out
+
+
+def test_a_comfyui_that_cannot_forget_does_not_lose_the_job_and_says_so_without_its_content(worker, capsys):
+    worker.fail_forget = RuntimeError("connection refused while clearing 'a secret product launch'")
+    out = worker.handler({"id": "j1", "input": {"task": "keyframe", "workflow": "keyframe-sdxl@1", "prompt": "a secret product launch", "width": 1088, "height": 1920}})
+    assert "url" in out
+    printed = capsys.readouterr().out
+    assert "could not be made to forget job j1: RuntimeError" in printed
+    assert "secret" not in printed
+

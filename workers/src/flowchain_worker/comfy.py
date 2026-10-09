@@ -42,6 +42,20 @@ def interrupt():
         res.read()
 
 
+def _post(path, body):
+    req = urllib.request.Request(f"{COMFY}{path}", data=json.dumps(body).encode(), headers={"content-type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=30) as res:
+        res.read()
+
+
+def forget():
+    """Makes ComfyUI drop what the last job left in it (phase 5 spec §8): the list of prompts it ran, with their
+    texts, and the pictures and latents its nodes keep to save work. The next job on this worker is someone
+    else's. The loaded model weights stay: they are nobody's content, and loading them again costs a minute."""
+    _post("/history", {"clear": True})
+    _post("/free", {"unload_models": False, "free_memory": True})
+
+
 def wait(prompt_id, timeout_s, poll_s=1.0):
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:

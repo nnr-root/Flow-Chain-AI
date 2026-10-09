@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { AwsClient } from "aws4fetch";
 
 export type R2Config = { accountId: string; bucket: string; accessKeyId: string; secretAccessKey: string };
@@ -67,5 +68,24 @@ export class R2 {
   async delete(key: string): Promise<void> {
     const res = await this.send("DELETE", key);
     if (!res.ok && res.status !== 404) throw new Error(`R2 DELETE ${key} failed: HTTP ${res.status}`);
+  }
+
+  /**
+   * Has the bucket remove what is under `prefix` after `days` (phase 5 spec §8): what a worker uploads is
+   * fetched by the pipeline within minutes, and nothing of a customer's is to lie in a bucket longer than it is
+   * needed. This is the bucket's ONE lifecycle rule set: it replaces whatever rules it had.
+   */
+  async expireAfter(prefix: string, days: number): Promise<void> {
+    if (!Number.isInteger(days) || days < 1) throw new Error("days must be a whole number, 1 or more");
+    if (!/^[A-Za-z0-9_-]+\/$/.test(prefix)) throw new Error("the prefix must be one folder name ending in a slash");
+    const body =
+      `<?xml version="1.0" encoding="UTF-8"?><LifecycleConfiguration xmlns="http://s3.amazonaws.com/doc/2006-03-01/">` +
+      `<Rule><ID>flowchain-expire-${prefix.slice(0, -1)}</ID><Status>Enabled</Status><Filter><Prefix>${prefix}</Prefix></Filter>` +
+      `<Expiration><Days>${days}</Days></Expiration></Rule></LifecycleConfiguration>`;
+    const signed = await this.aws.sign(`${this.endpoint}/${this.config.bucket}?lifecycle`, {
+      method: "PUT", body, headers: { "content-type": "application/xml", "content-md5": createHash("md5").update(body).digest("base64") },
+    });
+    const res = await this.fetchImpl(signed);
+    if (!res.ok) throw new Error(`R2 could not set the bucket's expiry rule: HTTP ${res.status}`);
   }
 }

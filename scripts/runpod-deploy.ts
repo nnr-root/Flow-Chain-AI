@@ -7,6 +7,7 @@ import { execa } from "execa";
 import {
   applyDeploy, assertImageInGhcr, DEFAULTS, fetchModels, planDeploy, RunpodRest, workerImageTag, writeEnvValues,
 } from "../src/deploy/runpod.js";
+import { R2 } from "../src/providers/r2.js";
 import { RunpodClient } from "../src/providers/runpod.js";
 
 function need(name: string): string {
@@ -69,6 +70,11 @@ async function main(): Promise<void> {
     RUNPOD_CLIP_ENDPOINT: deployed.clipEndpointId,
   });
   console.log("Wrote RUNPOD_KEYFRAME_ENDPOINT and RUNPOD_CLIP_ENDPOINT to .env.");
+  // What the workers upload is fetched within minutes: the bucket removes it after a day by itself.
+  await new R2(cfg.r2).expireAfter("flowchain/", 1).then(
+    () => console.log("The bucket now removes the workers' uploads (flowchain/) after one day."),
+    (err: unknown) => console.warn(`Warning: the bucket's expiry rule could not be set (${err instanceof Error ? err.message : String(err)}); the workers' uploads stay until removed by hand.`),
+  );
   const client = new RunpodClient(apiKey);
   for (const [kind, id] of [["keyframe", deployed.keyframeEndpointId], ["clip", deployed.clipEndpointId]] as const) {
     console.log(`Fetching ${kind} model weights onto the volume (the first time takes a while)…`);

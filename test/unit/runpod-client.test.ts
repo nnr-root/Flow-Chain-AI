@@ -74,4 +74,26 @@ describe("R2", () => {
     expect(seen.map((s) => s.method)).toEqual(["HEAD", "HEAD"]);
     expect(seen[0].auth).toMatch(/^AWS4-HMAC-SHA256 Credential=AKID\//);
   });
+
+  it("has the bucket remove the workers' uploads after a day, and only under their own folder", async () => {
+    const seen: Array<{ method: string; url: string; body: string; md5: string | null }> = [];
+    let status = 200;
+    const fetchStub = async (req: string | URL | Request) => {
+      const r = req as Request;
+      seen.push({ method: r.method, url: r.url, body: await r.text(), md5: r.headers.get("content-md5") });
+      return new Response(null, { status });
+    };
+    const r2 = new R2(config, { fetch: fetchStub as typeof fetch });
+    await r2.expireAfter("flowchain/", 1);
+    expect(seen[0]).toMatchObject({ method: "PUT", url: "https://acc.r2.cloudflarestorage.com/flowchain-out?lifecycle" });
+    expect(seen[0].body).toContain("<Filter><Prefix>flowchain/</Prefix></Filter><Expiration><Days>1</Days></Expiration>");
+    expect(seen[0].body).toContain("<Status>Enabled</Status>");
+    expect(seen[0].md5).toMatch(/^[A-Za-z0-9+/]{22}==$/);
+    // never the whole bucket, never a rule that removes at once, and a refusal is not swallowed
+    for (const prefix of ["", "/", "flowchain", "a/b/", "../"]) await expect(r2.expireAfter(prefix, 1)).rejects.toThrow("the prefix must be");
+    for (const days of [0, 0.5, -1]) await expect(r2.expireAfter("flowchain/", days)).rejects.toThrow("days must be");
+    expect(seen).toHaveLength(1);
+    status = 403;
+    await expect(r2.expireAfter("flowchain/", 1)).rejects.toThrow("HTTP 403");
+  });
 });
