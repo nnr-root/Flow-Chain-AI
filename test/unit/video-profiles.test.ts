@@ -40,4 +40,16 @@ describe("wan22-480p@1", () => {
     expect(wan.runOverheadUsd(prices)).toBe(0.0275); // 90 s × $0.000306
     expect(VIDEO_PROFILES["kling-v2"].runOverheadUsd(prices)).toBe(0);
   });
+
+  it("prices a 720p clip by its own seconds a frame, for the same lengths as a 480p one", () => {
+    const prices = Prices.parse({});
+    const [sd, hd] = [VIDEO_PROFILES["wan22-480p@1"], VIDEO_PROFILES["wan22-720p@1"]];
+    for (const narration of [1, 3.2, 5, 9]) expect(hd.clipSec(narration)).toBe(sd.clipSec(narration));
+    // 65 frames: 157 s measured on the card the endpoint runs on
+    expect(hd.costUsd(prices, 65 / 16)).toBe(0.0497);
+    expect(hd.costUsd(prices, 65 / 16)).toBeGreaterThan(sd.costUsd(prices, 65 / 16) * 1.5);
+    expect([sd.clipHeight, hd.clipHeight]).toEqual([undefined, 720]);
+    expect(hd.runOverheadUsd(prices)).toBe(sd.runOverheadUsd(prices));
+    expect(hd.costUsd(Prices.parse({ runpodClip720SecPerFrame: 1 }), 65 / 16)).toBe(0.0199);
+  });
 });

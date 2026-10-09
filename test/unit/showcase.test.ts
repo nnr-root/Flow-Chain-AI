@@ -35,6 +35,9 @@ describe("a showcase video's receipt", () => {
       expect(published).not.toMatch(/abc123secret|runpod|wan|kling|fal|gemini|eleven|sdxl/i);
     }
     expect(receiptOf([], { ...models, video: "runpod:abc123secret/clip-wan22-720p@2" }).clipHeight).toBe(720);
+    // a run that chose its clip size says so in its profile, and that is what is published
+    expect(receiptOf([], models, "wan22-720p@1").clipHeight).toBe(720);
+    expect(receiptOf([], models, "wan22-480p@1").clipHeight).toBe(480);
     // a graph whose name says no height: nothing is guessed
     expect(receiptOf([], { ...models, video: "runpod:abc123secret/clip-next@1" })).not.toHaveProperty("clipHeight");
   });

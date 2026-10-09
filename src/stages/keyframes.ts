@@ -1,4 +1,4 @@
-import { imageProfileOf } from "../image-profiles.js";
+import { imageProfileOf, takesReference } from "../image-profiles.js";
 import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
 import { runProviderJob } from "./job.js";
@@ -30,7 +30,7 @@ export const keyframesStage: Stage = {
     { stage: "script" },
     ...autoModeDeps(m),
     // RunPod runs condition every keyframe on the reference portrait (2.4 spec §5.2)
-    ...(m.request.imageProfile === "runpod-sdxl@1" ? [{ stage: "reference" as const, scene: 0 }] : []),
+    ...(takesReference(m.request.imageProfile) ? [{ stage: "reference" as const, scene: 0 }] : []),
   ],
   inputsFor: async (ctx, scene) => {
     const reference = referenceImageOf(ctx.manifest);

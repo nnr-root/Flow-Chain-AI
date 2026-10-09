@@ -2,7 +2,7 @@ import { z } from "zod";
 import { type Prices, runpodRates } from "./config.js";
 import { round4, videoCost } from "./cost.js";
 
-export const VideoProfileId = z.enum(["kling-v1", "kling-v2", "wan22-480p@1"]);
+export const VideoProfileId = z.enum(["kling-v1", "kling-v2", "wan22-480p@1", "wan22-720p@1"]);
 export type VideoProfileId = z.infer<typeof VideoProfileId>;
 
 /**
@@ -15,6 +15,8 @@ export type VideoProfile = {
   costUsd(prices: Prices, clipSec: number): number;
   /** Paid once per run when any clip is bought (a RunPod cold start); 0 for per-clip billing. */
   runOverheadUsd(prices: Prices): number;
+  /** The height clips are generated at, where the run chooses it (480 or 720); absent = the provider's own. */
+  clipHeight?: number;
 };
 
 /** Wan's frame rate and the fit step's largest stretch (2.4 spec §5.3). */
@@ -42,7 +44,19 @@ export const VIDEO_PROFILES: Record<VideoProfileId, VideoProfile> = {
     costUsd: (p, clipSec) => round4(Math.round(clipSec * WAN_FPS) * runpodRates(p).clipSecPerFrame * runpodRates(p).clipUsdPerSec),
     runOverheadUsd: (p) => round4(runpodRates(p).coldStartSec * runpodRates(p).clipUsdPerSec),
   },
+  /** The same model at 720p (phase 5 spec §6.3): the same clip lengths, about 2.2 times the GPU seconds a frame. */
+  "wan22-720p@1": {
+    id: "wan22-720p@1",
+    clipSec: (s) => wanFrames(s) / WAN_FPS,
+    costUsd: (p, clipSec) => round4(Math.round(clipSec * WAN_FPS) * runpodRates(p).clip720SecPerFrame * runpodRates(p).clipUsdPerSec),
+    runOverheadUsd: (p) => round4(runpodRates(p).coldStartSec * runpodRates(p).clipUsdPerSec),
+    clipHeight: 720,
+  },
 };
+
+/** What a run may ask for by name, and the profile behind each. */
+export const CLIP_QUALITIES = { "480p": "wan22-480p@1", "720p": "wan22-720p@1" } as const satisfies Record<string, VideoProfileId>;
+export type ClipQuality = keyof typeof CLIP_QUALITIES;
 
 /** The profile new runs are created with. */
 export const NEW_RUN_VIDEO_PROFILE: VideoProfileId = "wan22-480p@1";

@@ -7,7 +7,8 @@ PRESETS = ("cinematic_history", "anime", "cyberpunk", "dark_fantasy", "photoreal
 WORKFLOWS = {"keyframe": "keyframe-sdxl@1", "clip": "clip-wan22-480p@1"}
 MAX_SEED = 2**31 - 1
 MAX_IMAGE_BYTES = 9 * 1024 * 1024
-CLIP_SIZES = ((480, 832), (832, 480))
+# 480p, and 720p (phase 5 spec §6.3): both fit the 24 GB card; the graph is the same
+CLIP_SIZES = ((480, 832), (832, 480), (720, 1280), (1280, 720))
 
 
 class ContractError(ValueError):
@@ -87,6 +88,6 @@ def validate(inp):
     req["fps"] = 16
     size = (inp.get("width"), inp.get("height"))
     if size not in CLIP_SIZES:
-        raise ContractError("width × height must be 480 × 832 or 832 × 480")
+        raise ContractError("width × height must be 480 × 832 or 720 × 1280, upright or on its side")
     req["width"], req["height"] = size
     return req

@@ -88,7 +88,7 @@ async function main(): Promise<void> {
   };
   await writeFile(join(out, "making.json"), `${JSON.stringify(making)}\n`);
 
-  const receipt = receiptOf(manifest.ledger, manifest.models);
+  const receipt = receiptOf(manifest.ledger, manifest.models, manifest.request.videoProfile);
   await writeFile(join(out, "props.json"), `${JSON.stringify(republish(props, pubs))}\n`);
   await writeFile(join(out, "looks.json"), `${JSON.stringify({ ...republish(looks, pubs), shared })}\n`);
   await writeFile(

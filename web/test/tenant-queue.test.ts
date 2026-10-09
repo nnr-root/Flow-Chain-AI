@@ -166,7 +166,7 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     await worker();
     await grant(a, 1);
     await writeFile(join(folder(a), "_draft-manifest.json"), JSON.stringify(draftManifest("20261006-120000-000000")));
-    const input = { topic: "foxes at night", aspect: "9:16", scenes: 3, style: "auto", motion: "auto", budgetUsd: 3, captionStyle: "preset", transition: "auto", musicGain: 0.35, sfxGain: 0.6, sfx: true, hook: { mode: "auto" } };
+    const input = { topic: "foxes at night", aspect: "9:16", scenes: 3, style: "auto", motion: "auto", clips: "480p", budgetUsd: 3, captionStyle: "preset", transition: "auto", musicGain: 0.35, sfxGain: 0.6, sfx: true, hook: { mode: "auto" } };
     const res = await createDraft(as(aCookie, "/api/drafts", { json: input }), undefined);
     expect(res.status).toBe(202);
     const { runId } = (await res.json()) as { runId: string };

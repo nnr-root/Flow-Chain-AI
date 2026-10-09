@@ -68,6 +68,10 @@ export const Prices = z.strictObject({
   runpodVoiceSecPerLine: z.number().optional(),
   runpodVoiceSecPerChar: z.number().optional(),
   runpodVoiceColdStartSec: z.number().optional(),
+  runpodPictureSec: z.number().optional(),
+  runpodPortraitSec: z.number().optional(),
+  runpodPictureColdStartSec: z.number().optional(),
+  runpodClip720SecPerFrame: z.number().optional(),
 });
 export type Prices = z.infer<typeof Prices>;
 
@@ -88,6 +92,13 @@ export function runpodRates(p: Prices) {
     voiceSecPerLine: p.runpodVoiceSecPerLine ?? 3,
     voiceSecPerChar: p.runpodVoiceSecPerChar ?? 0.02,
     voiceColdStartSec: p.runpodVoiceColdStartSec ?? 40,
+    // The klein picture worker (phase 5 spec §9.9–9.10): 4.5 s a picture with a portrait, 1.3 s the portrait,
+    // each with the upload and the job's own overhead; 60 s for a stopped worker to load the model.
+    pictureSec: p.runpodPictureSec ?? 6,
+    portraitSec: p.runpodPortraitSec ?? 3,
+    pictureColdStartSec: p.runpodPictureColdStartSec ?? 60,
+    // 720p clips on the same card: 157 s for 65 frames (§9.9)
+    clip720SecPerFrame: p.runpodClip720SecPerFrame ?? 2.5,
   };
 }
 

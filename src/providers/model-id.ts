@@ -22,7 +22,9 @@ export function runpodModelId(endpointId: string, workflow: string, version: num
 
 /** The worker graphs new RunPod runs use (2.4 spec §4.1). */
 export const RUNPOD_WORKFLOWS = {
-  keyframe: { workflow: "keyframe-sdxl", version: 1 },
+  // FLUX.2 klein (phase 5 spec §6.2); runs made on the SDXL worker before it keep their own id, and that
+  // worker is gone: they load and re-render, and a picture of theirs cannot be made again
+  keyframe: { workflow: "keyframe-klein", version: 1 },
   clip: { workflow: "clip-wan22-480p", version: 1 },
   voice: { workflow: "voice-voxcpm2", version: 1 },
 } as const;

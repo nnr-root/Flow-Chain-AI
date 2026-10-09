@@ -14,11 +14,17 @@ describe("newRunProviders", () => {
   it("freezes the RunPod endpoints and worker versions with the RunPod profiles", () => {
     const env = loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c" });
     expect(newRunProviders(env)).toEqual({
-      image: "runpod:ep-k/keyframe-sdxl@1",
+      image: "runpod:ep-k/keyframe-klein@1",
       video: "runpod:ep-c/clip-wan22-480p@1",
-      imageProfile: "runpod-sdxl@1",
+      imageProfile: "runpod-klein@1",
       videoProfile: "wan22-480p@1",
     });
+  });
+
+  it("freezes the clip size the run asked for: 480p unless it says 720p", () => {
+    const env = loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c" });
+    expect(newRunProviders(env).videoProfile).toBe("wan22-480p@1");
+    expect(newRunProviders(env, "720p")).toMatchObject({ videoProfile: "wan22-720p@1", video: "runpod:ep-c/clip-wan22-480p@1" });
   });
 
   it("asks for a deploy when the endpoints are not configured", () => {

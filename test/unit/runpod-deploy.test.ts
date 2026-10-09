@@ -52,6 +52,7 @@ function fakeRest() {
 
 const cfg = {
   image: "ghcr.io/me/flowchain-worker:latest",
+  pictureImage: "ghcr.io/me/flowchain-picture:latest",
   dataCenterId: "EU-RO-1",
   volumeGb: 80,
   keyframeGpus: DEFAULTS.keyframeGpus,
@@ -60,11 +61,12 @@ const cfg = {
 };
 
 describe("runpod deploy", () => {
-  it("creates the volume, one template and both endpoints, with R2 keys as secrets", async () => {
+  it("creates the volume, a template for each worker and both endpoints, with R2 keys as secrets", async () => {
     const { rest, store, secrets } = fakeRest();
     expect((await planDeploy(rest)).map((s) => `${s.action} ${s.name}`)).toEqual([
       "create flowchain-models",
       "create flowchain-worker",
+      "create flowchain-picture",
       "create flowchain-keyframe",
       "create flowchain-clip",
     ]);
@@ -76,6 +78,13 @@ describe("runpod deploy", () => {
       isServerless: true,
       env: { R2_ACCOUNT_ID: "acc", R2_BUCKET: "out", R2_ACCESS_KEY_ID: "{{ RUNPOD_SECRET_flowchain_r2_access_key_id }}" },
     });
+    // the picture worker has its own image, with the same bucket settings and secrets
+    expect(store.templates[1]).toMatchObject({ name: NAMES.pictureTemplate, imageName: cfg.pictureImage, isServerless: true, env: store.templates[0].env });
+    // each endpoint runs its own worker; the picture worker's PyTorch needs a host with CUDA 12.8
+    expect(store.endpoints.map((e) => [e.name, e.templateId, e.minCudaVersion])).toEqual([
+      [NAMES.keyframe, store.templates[1].id, "12.8"],
+      [NAMES.clip, store.templates[0].id, undefined],
+    ]);
     expect(store.endpoints.map((e) => [e.name, e.gpuTypeIds, e.executionTimeoutMs, e.workersMax, e.networkVolumeId])).toEqual([
       [NAMES.keyframe, ["NVIDIA GeForce RTX 4090"], 120_000, 1, ids.volumeId],
       [NAMES.clip, ["NVIDIA GeForce RTX 4090"], 600_000, 1, ids.volumeId],
@@ -89,7 +98,7 @@ describe("runpod deploy", () => {
     const logs: string[] = [];
     const second = await applyDeploy(rest, { ...cfg, image: "ghcr.io/me/flowchain-worker:abc123" }, (m) => logs.push(m));
     expect(second).toEqual(first);
-    expect([store.networkvolumes.length, store.templates.length, store.endpoints.length]).toEqual([1, 1, 2]);
+    expect([store.networkvolumes.length, store.templates.length, store.endpoints.length]).toEqual([1, 2, 2]);
     expect(store.templates[0].imageName).toBe("ghcr.io/me/flowchain-worker:abc123");
     expect(logs).toContain("secret flowchain_r2_access_key_id already exists (kept; delete it on RunPod to change it)");
     expect((await planDeploy(rest)).every((s) => s.action === "update")).toBe(true);
@@ -264,7 +273,7 @@ describe("the voice endpoint's deploy", () => {
     expect((await planVoiceDeploy(rest)).map((s) => s.action)).toEqual(["update", "update"]);
     const second = await applyVoiceDeploy(rest, { ...voice, image: "ghcr.io/me/flowchain-voice:v-def" });
     expect(second).toEqual(first);
-    expect(store.templates.map((t) => [t.name, t.imageName])).toEqual([[NAMES.template, cfg.image], ["flowchain-voice", "ghcr.io/me/flowchain-voice:v-def"]]);
+    expect(store.templates.map((t) => [t.name, t.imageName])).toEqual([[NAMES.template, cfg.image], [NAMES.pictureTemplate, cfg.pictureImage], ["flowchain-voice", "ghcr.io/me/flowchain-voice:v-def"]]);
     expect(store.endpoints.map((e) => e.name)).toEqual([NAMES.keyframe, NAMES.clip, "flowchain-voice"]);
     // the other endpoints still read their weights from the volume
     expect(store.endpoints.filter((e) => e.networkVolumeId).map((e) => e.name)).toEqual([NAMES.keyframe, NAMES.clip]);

@@ -53,6 +53,8 @@ export const clipsStage: Stage = {
       model: m.models.video,
       prompt: motionPrompt(script, i, effectivePreset(m)),
       requestedSec: videoProfileOf(m.request.videoProfile).clipSec(requireAudio(m.scenes[i]).duration),
+      // (only where the run chose a size: every earlier run's cache keys stay as they were)
+      ...(videoProfileOf(m.request.videoProfile).clipHeight === 720 ? { height: 720 } : {}),
     };
     if (needsKeyframe(m, i)) return { ...base, imageSha: await fileSha256(abs(ctx, paths.keyframe(i))) };
     // The seam file does not exist yet when this is hashed; key on everything that determines it instead.
@@ -90,7 +92,7 @@ export const clipsStage: Stage = {
       prepare: async () => {
         // the chain image: the scene's own keyframe, or the seam frame of the previous clip
         const imagePath = needsKeyframe(m, i) ? abs(ctx, paths.keyframe(i)) : await writeSeam(ctx, i);
-        return ctx.providers.video.prepare({ imagePath, prompt: motionPrompt(script, i, effectivePreset(m)), durationSec: seconds });
+        return ctx.providers.video.prepare({ imagePath, prompt: motionPrompt(script, i, effectivePreset(m)), durationSec: seconds, ...(profile.clipHeight ? { height: profile.clipHeight } : {}) });
       },
       submit: (job, signal) => ctx.providers.video.submit(job, { signal }),
       wait: (id) => ctx.providers.video.wait(id, { timeoutMs: ctx.providers.video.waitMs ?? TIMEOUTS.video }),

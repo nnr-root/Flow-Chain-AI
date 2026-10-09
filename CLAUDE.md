@@ -46,7 +46,8 @@ read the one for the area you are changing before changing it (table at the end)
 | `web/lib/` | code shared by server and browser; no secrets, few imports |
 | `db/migrations/` | the database: plain SQL, three files (accounts, tenancy, billing) |
 | `src/db/client.ts`, `src/auth/` | the one client for the studio's Postgres (`Db`), and password hashing |
-| `workers/` | the RunPod worker (Python, ComfyUI graphs for SDXL + IP-Adapter and Wan 2.2) |
+| `workers/` | the clip worker (Python, a ComfyUI graph for Wan 2.2 at 480p and 720p; its SDXL picture graph serves no new run) |
+| `worker-picture/` | the picture worker (Python, FLUX.2 klein 4B through diffusers; weights on the network volume) |
 | `worker-voice/`, `src/voice/`, `src/providers/runpod-voice.ts` | the voice worker (Python: VoxCPM2 + Whisper), laying a script's words over what was heard, the provider |
 | `deploy/` | Compose file, Dockerfiles, Caddy files for the server |
 | `test/` | pipeline tests: `unit`, `stages`, `media`, `pipeline`, `db` |
@@ -256,7 +257,7 @@ graphify god-nodes --top 20       # the hubs
 | Rendering with Remotion | `2026-10-03-phase2.1-remotion-render-engine-design.md` |
 | Modes, transitions, style presets | `2026-10-04-phase2.2-content-intelligence-design.md` |
 | Hook, sound effects, brand kit, clip lengths | `2026-10-05-phase2.3-retention-brand-design.md` |
-| RunPod providers (SDXL + IP-Adapter, Wan 2.2) | `2026-10-05-phase2.4-runpod-providers-design.md` |
+| RunPod providers (Wan 2.2; the SDXL pictures it describes are replaced, see phase 5 §9.9–9.11) | `2026-10-05-phase2.4-runpod-providers-design.md` |
 | The studio web app and its player | `2026-10-06-phase3.1-web-ui-player-design.md` |
 | The queue, the worker, the server | `2026-10-07-phase3.2-job-queue-deployment-design.md` |
 | Accounts, credit, storage | `2026-10-07-phase3.3-multi-tenant-design.md` (§14–§15 win) |

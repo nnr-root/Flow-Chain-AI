@@ -491,3 +491,33 @@ Judged by eye from one character and one seed, by the one who ran it; the owner 
 **Owner's decisions (clicks):** settle identity before switching (this section); clips are offered at both
 480p and 720p.
 
+### 9.11 Picture worker and the 720p choice, before their live check (2026-10-09)
+
+**Built, offline** (TypeScript with stand-ins, Python unit-tested; the image, the weights and a run live only):
+
+- `worker-picture/`: FLUX.2 klein 4B through `diffusers==0.41.0`, the same request and answer as the worker
+  before it (workflow `keyframe-klein@1`), a portrait as the reference. Its weights are fetched to the network
+  volume by its own `fetch-models` (one pinned revision of the model; the four big files checked by size and
+  SHA-256 before a marker is written), so the image stays small. The picture is uploaded as before and removed
+  by the pipeline once fetched; scratch files are removed on every path; nothing of a prompt is printed.
+- It is not a ComfyUI graph: the benchmark measured it through `diffusers`, and that is what was built. The
+  clip worker stays on ComfyUI.
+- New runs: `runpod:<endpoint>/keyframe-klein@1`, image profile `runpod-klein@1` (6 s a picture, 3 s the
+  portrait, 60 s once for a stopped worker), a reference stage as before. `takesReference()` replaces the three
+  checks for the SDXL profile's name.
+- **A run made on the SDXL worker** keeps its model id; the keyframe endpoint now runs another worker, which
+  refuses that workflow. Such a run loads and re-renders; a picture of it cannot be made again. Ruling: accepted
+  (two test runs and the showcases, all finished) — it costs a reroll on an old run.
+- Deploy: a second template (`flowchain-picture`) for the keyframe endpoint, `minCudaVersion` 12.8 there, the
+  volume grown to 110 GB, the picture image checked in the registry like the other, a third image job in the
+  workflow.
+- **720p clips**: the worker's contract takes 720×1280 and 1280×720 beside the 480p sizes (same graph, same
+  workflow id); video profile `wan22-720p@1` (2.5 s a frame); `--clips 480p|720p` on `run`, "Standard / HD
+  (720p)" in the studio's form; the height is in a 720p clip's cache key and in no 480p one's. A receipt's
+  `clipHeight` now comes from the run's profile.
+
+**Unverified until the live check:** the image build (that `diffusers` 0.41.0 has the pipeline, checked by the
+build itself); `snapshot_download` to the volume; load time from the volume; a picture's real seconds; that a
+keyframe follows its scene and keeps the face in a whole run; a 720p clip through the endpoint within its
+timeout.
+

@@ -28,6 +28,8 @@ export const NewVideo = z.object({
   style: z.union([PresetName, z.literal("auto")]).default("auto"),
   /** The starting position of every scene's mode switch. */
   motion: z.enum(["auto", "clips", "stills"]).default("auto"),
+  /** The size moving clips are generated at; 720p costs about twice as much. */
+  clips: z.enum(["480p", "720p"]).default("480p"),
   /** Frozen with the run: the auto mode rules keep the estimate under it. */
   budgetUsd: z.number().positive().max(100),
   brandKit: Slug.nullable().default(null),
@@ -60,7 +62,7 @@ export const kitDir = (slug: string): string => join(roots().brandKits, slug);
 export function draftArgs(input: NewVideo, runId: string): string[] {
   const args = [
     "run", "--draft", "--yes", "--run-id", runId, "--topic", input.topic, "--aspect", input.aspect,
-    "--scenes", String(input.scenes), "--mode", "auto", "--budget", String(input.budgetUsd),
+    "--scenes", String(input.scenes), "--mode", "auto", "--clips", input.clips, "--budget", String(input.budgetUsd),
     "--caption-style", input.captionStyle, "--transition", input.transition,
     "--bgm-gain", String(input.musicGain), "--sfx-gain", String(input.sfxGain),
   ];

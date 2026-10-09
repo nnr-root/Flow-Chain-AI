@@ -36,7 +36,7 @@
     "server:deploy": "tsx scripts/server.ts deploy",
     "server:backup": "tsx scripts/server.ts backup",
     "setup:worker": "python3 -m venv workers/.venv && workers/.venv/bin/pip install -q -r workers/requirements-dev.txt",
-    "test:worker": "workers/.venv/bin/python -m pytest -q workers/tests && workers/.venv/bin/python -m pytest -q worker-voice/tests",
+    "test:worker": "workers/.venv/bin/python -m pytest -q workers/tests && workers/.venv/bin/python -m pytest -q worker-voice/tests && workers/.venv/bin/python -m pytest -q worker-picture/tests",
     "smoke": "tsx src/cli.ts run --topic \"A lighthouse keeper discovers the light is alive\" --scenes 3 --modes 1,1,1 --shots cut,continue,continue",
     "smoke:full": "tsx src/cli.ts run --topic \"A lighthouse keeper discovers the light is alive\" --scenes 4 --modes 1,1,2,1 --shots cut,continue,cut,cut --transition fade --bgm assets/music/example-bed.mp3",
     "smoke:auto": "tsx src/cli.ts run --topic \"A hacker races to stop a rogue AI before midnight\" --scenes 4 --mode auto --style cyberpunk --bgm assets/music/example-bed.mp3",

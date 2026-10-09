@@ -5,7 +5,7 @@
 import { createInterface } from "node:readline/promises";
 import { execa } from "execa";
 import {
-  applyDeploy, assertImageInGhcr, DEFAULTS, fetchModels, planDeploy, RunpodRest, workerImageTag, writeEnvValues,
+  applyDeploy, assertImageInGhcr, DEFAULTS, fetchModels, pictureImageTag, planDeploy, RunpodRest, workerImageTag, writeEnvValues,
 } from "../src/deploy/runpod.js";
 import { R2 } from "../src/providers/r2.js";
 import { RunpodClient } from "../src/providers/runpod.js";
@@ -16,13 +16,15 @@ function need(name: string): string {
   return value;
 }
 
-async function defaultImage(): Promise<string> {
+async function defaultImage(which: "clip" | "picture"): Promise<string> {
   const { stdout } = await execa("git", ["remote", "get-url", "origin"]);
   const owner = /github\.com[:/]([^/]+)\//.exec(stdout)?.[1];
-  if (!owner) throw new Error("cannot tell the GitHub owner from the origin remote; set RUNPOD_WORKER_IMAGE");
-  // the tag follows the content of workers/, so a template always points at the image built from this checkout
-  const tree = (await execa("git", ["rev-parse", "HEAD:workers"])).stdout.trim();
-  return `ghcr.io/${owner.toLowerCase()}/flowchain-worker:${workerImageTag(tree)}`;
+  if (!owner) throw new Error("cannot tell the GitHub owner from the origin remote; set RUNPOD_WORKER_IMAGE and RUNPOD_PICTURE_IMAGE");
+  // each tag follows the content of its worker's folder, so a template always points at the image built from this checkout
+  const tree = async (dir: string) => (await execa("git", ["rev-parse", `HEAD:${dir}`])).stdout.trim();
+  return which === "clip"
+    ? `ghcr.io/${owner.toLowerCase()}/flowchain-worker:${workerImageTag(await tree("workers"))}`
+    : `ghcr.io/${owner.toLowerCase()}/flowchain-picture:${pictureImageTag(await tree("worker-picture"))}`;
 }
 
 async function main(): Promise<void> {
@@ -33,7 +35,8 @@ async function main(): Promise<void> {
   }
   const apiKey = need("RUNPOD_API_KEY");
   const cfg = {
-    image: process.env.RUNPOD_WORKER_IMAGE ?? (await defaultImage()),
+    image: process.env.RUNPOD_WORKER_IMAGE ?? (await defaultImage("clip")),
+    pictureImage: process.env.RUNPOD_PICTURE_IMAGE ?? (await defaultImage("picture")),
     dataCenterId: process.env.RUNPOD_DATACENTER ?? DEFAULTS.dataCenterId,
     volumeGb: DEFAULTS.volumeGb,
     keyframeGpus: DEFAULTS.keyframeGpus,
@@ -46,9 +49,10 @@ async function main(): Promise<void> {
     },
   };
   await assertImageInGhcr(cfg.image, console.warn); // before anything is created
+  await assertImageInGhcr(cfg.pictureImage, console.warn);
   const rest = new RunpodRest(apiKey);
   const steps = await planDeploy(rest);
-  console.log(`RunPod deploy (image ${cfg.image}, data centre ${cfg.dataCenterId}):`);
+  console.log(`RunPod deploy (clips ${cfg.image}, pictures ${cfg.pictureImage}, data centre ${cfg.dataCenterId}):`);
   for (const s of steps) console.log(`  ${s.action.padEnd(6)} ${s.what} ${s.name}`);
   const monthly = cfg.volumeGb * DEFAULTS.volumeUsdPerGbMonth;
   console.log(`Costs: the ${cfg.volumeGb} GB volume ≈ $${monthly.toFixed(2)}/month; the one-time model download runs on`);

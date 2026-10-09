@@ -68,7 +68,8 @@ export type ImageRequest = {
 export type ImageOutput = { url: string; seed: number; costUsd?: number; remove?: () => Promise<void> };
 export type ImageProvider = QueuedProvider<ImageRequest, ImageOutput>;
 
-export type VideoRequest = { imagePath: string; prompt: string; durationSec: number };
+/** `height`: the short side clips are generated at (480 or 720), where the run chooses; absent = the provider's own. */
+export type VideoRequest = { imagePath: string; prompt: string; durationSec: number; height?: number };
 export type VideoOutput = { url: string; costUsd?: number; remove?: () => Promise<void> };
 export type VideoProvider = QueuedProvider<VideoRequest, VideoOutput>;
 

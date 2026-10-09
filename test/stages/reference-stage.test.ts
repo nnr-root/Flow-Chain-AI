@@ -27,6 +27,17 @@ describe("reference stage", () => {
     expect(keyframesStage.deps(ctx.manifest, 0)).toContainEqual({ stage: "reference", scene: 0 });
   });
 
+  it("does the same for a run on the klein worker: a portrait first, then every keyframe from it", async () => {
+    const { ctx, fakes } = await makeTestContext({ modes: [1, 1], shots: ["cut", "cut"], seed: 5 });
+    ctx.manifest.request.imageProfile = "runpod-klein@1";
+    await runPipeline(ctx, STAGES, auto);
+    const [portrait, ...keyframes] = fakes.image.submits;
+    expect(portrait).toMatchObject({ width: 1024, height: 1024, seed: 5 });
+    expect(keyframes.map((k) => k.referenceImagePath)).toEqual([abs(ctx, paths.reference), abs(ctx, paths.reference)]);
+    // the character's description travels with the portrait: one without the other does not keep a face (phase 5 spec §9.10)
+    for (const k of keyframes) expect(k.prompt).toContain("a red fox");
+  });
+
   it("does not apply when the script has no characters", async () => {
     const { ctx, fakes } = await makeTestContext({
       modes: [1],

@@ -170,7 +170,14 @@ export class RunpodImage extends RunpodQueued<ImageRequest, ImageOutput> impleme
   }
 }
 
-/** Clips from the Wan 2.2 worker (2.4 spec §5.3): 480p in the chain image's orientation. */
+/** The size a clip is generated at: 480p unless the run asks for 720p, upright or on its side like its picture. */
+export function clipSize(short: number | undefined, portrait: boolean): { width: number; height: number } {
+  if (short !== undefined && short !== 480 && short !== 720) throw new NonRetryableError(`a clip is made at 480p or 720p, not ${short}p`);
+  const [a, b] = short === 720 ? [720, 1280] : [480, 832];
+  return portrait ? { width: a, height: b } : { width: b, height: a };
+}
+
+/** Clips from the Wan 2.2 worker (2.4 spec §5.3): 480p or 720p in the chain image's orientation. */
 export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> implements VideoProvider {
   constructor(deps: RunpodDeps, target: Target) {
     super(deps, target, { executionTimeout: 600_000, ttl: 3_600_000 }, 20 * 60_000, "mp4");
@@ -186,8 +193,7 @@ export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> impleme
       prompt: req.prompt,
       frames: clipFrames(req.durationSec),
       fps: WAN_FPS,
-      width: portrait ? 480 : 832,
-      height: portrait ? 832 : 480,
+      ...clipSize(req.height, portrait),
     };
   }
 

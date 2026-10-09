@@ -7,7 +7,7 @@ import { parseModelId, runpodModelId } from "../../src/providers/model-id.js";
 import type { R2 } from "../../src/providers/r2.js";
 import { NonRetryableError, UnusableResultError } from "../../src/providers/retry.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
-import { clipFrames, RunpodImage, RunpodVideo, type RunpodDeps } from "../../src/providers/runpod-providers.js";
+import { clipFrames, clipSize, RunpodImage, RunpodVideo, type RunpodDeps } from "../../src/providers/runpod-providers.js";
 import { FakeRunpodApi } from "../fakes/runpod.js";
 import { makeImage, tempDir } from "../helpers/media.js";
 
@@ -262,3 +262,15 @@ describe("createProviders", () => {
     ).toThrow("RUNPOD_API_KEY is not set; this run uses RunPod");
   });
 });
+
+describe("the size a clip is made at", () => {
+  it("is 480p unless the run asks for 720p, upright or on its side like its picture", () => {
+    expect(clipSize(undefined, true)).toEqual({ width: 480, height: 832 });
+    expect(clipSize(480, false)).toEqual({ width: 832, height: 480 });
+    expect(clipSize(720, true)).toEqual({ width: 720, height: 1280 });
+    expect(clipSize(720, false)).toEqual({ width: 1280, height: 720 });
+    // nothing else is ever sent to the worker: a size it was not measured at is refused here, before a job is bought
+    for (const other of [1080, 360, 0]) expect(() => clipSize(other, true)).toThrow("480p or 720p");
+  });
+});
+

@@ -23,14 +23,15 @@ const ORDER: ReceiptLine["label"][] = ["Script", "Voice", "Pictures", "Clips", "
 const round4 = (n: number): number => Math.round(n * 10_000) / 10_000;
 
 /** What a run cost, grouped the way a video is made. Every figure comes from the run's own ledger. */
-export function receiptOf(ledger: LedgerEntry[], models: { llm: string; tts: string; image: string; video: string }): Receipt {
+export function receiptOf(ledger: LedgerEntry[], models: { llm: string; tts: string; image: string; video: string }, videoProfile?: string): Receipt {
   const sums = new Map<ReceiptLine["label"], number>();
   for (const entry of ledger) {
     if (!Number.isFinite(entry.usd) || entry.usd < 0) throw new Error(`the ledger has an entry that is no amount (${entry.stage})`);
     const label = LINE_OF[entry.stage] ?? "Other";
     sums.set(label, (sums.get(label) ?? 0) + entry.usd);
   }
-  const height = /^runpod:[^/]+\/[a-z0-9-]*?-(\d{3,4})p@/i.exec(models.video);
+  // the run's own choice where it made one (its profile says the height), else what the graph's name says
+  const height = /-(\d{3,4})p@/.exec(videoProfile ?? "") ?? /^runpod:[^/]+\/[a-z0-9-]*?-(\d{3,4})p@/i.exec(models.video);
   const lines = ORDER.filter((label) => (sums.get(label) ?? 0) > 0).map((label) => ({ label, usd: round4(sums.get(label)!) }));
   return {
     lines,

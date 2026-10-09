@@ -19,7 +19,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
   const [health, setHealth] = useState(initialHealth);
   const [tracks, setTracks] = useState(initialTracks);
   const [f, setF] = useState({
-    topic, aspect: "9:16", scenes: 4, style: "auto", motion: "auto",
+    topic, aspect: "9:16", scenes: 4, style: "auto", motion: "auto", clips: "480p",
     budgetUsd: health.defaults.budgetUsd, brandKit: "", music: "", musicGain: 0.35, hookMode: "auto", hookText: "",
     sfx: true, sfxGain: 0.6, characters: "", seed: "", voiceId: "", captionStyle: "preset", transition: "auto",
   });
@@ -59,7 +59,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
     setError("");
     try {
       const { runId } = await sendJson<{ runId: string }>("/api/drafts", {
-        topic: f.topic, aspect: f.aspect, scenes: f.scenes, style: f.style, motion: f.motion, budgetUsd: f.budgetUsd,
+        topic: f.topic, aspect: f.aspect, scenes: f.scenes, style: f.style, motion: f.motion, clips: f.clips, budgetUsd: f.budgetUsd,
         brandKit: f.brandKit || null, music: f.music || null, musicGain: f.musicGain,
         hook: f.hookMode === "custom" ? { mode: "custom", text: f.hookText } : { mode: f.hookMode },
         sfx: f.sfx, sfxGain: f.sfxGain, captionStyle: f.captionStyle, transition: f.transition,
@@ -137,6 +137,11 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
             <span>Scenes start as</span>
             <Segmented label="Motion" value={f.motion} onChange={(v) => set("motion", v)} options={[{ value: "auto", label: "Auto" }, { value: "clips", label: "All clips" }, { value: "stills", label: "All stills" }]} />
             <span className="text-xs text-dim">You can change each scene on the draft before anything is generated.</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <span>Moving clips in</span>
+            <Segmented label="Clip quality" value={f.clips} onChange={(v) => set("clips", v)} options={[{ value: "480p", label: "Standard" }, { value: "720p", label: "HD (720p)" }]} />
+            <span className="text-xs text-dim">HD clips are sharper and cost about twice as much; the draft shows the price before anything is made.</span>
           </div>
           {missing.length > 0 && <ErrorNote>{missing[0] === NOT_READY ? "The studio is not ready to make videos yet. Please try again later." : `Not set in .env: ${missing.join(", ")}. Add them in the repository's .env file.`}</ErrorNote>}
         </div>

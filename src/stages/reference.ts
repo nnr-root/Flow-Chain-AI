@@ -1,4 +1,4 @@
-import { imageProfileOf } from "../image-profiles.js";
+import { imageProfileOf, takesReference } from "../image-profiles.js";
 import { MAX_SEED, type Manifest } from "../manifest/schema.js";
 import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
@@ -22,12 +22,12 @@ const hasCharacters = (m: Manifest): boolean => {
  * (every run made before 2.4) has no target and never plans it.
  */
 export function referenceApplies(m: Manifest, scene: number): boolean {
-  return scene === 0 && m.request.imageProfile === "runpod-sdxl@1" && !m.request.referenceImage && hasCharacters(m);
+  return scene === 0 && takesReference(m.request.imageProfile) && !m.request.referenceImage && hasCharacters(m);
 }
 
 /** The run-relative portrait keyframes are conditioned on, if the run has one. */
 export function referenceImageOf(m: Manifest): string | undefined {
-  if (m.request.imageProfile !== "runpod-sdxl@1") return undefined;
+  if (!takesReference(m.request.imageProfile)) return undefined;
   return m.request.referenceImage ?? (referenceApplies(m, 0) ? paths.reference : undefined);
 }
 

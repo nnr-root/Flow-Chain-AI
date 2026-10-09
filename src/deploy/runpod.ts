@@ -5,6 +5,8 @@ import type { RunpodClient } from "../providers/runpod.js";
 export const NAMES = {
   volume: "flowchain-models",
   template: "flowchain-worker",
+  /** the picture worker's own template (phase 5 spec §6.2): another image, the same volume and secrets */
+  pictureTemplate: "flowchain-picture",
   keyframe: "flowchain-keyframe",
   clip: "flowchain-clip",
 } as const;
@@ -14,6 +16,8 @@ export const SECRET_NAMES = { accessKeyId: "flowchain_r2_access_key_id", secretA
 
 export type DeployConfig = {
   image: string;
+  /** The picture worker's image (the keyframe endpoint); `image` is the clip worker's. */
+  pictureImage: string;
   dataCenterId: string;
   volumeGb: number;
   keyframeGpus: string[];
@@ -23,7 +27,8 @@ export type DeployConfig = {
 
 export const DEFAULTS = {
   dataCenterId: "EU-RO-1",
-  volumeGb: 80,
+  // 63 GB of earlier weights and 16 GB for the picture model, with room to spare
+  volumeGb: 110,
   keyframeGpus: ["NVIDIA GeForce RTX 4090"],
   // 24 GB: Wan 2.2 fp8 loads one expert at a time; no 48 GB card was in stock in the volume's data centre (spec §16)
   clipGpus: ["NVIDIA GeForce RTX 4090"],
@@ -90,7 +95,7 @@ function findByName(list: Resource[], kind: Kind, name: string): Resource | unde
 
 export type Step = { what: string; name: string; action: "create" | "update" };
 
-type Existing = { volume?: Resource; template?: Resource; keyframe?: Resource; clip?: Resource };
+type Existing = { volume?: Resource; template?: Resource; pictureTemplate?: Resource; keyframe?: Resource; clip?: Resource };
 
 /** What RunPod already has for our four resources (matched by name); throws when a name is ambiguous. Read-only. */
 async function lookupExisting(rest: RunpodRest): Promise<Existing> {
@@ -102,6 +107,7 @@ async function lookupExisting(rest: RunpodRest): Promise<Existing> {
   return {
     volume: findByName(volumes, "networkvolumes", NAMES.volume),
     template: findByName(templates, "templates", NAMES.template),
+    pictureTemplate: findByName(templates, "templates", NAMES.pictureTemplate),
     keyframe: findByName(endpoints, "endpoints", NAMES.keyframe),
     clip: findByName(endpoints, "endpoints", NAMES.clip),
   };
@@ -118,6 +124,7 @@ export async function planDeploy(rest: RunpodRest): Promise<Step[]> {
   return [
     step("network volume", found.volume, NAMES.volume),
     step("template", found.template, NAMES.template),
+    step("template", found.pictureTemplate, NAMES.pictureTemplate),
     step("endpoint", found.keyframe, NAMES.keyframe),
     step("endpoint", found.clip, NAMES.clip),
   ];
@@ -177,8 +184,10 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
   };
   const templateBody = { imageName: cfg.image, containerDiskInGb: 30, env };
   const template = await upsert(rest, "templates", existing.template, NAMES.template, { ...templateBody, isServerless: true }, templateBody);
-  const endpoint = (gpus: string[], executionTimeoutMs: number) => ({
-    templateId: template.id,
+  const pictureBody = { imageName: cfg.pictureImage, containerDiskInGb: 20, env };
+  const pictureTemplate = await upsert(rest, "templates", existing.pictureTemplate, NAMES.pictureTemplate, { ...pictureBody, isServerless: true }, pictureBody);
+  const endpoint = (templateId: string, gpus: string[], executionTimeoutMs: number, more: Record<string, unknown> = {}) => ({
+    templateId,
     gpuTypeIds: gpus,
     workersMin: 0,
     // one worker: a run's jobs are sequential, and a second worker loads the model weights again for itself
@@ -191,9 +200,11 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     flashboot: false,
     networkVolumeId: volume.id,
     dataCenterIds: [cfg.dataCenterId],
+    ...more,
   });
-  const keyframe = endpoint(cfg.keyframeGpus, 120_000);
-  const clip = endpoint(cfg.clipGpus, 600_000);
+  // the picture worker's PyTorch is built for CUDA 12.8: a host with an older driver would run it on the CPU
+  const keyframe = endpoint(pictureTemplate.id, cfg.keyframeGpus, 120_000, { minCudaVersion: "12.8" });
+  const clip = endpoint(template.id, cfg.clipGpus, 600_000);
   const keyframeEndpoint = await upsert(rest, "endpoints", existing.keyframe, NAMES.keyframe, keyframe, keyframe);
   const clipEndpoint = await upsert(rest, "endpoints", existing.clip, NAMES.clip, clip, clip);
   return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id };
@@ -320,6 +331,8 @@ export type VoiceDeployConfig = { image: string; gpus: string[] };
 
 /** The image tag for a tree hash of `worker-voice/`; the workflow pushes the same tag. */
 export const voiceImageTag = (treeHash: string): string => `v-${treeHash.slice(0, 12)}`;
+/** And for `worker-picture/`. */
+export const pictureImageTag = (treeHash: string): string => `p-${treeHash.slice(0, 12)}`;
 
 async function lookupVoice(rest: RunpodRest): Promise<{ template?: Resource; endpoint?: Resource }> {
   const [templates, endpoints] = await Promise.all([rest.list("templates"), rest.list("endpoints")]);

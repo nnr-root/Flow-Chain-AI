@@ -16,6 +16,7 @@ import { type Plan, planRun, RunAborted, runPipeline } from "./pipeline.js";
 import { PresetName } from "./presets.js";
 import { createProviders } from "./providers/factory.js";
 import { frozenModePrices, newRunProviders, newRunVoice } from "./providers/new-run.js";
+import { CLIP_QUALITIES, type ClipQuality } from "./video-profiles.js";
 import type { Providers } from "./providers/types.js";
 import { applyRenderOptions, assertRenderOnly, noPaidProviders } from "./rerender.js";
 import { bumpNonce, REROLLABLE } from "./reroll.js";
@@ -148,6 +149,7 @@ type RunFlags = {
   brand?: string;
   characters?: string;
   seed?: string;
+  clips?: ClipQuality;
   voice?: string;
   bgm?: string;
   captionStyle?: string;
@@ -211,6 +213,7 @@ program
   .option("--brand <dir>", "brand kit folder (brand.json, logo, optional font): watermark, font, colours, characters")
   .option("--characters <text>", "character bible used in every prompt (default: the brand kit's, else Gemini's)")
   .option("--seed <n>", "seed shared by every keyframe (default: random)")
+  .addOption(new Option("--clips <quality>", "the size moving clips are generated at: 480p, or 720p at about twice the cost (default: 480p)").choices(Object.keys(CLIP_QUALITIES)))
   .option("--voice <id>", "voice: narrator-m or narrator-f (default: FLOWCHAIN_VOICE)")
   .option("--bgm <file>", "background music, ducked under the narration")
   .addOption(new Option("--caption-style <style>", "caption look (default: the preset's)").choices(CAPTION_CHOICES))
@@ -232,7 +235,7 @@ program
     const budgetUsd = budget(o.budget, env);
     if (o.bgm && !existsSync(o.bgm)) throw new Error(`--bgm file not found: ${o.bgm}`);
     const kit: BrandKit | undefined = o.brand ? await loadBrandKit(o.brand) : undefined;
-    const providers = newRunProviders(env);
+    const providers = newRunProviders(env, o.clips);
     const voice = newRunVoice(env);
     const request = RunRequest.parse({
       topic: o.topic,
