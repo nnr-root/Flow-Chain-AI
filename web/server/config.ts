@@ -81,7 +81,8 @@ export function health(): Health {
   const unset = (names: readonly string[]) => names.filter((n) => !env[n]?.trim());
   const budget = Number(env.FLOWCHAIN_BUDGET_USD);
   return {
-    missing: unset(NEEDS),
+    // the hosted voice's two keys are needed only while the studio's own voice is not set up
+    missing: unset(NEEDS).filter((name) => !(name.startsWith("ELEVENLABS_") && env.RUNPOD_VOICE_ENDPOINT?.trim())),
     defaults: { budgetUsd: Number.isFinite(budget) && budget > 0 ? budget : 3 },
   };
 }

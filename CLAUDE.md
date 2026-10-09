@@ -16,7 +16,7 @@ read the one for the area you are changing before changing it (table at the end)
 ## Rules that are never broken
 
 - **Nothing that spends money or touches a real account runs without the owner's click.** That is:
-  `npm run flowchain` with `run`/`resume`/`reroll`/`doctor`, every `npm run smoke*`, `runpod:deploy`,
+  `npm run flowchain` with `run`/`resume`/`reroll`/`doctor`, every `npm run smoke*`, `runpod:deploy`, `voice:deploy`,
   `make:sfx`, `server:*`, `db:migrate`, `studio:grant`, `studio:welcome`, `stripe:setup`, and starting `npm run web` or
   `npm run worker` against the real `.env`. Tests never need any of them. `rerender` is free.
 - **Never read or print `.env` or `deploy/server.env`.** A command may pass a value through the shell
@@ -47,6 +47,7 @@ read the one for the area you are changing before changing it (table at the end)
 | `db/migrations/` | the database: plain SQL, three files (accounts, tenancy, billing) |
 | `src/db/client.ts`, `src/auth/` | the one client for the studio's Postgres (`Db`), and password hashing |
 | `workers/` | the RunPod worker (Python, ComfyUI graphs for SDXL + IP-Adapter and Wan 2.2) |
+| `worker-voice/`, `src/voice/`, `src/providers/runpod-voice.ts` | the voice worker (Python: VoxCPM2 + Whisper), laying a script's words over what was heard, the provider |
 | `deploy/` | Compose file, Dockerfiles, Caddy files for the server |
 | `test/` | pipeline tests: `unit`, `stages`, `media`, `pipeline`, `db` |
 | `web/test/`, `web/e2e/`, `web/accounts/`, `web/stack/` | studio tests: vitest, and three Playwright suites |

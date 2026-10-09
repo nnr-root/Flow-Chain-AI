@@ -282,3 +282,46 @@ Landed directly on `main`. Supabase is gone: no package, no folder, no setting, 
   - Google sign-in and SMTP have only been run against stand-ins;
   - nothing here has run on a real server yet.
 
+### 9.3 Voice: benchmark and worker, before its live check (2026-10-09)
+
+**Benchmark** (D2; one RTX 4090 pod, five starts, about $0.30 in all). Both engines read six texts in English
+and Turkish; a Whisper model listened.
+
+| | VoxCPM2 | Chatterbox Multilingual V3 |
+|---|---|---|
+| GPU seconds per second of speech | 0.28 | 0.26 |
+| GPU memory | 5.9 GB | 3.7 GB |
+| Plain sentences heard as written | all, both languages | all in English; about 1 word in 40 off in Turkish |
+| Turkish digits | one year read wrongly | garbled |
+| Load | 95 s with its compile step | 18 s |
+| Output | 48 kHz | 24 kHz |
+
+The owner listened and chose VoxCPM2 (click). Listening for word times took 0.3 s a clip. Met on the way: the
+newest PyTorch wheel does not start on every host's GPU driver (it fell back to the CPU on one): the image keeps
+the PyTorch of its base image; a compile step needs a C compiler; the published `voxcpm` takes no `seed`.
+
+**Built, offline** (the pattern of 2.4: TypeScript verified with stand-ins, Python unit-tested, the image and the
+endpoint verified live only):
+
+- `worker-voice/`: the contract (one line, a voice, an optional language, a seed), the handler, the image with
+  both models inside it. The speech returns in the job's answer as MP3; nothing is uploaded, the two scratch
+  files are removed on every path, nothing of a line is logged, FlashBoot is off. A line that begins with a
+  parenthesis is refused: that is how this model is told to invent a voice.
+- Two voices, each with an English and a Turkish reference clip (made by the model's own voice design).
+- `RunpodTts` asks once per line, and once more by itself (another seed) when under half the line was heard as
+  written; after a job is bought nothing is bought again by a retry.
+- `alignWords` lays the script's words over the heard ones: a word heard as written keeps its time, the rest
+  share the time between their neighbours. Captions keep showing the script.
+- The script's language is worked out from the whole script (Turkish, English, or unsaid), only for runs on the
+  studio's own voice: an earlier run's request and cache keys are unchanged, and `compat.test.ts` passes.
+- New runs use the voice endpoint once `RUNPOD_VOICE_ENDPOINT` is set (`npm run voice:deploy`); until then, and
+  for every earlier run, ElevenLabs. §5.2's purge waits for the live check.
+- Estimates: `(1.5 + 0.02 × characters) s × rate` a line, plus 40 s once a run for the worker's start. The 40 s
+  is a guess (the benchmark measured the load only with the compile step, which the worker leaves off).
+
+**Unverified until the live check:** the image build; that the models load without network; the load time and
+speed without the compile step; Whisper on the GPU in that image; the size of an answer with speech in it; a
+real run's captions.
+
+**Known limits:** digits are read as the voice reads them; languages other than Turkish and English speak from
+the English clip; a customer cannot bring a voice.

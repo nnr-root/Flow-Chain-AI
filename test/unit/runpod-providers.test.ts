@@ -208,6 +208,7 @@ describe("createProviders", () => {
     ELEVENLABS_VOICE_ID: "v",
     ELEVENLABS_MODEL: "t",
     FLOWCHAIN_BUDGET_USD: 3,
+    FLOWCHAIN_VOICE: "narrator-m",
     RUNS_DIR: "./runs",
   };
   const runpodEnv = {

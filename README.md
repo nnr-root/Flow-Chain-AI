@@ -112,7 +112,26 @@ is conditioned on; `reroll <runId> --stage reference --scene 1` generates a new 
 redone from it). Clips are 480p (upscaled to the output size) with frame interpolation to 32 fps. GPU time is
 charged per job from RunPod's measured execution time; cold starts and idle time are not attributed per job.
 
-The model stack is licensed for commercial use (SDXL / RealVisXL / Animagine under CreativeML Open RAIL++-M,
+### The studio's own voice
+
+`npm run voice:deploy` creates one more endpoint, for the voiceover (VoxCPM2, with a Whisper model that says
+when each word was spoken, which the captions need), and writes `RUNPOD_VOICE_ENDPOINT` into `.env`. From then
+on new runs are spoken there, at about a tenth of a cent a line instead of about three cents; runs made before
+stay on ElevenLabs for as long as its key is in `.env`. It needs no volume and uploads nothing: a line goes in,
+its speech comes back in the answer. Its image is built by the same GitHub Action from `worker-voice/`; make the
+`flowchain-voice` package public once, like the other.
+
+- Two voices are in the image, `narrator-m` (the default) and `narrator-f`; `FLOWCHAIN_VOICE` or `--voice` picks
+  one. Both were invented from a written description, not recorded from a person. Each has a Turkish and an
+  English reference clip; a script in another language is spoken from the English one.
+- The voice reads digits its own way, and not always rightly in Turkish: for a number that must be right, have
+  the script write it in words.
+- A line the voice did not speak as written (it happens now and then) is asked for once more by itself; both
+  tries are charged. After that the run stops, to be continued by hand.
+
+The model stack is licensed for commercial use (VoxCPM2 and Whisper: Apache 2.0 and MIT).
+
+The picture and clip models are licensed for commercial use (SDXL / RealVisXL / Animagine under CreativeML Open RAIL++-M,
 IP-Adapter Apache 2.0, Wan 2.2 Apache 2.0). Open RAIL++-M requires its use restrictions to be passed on in your
 customer terms.
 

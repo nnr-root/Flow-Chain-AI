@@ -15,7 +15,7 @@ import { CaptionStyleName, Transition } from "./media/remotion/props.js";
 import { type Plan, planRun, RunAborted, runPipeline } from "./pipeline.js";
 import { PresetName } from "./presets.js";
 import { createProviders } from "./providers/factory.js";
-import { frozenModePrices, newRunProviders } from "./providers/new-run.js";
+import { frozenModePrices, newRunProviders, newRunVoice } from "./providers/new-run.js";
 import type { Providers } from "./providers/types.js";
 import { applyRenderOptions, assertRenderOnly, noPaidProviders } from "./rerender.js";
 import { bumpNonce, REROLLABLE } from "./reroll.js";
@@ -211,7 +211,7 @@ program
   .option("--brand <dir>", "brand kit folder (brand.json, logo, optional font): watermark, font, colours, characters")
   .option("--characters <text>", "character bible used in every prompt (default: the brand kit's, else Gemini's)")
   .option("--seed <n>", "seed shared by every keyframe (default: random)")
-  .option("--voice <id>", "ElevenLabs voice id (default: ELEVENLABS_VOICE_ID)")
+  .option("--voice <id>", "voice (default: FLOWCHAIN_VOICE with the studio's own voice, else ELEVENLABS_VOICE_ID)")
   .option("--bgm <file>", "background music, ducked under the narration")
   .addOption(new Option("--caption-style <style>", "caption look (default: the preset's)").choices(CAPTION_CHOICES))
   .addOption(
@@ -233,6 +233,7 @@ program
     if (o.bgm && !existsSync(o.bgm)) throw new Error(`--bgm file not found: ${o.bgm}`);
     const kit: BrandKit | undefined = o.brand ? await loadBrandKit(o.brand) : undefined;
     const providers = newRunProviders(env);
+    const voice = newRunVoice(env);
     const request = RunRequest.parse({
       topic: o.topic,
       aspect: o.aspect,
@@ -249,7 +250,7 @@ program
       seed: seed(o.seed),
       videoProfile: providers.videoProfile,
       imageProfile: providers.imageProfile,
-      voiceId: o.voice ?? env.ELEVENLABS_VOICE_ID,
+      voiceId: o.voice ?? voice.voiceId,
       bgm: o.bgm ? resolve(o.bgm) : undefined,
       render: {
         captionStyle: o.captionStyle,
@@ -264,7 +265,7 @@ program
     const concurrency = renderConcurrency(o.renderConcurrency);
     const models: Models = {
       llm: env.GEMINI_MODEL,
-      tts: env.ELEVENLABS_MODEL,
+      tts: voice.model,
       image: providers.image,
       video: providers.video,
     };

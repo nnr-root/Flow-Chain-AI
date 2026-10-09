@@ -24,7 +24,9 @@ describe("loadEnv", () => {
   });
 
   it("names every missing required variable", () => {
-    expect(() => loadEnv({ RUNS_DIR: "./r" })).toThrowError(/GEMINI_API_KEY[\s\S]*ELEVENLABS_API_KEY[\s\S]*ELEVENLABS_VOICE_ID/);
+    expect(() => loadEnv({ RUNS_DIR: "./r" })).toThrowError(/GEMINI_API_KEY/);
+    // the hosted voice's keys are asked for where a run needs them, not here: the studio's own voice needs neither
+    expect(loadEnv({ GEMINI_API_KEY: "g" }).ELEVENLABS_API_KEY).toBeUndefined();
   });
 
   it("rejects empty keys", () => {

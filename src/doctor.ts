@@ -107,6 +107,8 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models, voi
   const llmModel = models?.llm ?? env.GEMINI_MODEL;
   const ttsModel = models?.tts ?? env.ELEVENLABS_MODEL;
   const voice = voiceId ?? env.ELEVENLABS_VOICE_ID;
+  // the studio's own voice: the endpoint of the run's frozen model, else the one new runs would use
+  const ownVoice = models ? (models.tts.startsWith("runpod:") ? (parseModelId(models.tts) as { endpointId: string }).endpointId : undefined) : env.RUNPOD_VOICE_ENDPOINT;
   const fonts = captionFontFiles(fontsDir);
   const missingFonts = fonts.filter((f) => !existsSync(f));
   const missingSfx = sfxFiles(SFX_DIR).filter((f) => !existsSync(f));
@@ -145,10 +147,16 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models, voi
           }),
         ]
       : []),
-    await attempt(`ElevenLabs voice ${voice}`, async () => {
-      await new ElevenLabsTts(env.ELEVENLABS_API_KEY, ttsModel).checkVoice(voice);
-      return "available";
-    }),
+    ownVoice
+      ? await attempt("voice endpoint", async () => {
+          if (!env.RUNPOD_API_KEY) throw new Error("RUNPOD_API_KEY is not set");
+          return checkRunpodEndpoints(new RunpodClient(env.RUNPOD_API_KEY), [ownVoice]);
+        })
+      : await attempt(`ElevenLabs voice ${voice ?? "(none)"}`, async () => {
+          if (!env.ELEVENLABS_API_KEY || !voice) throw new Error("ELEVENLABS_API_KEY and ELEVENLABS_VOICE_ID are not set, and there is no voice endpoint (npm run voice:deploy)");
+          await new ElevenLabsTts(env.ELEVENLABS_API_KEY, ttsModel).checkVoice(voice);
+          return "available";
+        }),
   ];
 }
 

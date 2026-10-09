@@ -295,3 +295,56 @@ export async function assertImageInGhcr(
     warn(`could not check that ${image} exists in GHCR (${err instanceof Error ? err.message : String(err)}); continuing`);
   }
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// The voice worker (phase 5 spec §6.1): a template and an endpoint of its own. It needs no volume (its models are
+// in its image) and no secret (it uploads nothing: the speech comes back in the job's answer), so it is not tied
+// to a data centre.
+
+export const VOICE_NAMES = { template: "flowchain-voice", endpoint: "flowchain-voice" } as const;
+
+export const VOICE_DEFAULTS = {
+  /** Any 24 GB card will do (the two models take about 8 GB); listed dearest-last, RunPod takes the first in stock. */
+  gpus: ["NVIDIA GeForce RTX 4090", "NVIDIA RTX A5000", "NVIDIA GeForce RTX 3090"],
+  /** The image holds both models: the container's disk must hold the image unpacked. */
+  containerDiskInGb: 30,
+};
+
+export type VoiceDeployConfig = { image: string; gpus: string[] };
+
+/** The image tag for a tree hash of `worker-voice/`; the workflow pushes the same tag. */
+export const voiceImageTag = (treeHash: string): string => `v-${treeHash.slice(0, 12)}`;
+
+async function lookupVoice(rest: RunpodRest): Promise<{ template?: Resource; endpoint?: Resource }> {
+  const [templates, endpoints] = await Promise.all([rest.list("templates"), rest.list("endpoints")]);
+  return { template: findByName(templates, "templates", VOICE_NAMES.template), endpoint: findByName(endpoints, "endpoints", VOICE_NAMES.endpoint) };
+}
+
+export async function planVoiceDeploy(rest: RunpodRest): Promise<Step[]> {
+  const found = await lookupVoice(rest);
+  return [
+    { what: "template", name: VOICE_NAMES.template, action: found.template ? "update" : "create" },
+    { what: "endpoint", name: VOICE_NAMES.endpoint, action: found.endpoint ? "update" : "create" },
+  ];
+}
+
+/** Creates or updates the voice template and endpoint; returns the endpoint's id. Safe to re-run. */
+export async function applyVoiceDeploy(rest: RunpodRest, cfg: VoiceDeployConfig): Promise<{ templateId: string; endpointId: string }> {
+  // both lookups come before the first write, so an ambiguous setup changes nothing
+  const found = await lookupVoice(rest);
+  const templateBody = { imageName: cfg.image, containerDiskInGb: VOICE_DEFAULTS.containerDiskInGb, env: {} };
+  const template = await upsert(rest, "templates", found.template, VOICE_NAMES.template, { ...templateBody, isServerless: true }, templateBody);
+  const endpoint = {
+    templateId: template.id,
+    gpuTypeIds: cfg.gpus,
+    workersMin: 0,
+    // one worker: a run's lines are spoken one after another, and a second worker would load the models again
+    workersMax: 1,
+    idleTimeout: 30, // seconds: keeps the worker warm between a run's lines
+    executionTimeoutMs: 120_000,
+    // off: FlashBoot keeps a worker's state after it stops, and this worker is meant to keep nothing (spec §8)
+    flashboot: false,
+  };
+  const made = await upsert(rest, "endpoints", found.endpoint, VOICE_NAMES.endpoint, endpoint, endpoint);
+  return { templateId: template.id, endpointId: made.id };
+}

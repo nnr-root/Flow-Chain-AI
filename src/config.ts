@@ -20,13 +20,18 @@ export function keyframeSize(aspect: Aspect): Size {
 const Env = z.object({
   GEMINI_API_KEY: z.string().min(1),
   GEMINI_MODEL: z.string().min(1).default("gemini-flash-latest"),
-  ELEVENLABS_API_KEY: z.string().min(1),
-  ELEVENLABS_VOICE_ID: z.string().min(1),
+  // Needed only while the voice is not the studio's own (no RUNPOD_VOICE_ENDPOINT): checked where it is used.
+  ELEVENLABS_API_KEY: z.string().min(1).optional(),
+  ELEVENLABS_VOICE_ID: z.string().min(1).optional(),
   ELEVENLABS_MODEL: z.string().min(1).default("eleven_multilingual_v2"),
   FLOWCHAIN_BUDGET_USD: z.coerce.number().positive().default(3),
   RUNPOD_API_KEY: z.string().min(1).optional(),
   RUNPOD_KEYFRAME_ENDPOINT: z.string().min(1).optional(),
   RUNPOD_CLIP_ENDPOINT: z.string().min(1).optional(),
+  /** The studio's own voice (phase 5 spec §6.1). With it set, new runs are spoken there. */
+  RUNPOD_VOICE_ENDPOINT: z.string().min(1).optional(),
+  /** Which of the voice worker's voices new runs use. */
+  FLOWCHAIN_VOICE: z.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/).default("narrator-m"),
   R2_ACCOUNT_ID: z.string().min(1).optional(),
   R2_BUCKET: z.string().min(1).optional(),
   R2_ACCESS_KEY_ID: z.string().min(1).optional(),
@@ -61,6 +66,11 @@ export const Prices = z.strictObject({
   runpodReferenceSec: z.number().optional(),
   runpodClipSecPerFrame: z.number().optional(),
   runpodColdStartSec: z.number().optional(),
+  // The studio's own voice (5). Optional with no schema default, for the same reason as the fields above.
+  runpodVoiceUsdPerSec: z.number().optional(),
+  runpodVoiceSecPerLine: z.number().optional(),
+  runpodVoiceSecPerChar: z.number().optional(),
+  runpodVoiceColdStartSec: z.number().optional(),
 });
 export type Prices = z.infer<typeof Prices>;
 
@@ -75,6 +85,12 @@ export function runpodRates(p: Prices) {
     referenceSec: p.runpodReferenceSec ?? 8,
     clipSecPerFrame: p.runpodClipSecPerFrame ?? 1.5,
     coldStartSec: p.runpodColdStartSec ?? 90,
+    // Measured on an RTX 4090 (phase 5 spec §9): 0.28 s of GPU per second of speech, about 15 characters a
+    // second, plus the listening and the encoding of each line.
+    voiceUsdPerSec: p.runpodVoiceUsdPerSec ?? 0.000306,
+    voiceSecPerLine: p.runpodVoiceSecPerLine ?? 1.5,
+    voiceSecPerChar: p.runpodVoiceSecPerChar ?? 0.02,
+    voiceColdStartSec: p.runpodVoiceColdStartSec ?? 40,
   };
 }
 

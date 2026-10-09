@@ -24,4 +24,5 @@ export function runpodModelId(endpointId: string, workflow: string, version: num
 export const RUNPOD_WORKFLOWS = {
   keyframe: { workflow: "keyframe-sdxl", version: 1 },
   clip: { workflow: "clip-wan22-480p", version: 1 },
+  voice: { workflow: "voice-voxcpm2", version: 1 },
 } as const;

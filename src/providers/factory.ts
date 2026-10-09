@@ -7,7 +7,8 @@ import { R2 } from "./r2.js";
 import { RunpodClient } from "./runpod.js";
 import { type RunpodDeps, RunpodImage, RunpodVideo } from "./runpod-providers.js";
 import { NonRetryableError } from "./retry.js";
-import type { ImageProvider, Providers, QueuedProvider, VideoProvider } from "./types.js";
+import { RunpodTts } from "./runpod-voice.js";
+import type { ImageProvider, Providers, QueuedProvider, TtsProvider, VideoProvider } from "./types.js";
 
 function need(value: string | undefined, name: string, why: string): string {
   if (!value) throw new Error(`${name} is not set; ${why}`);
@@ -50,9 +51,16 @@ export function createProviders(env: Env, models: Models, prices: Prices): Provi
     imageRef.provider === "retired" ? retired("pictures", imageRef.model) : new RunpodImage(runpodDeps(), imageRef);
   const video: VideoProvider =
     videoRef.provider === "retired" ? retired("clips", videoRef.model) : new RunpodVideo(runpodDeps(), videoRef);
+  // The voice follows the run too: a run spoken by the studio's own voice stays there, an earlier one stays on
+  // the service it was made with for as long as that service's key is here.
+  const voiceRef = models.tts.startsWith("runpod:") ? parseModelId(models.tts) : undefined;
+  const tts: TtsProvider =
+    voiceRef?.provider === "runpod"
+      ? new RunpodTts({ client: new RunpodClient(need(env.RUNPOD_API_KEY, "RUNPOD_API_KEY", "this run uses the studio's own voice")), usdPerSec: runpodRates(prices).voiceUsdPerSec }, voiceRef)
+      : new ElevenLabsTts(need(env.ELEVENLABS_API_KEY, "ELEVENLABS_API_KEY", "this run's voice is ElevenLabs"), models.tts);
   return {
     llm: new GeminiLlm(env.GEMINI_API_KEY, models.llm),
-    tts: new ElevenLabsTts(env.ELEVENLABS_API_KEY, models.tts),
+    tts,
     image,
     video,
   };

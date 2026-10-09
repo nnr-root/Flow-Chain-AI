@@ -18,10 +18,11 @@ export interface LlmProvider {
   generateScript(req: ScriptRequest): Promise<unknown>;
 }
 
-export type SpeakRequest = { text: string; previousText?: string; nextText?: string; voiceId: string };
+/** `language`: the script's, where it is known (the studio's own voice picks its reference clip by it). */
+export type SpeakRequest = { text: string; previousText?: string; nextText?: string; voiceId: string; language?: string };
 export interface TtsProvider {
-  /** `audio` is MP3 bytes; `words` are relative to the start of that audio. */
-  speak(req: SpeakRequest): Promise<{ audio: Buffer; words: WordTiming[] }>;
+  /** `audio` is MP3 bytes; `words` are relative to the start of that audio. `costUsd`: what it really cost, where the provider bills by measured time. */
+  speak(req: SpeakRequest): Promise<{ audio: Buffer; words: WordTiming[]; costUsd?: number }>;
 }
 
 export type WaitOptions = { timeoutMs: number };

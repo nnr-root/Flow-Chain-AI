@@ -2,7 +2,8 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  applyDeploy, assertImageInGhcr, DEFAULTS, fetchModels, NAMES, planDeploy, RunpodRest, workerImageTag, writeEnvValues,
+  applyDeploy, applyVoiceDeploy, assertImageInGhcr, DEFAULTS, fetchModels, NAMES, planDeploy, planVoiceDeploy, RunpodRest, VOICE_DEFAULTS, voiceImageTag,
+  workerImageTag, writeEnvValues,
 } from "../../src/deploy/runpod.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
 import { FakeRunpodApi } from "../fakes/runpod.js";
@@ -236,3 +237,38 @@ describe("assertImageInGhcr", () => {
     expect(untouched.calls).toEqual([]);
   });
 });
+
+describe("the voice endpoint's deploy", () => {
+  const voice = { image: "ghcr.io/me/flowchain-voice:v-abc", gpus: VOICE_DEFAULTS.gpus };
+
+  it("creates a template and an endpoint of its own: no volume, no secret, no data centre, and no state kept between workers", async () => {
+    const { rest, store, secrets } = fakeRest();
+    expect((await planVoiceDeploy(rest)).map((s) => `${s.action} ${s.what} ${s.name}`)).toEqual(["create template flowchain-voice", "create endpoint flowchain-voice"]);
+    const made = await applyVoiceDeploy(rest, voice);
+    expect(store.templates).toEqual([expect.objectContaining({ id: made.templateId, name: "flowchain-voice", imageName: voice.image, isServerless: true, env: {} })]);
+    const [endpoint] = store.endpoints;
+    expect(endpoint).toMatchObject({ id: made.endpointId, name: "flowchain-voice", templateId: made.templateId, gpuTypeIds: voice.gpus, workersMin: 0, workersMax: 1, flashboot: false, executionTimeoutMs: 120_000 });
+    // it uploads nothing and reads no weights from a volume: nothing ties it to a bucket or a place
+    for (const absent of ["networkVolumeId", "dataCenterIds"]) expect(endpoint).not.toHaveProperty(absent);
+    expect(secrets.size).toBe(0);
+    expect(store.networkvolumes).toEqual([]);
+  });
+
+  it("updates in place on a second run, and leaves the picture and clip endpoints alone", async () => {
+    const { rest, store } = fakeRest();
+    await applyDeploy(rest, cfg, () => {});
+    const first = await applyVoiceDeploy(rest, voice);
+    expect((await planVoiceDeploy(rest)).map((s) => s.action)).toEqual(["update", "update"]);
+    const second = await applyVoiceDeploy(rest, { ...voice, image: "ghcr.io/me/flowchain-voice:v-def" });
+    expect(second).toEqual(first);
+    expect(store.templates.map((t) => [t.name, t.imageName])).toEqual([[NAMES.template, cfg.image], ["flowchain-voice", "ghcr.io/me/flowchain-voice:v-def"]]);
+    expect(store.endpoints.map((e) => e.name)).toEqual([NAMES.keyframe, NAMES.clip, "flowchain-voice"]);
+    // the other endpoints still read their weights from the volume
+    expect(store.endpoints.filter((e) => e.networkVolumeId).map((e) => e.name)).toEqual([NAMES.keyframe, NAMES.clip]);
+  });
+
+  it("tags the image by the content of its own folder", () => {
+    expect(voiceImageTag("0123456789abcdef0123")).toBe("v-0123456789ab");
+  });
+});
+
