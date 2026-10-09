@@ -1,6 +1,4 @@
-runpod>=1.7,<2
-voxcpm>=1.5
+runpod>=1.10.1,<2
+voxcpm==2.0.3
 soundfile>=0.12
 faster-whisper>=1.1,<2
-nvidia-cudnn-cu12
-nvidia-cublas-cu12

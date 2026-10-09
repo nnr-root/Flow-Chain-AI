@@ -38,7 +38,8 @@ function fakeRest() {
       return json(200, store[kind]);
     }
     if (init.method === "POST") {
-      const r = { id: `${kind}-${++n}`, ...body };
+      // like RunPod: a new endpoint has FlashBoot on whatever was asked; only a later change turns it off
+      const r = { id: `${kind}-${++n}`, ...body, ...(kind === "endpoints" ? { flashboot: true } : {}) };
       store[kind].push(r);
       return json(200, r);
     }
@@ -249,7 +250,7 @@ describe("the voice endpoint's deploy", () => {
     const made = await applyVoiceDeploy(rest, voice);
     expect(store.templates).toEqual([expect.objectContaining({ id: made.templateId, name: "flowchain-voice", imageName: voice.image, isServerless: true, env: {} })]);
     const [endpoint] = store.endpoints;
-    expect(endpoint).toMatchObject({ id: made.endpointId, name: "flowchain-voice", templateId: made.templateId, gpuTypeIds: voice.gpus, workersMin: 0, workersMax: 1, flashboot: false, executionTimeoutMs: 120_000 });
+    expect(endpoint).toMatchObject({ id: made.endpointId, name: "flowchain-voice", templateId: made.templateId, gpuTypeIds: voice.gpus, workersMin: 0, workersMax: 1, flashboot: false, minCudaVersion: "12.8", executionTimeoutMs: 120_000 });
     // it uploads nothing and reads no weights from a volume: nothing ties it to a bucket or a place
     for (const absent of ["networkVolumeId", "dataCenterIds"]) expect(endpoint).not.toHaveProperty(absent);
     expect(secrets.size).toBe(0);

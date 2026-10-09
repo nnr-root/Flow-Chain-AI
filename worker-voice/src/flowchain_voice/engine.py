@@ -33,6 +33,8 @@ def speaker():
         # half, measured): off unless the owner turns it on for an endpoint that stays warm.
         if "optimize" in inspect.signature(VoxCPM.from_pretrained).parameters:
             kwargs["optimize"] = os.environ.get("FLOWCHAIN_VOICE_COMPILE") == "1"
+        if "reference_wav_path" not in inspect.signature(VoxCPM._generate).parameters:
+            raise RuntimeError("the installed voxcpm cannot speak from a reference clip (it is too old for this worker)")
         _speaker = VoxCPM.from_pretrained("openbmb/VoxCPM2", **kwargs)
     return _speaker
 

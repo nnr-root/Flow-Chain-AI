@@ -133,7 +133,11 @@ async function upsert(
   body: Record<string, unknown>,
   update: Record<string, unknown>,
 ) {
-  return found ? rest.update(kind, found.id, update) : rest.create(kind, { name, ...body });
+  if (found) return rest.update(kind, found.id, update);
+  const made = await rest.create(kind, { name, ...body });
+  // RunPod creates every endpoint with FlashBoot on, whatever the request says, and takes "off" only as a
+  // change to an endpoint that exists (seen live, phase 5 spec §9): said again, so a new endpoint is as asked.
+  return body.flashboot === false ? rest.update(kind, made.id, { flashboot: false }) : made;
 }
 
 /** Creates or updates the volume, template and both endpoints; returns their ids. Safe to re-run. */
@@ -346,6 +350,8 @@ export async function applyVoiceDeploy(rest: RunpodRest, cfg: VoiceDeployConfig)
     executionTimeoutMs: 120_000,
     // off: FlashBoot keeps a worker's state after it stops, and this worker is meant to keep nothing (spec §8)
     flashboot: false,
+    // the image's PyTorch is built for CUDA 12.8: a host with an older driver would run it on the CPU
+    minCudaVersion: "12.8",
   };
   const made = await upsert(rest, "endpoints", found.endpoint, VOICE_NAMES.endpoint, endpoint, endpoint);
   return { templateId: template.id, endpointId: made.id };
