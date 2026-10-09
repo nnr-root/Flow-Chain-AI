@@ -474,3 +474,20 @@ mistakes (a missing `git`, a download cut off with no retry).
 **What this changes in §6:** §6.2: FLUX.2 klein 4B is the candidate; identity is the open question. §6.3: 720p
 on the RTX 4090 is affordable (a four-clip video at about $0.31). §6.5 stands, now with measurements.
 
+### 9.10 Identity with FLUX.2 klein (2026-10-09)
+
+One RTX 4090 pod, $0.04. Four scenes of one character (running up stairs, striking a match, standing on the
+gallery in rain, a close-up), each made three ways at 1088×1920, same seed:
+
+- **the description alone:** the scene is followed; the face is a different woman from scene to scene;
+- **a portrait made by klein itself (1024², 1.3 s) plus the description:** the scene is followed as well, and
+  the face, the parting and the braid match the portrait in the three scenes where the face is large enough to
+  judge (match, gallery, close-up); 4.5 s a picture;
+- **today's SDXL portrait plus the description:** the same holds, with that softer face.
+
+Judged by eye from one character and one seed, by the one who ran it; the owner decides from the sheet
+(`.superpowers/model-test/ident-sheet.jpg`). What was wrong in §9.9's test was leaving the description out.
+
+**Owner's decisions (clicks):** settle identity before switching (this section); clips are offered at both
+480p and 720p.
+
