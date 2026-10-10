@@ -83,6 +83,17 @@ describe("script stage", () => {
     expect(ctx.manifest.script?.styleBible.characters).toBe("a red fox"); // Gemini still writes the rest
   });
 
+  it("keeps the palette of a look that is one, and the script's own palette for every other look", async () => {
+    const noir = await makeTestContext({ style: "film_noir" });
+    await runPipeline(noir.ctx, [scriptStage], auto);
+    expect(noir.ctx.manifest.script?.styleBible.palette).toBe(PRESETS.film_noir.palette);
+    const anime = await makeTestContext({ style: "anime" });
+    await runPipeline(anime.ctx, [scriptStage], auto);
+    expect(PRESETS.anime.palette).toBeUndefined();
+    expect(anime.ctx.manifest.script?.styleBible.palette).not.toBe(PRESETS.film_noir.palette);
+    expect(anime.ctx.manifest.script?.styleBible.palette).toBeTruthy();
+  });
+
   it("pins the character bible: asks the LLM for it, enforces it, and keys the script on it", async () => {
     const { ctx, fakes } = await makeTestContext({ characters: "Nova: silver bob, cyan visor" }); // the LLM says "a red fox"
     const before = await scriptStage.inputsFor(ctx);

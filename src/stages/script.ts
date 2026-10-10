@@ -63,7 +63,10 @@ export const scriptStage: Stage = {
         if (shots) result.script.scenes.forEach((s, i) => (s.shot = shots[i]));
         // --style is enforced the same way, and the preset leads the art style (spec §2)
         if (style) result.script.stylePreset = style;
-        result.script.styleBible.artStyle = PRESETS[result.script.stylePreset].artStyle;
+        const preset = PRESETS[result.script.stylePreset];
+        result.script.styleBible.artStyle = preset.artStyle;
+        // a look that is a palette keeps it: a black-and-white film told "warm amber and teal" comes out in colour
+        if (preset.palette) result.script.styleBible.palette = preset.palette;
         // the character bible is enforced too, so every image and motion prompt carries it verbatim
         if (characters) result.script.styleBible.characters = characters;
         ctx.manifest.script = result.script;

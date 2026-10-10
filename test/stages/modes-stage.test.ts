@@ -91,7 +91,7 @@ describe("modes stage", () => {
     await runPipeline(ctx, STAGES, capture().opts);
     const p = PRESETS.cyberpunk;
     expect(fakes.image.submits[0].prompt).toBe(
-      `${p.imagePrefix}. a red fox. Palette: teal, orange. image 1. ${p.imageSuffix}`,
+      `${p.imagePrefix}. a red fox. Palette: ${p.palette}. image 1. ${p.imageSuffix}`,
     );
     for (const call of fakes.video.submits) {
       expect(call.prompt).toContain(`. ${p.motionKeywords}. Keep style consistent: ${p.artStyle}. a red fox.`);

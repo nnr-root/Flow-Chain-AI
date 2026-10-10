@@ -19,7 +19,7 @@ export function buildScriptPrompt(req: ScriptRequest): string {
     `You are writing a faceless short-form video about: "${req.topic}".`,
     `Return exactly ${req.sceneCount} scenes.`,
     "",
-    "Style presets (each sets the art style, image and motion wording, and the caption look):",
+    "Style presets (each sets the art style, image and motion wording, and the caption look), with the topics each one suits:",
     ...Object.values(PRESETS).map((p) => `- ${p.name}: ${p.description}`),
     req.style
       ? `- stylePreset: use exactly "${req.style}".`
@@ -33,10 +33,12 @@ export function buildScriptPrompt(req: ScriptRequest): string {
     req.characters
       ? `- styleBible.characters: use exactly: "${req.characters}". Refer to these characters consistently in every scene they appear in.`
       : '- styleBible.characters: a precise, reusable description of every recurring character (age, clothing, hair, colors), or "none".',
-    "- styleBible.palette: 3-5 dominant colors.",
+    "- styleBible.palette: 3-5 dominant colors, as plain colour names.",
     `- imagePrompt: what a single still frame of the scene shows, ${orientation}. Do not describe the art style or repeat the style bible; they are added automatically. Never ask for text, captions, logos or watermarks.`,
+    "- imagePrompt, how to write it: one or two plain sentences that a painter could work from. Name one clear main subject and what it is doing, where it is, how close the camera is (close-up, medium shot or wide shot) and from where it looks, and the light or time of day. Only things that can be seen: no feelings, ideas, metaphors, sounds or story. Say what is in the frame, never what is absent from it. Every scene's frame must differ from the one before it in subject, distance or angle.",
     "- showsCharacter: true only when a recurring character is visible in the scene's frame, and then the imagePrompt says what they are doing; false for a scene of a place, an object or a detail, whose imagePrompt must not mention them.",
     "- motionPrompt: camera movement plus subject motion during the scene in one or two sentences, physically plausible for a 5-10 second clip.",
+    "- motionPrompt, how to write it: one camera move (for example a slow push-in, a pan left, an orbit, a tilt up, or a static camera) and one or two simple motions of things already in the frame. Nothing new enters the frame, nothing changes place or shape, and nobody speaks to the camera. Do not describe how anything looks.",
     '- shot: "continue" if the scene happens in the same place and moment as the previous scene and should flow on from its last frame; "cut" for a new location, time or framing. Scene 1 must be "cut".',
     "- camera: the programmatic camera move used if this scene is rendered from a still image.",
     '- actionLevel: "high" for fast or complex motion worth real video, "medium" for some motion, "low" for still, contemplative or text-like moments.',

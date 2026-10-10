@@ -17,7 +17,8 @@ async function avgRgb(video: string, frame: number, crop?: string): Promise<[num
   const r = await execa("ffmpeg", [
     "-v", "error", "-i", video, "-vf", `select=eq(n\\,${frame})${region},scale=1:1`, "-frames:v", "1",
     "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
-  ], { encoding: "buffer" });
+    // (the bytes as they are: a pixel of value 10 is a line feed, and execa takes a last one off)
+  ], { encoding: "buffer", stripFinalNewline: false });
   const b = r.stdout as Uint8Array;
   return [b[0], b[1], b[2]];
 }
