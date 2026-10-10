@@ -4,6 +4,7 @@ import { Aspect, Prices } from "../config.js";
 import { CaptionStyleName, Transition } from "../media/remotion/props.js";
 import { PresetName } from "../presets.js";
 import { ImageProfileId } from "../image-profiles.js";
+import { SPEECH_LANGUAGE_CODES } from "../voice/language.js";
 import { VideoProfileId } from "../video-profiles.js";
 
 export const MAX_NARRATION_WORDS = 16;
@@ -227,7 +228,7 @@ export const RunRequest = z.object({
    * The language the video is told in (--language): the script is written in it and the voice speaks from its
    * clip in it. Absent = whatever the script's model wrote, worked out from the script afterwards; frozen.
    */
-  language: z.enum(["en", "tr"]).optional(),
+  language: z.enum(SPEECH_LANGUAGE_CODES).optional(),
   /** Forced style preset (--style); absent = Gemini picks one. */
   style: PresetName.optional(),
   /** Character bible (--characters or the brand kit's), enforced into styleBible.characters; frozen. */

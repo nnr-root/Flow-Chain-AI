@@ -17,7 +17,7 @@ read the one for the area you are changing before changing it (table at the end)
 
 - **Nothing that spends money or touches a real account runs without the owner's click.** That is:
   `npm run flowchain` with `run`/`resume`/`reroll`/`doctor`, every `npm run smoke*`, `runpod:deploy`, `voice:deploy`,
-  `make:sfx`, `make:styles`, `server:*`, `db:migrate`, `studio:grant`, `studio:welcome`, `stripe:setup`, and starting `npm run web` or
+  `make:sfx`, `make:styles`, `make:voices`, `server:*`, `db:migrate`, `studio:grant`, `studio:welcome`, `stripe:setup`, and starting `npm run web` or
   `npm run worker` against the real `.env`. Tests never need any of them. `rerender` is free.
 - **Never read or print `.env` or `deploy/server.env`.** A command may pass a value through the shell
   (`$(grep …)`) without showing it. Mask `sk_…`, `rk_…`, `whsec_…` in anything you print, logs included.
@@ -112,7 +112,9 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - **A video is asked for in a language** (`request.language`; phase 7 spec §13): the script writes what is
   heard in it and what the picture models read in English, and the voice speaks from its clip in it. The
   languages and voices on offer are in `src/voice/language.ts`, held by a test to the voice worker's own files;
-  the words a length comes to depend on the language (`wordsPerSecond`; Turkish is an estimate until measured).
+  the words a length comes to depend on the language (`wordsPerSecond`: English measured in videos, the others
+  worked out from the samples). Twenty languages (§14): one is added only when the voice model speaks it, its
+  words are set apart by spaces, and a shipped caption typeface has its letters (`fontCovers`).
 - **A style's name is not sent to the picture worker**: it uses it for nothing and refuses one it was not built
   knowing. Do not put it back.
 - **A script of more than 90 seconds is written in parts** (an outline, then each part), each answer checked

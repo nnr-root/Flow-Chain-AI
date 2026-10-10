@@ -1,0 +1,169 @@
+{
+  "madeOn": "2026-10-10",
+  "samples": {
+    "narrator-m": {
+      "en": {
+        "seconds": 7.04,
+        "words": 23
+      },
+      "tr": {
+        "seconds": 6.24,
+        "words": 17
+      },
+      "es": {
+        "seconds": 7.68,
+        "words": 18
+      },
+      "fr": {
+        "seconds": 8.16,
+        "words": 21
+      },
+      "de": {
+        "seconds": 8.48,
+        "words": 21
+      },
+      "it": {
+        "seconds": 7.52,
+        "words": 19
+      },
+      "pt": {
+        "seconds": 7.52,
+        "words": 19
+      },
+      "nl": {
+        "seconds": 7.36,
+        "words": 21
+      },
+      "pl": {
+        "seconds": 8,
+        "words": 20
+      },
+      "ru": {
+        "seconds": 8.16,
+        "words": 18
+      },
+      "sv": {
+        "seconds": 7.68,
+        "words": 20
+      },
+      "da": {
+        "seconds": 8,
+        "words": 20
+      },
+      "no": {
+        "seconds": 7.84,
+        "words": 21
+      },
+      "fi": {
+        "seconds": 7.84,
+        "words": 15
+      },
+      "el": {
+        "seconds": 7.04,
+        "words": 20
+      },
+      "id": {
+        "seconds": 9.28,
+        "words": 19
+      },
+      "ms": {
+        "seconds": 8.64,
+        "words": 19
+      },
+      "tl": {
+        "seconds": 9.12,
+        "words": 19
+      },
+      "sw": {
+        "seconds": 7.68,
+        "words": 16
+      },
+      "vi": {
+        "seconds": 7.04,
+        "words": 30
+      }
+    },
+    "narrator-f": {
+      "en": {
+        "seconds": 7.2,
+        "words": 23
+      },
+      "tr": {
+        "seconds": 7.04,
+        "words": 17
+      },
+      "es": {
+        "seconds": 7.52,
+        "words": 18
+      },
+      "fr": {
+        "seconds": 7.84,
+        "words": 21
+      },
+      "de": {
+        "seconds": 8.32,
+        "words": 21
+      },
+      "it": {
+        "seconds": 7.2,
+        "words": 19
+      },
+      "pt": {
+        "seconds": 7.68,
+        "words": 19
+      },
+      "nl": {
+        "seconds": 7.04,
+        "words": 21
+      },
+      "pl": {
+        "seconds": 6.4,
+        "words": 20
+      },
+      "ru": {
+        "seconds": 7.04,
+        "words": 18
+      },
+      "sv": {
+        "seconds": 7.68,
+        "words": 20
+      },
+      "da": {
+        "seconds": 6.88,
+        "words": 20
+      },
+      "no": {
+        "seconds": 8.32,
+        "words": 21
+      },
+      "fi": {
+        "seconds": 7.68,
+        "words": 15
+      },
+      "el": {
+        "seconds": 6.56,
+        "words": 20
+      },
+      "id": {
+        "seconds": 9.92,
+        "words": 19
+      },
+      "ms": {
+        "seconds": 8.96,
+        "words": 19
+      },
+      "tl": {
+        "seconds": 8.96,
+        "words": 19
+      },
+      "sw": {
+        "seconds": 7.52,
+        "words": 16
+      },
+      "vi": {
+        "seconds": 7.2,
+        "words": 30
+      }
+    }
+  }
+}

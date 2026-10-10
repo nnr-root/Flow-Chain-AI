@@ -36,7 +36,7 @@ describe("the new-video form", () => {
     for (const language of Object.keys(SPEECH_LANGUAGES)) expect(NewVideo.parse({ ...base, language }).language).toBe(language);
     for (const voiceId of Object.keys(VOICES)) expect(NewVideo.parse({ ...base, voiceId }).voiceId).toBe(voiceId);
     // a voice is one of the studio's own, by name: not any id a request cares to send to the engine
-    for (const bad of [{ language: "de" }, { language: "" }, { voiceId: "someone-else" }, { voiceId: "../narrator-m" }]) expect(NewVideo.safeParse({ ...base, ...bad }).success, JSON.stringify(bad)).toBe(false);
+    for (const bad of [{ language: "ar" }, { language: "" }, { voiceId: "someone-else" }, { voiceId: "../narrator-m" }]) expect(NewVideo.safeParse({ ...base, ...bad }).success, JSON.stringify(bad)).toBe(false);
     expect(draftArgs(NewVideo.parse({ ...base, language: "tr" }), "20261006-120000-abcdef")).toEqual(expect.arrayContaining(["--language", "tr"]));
   });
 

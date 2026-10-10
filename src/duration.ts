@@ -31,12 +31,16 @@ export const DEFAULT_SCENE_SECONDS: SceneSeconds = { min: 3, max: 5 };
 export const WORDS_PER_SECOND = 2.4;
 
 /**
- * The same for another language, where it is known. Turkish has not been measured in a video: its figure is
- * the English one scaled by how much slower the voices read their own Turkish reference clips than their
- * English ones (20 words in 8.0 s against 29 in about 9.5), which comes to 2.0. Measure it with the first
- * Turkish videos.
+ * The same for the other languages a video can be asked for in. Only English was measured in videos. The
+ * others are English scaled by how the same two sentences, said by the same two voices as the samples on the
+ * form, compare with the English ones in words a second (`web/content/voice-samples.json`, phase 7 spec §14):
+ * an estimate that carries each language's word length and pace, to be measured again with its first videos.
  */
-const WORDS_PER_SECOND_IN: Record<string, number> = { en: WORDS_PER_SECOND, tr: 2.0 };
+// (samples of 2026-10-10: English 3.23 words a second there against 2.42 in videos, so each is its sample's
+// figure times 0.75)
+const WORDS_PER_SECOND_IN: Record<string, number> = {
+  en: WORDS_PER_SECOND, tr: 1.9, es: 1.8, fr: 2.0, de: 1.9, it: 1.9, pt: 1.9, nl: 2.2, pl: 2.1, ru: 1.8, sv: 2.0, da: 2.0, no: 1.9, fi: 1.4, el: 2.2, id: 1.5, ms: 1.6, tl: 1.6, sw: 1.6, vi: 3.2,
+};
 export const wordsPerSecond = (language?: string): number => WORDS_PER_SECOND_IN[language ?? "en"] ?? WORDS_PER_SECOND;
 
 /** The most words one scene's narration may ever have (the script's own limit; about six seconds of speech). */

@@ -24,14 +24,49 @@ export function speechLanguage(text: string): "tr" | "en" | undefined {
 }
 
 /**
- * The languages a video can be asked for in: the ones every voice has a reference clip in (a test holds this
- * list to `worker-voice/voices/voices.json`). The name is the language's own.
+ * The languages a video can be asked for in (phase 7 spec §14), each by its own name. A language is here when
+ * all of this holds for it:
+ * - the voice model speaks it (its makers list thirty languages);
+ * - its words are set apart by spaces, which is how a script's length is counted and how captions are laid over
+ *   what was heard, one word at a time;
+ * - a caption typeface the studio ships has its letters (`fontCovers` below).
+ * That leaves out the model's other ten: Arabic and Hebrew (written right to left), Hindi, Thai, Burmese,
+ * Khmer and Lao (no typeface here has their letters, and most write no spaces), Chinese and Japanese (no
+ * spaces), Korean (no typeface). Each is a piece of work of its own, not a line in this list.
+ *
+ * A voice speaks a language from its own reference clip where it has one (English and Turkish) and from its
+ * English clip otherwise; the voice worker has always done so.
  */
-export const SPEECH_LANGUAGES = { en: "English", tr: "Türkçe" } as const;
+export const SPEECH_LANGUAGES = {
+  en: "English", tr: "Türkçe", es: "Español", fr: "Français", de: "Deutsch", it: "Italiano", pt: "Português",
+  nl: "Nederlands", pl: "Polski", ru: "Русский", sv: "Svenska", da: "Dansk", no: "Norsk", fi: "Suomi",
+  el: "Ελληνικά", id: "Bahasa Indonesia", ms: "Bahasa Melayu", tl: "Tagalog", sw: "Kiswahili", vi: "Tiếng Việt",
+} as const;
 export type SpeechLanguage = keyof typeof SPEECH_LANGUAGES;
+export const SPEECH_LANGUAGE_CODES = Object.keys(SPEECH_LANGUAGES) as [SpeechLanguage, ...SpeechLanguage[]];
 
 /** How a script's model is told the language: its English name. */
-export const LANGUAGE_IN_ENGLISH: Record<SpeechLanguage, string> = { en: "English", tr: "Turkish" };
+export const LANGUAGE_IN_ENGLISH: Record<SpeechLanguage, string> = {
+  en: "English", tr: "Turkish", es: "Spanish", fr: "French", de: "German", it: "Italian", pt: "Portuguese",
+  nl: "Dutch", pl: "Polish", ru: "Russian", sv: "Swedish", da: "Danish", no: "Norwegian", fi: "Finnish",
+  el: "Greek", id: "Indonesian", ms: "Malay", tl: "Tagalog (Filipino)", sw: "Swahili", vi: "Vietnamese",
+};
+
+/**
+ * The languages whose letters a shipped caption typeface does not have, by its file (read from the files'
+ * own character maps on 2026-10-10). A caption set in a face without a language's letters shows those letters
+ * in whatever the renderer falls back to, mixed in with the rest: a video in such a language is given a face
+ * that has them all instead (`captionStyleFor`). A face not listed here (a brand's own) is taken as it is.
+ */
+const FONT_LACKS: Record<string, readonly SpeechLanguage[]> = {
+  "Montserrat-ExtraBold.ttf": ["el"],
+  "Inter-SemiBold.ttf": [],
+  "Bangers-Regular.ttf": ["ru", "el"],
+  "Cinzel-Variable.ttf": ["vi", "ru", "el"],
+  "LuckiestGuy-Regular.ttf": ["vi", "ru", "el"],
+  "Orbitron-Variable.ttf": ["tr", "pl", "sv", "da", "no", "vi", "ru", "el"],
+};
+export const fontCovers = (file: string, language: SpeechLanguage): boolean => !(FONT_LACKS[file] ?? []).includes(language);
 
 /**
  * The studio's own voices, by the id the voice worker knows them by, in the words a person is shown. They say

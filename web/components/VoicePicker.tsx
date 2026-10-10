@@ -1,12 +1,16 @@
 "use client";
 import { SPEECH_LANGUAGES, type SpeechLanguage, type VoiceId, VOICES } from "@src/voice/language";
 import { useEffect, useRef, useState } from "react";
-import { Segmented } from "./ui";
+import listed from "@/content/voice-samples.json";
+
+/** Whether there is a sample of that voice in that language to hear (`npm run make:voices` makes them). */
+const hasSample = (voice: VoiceId, language: SpeechLanguage): boolean => Object.hasOwn((listed.samples as Record<string, Record<string, unknown>>)[voice] ?? {}, language);
 
 /**
- * The language a video is told in and the voice that tells it (phase 7 spec §13). Every voice speaks every
+ * The language a video is told in and the voice that tells it (phase 7 spec §13, §14). Every voice speaks every
  * language on offer, so the voices are the same whichever is chosen; what changes is the sample, which is that
- * voice speaking that language. One sample plays at a time.
+ * voice speaking that language. One sample plays at a time. A voice with no sample in a language yet can still
+ * be chosen: there is only nothing to hear beforehand.
  */
 export function VoicePicker({ language, voice, onLanguage, onVoice }: { language: SpeechLanguage; voice: VoiceId; onLanguage: (l: SpeechLanguage) => void; onVoice: (v: VoiceId) => void }) {
   const player = useRef<HTMLAudioElement | null>(null);
@@ -30,9 +34,14 @@ export function VoicePicker({ language, voice, onLanguage, onVoice }: { language
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3 text-[0.95rem]">
-        <span className="font-bold">Language</span>
-        <Segmented label="Language" value={language} onChange={onLanguage} options={(Object.keys(SPEECH_LANGUAGES) as SpeechLanguage[]).map((code) => ({ value: code, label: SPEECH_LANGUAGES[code] }))} />
-        <span className="text-[0.85rem] text-graphite">The script is written in it, and the captions follow.</span>
+        <label className="flex items-center gap-3">
+          <span className="font-bold">Language</span>
+          {/* (twenty of them: a list to choose from, each by its own name) */}
+          <select data-testid="language" value={language} onChange={(e) => onLanguage(e.target.value as SpeechLanguage)} className="!w-auto min-w-[12rem]">
+            {(Object.keys(SPEECH_LANGUAGES) as SpeechLanguage[]).map((code) => <option key={code} value={code}>{SPEECH_LANGUAGES[code]}</option>)}
+          </select>
+        </label>
+        <span className="text-[0.85rem] text-graphite">The script is written in it, the voice speaks it, and the captions follow.</span>
       </div>
       <div role="radiogroup" aria-label="Voice" className="grid gap-3 sm:grid-cols-2">
         {(Object.keys(VOICES) as VoiceId[]).map((id) => {
@@ -41,10 +50,12 @@ export function VoicePicker({ language, voice, onLanguage, onVoice }: { language
             <div key={id} className={`flex items-center gap-3 rounded-[18px] bg-sheet p-3 outline-offset-2 ${on ? "outline outline-[3px] outline-signal" : ""}`}>
               <button
                 type="button"
+                disabled={!hasSample(id, language)}
+                title={hasSample(id, language) ? undefined : "No sample in this language yet"}
                 data-testid={`listen-${id}`}
                 aria-label={playing === id ? `Stop the sample of ${VOICES[id].label}` : `Hear ${VOICES[id].label} in ${SPEECH_LANGUAGES[language]}`}
                 onClick={() => listen(id)}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-signal text-[0.95rem] font-bold text-paper hover:bg-ink"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-signal text-[0.95rem] font-bold text-paper hover:bg-ink disabled:bg-wash disabled:text-graphite"
               >
                 <span aria-hidden>{playing === id ? "❚❚" : "▶"}</span>
               </button>

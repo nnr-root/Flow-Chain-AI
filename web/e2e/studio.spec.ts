@@ -140,20 +140,25 @@ test("a new video is asked for by its length, how long each scene stays and what
   await page.getByTestId("look-film_noir").click();
   await expect(page.getByTestId("style-note")).toContainText("Film noir. Suits true crime, detectives");
 
-  // The language the video is told in, and the voice: every voice has a sample in the language that is chosen.
-  await expect(page.getByRole("radiogroup", { name: "Language" }).getByRole("radio")).toHaveText(["English", "Türkçe"]);
+  // The language the video is told in, one of twenty by its own name, and the voice: every voice has a sample
+  // in the language that is chosen.
+  await expect(page.getByTestId("language").locator("option")).toHaveCount(20);
+  await expect(page.getByTestId("language").locator("option")).toContainText(["English", "Türkçe", "Español", "Deutsch", "Русский", "Tiếng Việt"]);
+  await expect(page.getByTestId("language")).toHaveValue("en");
   await expect(page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio")).toHaveCount(2);
-  await page.getByRole("radiogroup", { name: "Language" }).getByRole("radio", { name: "Türkçe" }).click();
-  const sample = page.waitForRequest((r) => r.url().endsWith("/voices/narrator-f.tr.mp3"));
+  await page.getByTestId("language").selectOption("es");
+  const sample = page.waitForRequest((r) => r.url().endsWith("/voices/narrator-f.es.mp3"));
   await page.getByTestId("listen-narrator-f").click();
   await sample;
   await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName("Stop the sample of Narrator, female");
   // a sample is of one language: choosing another ends it
-  await page.getByRole("radiogroup", { name: "Language" }).getByRole("radio", { name: "English" }).click();
-  await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName("Hear Narrator, female in English");
-  await page.getByRole("radiogroup", { name: "Language" }).getByRole("radio", { name: "Türkçe" }).click();
+  await page.getByTestId("language").selectOption("tr");
+  await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName("Hear Narrator, female in Türkçe");
   await page.getByTestId("voice-narrator-f").click();
-  for (const voice of ["narrator-m", "narrator-f"]) for (const lang of ["en", "tr"]) expect((await page.request.get(`/voices/${voice}.${lang}.mp3`)).status(), `${voice}.${lang}`).toBe(200);
+  // every sample the form can ask for is there
+  for (const code of await page.getByTestId("language").locator("option").evaluateAll((options) => options.map((o) => (o as HTMLOptionElement).value))) {
+    for (const voice of ["narrator-m", "narrator-f"]) expect((await page.request.get(`/voices/${voice}.${code}.mp3`)).status(), `${voice}.${code}`).toBe(200);
+  }
 
   // pictures only, both, or clips only
   const madeOf = page.getByRole("radiogroup", { name: "What the video is made of" });

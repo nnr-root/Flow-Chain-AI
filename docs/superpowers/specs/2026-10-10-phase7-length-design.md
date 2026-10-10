@@ -279,3 +279,48 @@ worker's files, the samples and the pictures being there; the form in a browser 
 styles, a sample asked for and stopped, what the draft's command carries). **Not checked:** a video made in
 Turkish (its script, its length, its captions); how the samples sound on a phone.
 
+## 14. Twenty languages (owner's direction, 2026-10-10)
+
+The owner: not English and Turkish alone; many languages, as the tools this is compared with have, with the
+same or other voices as fits. **This replaces the two languages of §13**; the rest of §13 stands.
+
+**Which, and why not all.** The voice model's makers list thirty languages. A video can be asked for in the
+twenty of them for which all of this holds (`SPEECH_LANGUAGES`): the model speaks it; its words are set apart
+by spaces (how a script's length is counted, and how captions are laid over what was heard, a word at a time);
+and a caption typeface the studio ships has its letters. English, Turkish, Spanish, French, German, Italian,
+Portuguese, Dutch, Polish, Russian, Swedish, Danish, Norwegian, Finnish, Greek, Indonesian, Malay, Tagalog,
+Swahili, Vietnamese. Not the other ten: Arabic and Hebrew (right to left), Hindi, Thai, Burmese, Khmer, Lao
+(no typeface here, and most write no spaces), Chinese and Japanese (no spaces), Korean (no typeface). Each of
+those is work in the captions and the counting, not a line in a list.
+
+**The voices are the same two in every language.** A voice speaks a language from its own reference clip where
+it has one (English, Turkish) and from its English clip otherwise, which the voice worker has always done; so
+nothing was deployed. Whether a voice of its own for a language would sound more native is not known.
+
+**Proof that the engine speaks each one** (`npm run make:voices`; **it buys speech**: the owner's click). Both
+voices said the same two sentences in each of the twenty languages on the real engine: forty lines, nine cents.
+A line the listening model does not hear as the line it was given is refused, as in a video; none was. These
+are the samples on the form (`web/public/voices/`, listed in `web/content/voice-samples.json`).
+
+**The words a second of each language** (`wordsPerSecond`) come from those samples: each language's words a
+second there, times what English is in videos over what it is there (2.42 over 3.23). English 2.4 (measured in
+videos); Turkish 1.9, Spanish 1.8, French 2.0, German 1.9, Italian 1.9, Portuguese 1.9, Dutch 2.2, Polish 2.1,
+Russian 1.8, Swedish 2.0, Danish 2.0, Norwegian 1.9, Finnish 1.4, Greek 2.2, Indonesian 1.5, Malay 1.6, Tagalog
+1.6, Swahili 1.6, Vietnamese 3.2. Each is two sentences by two voices: enough to be far better than using
+English's figure, not enough to be exact. Measure a language again with its first videos.
+
+**Captions in a typeface that has the letters.** Read from the shipped faces' own character maps: the face of
+the cyberpunk and pixel-art styles has no Turkish, Polish, Nordic, Vietnamese, Russian or Greek letters; the
+history, fantasy and noir face and the comic ones lack Russian, Vietnamese or Greek; Greek is in one face
+only. A caption in a face without a letter shows that letter in whatever the renderer falls back to, mixed in
+with the rest. So a video in a language its style's face lacks is given the studio's plain heavy face instead,
+or for Greek the one face that has it; everything else of the style stays (`captionStyleFor`, `fontCovers`).
+This had been wrong for Turkish in the cyberpunk style all along.
+
+**The sample lines** were written by the assistant, not by native speakers. They are short and plain, and the
+engine was heard to say them; a native reader may still find a phrase stiff.
+
+**Checked:** all twenty through the request, the prompt, the word counts and the typeface rule, for every
+style; forty samples made and served; the form's list in a browser. **Not checked:** a whole video in any
+language but English: its script, its real length, its captions on screen.
+

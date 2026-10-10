@@ -2,6 +2,7 @@ import type { Manifest } from "../manifest/schema.js";
 import type { CaptionStyle, Transition } from "../media/remotion/props.js";
 import { CAPTION_STYLES } from "../media/remotion/styles.js";
 import { PRESETS, type StylePreset } from "../presets.js";
+import { fontCovers } from "../voice/language.js";
 
 /** The run's style preset: --style, else Gemini's pick; null only for runs scripted before 2.2. */
 export function effectivePreset(m: Manifest): StylePreset | null {
@@ -10,12 +11,18 @@ export function effectivePreset(m: Manifest): StylePreset | null {
 }
 
 /**
- * An explicit caption style wins; "preset" is the preset's look (hormozi when there is no preset). A brand
+ * An explicit caption style wins; "preset" is the preset's look (hormozi when there is no preset). In a
+ * language whose letters the style's typeface lacks, the typeface is one that has them. A brand
  * then replaces the font, text colour and accent colour it sets; its font file is relative to the run directory.
  */
 export function captionStyleFor(m: Manifest): CaptionStyle {
   const name = m.request.render.captionStyle;
-  const base = name !== "preset" ? CAPTION_STYLES[name] : (effectivePreset(m)?.caption ?? CAPTION_STYLES.hormozi);
+  const chosen = name !== "preset" ? CAPTION_STYLES[name] : (effectivePreset(m)?.caption ?? CAPTION_STYLES.hormozi);
+  // A face without the letters of the video's language is replaced by one that has them (everything else of
+  // the style stays): the first of the studio's two plain faces that covers the language.
+  const language = m.request.language;
+  const face = language && !fontCovers(chosen.font.file, language) ? [CAPTION_STYLES.hormozi.font, CAPTION_STYLES.minimalist.font].find((f) => fontCovers(f.file, language)) : undefined;
+  const base = face ? { ...chosen, font: face } : chosen;
   const brand = m.request.render.brand;
   if (!brand) return base;
   return {
