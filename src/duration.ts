@@ -30,6 +30,15 @@ export const DEFAULT_SCENE_SECONDS: SceneSeconds = { min: 3, max: 5 };
  */
 export const WORDS_PER_SECOND = 2.4;
 
+/**
+ * The same for another language, where it is known. Turkish has not been measured in a video: its figure is
+ * the English one scaled by how much slower the voices read their own Turkish reference clips than their
+ * English ones (20 words in 8.0 s against 29 in about 9.5), which comes to 2.0. Measure it with the first
+ * Turkish videos.
+ */
+const WORDS_PER_SECOND_IN: Record<string, number> = { en: WORDS_PER_SECOND, tr: 2.0 };
+export const wordsPerSecond = (language?: string): number => WORDS_PER_SECOND_IN[language ?? "en"] ?? WORDS_PER_SECOND;
+
 /** The most words one scene's narration may ever have (the script's own limit; about six seconds of speech). */
 const MAX_SCENE_WORDS = 16;
 
@@ -55,19 +64,19 @@ export function expectedScenes(t: Timing): number {
 }
 
 /** The words of one scene's narration. A scene asked for at one exact length is given a word either way. */
-export function sceneWords(sceneSec: SceneSeconds): Range {
+export function sceneWords(sceneSec: SceneSeconds, rate = WORDS_PER_SECOND): Range {
   const slack = sceneSec.min === sceneSec.max ? 1 : 0;
-  const min = Math.max(2, Math.floor(sceneSec.min * WORDS_PER_SECOND) - slack);
-  return { min, max: Math.max(min, Math.min(MAX_SCENE_WORDS, Math.ceil(sceneSec.max * WORDS_PER_SECOND) + slack)) };
+  const min = Math.max(2, Math.floor(sceneSec.min * rate) - slack);
+  return { min, max: Math.max(min, Math.min(MAX_SCENE_WORDS, Math.ceil(sceneSec.max * rate) + slack)) };
 }
 
 /** The words a scene has on average when a script uses its range and not only the top of it. */
-export function typicalSceneWords(sceneSec: SceneSeconds): number {
-  return Math.round(((sceneSec.min + sceneSec.max) / 2) * WORDS_PER_SECOND);
+export function typicalSceneWords(sceneSec: SceneSeconds, rate = WORDS_PER_SECOND): number {
+  return Math.round(((sceneSec.min + sceneSec.max) / 2) * rate);
 }
 
 /** The words of everything said in `seconds`. */
-export const totalWords = (seconds: number): number => Math.round(seconds * WORDS_PER_SECOND);
+export const totalWords = (seconds: number, rate = WORDS_PER_SECOND): number => Math.round(seconds * rate);
 
 /**
  * How far the words of an answer may be from what was asked before it is sent back: a seventh, and never less

@@ -1,3 +1,4 @@
+import { SPEECH_LANGUAGES, VOICES } from "@src/voice/language";
 import { join } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
@@ -29,6 +30,16 @@ describe("the new-video form", () => {
     });
   });
 
+  it("takes a language and a voice from the ones the studio has, English and the studio's own voice unless said", () => {
+    expect(NewVideo.parse(base)).toMatchObject({ language: "en" });
+    expect(NewVideo.parse(base).voiceId).toBeUndefined();
+    for (const language of Object.keys(SPEECH_LANGUAGES)) expect(NewVideo.parse({ ...base, language }).language).toBe(language);
+    for (const voiceId of Object.keys(VOICES)) expect(NewVideo.parse({ ...base, voiceId }).voiceId).toBe(voiceId);
+    // a voice is one of the studio's own, by name: not any id a request cares to send to the engine
+    for (const bad of [{ language: "de" }, { language: "" }, { voiceId: "someone-else" }, { voiceId: "../narrator-m" }]) expect(NewVideo.safeParse({ ...base, ...bad }).success, JSON.stringify(bad)).toBe(false);
+    expect(draftArgs(NewVideo.parse({ ...base, language: "tr" }), "20261006-120000-abcdef")).toEqual(expect.arrayContaining(["--language", "tr"]));
+  });
+
   it("refuses music and kit names that are not plain names", () => {
     for (const music of ["bundled:../x.mp3", "upload:a/b.mp3", "other:x.mp3", "bundled:x.wav", "/etc/passwd"]) {
       expect(NewVideo.safeParse({ ...base, music }).success).toBe(false);
@@ -40,13 +51,13 @@ describe("the new-video form", () => {
     const minimal = draftArgs(NewVideo.parse(base), "20261006-120000-abcdef");
     expect(minimal).toEqual([
       "run", "--draft", "--yes", "--run-id", "20261006-120000-abcdef", "--topic", "foxes", "--aspect", "9:16", "--duration", "30", "--scene-seconds", "3-5",
-      "--mode", "auto", "--clips", "480p", "--budget", "100", "--caption-style", "preset", "--transition", "auto",
+      "--language", "en", "--mode", "auto", "--clips", "480p", "--budget", "100", "--caption-style", "preset", "--transition", "auto",
       "--bgm-gain", "0.35", "--sfx-gain", "0.6",
     ]);
     const full = draftArgs(
       NewVideo.parse({
         ...base, style: "anime", motion: "stills", clips: "720p", brandKit: "acme", music: "upload:song.mp3",
-        hook: { mode: "custom", text: "Watch this" }, sfx: false, characters: "a red fox", seed: 7, voiceId: "v9",
+        hook: { mode: "custom", text: "Watch this" }, sfx: false, characters: "a red fox", seed: 7, voiceId: "narrator-f", language: "tr",
       }),
       "20261006-120000-abcdef",
     );
@@ -62,7 +73,8 @@ describe("the new-video form", () => {
     expect(full).toContain("--no-sfx");
     expect(after("--characters")).toBe("a red fox");
     expect(after("--seed")).toBe("7");
-    expect(after("--voice")).toBe("v9");
+    expect(after("--voice")).toBe("narrator-f");
+    expect(after("--language")).toBe("tr");
     expect(draftArgs(NewVideo.parse({ ...base, hook: { mode: "off" }, motion: "clips" }), "x")).toEqual(expect.arrayContaining(["--no-hook", "--pin-modes", "1"]));
   });
 });

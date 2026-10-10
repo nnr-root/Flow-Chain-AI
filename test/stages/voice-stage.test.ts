@@ -36,6 +36,24 @@ describe("the voice stage with the studio's own voice", () => {
     expect(line).toBeLessThan(ttsCost(ctx.prices, chars) / 10);
   });
 
+  it("speaks in the language the run was asked for, whatever the script reads like, and writes the script in it", async () => {
+    // the fake script is in English: asked for in Turkish, the voice is still told Turkish
+    const { ctx, fakes } = await makeTestContext({ modes: [1, 1] });
+    ctx.manifest.request.language = "tr";
+    await runPipeline(ctx, [scriptStage], auto);
+    expect(fakes.llm.calls[0].language).toBe("tr");
+    ctx.manifest.models.tts = OWN;
+    expect(((await ttsStage.inputsFor(ctx, 0)) as { language?: string }).language).toBe("tr");
+    // and a run that names none has it worked out from the script, as before
+    const plain = await makeTestContext({ modes: [1, 1] });
+    await runPipeline(plain.ctx, [scriptStage], auto);
+    plain.ctx.manifest.models.tts = OWN;
+    expect(((await ttsStage.inputsFor(plain.ctx, 0)) as { language?: string }).language).toBe("en");
+    // the language is part of what the script is written from, only where one was asked for
+    expect(await scriptStage.inputsFor(plain.ctx)).not.toHaveProperty("language");
+    expect(await scriptStage.inputsFor(ctx)).toMatchObject({ language: "tr" });
+  });
+
   it("charges what the GPU really took where the voice says, and the estimate where it does not", async () => {
     const { ctx, fakes } = await makeTestContext({ modes: [1, 1] });
     await runPipeline(ctx, [scriptStage], auto);

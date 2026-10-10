@@ -8,7 +8,10 @@ MAX_SEED = 2**31 - 1
 MAX_IMAGE_BYTES = 9 * 1024 * 1024
 # the client's style presets: accepted so that its request is one shape for every picture worker, and not used
 # here (one model makes every look from the words of the prompt)
-PRESETS = ("cinematic_history", "anime", "cyberpunk", "dark_fantasy", "photorealistic_8k", "3d_render")
+PRESETS = (
+    "cinematic_history", "anime", "cyberpunk", "dark_fantasy", "photorealistic_8k", "3d_render",
+    "cartoon", "comic_book", "watercolor", "pixel_art", "film_noir", "flat_illustration", "epic_fantasy", "claymation",
+)
 
 
 class ContractError(ValueError):

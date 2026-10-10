@@ -145,3 +145,19 @@ describe("what is on sale", () => {
     expect(fullyGeneratedMinutes(5, measured, perScene, today)).toBeLessThanOrEqual(one * 2 + 1);
   });
 });
+
+describe("the pictures the styles are shown by", () => {
+  it("are there for every style that is listed as having one, and listed only for styles there are", async () => {
+    const { styleCards } = await import("@/lib/styles");
+    const { PRESETS } = await import("@src/presets");
+    const { existsSync } = await import("node:fs");
+    const cards = styleCards();
+    expect(cards.map((c) => c.name)).toEqual(Object.keys(PRESETS));
+    for (const card of cards) {
+      // a style without a picture is shown by its name; one with a picture has the file
+      if (card.image) expect(existsSync(`web/public${card.image}`), card.name).toBe(true);
+    }
+    const listed = (await import("@/content/style-pictures.json")).default.styles;
+    for (const name of listed) expect(Object.keys(PRESETS), name).toContain(name);
+  });
+});

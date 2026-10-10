@@ -223,6 +223,11 @@ export const RunRequest = z.object({
    * runs made by the CLI or before 3.1; changeable only until media is bought (`draft-modes`).
    */
   modeOverrides: z.array(Mode.nullable()).optional(),
+  /**
+   * The language the video is told in (--language): the script is written in it and the voice speaks from its
+   * clip in it. Absent = whatever the script's model wrote, worked out from the script afterwards; frozen.
+   */
+  language: z.enum(["en", "tr"]).optional(),
   /** Forced style preset (--style); absent = Gemini picks one. */
   style: PresetName.optional(),
   /** Character bible (--characters or the brand kit's), enforced into styleBible.characters; frozen. */

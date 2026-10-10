@@ -228,3 +228,54 @@ plans' minutes are worked out from.
 
 Not changed: the 720p speed (2.5 s a frame, from one earlier measurement; no clip at 720p was made today).
 
+## 13. The form: one length or a range, styles as pictures, a language and a voice (owner's direction, 2026-10-10)
+
+**Each scene stays.** Scenes of one length had to be asked for as a range from five to five. Now which of the
+two it is, is said outright ("The same length" or "A range"), and the lengths (2 to 5 seconds) are a row to
+press: one of them for a single length; for a range the stretch between its ends is lit, and a press moves the
+end it is nearer to (`SceneLength`). The request is unchanged (`sceneSec`, both ends the same for one length).
+
+**"Look" is "Style"**, and the styles stand side by side, each as an upright picture made in it; the one
+that is chosen is described underneath: what it suits, and that it sets the pictures, how they move and the
+captions (`StylePicker`). "Choose for me" is four of the pictures together. A style without a picture is shown
+by its name.
+
+- The pictures are made by `npm run make:styles` (**it buys pictures**: the owner's click), the way a video's
+  pictures are: the style's own words around one plain sentence of a subject the style suits, at an upright
+  video's size. They are in `web/public/styles/` and listed in `web/content/style-pictures.json`.
+- Made on 2026-10-10 on the studio's picture engine: fourteen pictures, about five cents. This was also the
+  first time the eight styles added this month were drawn by the real engine, and each came out as its style.
+
+**Found making them: the picture worker refused the eight newer styles.** It accepts a style's name, uses it
+for nothing, and refuses one it does not know; the worker that is deployed knows the six styles there were when
+it was built. So a video in cartoon, comic book, watercolour, pixel art, film noir, flat illustration, epic
+fantasy or claymation would have failed at its first picture. The name is no longer sent (the worker makes
+every style from the prompt's words); the worker's own list has all fourteen for when it is next built.
+
+**A language and a voice.** A video is asked for in a language (`request.language`, `--language`; English and
+Turkish, the two every voice has a reference clip in). The script is told to write what is heard and read in
+it, and what the picture and clip models read in English; the voice speaks from its clip in that language
+whatever the script reads like. A run that names none is as before: the model's own choice, worked out from
+the script afterwards. The studio always names one (English unless chosen).
+
+- **The words a length comes to depend on the language** (`wordsPerSecond`). English is measured (§10).
+  **Turkish is not**: 2.0 words a second is the English figure scaled by how much slower the voices read their
+  own Turkish reference clips than their English ones. Measure it with the first Turkish video.
+- **The voices** are the two the voice worker has (`VOICES`: "Narrator, male", "Narrator, female"; a test holds
+  the list to the worker's own). A request names one of them or none; it is no longer any id a request cares to
+  send. The names say who speaks and nothing about how: that is what the sample is for.
+- **The samples** are the voices' own reference clips in each language, as MP3 (`web/public/voices/`): four
+  files, nothing bought. One plays at a time, and choosing another language ends it.
+
+**Other shapes (3:4, 4:3, 1:1) were asked about and not added.** The places these videos go take 9:16 (shorts,
+reels) and 16:9; a square or 4:5 picture is for a feed post, which is not what the studio makes. Each shape is
+also work in every part: the size pictures and clips are generated at (the clip model has sizes it was trained
+on), the captions' and the title's layout, the showcases. Worth doing when someone asks for a feed post, and
+then 1:1 and 4:5 rather than 3:4 and 4:3.
+
+**Checked:** the request (languages, voices, refusals), the prompts in both languages and for a script in
+parts, the word counts by language, the voice told the asked-for language, the lists against the voice
+worker's files, the samples and the pictures being there; the form in a browser (the row of lengths, the
+styles, a sample asked for and stopped, what the draft's command carries). **Not checked:** a video made in
+Turkish (its script, its length, its captions); how the samples sound on a phone.
+

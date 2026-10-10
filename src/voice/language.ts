@@ -22,3 +22,24 @@ export function speechLanguage(text: string): "tr" | "en" | undefined {
   if (en > tr && en >= 2) return "en";
   return undefined;
 }
+
+/**
+ * The languages a video can be asked for in: the ones every voice has a reference clip in (a test holds this
+ * list to `worker-voice/voices/voices.json`). The name is the language's own.
+ */
+export const SPEECH_LANGUAGES = { en: "English", tr: "Türkçe" } as const;
+export type SpeechLanguage = keyof typeof SPEECH_LANGUAGES;
+
+/** How a script's model is told the language: its English name. */
+export const LANGUAGE_IN_ENGLISH: Record<SpeechLanguage, string> = { en: "English", tr: "Turkish" };
+
+/**
+ * The studio's own voices, by the id the voice worker knows them by, in the words a person is shown. They say
+ * who speaks and nothing about how it sounds: a person hears that from the sample.
+ */
+export const VOICES = {
+  "narrator-m": { label: "Narrator, male" },
+  "narrator-f": { label: "Narrator, female" },
+} as const;
+export type VoiceId = keyof typeof VOICES;
+

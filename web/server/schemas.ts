@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { loadBrandKit } from "@src/brand";
 import { Aspect } from "@src/config";
+import { SPEECH_LANGUAGES, type SpeechLanguage, type VoiceId, VOICES } from "@src/voice/language";
 import { DEFAULT_SCENE_SECONDS, DEFAULT_VIDEO_SECONDS, SCENE_SECONDS, VIDEO_SECONDS } from "@src/duration";
 import { MAX_SCENES, MAX_SEED, Mode } from "@src/manifest/schema";
 import { CaptionStyleName, Transition } from "@src/media/remotion/props";
@@ -52,7 +53,10 @@ export const NewVideo = z.object({
   sfxGain: Gain.default(0.6),
   characters: z.string().trim().max(600).optional(),
   seed: z.number().int().min(0).max(MAX_SEED).optional(),
-  voiceId: z.string().trim().min(1).max(100).optional(),
+  /** The language the video is told in: the script is written in it and the voice speaks in it. */
+  language: z.enum(Object.keys(SPEECH_LANGUAGES) as [SpeechLanguage, ...SpeechLanguage[]]).default("en"),
+  /** One of the studio's voices; absent = the one the studio is set up with. */
+  voiceId: z.enum(Object.keys(VOICES) as [VoiceId, ...VoiceId[]]).optional(),
   captionStyle: CaptionChoice.default("preset"),
   transition: TransitionChoice.default("auto"),
 });
@@ -82,7 +86,7 @@ export function draftArgs(input: NewVideo, runId: string): string[] {
   const args = [
     "run", "--draft", "--yes", "--run-id", runId, "--topic", input.topic, "--aspect", input.aspect,
     "--duration", String(input.durationSec), "--scene-seconds", input.sceneSec.min === input.sceneSec.max ? String(input.sceneSec.min) : `${input.sceneSec.min}-${input.sceneSec.max}`,
-    "--mode", "auto", "--clips", input.clips, "--budget", String(NO_BUDGET_USD),
+    "--language", input.language, "--mode", "auto", "--clips", input.clips, "--budget", String(NO_BUDGET_USD),
     "--caption-style", input.captionStyle, "--transition", input.transition,
     "--bgm-gain", String(input.musicGain), "--sfx-gain", String(input.sfxGain),
   ];

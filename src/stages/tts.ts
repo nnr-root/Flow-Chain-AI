@@ -21,9 +21,10 @@ function speech(m: Manifest, i: number) {
     previousText: scenes[i - 1]?.narration,
     nextText: scenes[i + 1]?.narration,
     voiceId: m.request.voiceId,
-    // The studio's own voice is told the script's language (worked out from the whole script, so every line of
-    // a run is spoken from the same reference clip). Not part of an earlier run's request: its cache keys stay.
-    ...(ownVoice(m) ? { language: speechLanguage(scenes.map((s) => s.narration).join(" ")) } : {}),
+    // The studio's own voice is told the script's language: the one the run was asked for in, or else worked out
+    // from the whole script (so every line of a run is spoken from the same reference clip). Not part of an
+    // earlier run's request: its cache keys stay.
+    ...(ownVoice(m) ? { language: m.request.language ?? speechLanguage(scenes.map((s) => s.narration).join(" ")) } : {}),
   };
 }
 

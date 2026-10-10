@@ -1,5 +1,6 @@
 import type { Aspect } from "../config.js";
 import type { Timing } from "../duration.js";
+import type { SpeechLanguage } from "../voice/language.js";
 import type { LlmOutline, Shot, WordTiming } from "../manifest/schema.js";
 import type { PresetName } from "../presets.js";
 
@@ -12,6 +13,8 @@ export type ScriptRequest = {
   style?: PresetName;
   /** Fixed character bible; absent = the LLM describes the characters. */
   characters?: string;
+  /** The language to write what is said and shown as words in; absent = the model's own choice. */
+  language?: SpeechLanguage;
   feedback?: string;
   /**
    * The video was asked for by its length: the answer keeps to these seconds (as words) and decides the number

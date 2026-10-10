@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
-import { lengthInWords, sceneBounds, sceneWords, totalWords, typicalSceneWords, WORDS_PER_SECOND } from "../duration.js";
+import { lengthInWords, sceneBounds, sceneWords, totalWords, typicalSceneWords, wordsPerSecond } from "../duration.js";
+import { LANGUAGE_IN_ENGLISH } from "../voice/language.js";
 import { LlmOutline, LlmPart, LlmScript, MAX_COUNTED_SCENES, MAX_NARRATION_WORDS } from "../manifest/schema.js";
 import { PRESETS } from "../presets.js";
 import type { LlmProvider, ScriptRequest } from "./types.js";
@@ -30,14 +31,15 @@ export function mostEntries(req: ScriptRequest): number {
 const seconds = (r: { min: number; max: number }): string => (r.min === r.max ? `about ${r.min}` : `${r.min} to ${r.max}`);
 
 /** What a stretch of a video asked for by its length must come to: its words, and the scenes it may be told in. */
-function lengthRules(what: string, sec: number, sceneSec: { min: number; max: number }): string[] {
-  const words = sceneWords(sceneSec);
+function lengthRules(what: string, sec: number, sceneSec: { min: number; max: number }, language?: string): string[] {
+  const rate = wordsPerSecond(language);
+  const words = sceneWords(sceneSec, rate);
   const scenes = sceneBounds(sec, sceneSec);
   return [
-    `Length: ${what} runs about ${Math.round(sec)} seconds when spoken. The voice speaks about ${WORDS_PER_SECOND} words a second, so all its narrations together are about ${totalWords(sec)} words. Count them: far fewer and the video is too short, far more and it is too long.`,
+    `Length: ${what} runs about ${Math.round(sec)} seconds when spoken. The voice speaks about ${rate} words a second, so all its narrations together are about ${totalWords(sec, rate)} words. Count them: far fewer and the video is too short, far more and it is too long.`,
     `Each scene stays on screen for ${seconds(sceneSec)} seconds, so each scene's narration is ${words.min} to ${words.max} words.`,
     // (asked for on 2026-10-10 without this, the model wrote every scene at the top of its range, and the video ran a fifth long)
-    ...(sceneSec.min === sceneSec.max ? [] : [`Use the whole range: on average a scene is about ${typicalSceneWords(sceneSec)} words. Do not write every scene at the longest length; the total number of words is what decides how long the video runs, and it must not be exceeded.`]),
+    ...(sceneSec.min === sceneSec.max ? [] : [`Use the whole range: on average a scene is about ${typicalSceneWords(sceneSec, rate)} words. Do not write every scene at the longest length; the total number of words is what decides how long the video runs, and it must not be exceeded.`]),
     scenes.min === scenes.max
       ? `Return exactly ${scenes.min} ${scenes.min === 1 ? "scene" : "scenes"}.`
       : `Return between ${scenes.min} and ${scenes.max} scenes. You decide how many and how long each one is, within those limits: a quick beat gets a short scene, a thought that needs room a longer one.`,
@@ -90,8 +92,17 @@ function sceneRules(req: ScriptRequest): string[] {
 
 const narrationRule = (req: ScriptRequest): string =>
   req.timing
-    ? `- narration: the spoken voiceover for the scene, ${sceneWords(req.timing.sceneSec).min} to ${sceneWords(req.timing.sceneSec).max} words and never more than ${MAX_NARRATION_WORDS}, plain text, no stage directions, emojis or hashtags.`
+    ? `- narration: the spoken voiceover for the scene, ${sceneWords(req.timing.sceneSec, wordsPerSecond(req.language)).min} to ${sceneWords(req.timing.sceneSec, wordsPerSecond(req.language)).max} words and never more than ${MAX_NARRATION_WORDS}, plain text, no stage directions, emojis or hashtags.`
     : `- narration: the spoken voiceover for the scene, at most ${MAX_NARRATION_WORDS} words (ideally 12-15), plain text, no stage directions, emojis or hashtags.`;
+
+/**
+ * The language a video is told in, when one was asked for. What is heard and read is in it; what the picture
+ * and clip models read stays in English, which is what they follow best.
+ */
+const languageRule = (req: ScriptRequest, spoken: string): string[] =>
+  req.language
+    ? [`- Language: write ${spoken} in ${LANGUAGE_IN_ENGLISH[req.language]}, the way a native speaker would say it aloud. Write every imagePrompt and motionPrompt, and the styleBible, in English.`]
+    : [];
 
 const feedbackLines = (req: ScriptRequest): string[] => (req.feedback ? ["", "Your previous answer was rejected for these reasons. Fix them:", req.feedback] : []);
 
@@ -99,11 +110,12 @@ const feedbackLines = (req: ScriptRequest): string[] => (req.feedback ? ["", "Yo
 function wholePrompt(req: ScriptRequest): string {
   return [
     `You are writing a faceless short-form video about: "${req.topic}".`,
-    ...(req.timing ? lengthRules("the video", req.timing.targetSec, req.timing.sceneSec) : [`Return exactly ${req.sceneCount} scenes.`]),
+    ...(req.timing ? lengthRules("the video", req.timing.targetSec, req.timing.sceneSec, req.language) : [`Return exactly ${req.sceneCount} scenes.`]),
     "",
     ...presetRules(req),
     "",
     "Rules:",
+    ...languageRule(req, "the title, the hook and every narration"),
     narrationRule(req),
     "- All narrations together read as one continuous script with a strong hook in scene 1.",
     hookRule,
@@ -123,6 +135,7 @@ function outlinePrompt(req: ScriptRequest, partSec: number[]): string {
     ...presetRules(req),
     "",
     "Rules:",
+    ...languageRule(req, "the title, the hook and every part's summary"),
     "- title: the video's title.",
     hookRule,
     ...bibleRules(req),
@@ -145,7 +158,7 @@ function partPrompt(req: ScriptRequest, ask: Extract<NonNullable<ScriptRequest["
     ...outline.parts.map((p, i) => `${i + 1}. ${p.summary}`),
     "",
     `Write only part ${index + 1}: its scenes, in order.`,
-    ...lengthRules("this part", partSec[index], sceneSec),
+    ...lengthRules("this part", partSec[index], sceneSec, req.language),
     first
       ? "- This is the opening: scene 1 is a strong hook."
       : `- This part carries straight on from the end of part ${index}, whose last lines were: ${previous.map((n) => `"${n}"`).join(" ")} Do not greet, do not introduce the topic again, and do not repeat what an earlier part has told.`,
@@ -157,6 +170,7 @@ function partPrompt(req: ScriptRequest, ask: Extract<NonNullable<ScriptRequest["
     `- palette: ${outline.styleBible.palette}`,
     "",
     "Rules:",
+    ...languageRule(req, "every narration"),
     narrationRule(req),
     "- The narrations of this part read as one continuous script.",
     ...sceneRules(req),

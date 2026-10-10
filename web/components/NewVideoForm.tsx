@@ -1,5 +1,6 @@
 "use client";
-import { DEFAULT_SCENE_SECONDS, DEFAULT_VIDEO_SECONDS, lengthInWords, SCENE_SECONDS, sceneBounds, VIDEO_SECONDS } from "@src/duration";
+import { DEFAULT_SCENE_SECONDS, DEFAULT_VIDEO_SECONDS, lengthInWords, VIDEO_SECONDS } from "@src/duration";
+import type { SpeechLanguage, VoiceId } from "@src/voice/language";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { amount, errorText, getJson, sendForm, sendJson } from "@/lib/api";
@@ -9,14 +10,15 @@ import { NOT_READY } from "@/lib/engines";
 import { CAPTION_LABELS, labelOf, TRANSITION_LABELS } from "@/lib/labels";
 import type { StudioHealth } from "@/server/jobs";
 import type { KitSummary, Track } from "@/server/library";
+import { SceneLength } from "./SceneLength";
+import { type StyleCard, StylePicker } from "./StylePicker";
 import { Button, ErrorNote, Field, Panel, Segmented } from "./ui";
+import { VoicePicker } from "./VoicePicker";
 
-export type PresetCard = { name: string; label: string; description: string };
+export type PresetCard = StyleCard;
 
 const CAPTION_STYLES = ["preset", "hormozi", "mrbeast", "minimalist"];
 const TRANSITIONS = ["auto", "cut", "fade", "dissolve", "blur", "zoom", "glitch"];
-
-const sceneChoices = Array.from({ length: SCENE_SECONDS.max - SCENE_SECONDS.min + 1 }, (_, i) => SCENE_SECONDS.min + i);
 
 /** What a video can be made of, in the studio's words (the request calls them stills, auto and clips). */
 const MADE_OF = [
@@ -36,7 +38,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
   const [f, setF] = useState({
     topic, aspect: "9:16", durationSec: DEFAULT_VIDEO_SECONDS as number, sceneMin: DEFAULT_SCENE_SECONDS.min, sceneMax: DEFAULT_SCENE_SECONDS.max, style: "auto", motion: "auto", clips: "480p",
     brandKit: "", music: "", musicGain: 0.35, hookMode: "auto", hookText: "",
-    sfx: true, sfxGain: 0.6, characters: "", seed: "", voiceId: "", captionStyle: "preset", transition: "auto",
+    sfx: true, sfxGain: 0.6, characters: "", seed: "", language: "en" as SpeechLanguage, voiceId: "narrator-m" as VoiceId, captionStyle: "preset", transition: "auto",
     name: "", premise: "",
   });
   const [busy, setBusy] = useState(false);
@@ -46,7 +48,6 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
   const set = <K extends keyof typeof f>(key: K, value: (typeof f)[K]) => setF((old) => ({ ...old, [key]: value }));
   const missing = health.missing;
   const timing = { targetSec: f.durationSec, sceneSec: { min: f.sceneMin, max: f.sceneMax } };
-  const scenes = sceneBounds(timing.targetSec, timing.sceneSec);
   // what the script may cost follows from the length: a long video's script is written in several answers
   const hold = draftCapUsd(timing);
   const offline = health.queue.mode === "queue" && !(health.queue.redis && health.queue.worker);
@@ -80,7 +81,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         sfx: f.sfx, sfxGain: f.sfxGain, captionStyle: f.captionStyle, transition: f.transition,
         ...(f.characters.trim() ? { characters: f.characters } : {}),
         ...(f.seed.trim() ? { seed: Number(f.seed) } : {}),
-        ...(f.voiceId.trim() ? { voiceId: f.voiceId } : {}),
+        language: f.language, voiceId: f.voiceId,
       };
       if (series) {
         const { id } = await sendJson<{ id: string }>("/api/series", { name: f.name, premise: f.premise, recipe: choices });
@@ -127,7 +128,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
               <textarea data-testid="topic" required rows={2} maxLength={500} value={f.topic} onChange={(e) => set("topic", e.target.value)} placeholder="A lighthouse keeper's daughter takes over the light" />
             </Field>
           )}
-          <div className="grid gap-5 sm:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-2">
             <Field label="Shape">
               <select value={f.aspect} onChange={(e) => set("aspect", e.target.value)}>
                 <option value="9:16">9:16 (vertical)</option>
@@ -139,44 +140,13 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
                 {VIDEO_SECONDS.map((sec) => <option key={sec} value={sec}>{lengthInWords(sec)}</option>)}
               </select>
             </Field>
-            {/* (a fieldset, not a Field: it holds two controls, and a label can name only one) */}
-            <fieldset className="text-[0.95rem]">
-              <legend className="mb-1.5 font-bold">Each scene stays</legend>
-              <div className="flex items-center gap-2">
-                {/* the two ends never cross: moving one past the other takes the other with it */}
-                <select data-testid="scene-min" aria-label="Shortest scene, in seconds" value={f.sceneMin} onChange={(e) => setF((old) => ({ ...old, sceneMin: Number(e.target.value), sceneMax: Math.max(old.sceneMax, Number(e.target.value)) }))}>
-                  {sceneChoices.map((sec) => <option key={sec} value={sec}>{sec} s</option>)}
-                </select>
-                <span className="text-graphite">to</span>
-                <select data-testid="scene-max" aria-label="Longest scene, in seconds" value={f.sceneMax} onChange={(e) => setF((old) => ({ ...old, sceneMax: Number(e.target.value), sceneMin: Math.min(old.sceneMin, Number(e.target.value)) }))}>
-                  {sceneChoices.map((sec) => <option key={sec} value={sec}>{sec} s</option>)}
-                </select>
-              </div>
-              <span className="mt-1.5 block text-[0.85rem] text-graphite" data-testid="scene-count">
-                {scenes.min === scenes.max ? `${scenes.min} ${scenes.min === 1 ? "scene" : "scenes"}` : `${scenes.min} to ${scenes.max} scenes`}: the script decides how many, and how long each is. Set both the same for scenes of one length.
-              </span>
-            </fieldset>
           </div>
+          <SceneLength value={{ min: f.sceneMin, max: f.sceneMax }} onChange={(v) => setF((old) => ({ ...old, sceneMin: v.min, sceneMax: v.max }))} videoSec={f.durationSec} />
         </div>
       </Panel>
 
-      <Panel title="Look" aside={<span className="text-[0.85rem] text-graphite">sets the pictures, the motion and the captions</span>}>
-        <div role="radiogroup" aria-label="Look" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {[{ name: "auto", label: "Choose for me", description: "" }, ...presets].map((p) => (
-            <button
-              key={p.name}
-              type="button"
-              role="radio"
-              aria-checked={f.style === p.name}
-              data-testid={`look-${p.name}`}
-              onClick={() => set("style", p.name)}
-              className={`rounded-[18px] border-[1.5px] bg-sheet p-4 text-left ${f.style === p.name ? "border-signal" : "border-transparent hover:border-ink/30"}`}
-            >
-              <span className="block font-bold"><span className={f.style === p.name ? "marked" : ""}>{p.label}</span></span>
-              <span className="mt-1 block text-[0.85rem] text-graphite">{p.name === "auto" ? "The look that fits the topic is picked when the script is written." : `For ${p.description}.`}</span>
-            </button>
-          ))}
-        </div>
+      <Panel title="Style" aside={<span className="text-[0.85rem] text-graphite">what the video looks like</span>}>
+        <StylePicker styles={presets} value={f.style} onChange={(name) => set("style", name)} />
       </Panel>
 
       <Panel title="Made of">
@@ -195,6 +165,10 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
           )}
           {missing.length > 0 && <ErrorNote>{missing[0] === NOT_READY ? "The studio is not ready to make videos yet. Please try again later." : `Not set in .env: ${missing.join(", ")}. Add them in the repository's .env file.`}</ErrorNote>}
         </div>
+      </Panel>
+
+      <Panel title="Language and voice">
+        <VoicePicker language={f.language} voice={f.voiceId} onLanguage={(l) => set("language", l)} onVoice={(v) => set("voiceId", v)} />
       </Panel>
 
       <Panel title="Brand and sound">
@@ -252,9 +226,6 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
           </Field>
           <Field label="Characters" hint="Used in every picture prompt. Empty = the brand kit's, else written with the script.">
             <textarea rows={2} maxLength={600} value={f.characters} onChange={(e) => set("characters", e.target.value)} />
-          </Field>
-          <Field label="Voice id" hint="Empty = the studio's own voice">
-            <input value={f.voiceId} onChange={(e) => set("voiceId", e.target.value)} />
           </Field>
         </div>
       </details>

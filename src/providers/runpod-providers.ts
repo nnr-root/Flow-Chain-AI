@@ -153,7 +153,11 @@ export class RunpodImage extends RunpodQueued<ImageRequest, ImageOutput> impleme
       prompt: req.prompt,
       width: req.width,
       height: req.height,
-      ...(req.preset === undefined ? {} : { preset: req.preset }),
+      // The style's name is not sent. The worker makes every style from the words of the prompt and uses the
+      // name for nothing, but it refuses one it does not know, and the one that is deployed knows only the six
+      // styles there were when it was built: a picture in any of the eight added since was refused outright
+      // (found on 2026-10-10, making the styles' own pictures). What a worker does not need is not a reason
+      // for it to stop a video.
       ...(req.seed === undefined ? {} : { seed: req.seed }),
       ...(req.referenceImagePath === undefined
         ? {}

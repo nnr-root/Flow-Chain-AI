@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { scriptCost } from "../cost.js";
-import { type SceneSeconds, sceneBounds, sceneWords, scriptAnswerCost, scriptParts, timedScriptCost, type Timing, totalWords, wordsTolerance } from "../duration.js";
+import { type SceneSeconds, sceneBounds, sceneWords, scriptAnswerCost, scriptParts, timedScriptCost, type Timing, totalWords, wordsPerSecond, wordsTolerance } from "../duration.js";
 import { LlmOutline, LlmPart, LlmScript, MAX_HOOK_WORDS, MAX_NARRATION_WORDS } from "../manifest/schema.js";
 import { layOutScenes } from "../manifest/store.js";
 import { PRESETS } from "../presets.js";
@@ -27,14 +27,14 @@ function hookProblems(hook: string): string[] {
  * ones the model was given: an answer is paid for whether or not it is accepted, and the video's real length
  * is the voice's in any case, so only an answer that would come out clearly wrong is sent back.
  */
-export function timingProblems(scenes: Array<{ narration: string }>, sec: number, sceneSec: SceneSeconds, what = "the script"): string[] {
+export function timingProblems(scenes: Array<{ narration: string }>, sec: number, sceneSec: SceneSeconds, what = "the script", rate?: number): string[] {
   const problems: string[] = [];
   const bounds = sceneBounds(sec, sceneSec);
   const [fewest, most] = [Math.max(1, Math.floor(bounds.min * 0.8)), Math.ceil(bounds.max * 1.2)];
   if (scenes.length < fewest || scenes.length > most) {
     problems.push(`${what} has ${scenes.length} scenes; it must have between ${bounds.min} and ${bounds.max}`);
   }
-  const each = sceneWords(sceneSec);
+  const each = sceneWords(sceneSec, rate);
   let total = 0;
   scenes.forEach((s, i) => {
     const words = countWords(s.narration);
@@ -44,7 +44,7 @@ export function timingProblems(scenes: Array<{ narration: string }>, sec: number
       problems.push(`scene ${i + 1} narration has ${words} words; a scene of ${sceneSec.min === sceneSec.max ? sceneSec.min : `${sceneSec.min}-${sceneSec.max}`} seconds has ${each.min} to ${each.max}`);
     }
   });
-  const wanted = totalWords(sec);
+  const wanted = totalWords(sec, rate);
   const slack = wordsTolerance(wanted);
   if (Math.abs(total - wanted) > slack) {
     problems.push(`the narrations of ${what} have ${total} words in all; ${Math.round(sec)} seconds of speech are about ${wanted} (between ${wanted - slack} and ${wanted + slack})`);
@@ -56,11 +56,11 @@ export function timingProblems(scenes: Array<{ narration: string }>, sec: number
  * Checks Gemini's answer against LlmScript (the 2.2 fields are required) and the scene and word limits: exactly
  * `sceneCount` scenes, or, for a run asked for by its length, the scenes and words that length comes to.
  */
-export function validateScript(raw: unknown, sceneCount: number, timing?: Timing): ScriptValidation {
+export function validateScript(raw: unknown, sceneCount: number, timing?: Timing, language?: string): ScriptValidation {
   const parsed = LlmScript.safeParse(raw);
   if (!parsed.success) return { ok: false, problems: issues(parsed.error) };
   const problems: string[] = [];
-  if (timing) problems.push(...timingProblems(parsed.data.scenes, timing.targetSec, timing.sceneSec));
+  if (timing) problems.push(...timingProblems(parsed.data.scenes, timing.targetSec, timing.sceneSec, "the script", wordsPerSecond(language)));
   else {
     if (parsed.data.scenes.length !== sceneCount) {
       problems.push(`expected exactly ${sceneCount} scenes, got ${parsed.data.scenes.length}`);
@@ -86,10 +86,10 @@ export function validateOutline(raw: unknown, parts: number): Checked<LlmOutline
 }
 
 /** One part of a long video: scenes that come to the part's own seconds. */
-export function validatePart(raw: unknown, index: number, sec: number, sceneSec: SceneSeconds): Checked<LlmPart["scenes"]> {
+export function validatePart(raw: unknown, index: number, sec: number, sceneSec: SceneSeconds, language?: string): Checked<LlmPart["scenes"]> {
   const parsed = LlmPart.safeParse(raw);
   if (!parsed.success) return { ok: false, problems: issues(parsed.error) };
-  const problems = timingProblems(parsed.data.scenes, sec, sceneSec, `part ${index + 1}`);
+  const problems = timingProblems(parsed.data.scenes, sec, sceneSec, `part ${index + 1}`, wordsPerSecond(language));
   return problems.length > 0 ? { ok: false, problems } : { ok: true, value: parsed.data.scenes };
 }
 
@@ -125,7 +125,7 @@ async function writeInParts(ctx: RunContext, req: ScriptRequest, timing: Timing,
   for (let i = kept.parts.length; i < partSec.length; i++) {
     const previous = (kept.parts[i - 1] ?? []).slice(-2).map((s) => s.narration);
     await answer(ctx, `script:part:${i}`, scriptAnswerCost(ctx.prices, sceneBounds(partSec[i], timing.sceneSec).max), { ...req, ask: { kind: "part", index: i, partSec, outline, previous } },
-      (raw) => validatePart(raw, i, partSec[i], timing.sceneSec), (value) => kept.parts.push(value));
+      (raw) => validatePart(raw, i, partSec[i], timing.sceneSec, req.language), (value) => kept.parts.push(value));
     ctx.log(`script: part ${i + 1} of ${partSec.length} written (${kept.parts[i].length} scenes)`);
   }
   // every part begins on a fresh picture: nothing of the part before is there to carry on from when it is written
@@ -139,21 +139,23 @@ export const scriptStage: Stage = {
   paid: true,
   deps: () => [],
   inputsFor: async (ctx) => {
-    const { topic, sceneCount, aspect, shots, style, characters, timing } = ctx.manifest.request;
+    const { topic, sceneCount, aspect, shots, style, characters, timing, language } = ctx.manifest.request;
+    // (a language is part of the key only when one was asked for, so every earlier run keeps its key)
+    const asked = language ? { language } : {};
     // a run asked for by its length is keyed on that: its number of scenes is the script's own answer
-    if (timing) return { model: ctx.manifest.models.llm, topic, timing, aspect, shots, style, characters };
-    return { model: ctx.manifest.models.llm, topic, sceneCount, aspect, shots, style, characters };
+    if (timing) return { model: ctx.manifest.models.llm, topic, timing, aspect, shots, style, characters, ...asked };
+    return { model: ctx.manifest.models.llm, topic, sceneCount, aspect, shots, style, characters, ...asked };
   },
   outputsFor: () => [paths.script],
   estimateCostUsd: (ctx) => (ctx.manifest.request.timing ? timedScriptCost(ctx.prices, ctx.manifest.request.timing) : scriptCost(ctx.prices)),
   async run(ctx) {
-    const { topic, sceneCount, aspect, shots, style, characters, timing } = ctx.manifest.request;
-    const req: ScriptRequest = { topic, sceneCount, aspect, shots, style, characters, timing };
+    const { topic, sceneCount, aspect, shots, style, characters, timing, language } = ctx.manifest.request;
+    const req: ScriptRequest = { topic, sceneCount, aspect, shots, style, characters, timing, language };
     const partSec = timing ? scriptParts(timing.targetSec) : null;
     const script = timing && partSec
       ? await writeInParts(ctx, req, timing, partSec)
       : await answer(ctx, "script", timing ? scriptAnswerCost(ctx.prices, sceneBounds(timing.targetSec, timing.sceneSec).max) : scriptCost(ctx.prices), req, (raw) => {
-          const result = validateScript(raw, sceneCount, timing);
+          const result = validateScript(raw, sceneCount, timing, language);
           return result.ok ? { ok: true, value: result.script } : result;
         });
     // --shots is enforced even if the LLM ignored the instruction

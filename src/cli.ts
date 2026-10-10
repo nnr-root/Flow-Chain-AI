@@ -16,6 +16,7 @@ import {
 import { CaptionStyleName, Transition } from "./media/remotion/props.js";
 import { type Plan, planRun, RunAborted, runPipeline } from "./pipeline.js";
 import { PresetName } from "./presets.js";
+import { SPEECH_LANGUAGES } from "./voice/language.js";
 import { createProviders } from "./providers/factory.js";
 import { frozenModePrices, newRunProviders, newRunVoice } from "./providers/new-run.js";
 import { CLIP_QUALITIES, type ClipQuality } from "./video-profiles.js";
@@ -165,6 +166,7 @@ type RunFlags = {
   pinModes?: string;
   duration?: string;
   sceneSeconds?: string;
+  language?: string;
 };
 
 /** --pin-modes: one entry per scene, or a single value for every scene. */
@@ -202,6 +204,7 @@ program
   .requiredOption("--topic <text>", "what the video is about")
   .addOption(new Option("--aspect <ratio>", "output aspect ratio").choices(["9:16", "16:9"]).default("9:16"))
   .option("--scenes <n>", "number of scenes (1-12; default 4), for a run asked for by its scenes")
+  .addOption(new Option("--language <code>", "the language the video is told in (default: the script model's own choice)").choices(Object.keys(SPEECH_LANGUAGES)))
   .option("--duration <seconds>", `about how long the video runs (${VIDEO_SECONDS.join(", ")}); the script decides the number of scenes`)
   .option("--scene-seconds <n|a-b>", `with --duration: how long each scene stays, one length or a range within ${SCENE_SECONDS.min}-${SCENE_SECONDS.max} (default ${DEFAULT_SCENE_SECONDS.min}-${DEFAULT_SCENE_SECONDS.max})`)
   .addOption(
@@ -248,6 +251,7 @@ program
       aspect: o.aspect,
       sceneCount,
       timing,
+      language: o.language,
       modes,
       // auto runs freeze the budget and price table their mode rules use; a later --budget only changes when to ask
       modeBudgetUsd: modes ? undefined : budgetUsd,

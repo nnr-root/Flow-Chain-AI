@@ -1,3 +1,4 @@
+import { PresetName } from "../../src/presets.js";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -52,7 +53,7 @@ describe("model ids", () => {
 });
 
 describe("RunPod request shapes", () => {
-  it("asks the keyframe worker for the preset, seed and a base64 reference", async () => {
+  it("asks the keyframe worker for the seed and a base64 reference, and never names the style", async () => {
     const dir = await tempDir();
     await writeFile(join(dir, "ref.png"), Buffer.from("portrait-bytes"));
     const image = new RunpodImage(deps(new FakeRunpodApi(() => [])), target);
@@ -70,10 +71,12 @@ describe("RunPod request shapes", () => {
       prompt: "p",
       width: 1088,
       height: 1920,
-      preset: "anime",
       seed: 7,
       reference: Buffer.from("portrait-bytes").toString("base64"),
     });
+    // the worker that is deployed refuses a style it was not built knowing, and uses the name for nothing:
+    // a picture in any style is asked for the same way
+    for (const preset of PresetName.options) expect((await image.prepare({ prompt: "p", width: 1088, height: 1920, preset })).input, preset).not.toHaveProperty("preset");
     const plain = await image.prepare({ prompt: "p", width: 1088, height: 1920 });
     expect(plain.input).not.toHaveProperty("reference");
   });

@@ -108,20 +108,52 @@ test("a new video is asked for by its length, how long each scene stays and what
   await expect(lengths.last()).toHaveText("10 minutes");
   await expect(page.getByTestId("length")).toHaveValue("30");
   await expect(page.getByLabel("Scenes", { exact: true })).toHaveCount(0);
-  // a scene stays as long as a clip can be, and the page says how many scenes that makes
-  await expect(page.getByTestId("scene-min").locator("option")).toHaveText(["2 s", "3 s", "4 s", "5 s"]);
-  await expect(page.getByTestId("scene-count")).toContainText("6 to 10 scenes");
-  // the two ends never cross: the longest follows the shortest up, and one length is both the same
-  await page.getByTestId("scene-max").selectOption("3");
-  await page.getByTestId("scene-min").selectOption("5");
-  await expect(page.getByTestId("scene-max")).toHaveValue("5");
-  await expect(page.getByTestId("scene-count")).toContainText("6 scenes:");
+  // A scene stays one length, or a range the script chooses within: which of the two is said outright, and the
+  // lengths are the ones a clip can be. The page says how many scenes that makes.
+  const kind = page.getByRole("radiogroup", { name: "Scenes of one length, or of a range" });
+  await expect(kind.getByRole("radio", { name: "A range" })).toBeChecked();
+  await expect(page.getByTestId("scene-length").getByRole("button", { pressed: true })).toHaveText(["3 s", "4 s", "5 s"]);
+  await expect(page.getByTestId("scene-count")).toHaveText("Scenes of 3 to 5 seconds, as the script sees fit: 6 to 10 scenes in all.");
+  // a press moves the end it is nearer to
+  await page.getByTestId("scene-sec-2").click();
+  await expect(page.getByTestId("scene-length").getByRole("button", { pressed: true })).toHaveText(["2 s", "3 s", "4 s", "5 s"]);
+  await page.getByTestId("scene-sec-4").click();
+  await expect(page.getByTestId("scene-length").getByRole("button", { pressed: true })).toHaveText(["2 s", "3 s", "4 s"]);
+  // one length for every scene: one is lit, and a press chooses it
+  await kind.getByRole("radio", { name: "The same length" }).click();
+  await expect(page.getByTestId("scene-length").getByRole("button", { pressed: true })).toHaveText(["4 s"]);
+  await page.getByTestId("scene-sec-5").click();
+  await expect(page.getByTestId("scene-count")).toHaveText("Every scene about 5 seconds: 6 scenes in all.");
   await page.getByTestId("length").selectOption("600");
-  await expect(page.getByTestId("scene-count")).toContainText("120 scenes:");
+  await expect(page.getByTestId("scene-count")).toContainText("120 scenes in all.");
   // a long script is several answers, and the button says what it may cost
   await expect(page.getByTestId("create-draft")).toHaveText(/Write the script, up to \$0\.[1-9]/);
   await page.getByTestId("length").selectOption("60");
-  await page.getByTestId("scene-min").selectOption("3");
+  // back to a range: it opens downwards from the length that was chosen
+  await kind.getByRole("radio", { name: "A range" }).click();
+  await expect(page.getByTestId("scene-length").getByRole("button", { pressed: true })).toHaveText(["3 s", "4 s", "5 s"]);
+
+  // The styles stand side by side, and the one that is chosen is described underneath.
+  await expect(page.getByRole("heading", { name: "Style" })).toBeVisible();
+  await expect(page.getByRole("radiogroup", { name: "Style" }).getByRole("radio")).toHaveCount(15);
+  await expect(page.getByTestId("style-note")).toContainText("Choose for me.");
+  await page.getByTestId("look-film_noir").click();
+  await expect(page.getByTestId("style-note")).toContainText("Film noir. Suits true crime, detectives");
+
+  // The language the video is told in, and the voice: every voice has a sample in the language that is chosen.
+  await expect(page.getByRole("radiogroup", { name: "Language" }).getByRole("radio")).toHaveText(["English", "Türkçe"]);
+  await expect(page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio")).toHaveCount(2);
+  await page.getByRole("radiogroup", { name: "Language" }).getByRole("radio", { name: "Türkçe" }).click();
+  const sample = page.waitForRequest((r) => r.url().endsWith("/voices/narrator-f.tr.mp3"));
+  await page.getByTestId("listen-narrator-f").click();
+  await sample;
+  await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName("Stop the sample of Narrator, female");
+  // a sample is of one language: choosing another ends it
+  await page.getByRole("radiogroup", { name: "Language" }).getByRole("radio", { name: "English" }).click();
+  await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName("Hear Narrator, female in English");
+  await page.getByRole("radiogroup", { name: "Language" }).getByRole("radio", { name: "Türkçe" }).click();
+  await page.getByTestId("voice-narrator-f").click();
+  for (const voice of ["narrator-m", "narrator-f"]) for (const lang of ["en", "tr"]) expect((await page.request.get(`/voices/${voice}.${lang}.mp3`)).status(), `${voice}.${lang}`).toBe(200);
 
   // pictures only, both, or clips only
   const madeOf = page.getByRole("radiogroup", { name: "What the video is made of" });
@@ -138,7 +170,7 @@ test("a new video is asked for by its length, how long each scene stays and what
   await page.getByTestId("create-draft").click();
   await expect.poll(() => calls().slice(before).find((c) => c[0] === "run")).toBeTruthy();
   const sent = calls().slice(before).find((c) => c[0] === "run")!;
-  expect(sent).toEqual(expect.arrayContaining(["--duration", "60", "--scene-seconds", "3-5", "--pin-modes", "2"]));
+  expect(sent).toEqual(expect.arrayContaining(["--duration", "60", "--scene-seconds", "3-5", "--pin-modes", "2", "--style", "film_noir", "--language", "tr", "--voice", "narrator-f"]));
   expect(sent).not.toContain("--scenes");
 });
 
