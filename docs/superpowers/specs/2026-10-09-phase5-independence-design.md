@@ -722,3 +722,27 @@ less waiting for the same money: the start is paid once, as before, and now over
 - The whole run, start to last clip: 7 min 42 s (9 min 22 s in §9.14).
 
 Spent on this check: two videos ($0.13 + $0.14) and the models' download (about four minutes of GPU).
+
+### 9.17 No names for the parts either (owner's ruling, 2026-10-10)
+
+§7 and D8 gave each part of the pipeline a public name ("FlowChain Voice", "FlowChain Picture", "FlowChain
+Motion"), shown on receipts, in the making strip and under the calculator, and had the copy say "our engine".
+The owner, on seeing the page: a customer does not need to be told what makes the video at all.
+
+- `ENGINES` and `ENGINE_OF_LINE` are gone from `web/lib/engines.ts`. A receipt lists what each part cost; the
+  making strip says "Spoken, with the pauses trimmed"; the calculator and the shelf say "the way every video is
+  made now" where they said "on our own engine" and "on models we rented".
+- `SELF_NAMES` in the same file lists what the pages no longer say about themselves, and
+  `web/test/names.test.ts` holds the source of every page, component and shared module to it, beside the check
+  for `INTERNAL_NAMES`, which is unchanged. A browser test looks at the landing page and a receipt as rendered.
+- A job's output line that names an internal is replaced by "(a step reported; the details are kept with the
+  studio)".
+- Unchanged: Stripe is named where a customer pays; other companies' models are named in the dated price
+  comparison, where the comparison is about them.
+- The published showcases' files never carried the names (they were added when shown), so nothing is exported
+  again. `receipt.madeOn` stays: it is how the page knows which videos were made the way videos are made now.
+
+In the studio, on the same day: names the pipeline uses for itself are no longer shown as they are. Caption
+styles read "Punchy", "Playful", "Quiet" and "Matched to the look" (the landing page's words; two of the names
+are living people's); cuts, stages, job kinds and looks have labels (`web/lib/labels.ts`, `StylePreset.label`).
+The values the API and the CLI take are unchanged.

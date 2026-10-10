@@ -1,14 +1,9 @@
 /*
- * What customers are told makes each part of a video (phase 5 spec §7). The models and the companies behind
- * them are the studio's own business: they can change without anything a customer sees changing, and no page,
- * published file or API answer names them. Nothing here claims more than a name: the copy says "our engine",
- * never that a model was built or trained by the studio.
+ * What makes each part of a video is the studio's own business (phase 5 spec §7, and §9.17 for the owner's
+ * ruling that it is given no name at all): the models and the companies behind them can change without
+ * anything a customer sees changing, and no page, published file or API answer names them. A customer is told
+ * what a video costs and what it will look like, not what made it.
  */
-export const ENGINES = {
-  voice: "FlowChain Voice",
-  pictures: "FlowChain Picture",
-  clips: "FlowChain Motion",
-} as const;
 
 /**
  * What a studio with accounts says in place of the names of settings that are not set: which key the owner has
@@ -16,8 +11,11 @@ export const ENGINES = {
  */
 export const NOT_READY = "not_ready";
 
-/** The engine behind a receipt's line, where it has one (the script has no name of its own). */
-export const ENGINE_OF_LINE: Record<string, string | undefined> = { Voice: ENGINES.voice, Pictures: ENGINES.pictures, Clips: ENGINES.clips };
+/**
+ * What the pages do not say about themselves either: a brand name for a part of the pipeline, "our engine",
+ * models "we" use or rent. `web/test/names.test.ts` holds the source of every page and component to it.
+ */
+export const SELF_NAMES: RegExp[] = [/flow\s?chain (voice|picture|motion)/i, /\b(our|its) (own )?(engines?|models?)\b/i, /\bmodels? we\b/i, /\b(picture|voice|clip|video) (engine|model)s?\b/i];
 
 /**
  * Names that belong to how the studio is built: models, the companies that make or host them, the settings that
@@ -41,7 +39,7 @@ export const namesInternals = (text: string): boolean => INTERNAL_NAMES.some((na
 export function publicLog(lines: string[]): string[] {
   const out: string[] = [];
   for (const line of lines) {
-    const shown = namesInternals(line) ? "(a step of the engine reported; the details are kept with the studio)" : line;
+    const shown = namesInternals(line) ? "(a step reported; the details are kept with the studio)" : line;
     if (shown !== out.at(-1)) out.push(shown);
   }
   return out;

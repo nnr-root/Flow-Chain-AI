@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { ENGINES, INTERNAL_NAMES, namesInternals, NOT_READY, publicLog } from "@/lib/engines";
+import { INTERNAL_NAMES, namesInternals, NOT_READY, publicLog, SELF_NAMES } from "@/lib/engines";
 import { forCustomers, studioHealth, studioHealthRaw } from "@/server/jobs";
 import { useStudio } from "./helpers";
 
@@ -42,12 +42,25 @@ describe("what a customer is sent names no model, no provider and no key", () =>
     expect(hits).toEqual([]);
   });
 
+  it("and gives its own parts no name either: no page says what makes the voice, the pictures or the clips", () => {
+    // (owner's ruling, phase 5 spec §9.17; not held to it: the list itself)
+    const exempt = ["lib/engines.ts"].map((f) => join(web, f));
+    const sources = ["app", "components", "lib"].flatMap((dir) => files(join(web, dir), (f) => /\.(ts|tsx)$/.test(f) && !exempt.includes(f)));
+    const named = (line: string) => SELF_NAMES.some((name) => name.test(line));
+    const hits = sources.flatMap((file) =>
+      shipped(readFileSync(file, "utf8")).split("\n").filter(named).map((line) => `${file.slice(web.length + 1)}: ${line.trim().slice(0, 120)}`));
+    expect(hits).toEqual([]);
+    // the check can fail, and a variable may still be called what it is
+    for (const said of ["<p>Pictures by FlowChain Picture</p>", "          Made on our own engine, as every video is now", "on models we rented", "as it does with most picture engines"]) expect(named(said), said).toBe(true);
+    for (const code of ["const engine = engineOf(SHOWCASES);", "export type Engine = {", "A scale model of a ship", "Model a business plan"]) expect(named(code), code).toBe(false);
+  });
+
   it("the check itself can fail: it finds a name in page text, and not in a comment or an import", () => {
     expect(shipped('<p>Voices by ElevenLabs</p>').split("\n").some(namesInternals)).toBe(true);
     expect(shipped('const hint = "Empty = GEMINI_API_KEY from .env";').split("\n").some(namesInternals)).toBe(true);
     expect(shipped('// RunPod bills by the second\nimport { x } from "@/lib/accounts";\n/* Wan 2.2 */ const a = 1;').split("\n").some(namesInternals)).toBe(false);
     // the names customers are given are not internal names, and neither is where they pay
-    for (const said of [...Object.values(ENGINES), "Paid on Stripe's pages", "Flow Chain", "Runway", "a falling leaf", "Run a pod of dolphins"]) expect(namesInternals(said), said).toBe(false);
+    for (const said of ["Paid on Stripe's pages", "Flow Chain", "Runway", "a falling leaf", "Run a pod of dolphins"]) expect(namesInternals(said), said).toBe(false);
   });
 });
 

@@ -37,7 +37,7 @@ const questions = ({ used, sells, clipHeight }: Facts): Array<{ q: string; a: st
     q: "What can it not do?",
     a: [
       `It makes short videos of up to ${inWords(MAX_SCENES)} scenes, upright (9:16) or wide (16:9), from one sentence. It is not an editor with a timeline: you choose the look, the cuts, the opening title, the music and the brand, and you can have any single scene made again.`,
-      `Writing inside the pictures — a label on a bottle, a street sign — comes out as scribble, as it does with most picture engines.${clipHeight ? ` The moving clips are generated at ${clipHeight}p and set into a full-HD video.` : ""}`,
+      `Writing inside the pictures — a label on a bottle, a street sign — comes out as scribble, as it does in most generated pictures.${clipHeight ? ` The moving clips are generated at ${clipHeight}p and set into a full-HD video.` : ""}`,
     ],
   },
   {

@@ -1,4 +1,3 @@
-import { ENGINE_OF_LINE } from "@/lib/engines";
 import type { ShowcaseReceipt } from "@/lib/site/showcases";
 
 /** To the hundredth of a cent, as the ledger keeps it. */
@@ -21,8 +20,6 @@ export function Receipt({ receipt }: { receipt: ShowcaseReceipt }) {
               <span aria-hidden="true" className="min-w-4 flex-1 border-b border-dotted border-ink/35" />
               <dd>{exact(line.usd)}</dd>
             </div>
-            {/* an engine is named only on a video it made: one made before the studio had its own carries no name */}
-            {receipt.madeOn === "own" && ENGINE_OF_LINE[line.label] && <p className="text-graphite">{ENGINE_OF_LINE[line.label]}</p>}
           </div>
         ))}
         <div className="mt-1.5 flex items-baseline gap-2">

@@ -5,11 +5,12 @@ import { errorText, getJson, sendForm, sendJson } from "@/lib/api";
 import { CreditNote, tooLittle, useBalance } from "@/lib/balance";
 import { DRAFT_CAP_USD } from "@/lib/credit";
 import { NOT_READY } from "@/lib/engines";
+import { CAPTION_LABELS, labelOf, TRANSITION_LABELS } from "@/lib/labels";
 import type { StudioHealth } from "@/server/jobs";
 import type { KitSummary, Track } from "@/server/library";
 import { Button, ErrorNote, Field, Panel, Segmented } from "./ui";
 
-export type PresetCard = { name: string; description: string; font: string };
+export type PresetCard = { name: string; label: string; description: string };
 
 const CAPTION_STYLES = ["preset", "hormozi", "mrbeast", "minimalist"];
 const TRANSITIONS = ["auto", "cut", "fade", "dissolve", "blur", "zoom", "glitch"];
@@ -112,20 +113,20 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         </div>
       </Panel>
 
-      <Panel title="Style">
-        <div role="radiogroup" aria-label="Style preset" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {[{ name: "auto", description: "The preset that fits the topic is picked for you", font: "" }, ...presets].map((p) => (
+      <Panel title="Look" aside={<span className="text-xs text-dim">sets the pictures, the motion and the captions</span>}>
+        <div role="radiogroup" aria-label="Look" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {[{ name: "auto", label: "Choose for me", description: "" }, ...presets].map((p) => (
             <button
               key={p.name}
               type="button"
               role="radio"
               aria-checked={f.style === p.name}
+              data-testid={`look-${p.name}`}
               onClick={() => set("style", p.name)}
               className={`rounded-lg border p-3 text-left ${f.style === p.name ? "border-accent bg-accent/10" : "border-line hover:border-dim"}`}
             >
-              <span className="block text-sm font-medium">{p.name === "auto" ? "Choose for me" : p.name.replaceAll("_", " ")}</span>
-              <span className="mt-1 block text-xs text-dim">{p.description}</span>
-              {p.font && <span className="mt-1 block text-xs text-dim">captions: {p.font}</span>}
+              <span className="block text-sm font-medium">{p.label}</span>
+              <span className="mt-1 block text-xs text-dim">{p.name === "auto" ? "The look that fits the topic is picked when the script is written." : `For ${p.description}.`}</span>
             </button>
           ))}
         </div>
@@ -179,22 +180,22 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
       <details className="rounded-xl border border-line bg-panel p-4">
         <summary className="cursor-pointer text-sm font-semibold tracking-wide text-dim uppercase">Advanced</summary>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
-          <Field label="Hook title">
+          <Field label="Opening title">
             <select value={f.hookMode} onChange={(e) => set("hookMode", e.target.value)}>
               <option value="auto">Written for you</option>
               <option value="custom">My own text</option>
-              <option value="off">No hook</option>
+              <option value="off">None</option>
             </select>
             {f.hookMode === "custom" && <input className="mt-2" maxLength={60} required value={f.hookText} onChange={(e) => set("hookText", e.target.value)} placeholder="2–6 punchy words" />}
           </Field>
-          <Field label="Caption style">
+          <Field label="Captions">
             <select value={f.captionStyle} onChange={(e) => set("captionStyle", e.target.value)}>
-              {CAPTION_STYLES.map((c) => <option key={c} value={c}>{c === "preset" ? "the style preset's" : c}</option>)}
+              {CAPTION_STYLES.map((c) => <option key={c} value={c}>{labelOf(CAPTION_LABELS, c)}</option>)}
             </select>
           </Field>
-          <Field label="Transition at cuts">
+          <Field label="Cuts between scenes">
             <select value={f.transition} onChange={(e) => set("transition", e.target.value)}>
-              {TRANSITIONS.map((t) => <option key={t} value={t}>{t === "auto" ? "auto (the script's)" : t}</option>)}
+              {TRANSITIONS.map((t) => <option key={t} value={t}>{labelOf(TRANSITION_LABELS, t)}</option>)}
             </select>
           </Field>
           <Field label="Seed" hint="Empty = random. The same seed keeps pictures repeatable.">

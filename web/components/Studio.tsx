@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type ActionKind, afterRefusal } from "@/lib/approval";
 import { ApiFailure, errorText, sendJson, usd } from "@/lib/api";
 import { CreditNote, tooLittle, useBalance } from "@/lib/balance";
+import { CAPTION_LABELS, JOB_LABELS, labelOf, STAGE_LABELS, TRANSITION_LABELS } from "@/lib/labels";
 import { controlsOf, type LookControls, pendingLook } from "@/lib/look";
 import { encodeLookToken } from "@/lib/look-token";
 import type { KitSummary } from "@/server/library";
@@ -200,7 +201,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
           <>
             {preview.draft && (
               <p data-testid="draft-note" className="rounded-lg border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-warn">
-                Draft preview: placeholder pictures, estimated timing, no voice yet. Captions, hook, transitions, brand, music and sound effects are real.
+                Draft preview: placeholder pictures, estimated timing, no voice yet. The captions, the opening title, the cuts, the brand, the music and the sound effects are real.
               </p>
             )}
             <StudioPlayer ref={player} props={preview.props} resolve={resolve} className="overflow-hidden rounded-xl border border-line bg-black" />
@@ -225,7 +226,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
           {working && (
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm" data-testid="working">
-                {job?.state === "queued" ? `Waiting in line: ${ordinal(job.position)} (${job.kind}). Nothing is spent while it waits.` : job ? `Working: ${job.kind}…` : "Starting…"}
+                {job?.state === "queued" ? `Waiting in line: ${ordinal(job.position)}, for ${labelOf(JOB_LABELS, job.kind)}. Nothing is spent while it waits.` : job ? `Working: ${labelOf(JOB_LABELS, job.kind)}…` : "Starting…"}
               </p>
               <Button tone="danger" data-testid="stop" onClick={stop} disabled={busy || (state !== "running" && state !== "queued")}>
                 {state === "queued" ? "Remove from queue" : "Stop"}
@@ -251,7 +252,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
               </p>
               {failures.map((f, i) => (
                 <p key={i} className="rounded-lg bg-bad/10 px-3 py-2 text-xs text-bad">
-                  {f.stage}{"scene" in f ? ` scene ${f.scene}` : ""}: {f.error}
+                  {labelOf(STAGE_LABELS, f.stage)}{"scene" in f ? `, scene ${f.scene}` : ""}: {f.error}
                 </p>
               ))}
               <div className="flex flex-wrap gap-2">
@@ -263,7 +264,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
             </div>
           )}
           {state === "done" && <p className="text-sm text-dim">Finished. Change the look below and re-render for free, or regenerate a single scene.</p>}
-          <p className="mt-3 text-xs text-dim">Amounts are estimates from the price table, not invoices.</p>
+          <p className="mt-3 text-xs text-dim">Amounts shown before a job are estimates. The amount on a button is the limit that job is held to.</p>
         </Panel>
 
         {status && scripted && (
@@ -294,19 +295,19 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
         {status && controls && scripted && (
           <Panel title="Look" aside={<span className="text-xs text-dim">changes preview at once and never cost anything</span>}>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Caption style">
+              <Field label="Captions">
                 <select data-testid="caption-style" value={controls.captionStyle} onChange={(e) => set("captionStyle", e.target.value)}>
-                  {CAPTION_STYLES.map((c) => <option key={c} value={c}>{c === "preset" ? "the style preset's" : c}</option>)}
+                  {CAPTION_STYLES.map((c) => <option key={c} value={c}>{labelOf(CAPTION_LABELS, c)}</option>)}
                 </select>
               </Field>
-              <Field label="Transition at cuts">
+              <Field label="Cuts between scenes">
                 <select value={controls.transition} onChange={(e) => set("transition", e.target.value)}>
-                  {TRANSITIONS.map((t) => <option key={t} value={t}>{t === "auto" ? "auto (the script's)" : t}</option>)}
+                  {TRANSITIONS.map((t) => <option key={t} value={t}>{labelOf(TRANSITION_LABELS, t)}</option>)}
                 </select>
               </Field>
-              <Field label="Hook title">
+              <Field label="Opening title">
                 <div className="flex items-center gap-2">
-                  <input type="checkbox" aria-label="Show the hook" checked={controls.hookOn} onChange={(e) => set("hookOn", e.target.checked)} />
+                  <input type="checkbox" aria-label="Show the opening title" checked={controls.hookOn} onChange={(e) => set("hookOn", e.target.checked)} />
                   <input value={controls.hookText} maxLength={60} disabled={!controls.hookOn} onChange={(e) => set("hookText", e.target.value)} />
                 </div>
               </Field>
@@ -346,8 +347,8 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
               <tbody>
                 {spendByStage(status.ledger).map(([stage, n, total]) => (
                   <tr key={stage} className="border-t border-line first:border-0">
-                    <td className="py-1">{stage}</td>
-                    <td className="py-1 text-dim">{n} call{n === 1 ? "" : "s"}</td>
+                    <td className="py-1">{labelOf(STAGE_LABELS, stage)}</td>
+                    <td className="py-1 text-dim">{n === 1 ? "once" : `${n} times`}</td>
                     <td className="py-1 text-right tabular-nums">{usd(total)}</td>
                   </tr>
                 ))}
@@ -428,7 +429,7 @@ function SceneRow({ scene, draft, canReroll, busy, onMode, onReroll }: {
               onChange={(v) => onMode(v === "auto" ? null : (Number(v) as 1 | 2))}
             />
           ) : (
-            <span className="font-mono">{scene.steps.map((s) => `${s.stage} ${MARK[s.status]}`).join("  ")}</span>
+            <span>{scene.steps.map((s) => `${labelOf(STAGE_LABELS, s.stage)} ${MARK[s.status]}`).join("   ")}</span>
           )}
         </span>
       </div>

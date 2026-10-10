@@ -1,7 +1,6 @@
 "use client";
 import { useId, useState } from "react";
 import type { CatalogueItem } from "@/lib/billing";
-import { ENGINES } from "@/lib/engines";
 import { clipsCostUsd, type Comparison, quote } from "@/lib/site/calculator";
 
 const usd = (n: number): string => `$${n.toFixed(2)}`;
@@ -39,7 +38,6 @@ export function Calculator({ items, engine, others, asOf }: { items: CatalogueIt
           <input id={slider} type="range" min={1} max={150} step={1} value={videos} onChange={(e) => setVideos(Number(e.target.value))} className="range mt-5 w-full" />
           <p className="mt-8 text-[1.02rem]">
             A video <span className="figures text-[0.8rem] text-graphite">about {usd(engine.creditPerVideoUsd)} of credit</span>
-            <span className="block text-[0.9rem] text-graphite">Pictures by {ENGINES.pictures}, clips by {ENGINES.clips}, voice by {ENGINES.voice}.</span>
           </p>
         </div>
 
@@ -58,7 +56,7 @@ export function Calculator({ items, engine, others, asOf }: { items: CatalogueIt
             <p className="max-w-[36rem] text-[1.1rem]" data-testid="calc-answer">That many videos is more than what is on sale covers in one month. <a href="/pricing" className="underline underline-offset-4">See what is on sale.</a></p>
           )}
           <p className="mt-4 max-w-[36rem] text-[0.92rem] text-graphite">
-            “About {usd(engine.creditPerVideoUsd)}” is the mean of the {engine.videos === 1 ? "one video" : `${engine.videos} videos`} above that were made on our own engine, about {Math.round(engine.seconds)} seconds each. Yours will use more or less with their length and how many scenes move; you are shown the most a video can cost before it is made.
+            “About {usd(engine.creditPerVideoUsd)}” is the mean of the {engine.videos === 1 ? "one video" : `${engine.videos} videos`} above that were made the way every video is made now, about {Math.round(engine.seconds)} seconds each. Yours will use more or less with their length and how many scenes move; you are shown the most a video can cost before it is made.
           </p>
         </div>
       </div>
@@ -100,7 +98,7 @@ export function Calculator({ items, engine, others, asOf }: { items: CatalogueIt
             </table>
           </div>
           <p className="mt-4 max-w-[44rem] text-[0.92rem] text-graphite">
-            Prices as their own pricing pages stated them {asOf}; each name links to its page. This compares prices, not pictures: the models differ, and so does how sharp and how lifelike their clips are. Their plans also hold a set number of credits a month, which a large month would exceed.
+            Prices as their own pricing pages stated them {asOf}; each name links to its page. This compares prices, not pictures: how sharp and how lifelike the clips are differs from one to the next. Their plans also hold a set number of credits a month, which a large month would exceed.
           </p>
         </div>
       )}

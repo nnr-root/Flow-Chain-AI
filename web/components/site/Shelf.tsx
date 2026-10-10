@@ -36,8 +36,7 @@ export function Shelf({ showcases }: { showcases: Showcase[] }) {
       </ul>
       {own.length > 0 && hosted.length > 0 && (
         <p className="mt-12 max-w-[44rem] text-[1.1rem] leading-[1.5]" data-testid="shelf-compare">
-          Made on our own engine, as every video is now: {own.map(cost).join("; ")}. Made before it, on models we rented: {hosted.map(cost).join("; ")}.
-          The difference is where the pictures and the clips are made.
+          Made the way every video is made now: {own.map(cost).join("; ")}. Made the way they were made before, which cost more: {hosted.map(cost).join("; ")}.
         </p>
       )}
       <p className="mt-4 max-w-[44rem] text-[0.92rem] text-graphite">
