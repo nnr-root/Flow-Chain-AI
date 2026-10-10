@@ -33,7 +33,7 @@ export function Calculator({ items, engine, others, asOf }: { items: CatalogueIt
         <div className="lg:col-span-5">
           <label htmlFor={slider} className="block text-[1.02rem]">
             Videos a month
-            <output htmlFor={slider} className="display float-right text-[3.4rem] leading-none text-pencil" data-testid="calc-videos">{videos}</output>
+            <output htmlFor={slider} className="display float-right text-[3.4rem] leading-none text-ink" data-testid="calc-videos">{videos}</output>
           </label>
           <input id={slider} type="range" min={1} max={150} step={1} value={videos} onChange={(e) => setVideos(Number(e.target.value))} className="range mt-5 w-full" />
           <p className="mt-8 text-[1.02rem]">
@@ -79,7 +79,7 @@ export function Calculator({ items, engine, others, asOf }: { items: CatalogueIt
               </thead>
               <tbody className="figures text-[0.9rem]">
                 <tr className="border-b border-hairline" data-testid="calc-row-ours">
-                  <th scope="row" className="py-3 pr-4 font-semibold">Flow Chain</th>
+                  <th scope="row" className="py-3 pr-4 font-bold">Flow Chain</th>
                   <td className="py-3 pr-4">The finished video: script, voice, pictures, clips and the cut.</td>
                   <td className="py-3 pr-4 text-right">{usd(q.monthUsd)}</td>
                   <td className="py-3 text-right">{usd(q.perVideoUsd)}</td>

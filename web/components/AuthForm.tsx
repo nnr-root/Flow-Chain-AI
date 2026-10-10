@@ -60,7 +60,7 @@ export function AuthForm({ mode, next = "/", error: initialError = "", info = ""
         </form>
       )}
       {google && (mode === "login" || mode === "signup") && !notice && (
-        <a href={`/auth/google?next=${encodeURIComponent(next)}`} className="block rounded-[3px] border-[1.5px] border-ink/30 bg-sheet px-4 py-3 text-center font-semibold hover:border-ink" data-testid="auth-google">
+        <a href={`/auth/google?next=${encodeURIComponent(next)}`} className="block rounded-full border-[1.5px] border-ink/30 bg-sheet px-4 py-3 text-center font-bold hover:border-ink" data-testid="auth-google">
           Continue with Google
         </a>
       )}

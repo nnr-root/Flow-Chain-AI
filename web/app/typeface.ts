@@ -1,18 +1,18 @@
 import localFont from "next/font/local";
 
 /*
- * What is printed on the site: text, labels, controls. A file in this folder (its open licence beside it):
- * nothing is fetched from anyone else.
+ * The one typeface of the whole site, a file in this folder (its open licence beside it): nothing is fetched
+ * from anyone else. It is the face the studio's own captions are set in, which is the point: the site speaks
+ * in the voice its videos do. Text is its medium weight; a title is its heaviest, in capitals, as a caption is.
  */
-export const archivo = localFont({ src: "./fonts/Archivo.woff2", variable: "--font-archivo", weight: "100 900", display: "swap" });
+export const montserrat = localFont({ src: "./fonts/Montserrat.woff2", variable: "--font-montserrat", weight: "100 900", display: "swap" });
 
 /*
- * The hand: what is written on a board rather than printed on it. Titles, and the notes in red pencil beside a
- * panel (what a scene is, how long it runs, what it cost). What stands in for it until it arrives is the
- * theme's "Hand Fallback", shrunk to its narrow letters, so a title does not break differently and push the
- * page down when the face comes.
+ * The same file again, for titles: heavy capitals are far wider than the text Next measures its stand-in for,
+ * and what stands in for them until the face arrives must be as wide (the theme's "Caption Fallback"), or a
+ * title breaks into other lines at first and everything under it jumps when the face comes.
  */
-export const hand = localFont({
-  src: "./fonts/CoveredByYourGrace.woff2", variable: "--font-hand", weight: "400", display: "swap",
-  adjustFontFallback: false, fallback: ["Hand Fallback", "Bradley Hand", "Segoe Print", "cursive"],
+export const montserratDisplay = localFont({
+  src: "./fonts/Montserrat.woff2", variable: "--font-montserrat-display", weight: "100 900", display: "swap",
+  adjustFontFallback: false, fallback: ["Caption Fallback", "Arial Black", "Arial", "sans-serif"],
 });

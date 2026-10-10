@@ -36,7 +36,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
       {since !== null && billing && <PaidNote since={since} confirmed={billing.payments.some((p) => arrivedSince(p.at, since))} />}
       <Panel title="Account" aside={<SignOut />}>
         <p className="text-[0.95rem] text-graphite">{me.email}</p>
-        <p className="display mt-3 text-[clamp(3.5rem,2rem+6vw,6rem)] leading-[0.9] text-pencil" data-testid="balance">{usd(me.balanceUsd)}</p>
+        <p className="display mt-3 text-[clamp(3.5rem,2rem+6vw,6rem)] leading-[0.9] text-ink" data-testid="balance">{usd(me.balanceUsd)}</p>
         <p className="mt-1 text-[0.85rem] text-graphite">Your credit. A job holds the amount you approve and gives back what it does not spend.</p>
         {billing && (
           <>
@@ -53,7 +53,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
         <Panel title="Plan and payments" aside={<ManageBilling label={plan ? "Manage subscription" : "Invoices and card"} />}>
           {plan ? (
             <p className="text-[0.95rem]" data-testid="plan">
-              <span className="font-semibold capitalize">{plan.plan}</span>, {(STATUS[plan.status] ?? plan.status).toLowerCase()}
+              <span className="font-bold capitalize">{plan.plan}</span>, {(STATUS[plan.status] ?? plan.status).toLowerCase()}
               {plan.periodEnd && LIVE.includes(plan.status) && <span className="text-graphite">, {plan.cancelAtPeriodEnd ? "ends" : "renews"} on {day(plan.periodEnd)}</span>}
             </p>
           ) : (

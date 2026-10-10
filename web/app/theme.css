@@ -2,106 +2,96 @@
 
 /*
  * The look of the whole site: the pages a visitor reads and the studio a user works in are one place and load
- * this one file (phase 4 spec §15, which replaces §14's look and keeps its one-site rule).
+ * this one file (phase 4 spec §16, which replaces §15's look and keeps §14's one-site rule).
  *
- * The idea is where a video begins: a storyboard on a drawing desk. White paper. What is printed on it (text,
- * labels, controls) is in graphite. What is drawn on it is drawn the way an animator draws: loosely in
- * non-photo blue first, then over it in pencil, so a frame has two lines and neither is quite straight. What is
- * noted on it — what a scene is, how long it runs, what it cost — is written by hand in red pencil. The only
- * dark thing on a page is a video.
+ * The idea is where these videos are watched: the feed. The page is the dark of a screen at night, and the
+ * light on it comes from the videos. Words are set the way the studio's own captions are: one heavy face, a
+ * title in capitals, and caption yellow on the one thing that is "being spoken" — the word a title is on, the
+ * choice that is chosen, the action to take. Things are rounded as they are on a phone.
  */
 @theme {
-  --color-paper: #fafaf7;
-  --color-sheet: #ffffff;
-  --color-wash: #edf4f8;
-  --color-ink: #25252b;
-  --color-graphite: #62626b;
-  /* the blue pencil: what is pressed, what has focus, what a link is */
-  --color-signal: #1c6ea4;
-  /* non-photo blue, laid down as shading: the thing that is "on" */
-  --color-marker: #c6e5f5;
-  /* non-photo blue as a line: every rule and every construction line */
-  --color-hairline: rgb(104 178 216 / 0.6);
-  /* the red pencil: notes, amounts, corrections */
-  --color-pencil: #c92c2c;
+  /* the screen */
+  --color-paper: #000000;
+  /* what stands on it: a row, a field, a card of a video's facts */
+  --color-sheet: #151515;
+  --color-wash: #222222;
+  --color-ink: #ffffff;
+  --color-graphite: #a6a6a6;
+  /* caption yellow: what is pressed, and what is on */
+  --color-signal: #ffe500;
+  --color-marker: #ffe500;
+  --color-hairline: rgb(255 255 255 / 0.14);
   --color-stage: #000000;
-  --color-good: #17734a;
-  --color-warn: #8a5a00;
-  --color-bad: #b3261e;
+  --color-good: #5fe08a;
+  --color-warn: #ffc24a;
+  --color-bad: #ff7a70;
 
-  --font-text: var(--font-archivo), "Helvetica Neue", Arial, sans-serif;
-  --font-display: var(--font-hand), "Hand Fallback", "Bradley Hand", cursive;
+  --font-text: var(--font-montserrat), "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-montserrat-display), "Caption Fallback", "Arial Black", Arial, sans-serif;
 
-  --text-display: clamp(3rem, 1.3rem + 5.6vw, 5.3rem);
-  --text-display--line-height: 0.92;
-  --text-display--letter-spacing: 0;
+  --text-display: clamp(2.5rem, 1.1rem + 4.6vw, 5.2rem);
+  --text-display--line-height: 0.96;
+  --text-display--letter-spacing: -0.02em;
 }
 
-/*
- * What a title is drawn in for the moment before the hand arrives: the system's sans, shrunk to the hand's
- * narrow letters. Without it a title breaks into other lines at first and everything under it jumps when the
- * real face comes (the phone budget test measures it).
- */
-@font-face { font-family: "Hand Fallback"; src: local("Arial"), local("ArialMT"), local("Helvetica Neue"), local("Helvetica"); size-adjust: 78%; }
+/* What a title is drawn in for the moment before the face arrives: the system's bold sans, widened to the face's heavy capitals. */
+@font-face { font-family: "Caption Fallback"; src: local("Arial Bold"), local("Arial-BoldMT"), local("Helvetica Neue Bold"), local("Arial"); font-weight: 100 900; size-adjust: 116%; }
 
 @layer base {
-  html { color-scheme: light; background: var(--color-paper); }
-  body { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-text); font-size: 1.0625rem; line-height: 1.5; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; caret-color: var(--color-pencil); }
+  html { color-scheme: dark; background: var(--color-paper); scrollbar-color: #3a3a3a var(--color-paper); }
+  body { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-text); font-weight: 500; font-size: 1.0625rem; line-height: 1.5; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; caret-color: var(--color-signal); }
 
-  /* a form's own controls: white where something is written, a blue-pencil line when it is being written in */
+  /* a form's own controls: a lit field on the dark, and a yellow edge while it is being typed in */
   input:where([type="text"], [type="email"], [type="password"], [type="number"], [type="search"], :not([type])), select, textarea {
-    width: 100%; background: var(--color-sheet); color: var(--color-ink); border: 1.5px solid rgb(37 37 43 / 0.28); border-radius: 3px; padding: 0.55rem 0.75rem; font: inherit;
+    width: 100%; background: var(--color-sheet); color: var(--color-ink); border: 1.5px solid rgb(255 255 255 / 0.18); border-radius: 14px; padding: 0.65rem 0.95rem; font: inherit;
   }
-  input:where([type="text"], [type="email"], [type="password"], [type="number"], [type="search"], :not([type])):hover, select:hover, textarea:hover { border-color: rgb(37 37 43 / 0.6); }
-  input::placeholder, textarea::placeholder { color: rgb(98 98 107 / 0.75); }
+  input:where([type="text"], [type="email"], [type="password"], [type="number"], [type="search"], :not([type])):hover, select:hover, textarea:hover { border-color: rgb(255 255 255 / 0.4); }
+  input:where([type="text"], [type="email"], [type="password"], [type="number"], [type="search"], :not([type])):focus, select:focus, textarea:focus { border-color: var(--color-signal); }
+  input::placeholder, textarea::placeholder { color: rgb(166 166 166 / 0.8); }
   input[type="checkbox"], input[type="radio"] { accent-color: var(--color-signal); width: 1.05rem; height: 1.05rem; }
   input[type="file"] { font-size: 0.85rem; color: var(--color-graphite); }
-  input[type="file"]::file-selector-button { font: inherit; color: var(--color-ink); background: var(--color-sheet); border: 1.5px solid rgb(37 37 43 / 0.28); border-radius: 3px; padding: 0.3rem 0.7rem; margin-right: 0.7rem; cursor: pointer; }
+  input[type="file"]::file-selector-button { font: inherit; font-weight: 700; color: var(--color-ink); background: var(--color-wash); border: 0; border-radius: 999px; padding: 0.4rem 0.9rem; margin-right: 0.7rem; cursor: pointer; }
 
   a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2.5px solid var(--color-signal); outline-offset: 2px; }
-  ::selection { background: var(--color-marker); color: var(--color-ink); }
-  html { scrollbar-color: rgb(104 178 216 / 0.9) var(--color-paper); }
+  ::selection { background: var(--color-signal); color: #000; }
 }
 
-/* A title: written by hand, in pencil, on the board */
-.display { font-family: var(--font-display); font-weight: 400; letter-spacing: 0; text-wrap: balance; }
-/* A heading that is printed on the sheet rather than written on it: the form's own labels */
-.printed { font-family: var(--font-text); font-weight: 750; letter-spacing: -0.01em; }
-/* A note in red pencil: what a thing is, how long it runs, what it cost */
-.note { font-family: var(--font-display); color: var(--color-pencil); font-size: 1.3em; line-height: 1.05; }
+/* A title: set as a caption is, heavy and in capitals */
+.display { font-family: var(--font-display); font-weight: 900; text-transform: uppercase; letter-spacing: -0.02em; text-wrap: balance; }
+/* The heading of a part of a page: the same weight a caption has, in ordinary letters */
+.printed { font-family: var(--font-text); font-weight: 800; letter-spacing: -0.01em; }
+/* A fact about a video, as a feed sets one beside it: how long, how much */
+.note { font-weight: 800; font-variant-numeric: tabular-nums; }
 /* every number in a column: the same width, so prices and times line up */
 .figures { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 
-/* Blue-pencil shading behind the thing that is on: a little wider than the word and not quite square to it */
-.marked { background: var(--color-marker); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 0.04em 0.2em; margin: 0 -0.2em; border-radius: 0.3em 0.12em 0.34em 0.1em; }
+/* Caption yellow behind the thing that is on, as behind the word being spoken */
+.marked { background: var(--color-marker); color: #000; box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 0.02em 0.28em; margin: 0 -0.28em; border-radius: 0.28em; }
+
+/* a part of a page begins under a thin line of light */
+.ruled { border-top: 1px solid var(--color-hairline); padding-top: 1.25rem; }
 
 /*
- * A rule drawn in pencil along the top of a part of a page: one stroke, a little heavier where the hand started,
- * never quite level. (A picture of a line, stretched: a border cannot be uneven.)
+ * The page's title is spoken once, the way a caption speaks it: yellow is on each word for the moment it would
+ * be said, then moves on, and it comes to rest on the word that is the point (`.rest`). Each word carries its
+ * place in the line (--i). It is the one movement on the site that nobody asked for.
  */
-.ruled { background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 6' preserveAspectRatio='none'%3E%3Cpath d='M1 3.4 C60 1.6 130 4.4 205 2.8 S340 3.9 399 2.3' fill='none' stroke='%2325252b' stroke-width='2.2' stroke-linecap='round' vector-effect='non-scaling-stroke'/%3E%3Cpath d='M3 4.6 C90 3.4 190 5.2 300 3.9' fill='none' stroke='%2368b2d8' stroke-width='1.2' stroke-linecap='round' vector-effect='non-scaling-stroke' opacity='.7'/%3E%3C/svg%3E") top left / 100% 6px no-repeat; padding-top: 1.1rem; }
+.spoken > span { --step: 0.22s; display: inline-block; border-radius: 0.14em; padding: 0 0.1em; margin: 0 -0.1em; animation: spoken var(--step) linear calc(0.45s + var(--i) * var(--step)) 1 both; }
+.spoken > span.rest { animation: none; background: var(--color-marker); color: #000; }
+.spoken > span.rest ~ span, .spoken > span { animation-fill-mode: both; }
+@keyframes spoken { 0% { background: transparent; color: inherit; } 1%, 99% { background: var(--color-marker); color: #000; } 100% { background: transparent; color: inherit; } }
 
-/*
- * The one movement nobody asked for: when a board is first shown, its frames are drawn, one after another, and
- * then the notes are written. Each drawn line carries its place in the order (--i).
- */
-.drawn path { stroke-dasharray: 4000; stroke-dashoffset: 0; animation: draw 0.9s cubic-bezier(0.3, 0.6, 0.2, 1) calc(0.15s + var(--i, 0) * 0.16s) 1 backwards; }
-/* (a dash longer than any line here, pulled back to nothing: the lines keep their weight when stretched, so their dashes are counted in screen pixels) */
-@keyframes draw { from { stroke-dashoffset: 4000; } to { stroke-dashoffset: 0; } }
-.written { animation: written 0.5s ease-out calc(0.5s + var(--i, 0) * 0.14s) 1 backwards; }
-@keyframes written { from { opacity: 0; clip-path: inset(0 100% 0 0); } to { opacity: 1; clip-path: inset(0 0 0 0); } }
-
-/* a slip of paper with what a video cost: brighter than the page, torn off along a zigzag at the foot */
-.receipt { background: var(--color-sheet); border: 1.5px solid rgb(37 37 43 / 0.28); border-bottom: 0; --tooth: 7px;
+/* what a video cost: a card on the dark, torn off along a zigzag at the foot */
+.receipt { background: var(--color-sheet); border-radius: 18px 18px 0 0; --tooth: 7px;
   mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / var(--tooth) 51% repeat-x, linear-gradient(#000 0 0) top / 100% calc(100% - var(--tooth) / 2) no-repeat; }
 
-/* the slider: a pencil line to travel along and a knob */
-.range { appearance: none; height: 1.5rem; background: linear-gradient(var(--color-ink), var(--color-ink)) center / 100% 2px no-repeat; cursor: pointer; }
-.range::-webkit-slider-thumb { appearance: none; width: 1.4rem; height: 1.4rem; border-radius: 50%; background: var(--color-marker); border: 2px solid var(--color-ink); }
-.range::-moz-range-thumb { width: 1.1rem; height: 1.1rem; border-radius: 50%; background: var(--color-marker); border: 2px solid var(--color-ink); }
+/* the slider: a line of light to travel along and a yellow knob */
+.range { appearance: none; height: 1.5rem; background: linear-gradient(rgb(255 255 255 / 0.5), rgb(255 255 255 / 0.5)) center / 100% 2px no-repeat; cursor: pointer; }
+.range::-webkit-slider-thumb { appearance: none; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: var(--color-signal); border: 0; }
+.range::-moz-range-thumb { width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--color-signal); border: 0; }
 input[type="range"]:not(.range) { accent-color: var(--color-signal); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
-  .drawn path, .written { animation: none; }
+  .spoken > span { animation: none; }
 }

@@ -166,11 +166,12 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   // the look of the page: the site's paper, and one typeface for headings and text, from the site's own file
   const look = () => page.evaluate(() => ({ background: getComputedStyle(document.body).backgroundColor, heading: getComputedStyle(document.querySelector("h1")!).fontFamily.split(",")[0], text: getComputedStyle(document.body).fontFamily.split(",")[0], wordmark: document.querySelector("header a")?.textContent }));
   const site = await look();
-  expect(site.background).toBe("rgb(250, 250, 247)");
-  // a title is written by hand and text is printed: two faces, both from the site's own files
-  expect(site.heading).toMatch(/^"?hand/i);
-  expect(site.text).toMatch(/^"?archivo/i);
-  expect(await page.evaluate(() => document.fonts.ready.then(() => [...document.fonts].filter((f) => f.status === "loaded").length))).toBeGreaterThanOrEqual(2);
+  expect(site.background).toBe("rgb(0, 0, 0)");
+  // one face for titles and text, the one the studio's captions are set in, from the site's own file
+  // (under two names: a title is given a wider stand-in for the moment before the face arrives)
+  expect(site.heading).toMatch(/^"?montserrat/i);
+  expect(site.text).toMatch(/^"?montserrat/i);
+  expect(await page.evaluate(() => document.fonts.ready.then(() => [...document.fonts].filter((f) => f.status === "loaded").length))).toBeGreaterThanOrEqual(1);
   // the way in: the account form, and from there the first video
   // (nothing is given to new accounts in this studio, so nothing is promised: the button says what it does)
   await expect(page.locator('[data-cta="hero-signup"]')).toHaveText("Create an account");
@@ -280,7 +281,7 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
   // anyone may read what is on sale; buying asks for an account
   await page.goto("/pricing");
   await expect(page).toHaveURL(/\/pricing$/);
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(250, 250, 247)");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(0, 0, 0)");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Buy credit. Spend it at what a video costs.");
   await expect(page.getByTestId("offer-starter")).toContainText("$19.00 / month");
   await expect(page.getByTestId("offer-topup-10")).toContainText("$6.00 of credit. It does not expire.");
@@ -483,6 +484,10 @@ test("a video on the landing page has its sound on: it is heard from the visitor
   await page.getByTestId("board-3").click();
   await expect.poll(time).toBeGreaterThan(10);
   await expect(voice).toHaveJSProperty("paused", false);
+  // the other videos wait at the sides of the one playing, as in a feed: a click brings one to the front
+  await page.getByTestId("wall-robot-painter").click();
+  await expect(player).toHaveAttribute("data-slug", "robot-painter");
+  await expect(page.getByTestId("wall-clockmaker")).toBeVisible();
   // a video further down the page comes with its sound on, and the one that left the window is not heard under it
   const feature = page.getByTestId("feature-player");
   await feature.scrollIntoViewIfNeeded();

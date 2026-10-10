@@ -18,11 +18,11 @@ export default async function Page() {
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" data-testid="kits">
             {kits.map((k) => (
               <li key={k.slug}>
-                <div className="grid h-24 place-items-center rounded-[2px] bg-stage">
+                <div className="grid h-24 place-items-center rounded-[14px] bg-stage">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`/api/brand-kits/${k.slug}/logo`} alt={`${k.name} logo`} className="max-h-16 max-w-full" />
                 </div>
-                <p className="mt-2 text-[0.95rem] font-semibold">{k.name}</p>
+                <p className="mt-2 text-[0.95rem] font-bold">{k.name}</p>
                 <p className="text-[0.85rem] text-graphite">
                   {[k.hasFont && "font", k.hasCharacters && "characters", k.hasPortrait && "portrait"].filter(Boolean).join(", ") || "logo only"}
                 </p>

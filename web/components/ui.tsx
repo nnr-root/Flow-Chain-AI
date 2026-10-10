@@ -5,32 +5,32 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
  * waits for the user, red on what went wrong, and what is finished is simply said.
  */
 const STATES: Record<string, { label: string; cls: string }> = {
-  creating: { label: "Creating", cls: "bg-marker" },
+  creating: { label: "Creating", cls: "bg-marker text-paper" },
   draft: { label: "Draft", cls: "border border-ink/40" },
-  queued: { label: "Queued", cls: "bg-marker" },
-  running: { label: "Working", cls: "bg-marker" },
+  queued: { label: "Queued", cls: "bg-wash" },
+  running: { label: "Working", cls: "bg-marker text-paper" },
   needs_approval: { label: "Needs approval", cls: "border border-ink/40" },
-  failed: { label: "Failed", cls: "bg-bad text-sheet" },
-  interrupted: { label: "Interrupted", cls: "bg-bad text-sheet" },
+  failed: { label: "Failed", cls: "bg-bad text-paper" },
+  interrupted: { label: "Interrupted", cls: "bg-bad text-paper" },
   incomplete: { label: "Unfinished", cls: "border border-ink/40" },
-  done: { label: "Done", cls: "bg-ink text-sheet" },
+  done: { label: "Done", cls: "bg-ink text-paper" },
   stored: { label: "Archived", cls: "bg-wash text-graphite" },
 };
 
 export function StateBadge({ state }: { state: string }) {
   const s = STATES[state] ?? { label: state, cls: "bg-wash text-graphite" };
-  return <span data-state={state} className={`whitespace-nowrap rounded-[2px] px-2 py-0.5 text-[0.8rem] font-semibold ${s.cls}`}>{s.label}</span>;
+  return <span data-state={state} className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-[0.8rem] font-bold ${s.cls}`}>{s.label}</span>;
 }
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { tone?: "primary" | "plain" | "danger" };
 
 export function Button({ tone = "plain", className = "", ...rest }: ButtonProps) {
   const tones = {
-    primary: "bg-ink text-sheet hover:bg-signal",
-    plain: "border-[1.5px] border-ink/30 bg-sheet hover:border-ink",
-    danger: "border-[1.5px] border-bad/50 text-bad hover:bg-bad hover:text-sheet",
+    primary: "bg-signal text-paper hover:bg-ink",
+    plain: "bg-wash hover:bg-[#333]",
+    danger: "border-[1.5px] border-bad/50 text-bad hover:bg-bad hover:text-paper",
   };
-  return <button type="button" {...rest} className={`rounded-[3px] px-4 py-2 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-45 ${tones[tone]} ${className}`} />;
+  return <button type="button" {...rest} className={`rounded-full px-4 py-2 text-[0.95rem] font-bold disabled:cursor-not-allowed disabled:opacity-45 ${tones[tone]} ${className}`} />;
 }
 
 /** A part of a page: a heading over an ink rule, and what belongs to it. Not a box: the page is the sheet. */
@@ -49,7 +49,7 @@ export function Panel({ title, children, aside }: { title: string; children: Rea
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
     <label className="block text-[0.95rem]">
-      <span className="mb-1.5 block font-semibold">{label}</span>
+      <span className="mb-1.5 block font-bold">{label}</span>
       {children}
       {hint && <span className="mt-1.5 block text-[0.85rem] text-graphite">{hint}</span>}
     </label>
@@ -66,7 +66,7 @@ export function Segmented<T extends string>({ value, options, onChange, disabled
   value: T; options: Array<{ value: T; label: string }>; onChange: (v: T) => void; disabled?: boolean; label: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex gap-0.5 rounded-[3px] border-[1.5px] border-ink/30 bg-sheet p-0.5 text-[0.85rem]">
+    <div role="radiogroup" aria-label={label} className="inline-flex gap-0.5 rounded-full border-[1.5px] border-ink/30 bg-sheet p-0.5 text-[0.85rem]">
       {options.map((o) => (
         <button
           key={o.value}
@@ -75,7 +75,7 @@ export function Segmented<T extends string>({ value, options, onChange, disabled
           aria-checked={o.value === value}
           disabled={disabled}
           onClick={() => onChange(o.value)}
-          className={`rounded-[2px] px-2.5 py-1 font-semibold disabled:opacity-50 ${o.value === value ? "bg-marker" : "text-graphite hover:text-ink"}`}
+          className={`rounded-full px-3 py-1 font-bold disabled:opacity-50 ${o.value === value ? "bg-marker text-paper" : "text-graphite hover:text-ink"}`}
         >
           {o.label}
         </button>

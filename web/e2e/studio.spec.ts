@@ -104,7 +104,7 @@ test("a studio without accounts has no landing page: the bare address is the stu
   await page.goto("/");
   await expect(page.getByTestId("landing")).toHaveCount(0);
   await expect(page.getByTestId("runs")).toBeVisible();
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(250, 250, 247)");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(0, 0, 0)");
 });
 
 test("the server answers its loopback name only: a foreign Host is refused on pages, the API and static files", async ({ request }) => {

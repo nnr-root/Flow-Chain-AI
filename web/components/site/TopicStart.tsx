@@ -29,14 +29,15 @@ export function TopicStart({ signedIn, free, sells = true, id = "hero-topic" }: 
         window.location.assign(startAddress(topic, signedIn));
       }}
     >
-      <label htmlFor={id} className="block text-[0.95rem] text-graphite">What is your video about?</label>
-      <div className="mt-2 flex flex-wrap gap-3">
+      <label htmlFor={id} className="block text-[0.95rem] font-bold">What is your video about?</label>
+      {/* the bar a feed has under a video, where a comment is typed: here it is where a video starts */}
+      <div className="mt-2.5 flex flex-wrap gap-2 rounded-[30px] bg-sheet p-2 ring-1 ring-hairline focus-within:ring-2 focus-within:ring-signal">
         <input
           id={id} type="text" value={topic} onChange={(e) => setTopic(e.target.value)} maxLength={CARRIED_CHARS} data-testid={id}
           placeholder="Three mistakes that make product photos look cheap"
-          className="min-w-0 flex-1 basis-64 rounded-[3px] border-[1.5px] border-ink/30 bg-sheet px-4 py-3.5 text-[1.05rem] placeholder:text-graphite/60 focus:border-ink"
+          className="min-w-0 flex-1 basis-56 !rounded-full !border-0 !bg-transparent px-4 py-3 text-[1.02rem] !outline-none"
         />
-        <button type="submit" data-cta={`${id === "hero-topic" ? "hero" : "closing"}-${signedIn ? "new" : "signup"}`} className="rounded-[3px] bg-ink px-6 py-3.5 text-[1.05rem] font-semibold text-sheet hover:bg-signal">
+        <button type="submit" data-cta={`${id === "hero-topic" ? "hero" : "closing"}-${signedIn ? "new" : "signup"}`} className="rounded-full bg-signal px-6 py-3 text-[1.02rem] font-bold text-paper hover:bg-ink">
           {signedIn ? "Make this video" : free ? "Make a free draft" : "Create an account"}
         </button>
       </div>

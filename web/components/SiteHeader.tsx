@@ -5,7 +5,7 @@ import { usd } from "@/lib/api";
 export type HeaderAccount = { email: string; balanceUsd: number } | null;
 
 const link = "underline-offset-4 hover:underline";
-const solid = "rounded-[3px] bg-ink px-4 py-2 font-semibold text-sheet hover:bg-signal";
+const solid = "rounded-full bg-signal px-4 py-2 font-bold text-paper hover:bg-ink";
 
 /**
  * The one header of the whole site. What it offers depends on who is looking, never on which page they are on:
@@ -26,7 +26,7 @@ export function SiteHeader({ studio, account, sells, free = false }: { studio: b
         {sells && <Link href="/pricing" className={`hidden sm:inline ${link}`}>Pricing</Link>}
         {account && (
           <Link href="/account" className={link} data-testid="account-link" title={account.email}>
-            <span data-testid="header-balance" className="figures font-semibold">{usd(account.balanceUsd)}</span>
+            <span data-testid="header-balance" className="figures font-bold">{usd(account.balanceUsd)}</span>
             <span className="hidden lg:inline">, {account.email}</span>
           </Link>
         )}

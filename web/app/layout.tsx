@@ -6,7 +6,7 @@ import { billingOn } from "@/lib/billing";
 import { DRAFT_CAP_USD } from "@/lib/credit";
 import { headerAccount } from "@/server/page";
 import { welcomeOffer } from "@/server/site/welcome";
-import { archivo, hand } from "./typeface";
+import { montserrat, montserratDisplay } from "./typeface";
 import "./theme.css";
 
 export const metadata: Metadata = {
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 /*
- * The one layout of the whole site (phase 4 spec §14–15): the pages a visitor reads and the studio a user works in
+ * The one layout of the whole site (phase 4 spec §14, §16): the pages a visitor reads and the studio a user works in
  * have the same typefaces, the same colours, the same header and the same foot. What the header offers depends
  * on who is looking, not on which page it is: a visitor is shown the way in, a user their studio.
  */
@@ -28,7 +28,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // a new account is given credit for a first draft: only then does the way in say "free"
   const free = accounts && !me && (await welcomeOffer().catch(() => 0)) >= DRAFT_CAP_USD;
   return (
-    <html lang="en" className={`${archivo.variable} ${hand.variable}`}>
+    <html lang="en" className={`${montserrat.variable} ${montserratDisplay.variable}`}>
       <body className="flex min-h-screen flex-col">
         <SiteHeader studio={studio} account={me ? { email: me.email, balanceUsd: me.balanceUsd } : null} sells={billingOn()} free={free} />
         <div className="flex-1">{children}</div>

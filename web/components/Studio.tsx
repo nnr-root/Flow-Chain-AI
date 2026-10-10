@@ -13,7 +13,6 @@ import { encodeLookToken } from "@/lib/look-token";
 import type { KitSummary } from "@/server/library";
 import type { JobView } from "@/server/jobs";
 import type { RunView } from "@/server/runs";
-import { Frame } from "./Sketch";
 import { StudioPlayer, type StudioPlayerHandle } from "./StudioPlayer";
 import { Button, ErrorNote, Field, Panel, Segmented, StateBadge } from "./ui";
 
@@ -201,24 +200,20 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
         {preview ? (
           <>
             {preview.draft && (
-              <p data-testid="draft-note" className="bg-marker/45 px-3 py-2 text-[0.85rem]">
+              <p data-testid="draft-note" className="bg-wash px-3 py-2 text-[0.85rem]">
                 Draft preview: placeholder pictures, estimated timing, no voice yet. The captions, the opening title, the cuts, the brand, the music and the sound effects are real.
               </p>
             )}
-            <div className="relative">
-              <StudioPlayer ref={player} props={preview.props} resolve={resolve} className="overflow-hidden bg-stage" />
-              <Frame seed={7} weight={2.4} />
-            </div>
+            <StudioPlayer ref={player} props={preview.props} resolve={resolve} className="overflow-hidden rounded-[26px] bg-stage ring-1 ring-hairline" />
             <SceneStrip props={preview.props} scenes={status?.scenes ?? []} onSeek={(frame) => player.current?.seekTo(frame)} />
           </>
         ) : (
-          <div className="relative grid aspect-[9/16] place-items-center bg-wash p-6 text-center text-graphite">
-            <Frame seed={7} weight={2.4} />
+          <div className="grid aspect-[9/16] place-items-center rounded-[26px] bg-sheet p-6 text-center text-graphite">
             {previewError || (state === "queued" ? "Waiting in line…" : working ? "Writing the script…" : "No preview yet")}
           </div>
         )}
         {state === "done" && (
-          <a className="inline-block rounded-[3px] border-[1.5px] border-ink/30 bg-sheet px-4 py-2 text-[0.95rem] font-semibold hover:border-ink" href={`/api/runs/${id}/files/${encodeLookToken({ v: mediaKey })}/final.mp4`} download={`${id}.mp4`}>
+          <a className="inline-block rounded-full border-[1.5px] border-ink/30 bg-sheet px-4 py-2 text-[0.95rem] font-bold hover:border-ink" href={`/api/runs/${id}/files/${encodeLookToken({ v: mediaKey })}/final.mp4`} download={`${id}.mp4`}>
             Download the video (MP4)
           </a>
         )}
@@ -289,7 +284,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
               ))}
             </ul>
             {ask && (
-              <div role="dialog" aria-label="Confirm regeneration" className="mt-4 flex flex-wrap items-center gap-3 bg-marker/45 px-4 py-3 text-[0.95rem]">
+              <div role="dialog" aria-label="Confirm regeneration" className="mt-4 flex flex-wrap items-center gap-3 bg-wash px-4 py-3 text-[0.95rem]">
                 <span className="flex-1">New {ask.label} for scene {ask.scene}, and whatever follows from it: {ask.totalUsd > 0 ? `up to ${usd(ask.totalUsd)}` : "free"}.</span>
                 <Button tone="primary" onClick={confirmReroll} disabled={busy}>Confirm</Button>
                 <Button onClick={() => setAsk(null)}>Cancel</Button>
@@ -402,9 +397,9 @@ function SceneStrip({ props, scenes, onSeek }: { props: RenderProps; scenes: Sce
           onClick={() => onSeek(s.from)}
           style={{ flexGrow: s.frames, flexBasis: 0 }}
           title={scenes[i]?.narration}
-          className="min-w-0 rounded-[2px] border-[1.5px] border-hairline bg-sheet px-1.5 py-1 text-left text-[0.72rem] leading-4 hover:border-ink"
+          className="min-w-0 rounded-[14px] border-[1.5px] border-hairline bg-sheet px-1.5 py-1 text-left text-[0.72rem] leading-4 hover:border-ink"
         >
-          <span className="block font-semibold">{i + 1}</span>
+          <span className="block font-bold">{i + 1}</span>
           <span className="block truncate text-graphite">{scenes[i] ? `${scenes[i].mode === 1 ? "clip" : "still"}, ${(s.frames / props.fps).toFixed(1)} s` : ""}</span>
         </button>
       ))}
@@ -426,14 +421,13 @@ function SceneRow({ scene, picture, draft, canReroll, busy, onMode, onReroll }: 
   const has = (stage: string) => scene.steps.some((s) => s.stage === stage);
   return (
     <li className="flex gap-5 border-t border-hairline py-5 first:border-t-0 first:pt-1" data-testid={`scene-${scene.scene}`}>
-      <div className="relative mt-1 grid aspect-[9/16] w-[4.5rem] shrink-0 place-items-center self-start bg-wash">
+      <div className="relative grid aspect-[9/16] w-[4.5rem] shrink-0 place-items-center self-start overflow-hidden rounded-[12px] bg-wash">
         {picture ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={picture} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
         ) : (
-          <span className="display text-[2rem] leading-none text-graphite">{scene.scene}</span>
+          <span className="printed text-[1.5rem] leading-none text-graphite">{scene.scene}</span>
         )}
-        <Frame seed={scene.scene * 5 + 1} weight={1.6} />
       </div>
       <div className="min-w-0 flex-1">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.85rem] text-graphite">

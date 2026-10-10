@@ -5,6 +5,7 @@ import { LiveStage } from "@/components/site/LiveStage";
 import { MakingStrip } from "@/components/site/MakingStrip";
 import { Plans } from "@/components/site/Plans";
 import { Shelf } from "@/components/site/Shelf";
+import { Spoken } from "@/components/site/Spoken";
 import { TopicStart } from "@/components/site/TopicStart";
 import comparison from "@/content/comparison.json";
 import { billingOn, type CatalogueItem } from "@/lib/billing";
@@ -63,9 +64,8 @@ export default async function Page() {
   return (
     <div data-testid="landing">
       <main className="mx-auto max-w-[84rem] px-6 pb-4 sm:px-10">
-        <LiveStage showcases={SHOWCASES}>
-          <h1 className="display text-display" data-claim={claim}>{claim ? "A finished short video for about what others charge for the clips." : "Type a topic. Get a finished short video."}</h1>
-          <p className="mt-5 max-w-[36rem] text-[1.15rem] leading-[1.45]">
+        <LiveStage showcases={SHOWCASES} title={<h1 className="display max-w-[70rem] text-display" data-claim={claim}><Spoken rest="finished" text={claim ? "A finished short video for about what others charge for the clips." : "Type a topic. Get a finished short video."} /></h1>}>
+          <p className="max-w-[34rem] text-[1.15rem] leading-[1.5] text-graphite">
             Flow Chain writes the script, records the voice, generates the pictures and cuts the video to the words.
             You see what it will cost, and approve it, before anything is bought.
           </p>

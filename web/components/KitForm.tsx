@@ -149,7 +149,7 @@ export function KitForm({ defaultFont }: { defaultFont: { family: string; file: 
       </Panel>
       <div>
         <p className="mb-2 text-[0.85rem] text-graphite">Preview with a sample scene</p>
-        <StudioPlayer props={props} resolve={resolve} className="overflow-hidden rounded-[2px] bg-stage" />
+        <StudioPlayer props={props} resolve={resolve} className="overflow-hidden rounded-[14px] bg-stage" />
       </div>
     </form>
   );

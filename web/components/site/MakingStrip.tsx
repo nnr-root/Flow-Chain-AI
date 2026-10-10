@@ -63,8 +63,8 @@ export function MakingStrip({ showcase }: { showcase: Showcase }) {
             {making.scenes.map((s, i) => (
               <li key={i} style={span(s.seconds)} className="relative min-w-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/showcase/${slug}/${s.thumb}`} alt={`Scene ${i + 1}: a ${s.kind}`} loading="lazy" className="h-28 w-full rounded-[2px] object-cover" />
-                <span className="absolute bottom-1.5 left-1.5 rounded-[3px] bg-sheet px-1.5 text-[0.75rem] font-semibold">{s.kind}, {s.seconds.toFixed(1)} s</span>
+                <img src={`/showcase/${slug}/${s.thumb}`} alt={`Scene ${i + 1}: a ${s.kind}`} loading="lazy" className="h-28 w-full rounded-[14px] object-cover" />
+                <span className="absolute bottom-1.5 left-1.5 rounded-full bg-sheet px-1.5 text-[0.75rem] font-bold">{s.kind}, {s.seconds.toFixed(1)} s</span>
               </li>
             ))}
           </ul>
@@ -72,7 +72,7 @@ export function MakingStrip({ showcase }: { showcase: Showcase }) {
         <Track n={5} name="The cut" cost="free" note="Cutting it again with another look costs nothing.">
           <div className="flex items-center gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/showcase/${slug}/poster.jpg`} alt={`The finished video, “${receipt.title}”`} loading="lazy" className="aspect-[9/16] w-14 rounded-[2px] object-cover" />
+            <img src={`/showcase/${slug}/poster.jpg`} alt={`The finished video, “${receipt.title}”`} loading="lazy" className="aspect-[9/16] w-14 rounded-[14px] object-cover" />
             <p className="max-w-[34rem] text-[1.02rem] leading-snug">Captions word by word, the opening title, the cuts between scenes, music turned down under the voice, and a sound on each cut.</p>
           </div>
         </Track>

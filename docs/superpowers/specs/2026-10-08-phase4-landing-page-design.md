@@ -352,3 +352,44 @@ the videos in the list and the player are framed the same way. Controls are ordi
   eye on it.
 - The landing page shows scenes of videos made before the looks of phase 2.2 §12 existed; no picture of the
   fourteen looks is on it, because none has been made (a paid check, still waiting for the owner's click).
+
+## 16. The feed (owner's choice, 2026-10-10)
+
+The owner asked to see the directions that were not chosen in §15 before deciding. The three were mocked up
+on one page with the studio's real videos and figures (`.superpowers/design-directions/`, not in the
+repository), beside the storyboard as built. The owner chose **the feed**. §15's look is replaced by this
+section; §14's one-site rule, its sound rule and its tests stand, and so does §15's account of how the skill
+was chosen.
+
+**The world** (`web/app/theme.css`): where these videos are watched.
+
+- **The screen at night:** the page is black, and the light on it comes from the videos. What stands on it (a
+  row, a field, a card of a video's facts) is a step lighter (`sheet`, `wash`); a part of a page begins under a
+  thin line of light (`.ruled`).
+- **The captions' own face:** Montserrat, the face the studio's default captions are set in (one file, its
+  licence beside it). Text is its medium weight; a title is its heaviest, in capitals, as a caption is
+  (`.display`); a part's heading is the same weight in ordinary letters (`.printed`).
+- **Caption yellow** `#ffe500` is on the thing that is "being spoken": the word the title rests on, the choice
+  that is chosen, the action to take. Text on it is black.
+- **Rounded as on a phone:** videos and cards have a phone's corners; buttons, choices and badges are pills.
+- **The one movement nobody asked for:** the landing title is spoken once, yellow on each word in turn, and
+  comes to rest on "finished" (`Spoken`).
+
+**The landing page's first screen** is a title across the page, then the words and the place to type a topic
+(a bar like the one a feed has for a comment) beside the videos as a feed shows them: one in front and
+playing, the others dimmed at its sides, where a click brings one to the front. Under them the playing video's
+scenes are a row of cards; a click on one plays the video from that scene.
+
+**The studio** takes the same palette, face and corners; its controls are ordinary controls. A run's scenes
+are rows with the scene's own picture; the look chosen for a new video has a yellow edge.
+
+**Rulings and parked**
+
+- This is the look §14's own list calls a common machine-made one (near-black with one bright accent). Ruling:
+  the owner chose it over three others, having seen all four built or mocked; what keeps it this product's is
+  that the yellow and the face are the captions' own and the layout is a feed's.
+- Looked at in Chromium only (desktop and a phone's width), on the landing page, the sign-in form, the new
+  video form and a run. Parked: Safari and Firefox; the video list, account, pricing and brand kit pages.
+- A title handed from the server to the hero and set directly among its other children made React warn about
+  a list without keys; it is rendered in an element of its own.
+- The typeface file is still fetched twice (text, and titles with their wider stand-in). Parked, as in §14.

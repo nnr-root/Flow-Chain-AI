@@ -123,9 +123,9 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
               aria-checked={f.style === p.name}
               data-testid={`look-${p.name}`}
               onClick={() => set("style", p.name)}
-              className={`rounded-[3px] border-[1.5px] bg-sheet p-3.5 text-left ${f.style === p.name ? "border-ink" : "border-hairline hover:border-ink/50"}`}
+              className={`rounded-[18px] border-[1.5px] bg-sheet p-4 text-left ${f.style === p.name ? "border-signal" : "border-transparent hover:border-ink/30"}`}
             >
-              <span className="block font-semibold"><span className={f.style === p.name ? "marked" : ""}>{p.label}</span></span>
+              <span className="block font-bold"><span className={f.style === p.name ? "marked" : ""}>{p.label}</span></span>
               <span className="mt-1 block text-[0.85rem] text-graphite">{p.name === "auto" ? "The look that fits the topic is picked when the script is written." : `For ${p.description}.`}</span>
             </button>
           ))}
