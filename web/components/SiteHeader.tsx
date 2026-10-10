@@ -20,6 +20,8 @@ export function SiteHeader({ studio, account, sells, free = false }: { studio: b
         {studio && (
           <>
             <Link href="/" className={link}>Videos</Link>
+            {/* (a series is rows in the database: only a studio with accounts has them) */}
+            {account && <Link href="/series" className={link}>Series</Link>}
             <Link href="/brand-kits" className={`hidden sm:inline ${link}`}>Brand kits</Link>
           </>
         )}

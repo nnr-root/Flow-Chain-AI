@@ -497,3 +497,64 @@ test("a video on the landing page has its sound on: it is heard from the visitor
   await expect(second).toHaveJSProperty("paused", false);
   await expect(voice).toHaveJSProperty("paused", true);
 });
+
+test("a user sets up a series and has its first video started from it; another user sees none of it", async ({ page }) => {
+  await signIn(page, A);
+  await page.goto("/series");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("No series yet.");
+  await page.getByRole("link", { name: "Set up the first one" }).click();
+  await expect(page).toHaveURL(/\/series\/new$/);
+  // the new-video form's choices, saved instead of spent: a name and a premise in place of a topic, and no price
+  await expect(page.getByTestId("topic")).toHaveCount(0);
+  await expect(page.getByTestId("save-series")).toBeDisabled();
+  await page.getByTestId("series-name").fill("Greek myths");
+  await page.getByTestId("series-premise").fill("Greek myths, one god at a time");
+  await page.getByTestId("look-anime").click();
+  const before = await balance(A.email);
+  await page.getByTestId("save-series").click();
+  await expect(page).toHaveURL(/\/series\/[0-9a-f-]{36}$/);
+  const id = page.url().split("/").at(-1)!;
+  await expect(page.getByTestId("series-title")).toHaveText("Greek myths");
+  await expect(page.getByText("Anime, 4 scenes, 9:16")).toBeVisible();
+  // saving it bought nothing
+  expect(await balance(A.email)).toBe(before);
+  await namesNothing(page);
+
+  // its first video is an ordinary draft, written from the premise and tied to the series
+  await page.getByTestId("next-episode").click();
+  await expect(page).toHaveURL(/\/runs\/\d{8}-\d{6}-[0-9a-f]{6}$/, { timeout: 30_000 });
+  const runId = page.url().split("/").at(-1)!;
+  expect((await service.from("runs").select("series_id,topic,user_id").eq("id", runId).single()).data).toEqual({
+    series_id: id, topic: "Greek myths, one god at a time. This is the first video of a series.", user_id: await userId(A.email),
+  });
+  await page.goto(`/series/${id}`);
+  await expect(page.getByTestId("episodes").locator("> li")).toHaveCount(1);
+  await page.goto("/series");
+  await expect(page.getByTestId("series").locator("> li")).toHaveCount(1);
+  await expect(page.getByTestId("series")).toContainText("1 video, Anime");
+
+  // someone else: no series, and this one does not exist for them, as a page or through the API
+  await page.goto("/account");
+  await page.getByTestId("sign-out").click();
+  await expect(page).toHaveURL(/\/login$/);
+  await signIn(page, B);
+  await page.goto("/series");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("No series yet.");
+  expect((await page.goto(`/series/${id}`))!.status()).toBe(404);
+  const origin = new URL(page.url()).origin;
+  expect((await page.request.delete(`/api/series/${id}`, { headers: { origin }, data: {} })).status()).toBe(404);
+  expect((await page.request.post(`/api/series/${id}/episodes`, { headers: { origin }, data: {} })).status()).toBe(404);
+  expect((await service.from("series").select("id").eq("id", id)).data).toHaveLength(1);
+
+  // its owner removes it: the video stays, no longer in a series
+  await page.goto("/account");
+  await page.getByTestId("sign-out").click();
+  await expect(page).toHaveURL(/\/login$/);
+  await signIn(page, A);
+  await page.goto(`/series/${id}`);
+  await page.getByTestId("remove-series").click();
+  await page.getByTestId("remove-series-sure").click();
+  await expect(page).toHaveURL(/\/series$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("No series yet.");
+  expect((await service.from("runs").select("series_id").eq("id", runId).single()).data).toEqual({ series_id: null });
+});

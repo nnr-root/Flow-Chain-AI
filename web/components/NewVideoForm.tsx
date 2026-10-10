@@ -15,7 +15,11 @@ export type PresetCard = { name: string; label: string; description: string };
 const CAPTION_STYLES = ["preset", "hormozi", "mrbeast", "minimalist"];
 const TRANSITIONS = ["auto", "cut", "fade", "dissolve", "blur", "zoom", "glitch"];
 
-export function NewVideoForm({ health: initialHealth, kits, tracks: initialTracks, presets, topic = "" }: { health: StudioHealth; kits: KitSummary[]; tracks: Track[]; presets: PresetCard[]; topic?: string }) {
+/**
+ * The form a video starts from. `series`: the same choices are saved as a series instead of being spent on one
+ * video: there is a name and a premise in place of a topic, and nothing is bought (phase 6 spec §3).
+ */
+export function NewVideoForm({ health: initialHealth, kits, tracks: initialTracks, presets, topic = "", series = false }: { health: StudioHealth; kits: KitSummary[]; tracks: Track[]; presets: PresetCard[]; topic?: string; series?: boolean }) {
   const router = useRouter();
   const [health, setHealth] = useState(initialHealth);
   const [tracks, setTracks] = useState(initialTracks);
@@ -23,6 +27,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
     topic, aspect: "9:16", scenes: 4, style: "auto", motion: "auto", clips: "480p",
     budgetUsd: health.defaults.budgetUsd, brandKit: "", music: "", musicGain: 0.35, hookMode: "auto", hookText: "",
     sfx: true, sfxGain: 0.6, characters: "", seed: "", voiceId: "", captionStyle: "preset", transition: "auto",
+    name: "", premise: "",
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -59,15 +64,21 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
     setBusy(true);
     setError("");
     try {
-      const { runId } = await sendJson<{ runId: string }>("/api/drafts", {
-        topic: f.topic, aspect: f.aspect, scenes: f.scenes, style: f.style, motion: f.motion, clips: f.clips, budgetUsd: f.budgetUsd,
+      const choices = {
+        aspect: f.aspect, scenes: f.scenes, style: f.style, motion: f.motion, clips: f.clips, budgetUsd: f.budgetUsd,
         brandKit: f.brandKit || null, music: f.music || null, musicGain: f.musicGain,
         hook: f.hookMode === "custom" ? { mode: "custom", text: f.hookText } : { mode: f.hookMode },
         sfx: f.sfx, sfxGain: f.sfxGain, captionStyle: f.captionStyle, transition: f.transition,
         ...(f.characters.trim() ? { characters: f.characters } : {}),
         ...(f.seed.trim() ? { seed: Number(f.seed) } : {}),
         ...(f.voiceId.trim() ? { voiceId: f.voiceId } : {}),
-      });
+      };
+      if (series) {
+        const { id } = await sendJson<{ id: string }>("/api/series", { name: f.name, premise: f.premise, recipe: choices });
+        router.push(`/series/${id}`);
+        return;
+      }
+      const { runId } = await sendJson<{ runId: string }>("/api/drafts", { topic: f.topic, ...choices });
       router.push(`/runs/${runId}`);
     } catch (err) {
       setError(errorText(err));
@@ -90,12 +101,23 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
 
   return (
     <form onSubmit={submit} className="max-w-[56rem] space-y-12">
-      <h1 className="display text-[clamp(2.6rem,1.6rem+4vw,4.5rem)] leading-[0.92]">New video</h1>
+      <h1 className="display text-[clamp(2.6rem,1.6rem+4vw,4.5rem)] leading-[0.92]">{series ? "New series" : "New video"}</h1>
       <Panel title="What it is about">
         <div className="space-y-5">
-          <Field label="Topic">
-            <textarea data-testid="topic" required rows={2} maxLength={500} value={f.topic} onChange={(e) => set("topic", e.target.value)} placeholder="A lighthouse keeper's daughter takes over the light" />
-          </Field>
+          {series ? (
+            <>
+              <Field label="Name" hint="For you: what the series is called in your list.">
+                <input data-testid="series-name" required maxLength={80} value={f.name} onChange={(e) => set("name", e.target.value)} placeholder="Greek myths" />
+              </Field>
+              <Field label="What its videos are about" hint="One sentence. Every video of the series is written from it, each about something the series has not done yet.">
+                <textarea data-testid="series-premise" required rows={2} maxLength={300} value={f.premise} onChange={(e) => set("premise", e.target.value)} placeholder="Greek myths, one god or hero at a time, told as a short dramatic story" />
+              </Field>
+            </>
+          ) : (
+            <Field label="Topic">
+              <textarea data-testid="topic" required rows={2} maxLength={500} value={f.topic} onChange={(e) => set("topic", e.target.value)} placeholder="A lighthouse keeper's daughter takes over the light" />
+            </Field>
+          )}
           <div className="grid gap-5 sm:grid-cols-3">
             <Field label="Shape">
               <select value={f.aspect} onChange={(e) => set("aspect", e.target.value)}>
@@ -211,15 +233,24 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
       </details>
 
       <ErrorNote>{error}</ErrorNote>
-      <CreditNote balance={balance} needUsd={DRAFT_CAP_USD} />
-      <div className="flex items-center gap-3">
-        <Button type="submit" tone="primary" data-testid="create-draft" disabled={busy || offline || missing.length > 0 || !f.topic.trim() || tooLittle(balance, DRAFT_CAP_USD)}>
-          {busy ? "Writing the script…" : "Write the script, about $0.006"}
-        </Button>
-        <span className="text-[0.85rem] text-graphite" data-testid="create-note">
-          {offline ? "The worker is offline: nothing can be started until it is back." : "Buys only the script. You preview and price the rest before generating."}
-        </span>
-      </div>
+      {series ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" tone="primary" data-testid="save-series" disabled={busy || !f.name.trim() || !f.premise.trim()}>{busy ? "Saving…" : "Save the series"}</Button>
+          <span className="text-[0.85rem] text-graphite">Nothing is bought. A video of it is made when you ask for one.</span>
+        </div>
+      ) : (
+        <>
+          <CreditNote balance={balance} needUsd={DRAFT_CAP_USD} />
+          <div className="flex items-center gap-3">
+            <Button type="submit" tone="primary" data-testid="create-draft" disabled={busy || offline || missing.length > 0 || !f.topic.trim() || tooLittle(balance, DRAFT_CAP_USD)}>
+              {busy ? "Writing the script…" : "Write the script, about $0.006"}
+            </Button>
+            <span className="text-[0.85rem] text-graphite" data-testid="create-note">
+              {offline ? "The worker is offline: nothing can be started until it is back." : "Buys only the script. You preview and price the rest before generating."}
+            </span>
+          </div>
+        </>
+      )}
     </form>
   );
 }

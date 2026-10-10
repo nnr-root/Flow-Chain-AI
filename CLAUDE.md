@@ -45,7 +45,7 @@ read the one for the area you are changing before changing it (table at the end)
 | `web/server/` | everything the routes do: `http.ts` (`route()`), `tenant.ts`, `session.ts`, `runs.ts`, `jobs/`, `store/`, `billing/` |
 | `web/worker/` | `worker.ts` (the queue), `tenant.ts` (credit), `billing.ts` (Stripe fulfilment) |
 | `web/lib/` | code shared by server and browser; no secrets, few imports |
-| `db/migrations/` | the database: plain SQL, three files (accounts, tenancy, billing) |
+| `db/migrations/` | the database: plain SQL, four files (accounts, tenancy, billing, series) |
 | `src/db/client.ts`, `src/auth/` | the one client for the studio's Postgres (`Db`), and password hashing |
 | `workers/` | the clip worker (Python, a ComfyUI graph for Wan 2.2 at 480p and 720p; text encoder and VAE in its image, the rest on the volume) |
 | `worker-picture/` | the picture worker (Python, FLUX.2 klein 4B through diffusers; weights on the network volume) |
@@ -193,12 +193,23 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - A change to `settle`, `reserve_credit`, `refund_payment` or `fulfil_*` needs a database test for every
   ordering it could meet; `test/db/billing.test.ts` has a 648-case matrix to extend.
 
+## Series (Phase 6)
+
+- A series is a recipe (the new-video form's choices and a premise) kept as rows of the user's; its videos are
+  ordinary runs that name it (`runs.series_id`). Only in a studio with accounts.
+- **Built: series by hand.** "Make the next video" is the ordinary paid draft with a topic built by
+  `episodeTopic()` (`web/lib/series.ts`) from the premise and the titles already made; no new paid call.
+- **Not built: the schedule, the budget, publishing.** A series that spends by itself needs
+  `reserve_for_series`, for the worker only, with a test for every ordering (spec §4); a channel's token is kept
+  so that only the worker can open it (spec §6). Do not say on any page that the studio posts for you or runs
+  by itself until it does.
+
 ## Database workflow
 
 - Migrations are plain SQL in `db/migrations/`, applied to the local database by `npm run db:start` /
   `db:reset` and to the server's by `server:setup`, `server:deploy` and `db:migrate` (owner's click). The
   database is always reached through `psql` in its own container (`src/deploy/db-apply.ts`).
-- **No server has these migrations yet**, so the three files have been edited in place. From the first real
+- **No server has these migrations yet**, so the first three files have been edited in place. From the first real
   setup on, a file that was applied is frozen: every change is a **new** file. This is enforced: applying
   refuses a file whose content differs from what the database recorded (`pendingMigrations`). Locally, after
   editing a file, `db:start` refuses too: use `db:reset`.
@@ -270,8 +281,9 @@ graphify god-nodes --top 20       # the hubs
 | The queue, the worker, the server | `2026-10-07-phase3.2-job-queue-deployment-design.md` |
 | Accounts, credit, storage | `2026-10-07-phase3.3-multi-tenant-design.md` (§14–§15 win) |
 | Payments | `2026-10-08-phase3.4-stripe-billing-design.md` (§13–§15 win) |
-| The landing page, showcases, welcome credit | `2026-10-08-phase4-landing-page-design.md` (§13 wins) |
+| The landing page, showcases, welcome credit, the look of the whole site | `2026-10-08-phase4-landing-page-design.md` (the latest of §13–§17 wins) |
 | Own database and sign-in, own voice, one GPU provider, unnamed engines | `2026-10-09-phase5-independence-design.md` |
+| Series, the schedule and its budget, publishing to a channel | `2026-10-10-phase6-series-autopublish-design.md` (task 1 of 4 is built) |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.
 

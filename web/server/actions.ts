@@ -19,7 +19,8 @@ async function busy(runId: string): Promise<boolean> {
 type RerollTarget = { scene: number; stage: string };
 
 /** Buys the script for a new run and stops there. The keys a run needs must be set first. */
-export async function createDraft(input: NewVideo): Promise<{ runId: string; job: JobView }> {
+/** `seriesId`: the run is one of that series' videos (the caller's own series: the database checks). */
+export async function createDraft(input: NewVideo, seriesId?: string): Promise<{ runId: string; job: JobView }> {
   const { missing, queue } = await studioHealthRaw();
   // with the queue the keys are the worker's: when it cannot be asked, nothing is known about them
   if (queue.mode === "queue" && !(queue.redis && queue.worker)) {
@@ -35,7 +36,7 @@ export async function createDraft(input: NewVideo): Promise<{ runId: string; job
   if (input.music && !existsSync(musicPath(input.music))) throw new ApiError("validation", `music: no track ${input.music}`);
   if (multiTenant()) {
     // the run is registered as the user's, and the script's cost is held from their credit, before anything is queued
-    const runId = await newTenantRun(input.topic);
+    const runId = await newTenantRun(input.topic, seriesId);
     return { runId, job: await startPaid(runId, "draft", draftArgs(input, runId), DRAFT_CAP_USD) };
   }
   const runId = newRunId();

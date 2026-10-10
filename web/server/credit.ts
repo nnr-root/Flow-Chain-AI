@@ -16,10 +16,12 @@ const REFUSALS: Record<string, () => ApiError> = {
 };
 
 /** Registers a new run as the caller's and returns its id (ids are unique across all users; a taken one is tried again). */
-export async function newTenantRun(topic: string): Promise<string> {
+export async function newTenantRun(topic: string, seriesId?: string): Promise<string> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const id = newRunId();
-    const { error } = await userDb().rpc("create_run", { p_id: id, p_topic: topic });
+    const { error } = seriesId
+      ? await userDb().rpc("create_series_run", { p_series_id: seriesId, p_id: id, p_topic: topic })
+      : await userDb().rpc("create_run", { p_id: id, p_topic: topic });
     if (!error) return id;
     if (error.message !== "run_exists") throw REFUSALS[error.message]?.() ?? new Error(`create_run: ${error.message}`);
   }

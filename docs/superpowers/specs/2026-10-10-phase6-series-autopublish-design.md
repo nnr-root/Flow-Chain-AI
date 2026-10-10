@@ -1,0 +1,123 @@
+# Phase 6: series and publishing by themselves
+
+Date: 2026-10-10. Status: decisions taken, task 1 built, tasks 2–4 designed and not built.
+
+## 1. Goal
+
+A user sets up a **series** once (what its videos are about and how they look) and from then on gets a new
+video of it without filling in a form, and in the end without doing anything: the studio makes the next one on
+a schedule, within a budget the user approved, and publishes it to the user's own channel.
+
+This is what the products this one is compared with sell (a look at one of them, facelessreels.com, is in the
+phase 4 spec §17 and the owner's report of 2026-10-10): not a video, a channel that runs.
+
+### Non-goals
+
+- Growing a channel: no promise of views, no advice engine, no trend scraping.
+- Posting to an account the user did not connect themselves through the platform's own consent page.
+- Plans sold by the number of posts (decision D4).
+
+## 2. Decisions (owner's clicks, 2026-10-10)
+
+| | Question | Decision |
+|---|---|---|
+| D1 | Which platforms first | **YouTube Shorts**; TikTok and Instagram later, on the same structure |
+| D2 | How a series is allowed to spend | **A series budget**: a cap for one video and a total for the month, approved once; the series makes videos inside them and stops, and says so, when either or the user's credit runs out |
+| D3 | Whether a video is seen before it is published | **Chosen for each series**; "show me first" is the default |
+| D4 | Pricing | **Credit stays**: a series' video takes from credit what it cost, like any other |
+
+## 3. What a series is
+
+A **series** belongs to one user and has: a name; a **premise** (what its videos are about, in a sentence);
+a **recipe** (the new-video form's choices: shape, scenes, look, motion, clip size, brand kit, music, captions,
+cuts, and so on); and, from task 2, its schedule, its budget and whether its videos are shown first.
+
+A video made from a series is an ordinary run that also names its series (`runs.series_id`). Everything a run
+can do (preview, regenerate a scene, re-render with another look) it still can.
+
+**The topic of an episode** is built, not typed: the premise, the episode's number, and the titles the series
+has already made, so the script model writes about something else. No new paid call is added for it: the
+script stage, which is paid for anyway, is what reads it.
+
+## 4. Money (D2, D4): the standing approval
+
+Today every paid job begins with a click that names an amount, and the web app holds that amount from the
+user's credit before the job is queued (`reserve_credit`, as the user). A series that runs by itself has no
+click. What stands in for it is the approval the user gave when they set the series up:
+
+- `per_video_cap_usd`: no video of the series may hold or spend more.
+- `monthly_budget_usd`: the videos of one calendar month together may not spend more.
+- The series is `active` or `paused`. Only the user makes it active.
+
+A new SQL function, **granted to the worker only**, `reserve_for_series(series_id, run_id, kind, cap)`, holds
+credit for a series' job when, in one transaction and under the user's row lock: the series is active and is
+that user's; the cap is not above `per_video_cap_usd`; what the series has spent this month plus what it holds
+plus this cap is not above `monthly_budget_usd`; and the balance covers it. Otherwise it refuses and the series
+is paused with the reason (`budget`, `credit`), which the user is shown. Settling is unchanged: `settle`.
+
+This is a function that moves money, so by the project's rule it needs a database test for every ordering it
+could meet, added to the matrix in `test/db/billing.test.ts`: a reservation of a series racing a top-up, a
+refund, a plan's month ending, another series of the same user, the user pausing it.
+
+The web app is never given this function: a web app that was taken over can already spend a user's credit on
+that user's own videos (phase 5 spec §4.3), and must not gain a way to do it on a schedule nobody approved.
+
+## 5. The schedule (task 2)
+
+`cadence`: `manual` (only the button), `weekly3`, `daily`, `daily2`. The worker, which is the one process that
+may start paid work, looks every few minutes for active series whose next episode is due and that have no
+video being made. For each it registers a run, holds the cap with `reserve_for_series`, and queues the same
+two jobs a user's clicks would (`draft`, then `generate` at the price the plan gives, if that is within the
+cap). A job is still never retried on its own: an episode that fails stays failed, is shown, and the series
+waits for its next slot.
+
+## 6. Publishing (tasks 3 and 4)
+
+- **Connecting a channel.** On the account page, "Connect YouTube" sends the user to Google's consent page for
+  the upload scope only. What comes back (a refresh token) is the user's, and is as dangerous as a password
+  for that channel: it is kept encrypted with a key that only the worker has, in a table neither role can
+  read directly; the web app can see only that a channel is connected and what it is called.
+- **Uploading** is the worker's: it alone holds the key that opens a token. A `publish` job for a finished run
+  uploads `final.mp4` with the run's title, a description and `#Shorts`, and records the video's address or
+  the platform's refusal.
+- **D3.** A series with "show me first" leaves a finished episode waiting, with a Publish button on its page
+  (that click queues the `publish` job). A series without it queues the job itself when the episode is done.
+- **A stand-in** for YouTube, reached through `YOUTUBE_API_BASE` as Stripe's is, so no test reaches Google.
+
+### What the owner has to do before any of this can reach a real channel
+
+- A Google Cloud project with the YouTube Data API v3 switched on, and an OAuth client for the studio's
+  address. Google must **verify** the app for the upload scope; until it has, uploads from an unverified app
+  are locked as private, and the consent page warns the user.
+- The API's daily quota is small at first (an upload is a large part of it); a higher one is asked for with a
+  form and an audit.
+- For TikTok and Instagram later: their own applications and reviews; TikTok keeps an unaudited app's posts
+  private, Instagram needs a business or creator account and a public address for the video file.
+
+These are claims about other companies' rules as remembered on 2026-10-10. They are to be read again at the
+source when task 3 begins, and that reading recorded here.
+
+## 7. Order of work
+
+1. **Series by hand** (built, §8): the table, the pages, "Make the next episode" as a click that starts an
+   ordinary draft with the series' recipe. No money is moved in any new way.
+2. **The schedule and the budget**: the columns of §4–5, `reserve_for_series` with its tests, the worker's
+   look-out, pausing with a reason, the series page's budget and history.
+3. **Connecting YouTube**: consent, the token kept as §6 says, the stand-in, the account page.
+4. **Publishing**: the `publish` job, show-me-first, the episode page's state and link.
+
+Tasks 2–4 each touch the worker and the database's grants; 2 touches credit. They are done one at a time with
+their tests, not together.
+
+## 8. Task 1 as built (2026-10-10)
+
+- `db/migrations/20261010000001_series.sql`: `series` (user, name, premise, recipe as JSON), `runs.series_id`,
+  read access for the web role to a user's own rows, and three functions for the web role: `create_series`
+  (twenty to an account), `remove_series` (its videos stay, no longer in a series), `create_series_run` (a
+  run registered as `create_run` registers one, and tied to the caller's own series).
+- `web/server/series.ts`, `web/app/api/series/…`, `web/app/(studio)/series/…`: the list, the form (the
+  new-video form's choices, saved instead of spent), a series' page with its episodes and **Make the next
+  episode**, which is the existing paid draft (the script, held from credit as ever) with the built topic.
+- Only in a studio with accounts: a series is rows in the database. Without accounts the pages do not exist.
+- The landing page says nothing of series yet: it will when a series can run by itself (task 2), and of
+  publishing when a channel can be connected (task 3). A claim is shown only while it is true.

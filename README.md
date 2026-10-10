@@ -312,6 +312,17 @@ To try it on your machine: `npm run studio:local` (below) starts everything, the
 database alone: `npm run db:start` (Postgres in Docker, on 127.0.0.1:54330), `npm run db:reset` to empty it and
 load it again from `db/migrations/`.
 
+## Series
+
+In a studio with accounts, **Series** keeps one kind of video set up: a name, a sentence saying what its videos
+are about, and the new-video form's choices. **Make the next video** on a series' page starts an ordinary draft
+(the script, held from credit as ever) whose topic is built from that sentence and the titles the series has
+already made, so each is about something else. Removing a series leaves its videos in the list.
+
+A series does not yet run by itself, and nothing is published for you: the schedule with its budget and the
+connection to a YouTube channel are designed (`docs/superpowers/specs/2026-10-10-phase6-series-autopublish-design.md`)
+and not built.
+
 ## Payments
 
 With `STRIPE_SECRET_KEY` set (and accounts, which payments need) users buy credit themselves. Without it
