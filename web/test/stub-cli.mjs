@@ -49,5 +49,7 @@ if (command === "plan") {
     manifest.ledger.push({ stage: "clips", scene: 1, usd: behave.spendUsd, at: new Date().toISOString() });
     writeFileSync(file, JSON.stringify(manifest));
   }
+  // "finishes" the video: the file a finished run has
+  if (behave.makesVideo && command === "resume" && existsSync(join(runs, args[1]))) writeFileSync(join(runs, args[1], "final.mp4"), "video");
   process.exitCode = behave.exitCode ?? 0;
 }

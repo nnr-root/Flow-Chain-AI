@@ -319,9 +319,15 @@ are about, and the new-video form's choices. **Make the next video** on a series
 (the script, held from credit as ever) whose topic is built from that sentence and the titles the series has
 already made, so each is about something else. Removing a series leaves its videos in the list.
 
-A series does not yet run by itself, and nothing is published for you: the schedule with its budget and the
-connection to a YouTube channel are designed (`docs/superpowers/specs/2026-10-10-phase6-series-autopublish-design.md`)
-and not built.
+**By itself.** On a series' page you can give it a schedule (three a week, one or two a day) by approving two
+amounts: the most one video may cost and the most a month's videos may. From then on the worker makes its
+videos without asking again, each held from credit as usual and never outside those amounts. It stops and says
+why when a video would cost more than the first amount, when the month's budget or your credit is used up, or
+when a video is not finished (nothing is retried). You can stop it at any time. The worker looks at series every
+two minutes (`WORKER_SERIES_MS`, in milliseconds).
+
+Nothing is published for you yet: connecting a YouTube channel and posting to it are designed
+(`docs/superpowers/specs/2026-10-10-phase6-series-autopublish-design.md`) and not built.
 
 ## Payments
 

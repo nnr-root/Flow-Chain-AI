@@ -18,7 +18,8 @@ import { objectStore } from "../server/store/s3";
 import { cleanCache, isStored, keys, restoreFolder, storeFolder } from "../server/store/sync";
 import { inScope, UUID } from "../server/tenant";
 import { billing } from "./billing";
-import { type Reservation, spendOf, tenantDb } from "./tenant";
+import { autopilot } from "./series";
+import { type Reservation, spendOf, tenantDb, workerDb } from "./tenant";
 
 export type WorkerOptions = {
   redisUrl: string;
@@ -36,6 +37,8 @@ export type WorkerOptions = {
   reconcileKnownUsersOnly?: boolean;
   /** With billing: how often Stripe is asked for events no webhook brought (default hourly). */
   catchUpMs?: number;
+  /** With accounts: how often the series with a schedule are looked at (default every two minutes). */
+  seriesMs?: number;
   log?: (message: string) => void;
 };
 
@@ -494,6 +497,10 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   const cleaner = bucket ? setInterval(() => void clean(), 24 * 3600_000) : undefined;
   void catchUp();
   const catcher = pay ? setInterval(() => void catchUp(), opts.catchUpMs ?? 3600_000) : undefined;
+  // Series with a schedule (phase 6): begun and carried on by this worker, inside what their owners approved.
+  const pilot = db ? autopilot({ db: workerDb(), line, asUser: (userId, work) => asUser(userId, work), here: (userId) => UUID.test(userId) && existsSync(join(baseRoots().runs, userId)), busy: (runId) => active.has(runId) || starting.has(runId), log }) : null;
+  const pilotTimer = pilot ? setInterval(() => void pilot.tick(), opts.seriesMs ?? 120_000) : undefined;
+  if (pilot) void pilot.tick();
   log(`worker ${id}: ready (runs ×${opts.concurrency ?? 2}, quick ×4${db ? ", with accounts" : ""})`);
 
   let closing: Promise<void> | undefined;
@@ -524,6 +531,7 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       clearTimeout(slow);
       clearInterval(renewal);
       clearInterval(reconciler);
+      clearInterval(pilotTimer);
       clearInterval(cleaner);
       clearInterval(catcher);
       await line.close().catch(() => {});

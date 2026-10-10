@@ -25,6 +25,19 @@ export function episodeTopic(premise: string, earlier: string[]): string {
   return `${head}${kept.join("; ")}.`;
 }
 
+/** How often a series with a schedule is due. `manual`: only when its button is pressed. */
+export const CADENCES = { manual: "Only when I ask", weekly3: "Three a week", daily: "One a day", daily2: "Two a day" } as const;
+export type Cadence = keyof typeof CADENCES;
+
+/** Why a series stands still, in the owner's words, by the reason the database keeps. */
+export const PAUSED: Record<string, string> = {
+  user: "You stopped it.",
+  credit: "Your credit did not cover its next video.",
+  budget: "It reached its budget for this month.",
+  cap: "Its next video would cost more than the most you allowed for one.",
+  failed: "Its last video was not finished. Have a look at it before letting the series go on.",
+};
+
 export type SeriesView = {
   id: string;
   name: string;
@@ -34,6 +47,15 @@ export type SeriesView = {
   aspect: string;
   scenes: number;
   createdAt: string;
+  /** Its schedule and the approval that goes with it (phase 6 spec §4): absent amounts on a manual series. */
+  cadence: Cadence;
+  perVideoCapUsd: number | null;
+  monthlyBudgetUsd: number | null;
+  active: boolean;
+  pausedReason: string | null;
+  nextDueAt: string | null;
+  /** What its videos made this calendar month have used so far, with what is held for one being made. */
+  monthUsd: number;
   /** Its videos, oldest first: the run's id, and its title once the script is written. */
   episodes: Array<{ runId: string; title?: string; state: string; spendUsd?: number }>;
 };

@@ -50,6 +50,10 @@ export const NewVideo = z.object({
 });
 export type NewVideo = z.infer<typeof NewVideo>;
 
+/** What a series keeps of the form (phase 6 spec §3): everything but the topic, which each of its videos gets built. */
+export const Recipe = NewVideo.omit({ topic: true });
+export type Recipe = z.infer<typeof Recipe>;
+
 export function musicPath(id: string): string {
   const [where, name] = id.split(":");
   const r = roots();

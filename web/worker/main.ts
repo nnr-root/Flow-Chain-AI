@@ -20,6 +20,7 @@ try {
     lockMs: number("WORKER_LOCK_MS"),
     reconcileMs: number("WORKER_RECONCILE_MS"),
     catchUpMs: number("WORKER_CATCH_UP_MS"),
+    seriesMs: number("WORKER_SERIES_MS"),
     reconcileKnownUsersOnly: process.env.WORKER_RECONCILE_KNOWN_USERS_ONLY === "1",
   });
   const stop = () => {

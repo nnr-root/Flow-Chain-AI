@@ -1,6 +1,6 @@
 # Phase 6: series and publishing by themselves
 
-Date: 2026-10-10. Status: decisions taken, task 1 built, tasks 2–4 designed and not built.
+Date: 2026-10-10. Status: decisions taken, tasks 1 and 2 built, tasks 3 and 4 designed and not built.
 
 ## 1. Goal
 
@@ -121,3 +121,55 @@ their tests, not together.
 - Only in a studio with accounts: a series is rows in the database. Without accounts the pages do not exist.
 - The landing page says nothing of series yet: it will when a series can run by itself (task 2), and of
   publishing when a channel can be connected (task 3). A claim is shown only while it is true.
+
+## 9. Task 2 as built (2026-10-10): the schedule and the budget
+
+**In the database** (`20261010000002_series_schedule.sql`, `…03_series_month.sql`):
+
+- A series has a `cadence` (`manual`, `weekly3` every 56 hours, `daily`, `daily2`), the two amounts of its
+  approval, a `status` with the reason it stopped, when its next video is due, and the video it is making with
+  the step that has reached.
+- **For its owner** (web role): `set_series_schedule` (both amounts or none; the month's budget at least one
+  video's limit; makes it active and due) and `set_series_status`.
+- **For the worker only:** `start_series_episode` (registers the run as the owner's, ties it, holds the script's
+  cost, moves the due time on by one interval from now), `reserve_for_series` (holds the rest, for the video
+  being made, once), `finish_series_episode` (frees the series, and stops it with a reason when told to).
+- **They do no arithmetic on a balance.** Each checks the standing approval under a lock on the series' row
+  (active; not above the limit for one video; the month's spend plus what is held plus this amount not above
+  the budget) and then has `reserve_credit` itself hold the amount, asked in the owner's name for that one call
+  (`app.user_id` is set for the call and put back, also when the call refuses). `settle` is untouched.
+
+**In the worker** (`web/worker/series.ts`): every two minutes (`WORKER_SERIES_MS`) it looks at each active series
+with a schedule. One with nothing in the making and a video due is begun: the topic is built, the episode
+started, the same `draft` job queued that a click queues. One whose script is written is priced with the CLI's
+own `plan`; above the limit for one video it is left as a draft and the series stops (`cap`); otherwise the
+price is held and the same `generate` job queued, with that price as its budget and its cap. A video that ends
+without a film stops the series (`failed`): nothing is retried. Credit or budget that does not cover a step
+stops it (`credit`, `budget`). The jobs are checked by the worker's existing rules like any other.
+
+**In the studio:** the series page has "By itself": how often, the two amounts, and a button that names them
+("Approve: up to $0.40 a video, $3.00 a month"); what the month has used; why it is stopped; Stop it / Let it
+go on. `PATCH /api/series/<id>`.
+
+**Rulings and parked**
+
+- **The 648-case matrix is not extended.** The rule asks for it when `reserve_credit`, `settle`, a refund or a
+  fulfilment changes; none did. What is new is a gate in front of `reserve_credit`, and that gate has its own
+  tests under concurrency (`test/db/series.test.ts`: twelve reservations at once against a budget that fits
+  one; eight starts at once; the budget counted with what is held; a refusal leaving no run and nothing held;
+  the owner's name given back after the call). Ruling: sufficient for a gate that adds no balance arithmetic.
+- **The database became a source of work.** Until now a job reached a worker only through its own Redis. A
+  series is a row every worker on the database can see, and a developer's tests and their local studio (which
+  has real provider keys) share one database: a test's series could have been made into a real video. So a
+  worker drives a series **only when its owner's folder is on its own disk**, and the web app makes that folder
+  when a schedule is approved. A test holds another studio's worker to it.
+- A user who opens the video their series is making and clicks Generate themselves is not in the way: the
+  series sees credit held for the run, waits, and takes the result as its own.
+- The month is the database's calendar month (UTC), not thirty days from the first video. Parked: a user in
+  another time zone sees the budget turn over at an odd hour.
+- A series that stood still makes one video when it goes on, not the ones it missed.
+- `daily2` with a long video and two jobs a user is the per-user limit: a series' step waits its turn; nothing
+  is skipped. Parked: saying so on the page.
+- Not built: mail when a series stops. Its owner sees it on the page only.
+- The landing page still says nothing of series (task 1's rule): it will once publishing exists, so that
+  "runs by itself" is said together with where the videos go.

@@ -1,11 +1,13 @@
+import { mkdir } from "node:fs/promises";
 import { z } from "zod";
 import { multiTenant } from "@/lib/accounts";
-import { episodeTopic, type SeriesView } from "@/lib/series";
+import { type Cadence, CADENCES, episodeTopic, type SeriesView } from "@/lib/series";
 import { createDraft } from "./actions";
 import { ApiError } from "./http";
 import type { JobView } from "./jobs";
 import { listRuns } from "./runs";
-import { NewVideo } from "./schemas";
+import { Recipe } from "./schemas";
+import { roots } from "./config";
 import { userDb, UUID } from "./tenant";
 
 /*
@@ -14,10 +16,6 @@ import { userDb, UUID } from "./tenant";
  * ordinary paid draft, with a topic built from the series.
  */
 
-/** What a series keeps of the new-video form: everything but the topic, which each episode gets built. */
-export const Recipe = NewVideo.omit({ topic: true });
-export type Recipe = z.infer<typeof Recipe>;
-
 export const NewSeries = z.object({
   name: z.string().trim().min(1).max(80),
   premise: z.string().trim().min(1).max(300),
@@ -25,7 +23,16 @@ export const NewSeries = z.object({
 });
 export type NewSeries = z.infer<typeof NewSeries>;
 
+/** A series' schedule: how often, and the approval that lets it spend by itself (both amounts, or none for "only when I ask"). */
+export const Schedule = z.discriminatedUnion("cadence", [
+  z.object({ cadence: z.literal("manual") }),
+  z.object({ cadence: z.enum(["weekly3", "daily", "daily2"]), perVideoCapUsd: z.number().positive().max(100), monthlyBudgetUsd: z.number().positive().max(10_000) }),
+]);
+export type Schedule = z.infer<typeof Schedule>;
+export const SeriesChange = z.union([z.object({ schedule: Schedule }), z.object({ active: z.boolean() })]);
+
 const REFUSALS: Record<string, () => ApiError> = {
+  invalid_schedule: () => new ApiError("validation", "the month's budget must be at least the most one video may cost"),
   not_found: () => new ApiError("not_found", "no such series"),
   too_many_series: () => new ApiError("validation", "an account can have twenty series", "remove one you no longer use"),
   invalid_series: () => new ApiError("validation", "the series could not be saved as it was given"),
@@ -37,13 +44,21 @@ function accounts(): void {
   if (!multiTenant()) throw new ApiError("not_found", "this studio has no series");
 }
 
-type Row = { id: string; name: string; premise: string; recipe: unknown; created_at: string };
+type Row = {
+  id: string; name: string; premise: string; recipe: unknown; created_at: string;
+  cadence: string; per_video_cap_usd: string | number | null; monthly_budget_usd: string | number | null; status: string; paused_reason: string | null; next_due_at: string | null;
+};
+const FIELDS = "id,name,premise,recipe,created_at,cadence,per_video_cap_usd,monthly_budget_usd,status,paused_reason,next_due_at";
 
 /** A row as the pages show it. A recipe saved by an older form is read with today's defaults; one that no longer parses shows as what the form starts with. */
-function view(row: Row, episodes: SeriesView["episodes"]): SeriesView {
+function view(row: Row, episodes: SeriesView["episodes"], monthUsd: number): SeriesView {
   const recipe = Recipe.safeParse(row.recipe);
+  const amount = (v: string | number | null): number | null => (v === null ? null : Number(v));
   return {
-    id: row.id, name: row.name, premise: row.premise, createdAt: row.created_at, episodes,
+    id: row.id, name: row.name, premise: row.premise, createdAt: row.created_at, episodes, monthUsd,
+    cadence: (Object.hasOwn(CADENCES, row.cadence) ? row.cadence : "manual") as Cadence,
+    perVideoCapUsd: amount(row.per_video_cap_usd), monthlyBudgetUsd: amount(row.monthly_budget_usd),
+    active: row.status === "active", pausedReason: row.paused_reason, nextDueAt: row.next_due_at,
     style: recipe.success ? recipe.data.style : "auto", aspect: recipe.success ? recipe.data.aspect : "9:16", scenes: recipe.success ? recipe.data.scenes : 4,
   };
 }
@@ -52,20 +67,29 @@ function view(row: Row, episodes: SeriesView["episodes"]): SeriesView {
 export async function listSeries(): Promise<SeriesView[]> {
   accounts();
   const db = userDb();
-  const [series, tied, runs] = await Promise.all([
-    db.from("series").select("id,name,premise,recipe,created_at").order("created_at", { ascending: false }),
-    db.from("runs").select("id,series_id").order("created_at"),
+  const [series, tied, held, runs] = await Promise.all([
+    db.from("series").select(FIELDS).order("created_at", { ascending: false }),
+    db.from("runs").select("id,series_id,charged_usd,created_at").order("created_at"),
+    db.from("reservations").select("run_id,cap_usd").eq("status", "open"),
     listRuns(),
   ]);
   if (series.error) throw new Error(`reading series: ${series.error.message}`);
   if (tied.error) throw new Error(`reading runs: ${tied.error.message}`);
+  if (held.error) throw new Error(`reading what is held: ${held.error.message}`);
   const known = new Map(runs.map((r) => [r.runId, r]));
-  return ((series.data ?? []) as Row[]).map((row) =>
-    view(row, ((tied.data ?? []) as Array<{ id: string; series_id: string | null }>).filter((t) => t.series_id === row.id).map((t) => {
+  const holding = new Map(((held.data ?? []) as Array<{ run_id: string; cap_usd: string | number }>).map((h) => [h.run_id, Number(h.cap_usd)]));
+  // the month as the database counts it for the budget: its own clock's calendar month (UTC)
+  const now = new Date();
+  const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
+  return ((series.data ?? []) as Row[]).map((row) => {
+    const mine = ((tied.data ?? []) as Array<{ id: string; series_id: string | null; charged_usd: string | number; created_at: string }>).filter((t) => t.series_id === row.id);
+    // in ten-thousandths, the unit amounts are kept in: sums of dollars as floats drift
+    const units = mine.reduce((sum, t) => sum + (new Date(t.created_at).getTime() >= monthStart ? Math.round(Number(t.charged_usd) * 10_000) : 0) + Math.round((holding.get(t.id) ?? 0) * 10_000), 0);
+    return view(row, mine.map((t) => {
       const run = known.get(t.id);
       return { runId: t.id, title: run?.title, state: run?.state ?? "creating", spendUsd: run?.spendUsd };
-    })),
-  );
+    }), units / 10_000);
+  });
 }
 
 /** One of the caller's series. Someone else's does not exist. */
@@ -90,6 +114,26 @@ export async function removeSeries(id: string): Promise<void> {
   if (error) throw refused("remove_series", error.message);
 }
 
+/** Sets or takes away a series' schedule and the approval that goes with it, or stops it or lets it go on. */
+export async function changeSeries(id: string, change: z.infer<typeof SeriesChange>): Promise<void> {
+  accounts();
+  if (!UUID.test(id)) throw REFUSALS.not_found();
+  if ("schedule" in change) {
+    const sch = change.schedule;
+    const { error } = await userDb().rpc("set_series_schedule", {
+      p_id: id, p_cadence: sch.cadence,
+      p_per_video_cap_usd: sch.cadence === "manual" ? null : sch.perVideoCapUsd, p_monthly_budget_usd: sch.cadence === "manual" ? null : sch.monthlyBudgetUsd,
+    });
+    if (error) throw refused("set_series_schedule", error.message);
+    // The worker drives a series only when its owner's folder is on its disk (the studio that holds the user's
+    // files is the one that makes their videos): a user who has made nothing yet has none until now.
+    if (sch.cadence !== "manual") await mkdir(roots().runs, { recursive: true });
+    return;
+  }
+  const { error } = await userDb().rpc("set_series_status", { p_id: id, p_active: change.active });
+  if (error) throw refused("set_series_status", error.message);
+}
+
 /**
  * Starts the series' next video: the ordinary paid draft (the script, held from the caller's credit as ever),
  * with the series' recipe and a topic built from its premise and what it has already made.
@@ -98,7 +142,7 @@ export async function nextEpisode(id: string): Promise<{ runId: string; job: Job
   accounts();
   if (!UUID.test(id)) throw REFUSALS.not_found();
   const db = userDb();
-  const { data, error } = await db.from("series").select("id,name,premise,recipe,created_at").eq("id", id).maybeSingle();
+  const { data, error } = await db.from("series").select(FIELDS).eq("id", id).maybeSingle();
   if (error) throw new Error(`reading the series: ${error.message}`);
   if (!data) throw REFUSALS.not_found();
   const recipe = Recipe.safeParse((data as Row).recipe);

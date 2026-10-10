@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PRESETS } from "@src/presets";
 import { SeriesActions } from "@/components/SeriesActions";
+import { SeriesSchedule } from "@/components/SeriesSchedule";
 import { Panel, StateBadge } from "@/components/ui";
 import { ApiError } from "@/server/http";
 import { accountsOnly, forUser } from "@/server/page";
@@ -31,6 +32,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <p className="note mt-4 text-[0.95rem]">{look}, {series.scenes} scenes, {series.aspect}</p>
       </div>
       <SeriesActions id={series.id} name={series.name} episodes={series.episodes.length} />
+      <SeriesSchedule series={series} />
       <Panel title="Its videos">
         {series.episodes.length === 0 ? (
           <p className="text-graphite">None yet. The first one is written from the sentence above; each one after it is told what the series has already made, so it is about something else.</p>

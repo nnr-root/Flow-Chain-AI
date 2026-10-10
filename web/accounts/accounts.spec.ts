@@ -520,6 +520,29 @@ test("a user sets up a series and has its first video started from it; another u
   expect(await balance(A.email)).toBe(before);
   await namesNothing(page);
 
+  // By itself: nothing until its owner approves two amounts, which the button names; a budget smaller than one
+  // video's limit is refused; and it can be stopped and taken off its schedule again. (This suite's worker
+  // looks at series once an hour, so nothing is begun here.)
+  await expect(page.getByTestId("series-status")).toHaveCount(0);
+  await page.getByTestId("series-cadence").selectOption("daily");
+  await page.getByTestId("series-cap").fill("0.4");
+  await page.getByTestId("series-budget").fill("0.2");
+  await expect(page.getByTestId("save-schedule")).toBeDisabled();
+  await page.getByTestId("series-budget").fill("3");
+  await expect(page.getByTestId("save-schedule")).toHaveText("Approve: up to $0.40 a video, $3.00 a month");
+  await page.getByTestId("save-schedule").click();
+  await expect(page.getByTestId("series-status")).toHaveText("Running");
+  await expect(page.getByTestId("series-month")).toContainText("$0.00 of $3.00");
+  expect((await service.from("series").select("cadence,per_video_cap_usd,monthly_budget_usd,status").eq("id", id).single()).data).toEqual({ cadence: "daily", per_video_cap_usd: 0.4, monthly_budget_usd: 3, status: "active" });
+  await page.getByTestId("series-toggle").click();
+  await expect(page.getByTestId("series-status")).toHaveText("Stopped");
+  await expect(page.getByTestId("series-paused")).toHaveText("You stopped it.");
+  await page.getByTestId("series-cadence").selectOption("manual");
+  await page.getByTestId("save-schedule").click();
+  await expect(page.getByTestId("series-status")).toHaveCount(0);
+  expect((await service.from("series").select("cadence,per_video_cap_usd,monthly_budget_usd").eq("id", id).single()).data).toEqual({ cadence: "manual", per_video_cap_usd: null, monthly_budget_usd: null });
+  expect(await balance(A.email)).toBe(before);
+
   // its first video is an ordinary draft, written from the premise and tied to the series
   await page.getByTestId("next-episode").click();
   await expect(page).toHaveURL(/\/runs\/\d{8}-\d{6}-[0-9a-f]{6}$/, { timeout: 30_000 });
