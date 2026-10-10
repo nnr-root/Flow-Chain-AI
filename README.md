@@ -357,12 +357,13 @@ nothing below exists and credit is granted by hand as before.
   `web/lib/credit.ts`). The defaults are Starter $39 for 5,000 credits, Creator $99 for 15,000 and Pro $199 for
   45,000 a month: 5, 15 and 45 minutes of video in which every scene moves (measured at $0.141 for four scenes),
   and about three times that in stills. `yearlyMonths: 10` sells each plan by the year as well, for the price of
-  ten months, with the twelve months of credits granted at once. Nothing is sold once: `topups` is empty (the
+  ten months; its credits still come every month (the worker grants each month's on its day), and what is left
+  of a month does not carry over. Nothing is sold once: `topups` is empty (the
   studio can still sell top-ups if you list some). What is left of a plan's price after its cost is yours: 94%,
   92% and 89% before Stripe's fee and the server (phase 6 spec §13 has the market these prices were set against).
   In your own studio without accounts, amounts stay in dollars: that is your bill.
-- **Two kinds of credit.** A plan's credit is for the time that was paid for, a month or a year: what is left
-  when the next one is paid for expires, and so does what is left when the plan ends. Credit you grant (and a
+- **Two kinds of credit.** A plan's credit is for its month, however the plan is paid: what is left when the
+  next month begins expires, and so does what is left when the plan ends. Credit you grant (and a
   top-up's, if you sell any) never expires.
   Plan credit is spent first. The account page shows both, the plan, and every payment with its receipt.
 - **Buying.** `/pricing` shows what is on sale (anyone may read it). A button there opens Stripe's own

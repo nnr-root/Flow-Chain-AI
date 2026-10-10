@@ -45,7 +45,7 @@ read the one for the area you are changing before changing it (table at the end)
 | `web/server/` | everything the routes do: `http.ts` (`route()`), `tenant.ts`, `session.ts`, `runs.ts`, `jobs/`, `store/`, `billing/` |
 | `web/worker/` | `worker.ts` (the queue), `tenant.ts` (credit), `billing.ts` (Stripe fulfilment), `series.ts` (series on a schedule), `publish.ts` and `vault.ts` (users' channels) |
 | `web/lib/` | code shared by server and browser; no secrets, few imports |
-| `db/migrations/` | the database: plain SQL, seven files (accounts, tenancy, billing, three for series, publishing) |
+| `db/migrations/` | the database: plain SQL, eight files (accounts, tenancy, billing, three for series, publishing, plans by the year) |
 | `src/db/client.ts`, `src/auth/` | the one client for the studio's Postgres (`Db`), and password hashing |
 | `workers/` | the clip worker (Python, a ComfyUI graph for Wan 2.2 at 480p and 720p; text encoder and VAE in its image, the rest on the volume) |
 | `worker-picture/` | the picture worker (Python, FLUX.2 klein 4B through diffusers; weights on the network volume) |
@@ -192,16 +192,22 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - **Credit:** a paid job reserves its approved cap before it is queued; the worker settles at what the
   run's manifest says was spent (ledger + pending `expectedUsd` + `abandonedUsd`). Users cannot cancel a
   reservation. Rounding is to four decimals; compare money in ten-thousandths, never as floats.
-- **Two kinds of credit:** plan credit (expires when the next month, or year, is paid for; spent first) and
+- **Two kinds of credit:** plan credit (expires when the next month begins, paid for or granted; spent first) and
   permanent credit (grants; top-ups, which are not on sale now but still work). `plan_credit_usd` is never more than the balance (a trigger keeps it).
 - **Payments:** the web verifies Stripe's signature and hands the worker only the event id. The worker
   asks Stripe for the event and its objects, takes the user from `customer.metadata.user_id` and the grant
   from `price.metadata` (`studio=flowchain`, `credit_usd`), and calls one SQL function that records the
   event id with its effect. A payment must name a charge, be in USD, and be at least the credit granted.
-- **Only plans are sold** (phase 6 spec §13): by the month, and by the year for the price of ten months with
-  the year's credits granted at once by the one invoice. A yearly price is its own Stripe price whose
-  `metadata.plan` names the plan. Stripe's portal switches between monthly plans only: a change of interval is
-  billed at once on an invoice the studio grants nothing for.
+- **Only plans are sold** (phase 6 spec §13–§14): by the month, and by the year for the price of ten months.
+  A yearly price is its own Stripe price whose `metadata.plan` names the plan and whose `credit_usd` is **one
+  month's** credit. Stripe's portal switches between monthly plans only: a change of interval is billed at once
+  on an invoice the studio grants nothing for.
+- **A year's credit comes a month at a time** (§14). The invoice grants the first month and writes the rest down
+  in the same transaction (`fulfil_plan_period`, row in `plan_years`); the worker asks hourly for what is due
+  (`grant_plan_month`). That function is the one place credit is granted without a Stripe event: it grants only
+  against a row a paid invoice wrote, for a live subscription, on its day, up to the months paid for and not
+  refunded, and it moves its own count under the user's lock. Keep every one of those conditions; never give it
+  an amount or a date as an argument, and never grant it to `studio_web`.
 - Every fulfilment function is **exactly-once by event id** and safe to call again. Keep it that way.
 - A change to `settle`, `reserve_credit`, `refund_payment` or `fulfil_*` needs a database test for every
   ordering it could meet; `test/db/billing.test.ts` has a 648-case matrix to extend.

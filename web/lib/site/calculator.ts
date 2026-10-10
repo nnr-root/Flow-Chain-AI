@@ -10,7 +10,7 @@ import type { CatalogueItem } from "@/lib/billing";
 const cents = (usd: number): number => Math.round(usd * 100) / 100;
 
 /** What a dollar of credit costs with this plan or top-up (credit is sold at a mark-up, and spent at cost). */
-export const pricePerCreditDollar = (item: CatalogueItem): number => item.priceUsd / item.creditUsd;
+export const pricePerCreditDollar = (item: CatalogueItem): number => item.priceUsd / (item.interval === "year" ? 12 : 1) / item.creditUsd;
 
 export type Quote = {
   /** The plan (or, where no plan covers it, the top-ups) that pays for this many videos. */

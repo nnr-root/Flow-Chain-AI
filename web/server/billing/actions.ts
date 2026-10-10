@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { billingOn, LIVE, type PaymentView, type PlanView } from "@/lib/billing";
+import { billingOn, LIVE, monthsBefore, type PaymentView, type PlanView } from "@/lib/billing";
 import { ApiError } from "../http";
 import { runner } from "../jobs";
 import { siteOrigin } from "../session";
@@ -101,14 +101,18 @@ export type BillingView = { plan: PlanView | null; planCreditUsd: number; paymen
 
 /** What the account page shows about paying: row-level security makes every query here "mine". */
 export async function billingView(): Promise<BillingView> {
-  const [plan, me, paid] = await Promise.all([
+  const [plan, year, me, paid] = await Promise.all([
     currentPlan(),
+    // a plan paid by the year: what is still to come of it (the user's own row, or none)
+    userDb().from("plan_years").select("months_left,period_end").maybeSingle(),
     userDb().from("users").select("plan_credit_usd").single(),
     userDb().from("payments").select("id,kind,plan,paid_usd,credit_usd,refunded_usd,invoice_url,created_at").order("created_at", { ascending: false }).limit(50),
   ]);
   if (me.error || paid.error) throw new Error((me.error ?? paid.error)!.message);
+  const toCome = year.data && plan && LIVE.includes(plan.status) && Number(year.data.months_left) > 0
+    ? monthsBefore(new Date(year.data.period_end as string).toISOString(), Number(year.data.months_left)) : undefined;
   return {
-    plan,
+    plan: plan && toCome ? { ...plan, nextCreditsAt: toCome } : plan,
     planCreditUsd: Number(me.data.plan_credit_usd),
     payments: (paid.data ?? []).map((p) => ({
       id: p.id as string, kind: p.kind as "plan" | "topup", plan: (p.plan as string | null) ?? null, paidUsd: Number(p.paid_usd), creditUsd: Number(p.credit_usd),

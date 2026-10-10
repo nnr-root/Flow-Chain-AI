@@ -79,7 +79,7 @@ describe("what a month of videos costs", () => {
     expect(names(quote(120, 0.32, [starter, pro, twentyFive]))).toEqual(["1 × starter", "2 × topup-25"]);
     expect(names(quote(30, 0.32, [starter, pro]))).toEqual(["1 × starter"]);
     // a month is quoted from what is paid by the month: a plan paid by the year is not a month's price
-    const starterYearly = { ...item("plan", "starter-yearly", 15, 144), interval: "year" as const, plan: "starter" };
+    const starterYearly = { ...item("plan", "starter-yearly", 15, 12), interval: "year" as const, plan: "starter" };
     expect(names(quote(30, 0.32, [starterYearly, starter, pro]))).toEqual(["1 × starter"]);
     expect(quote(30, 0.32, [starterYearly])).toBeNull();
   });

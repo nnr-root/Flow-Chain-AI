@@ -24,6 +24,8 @@ export type Billing = {
   fulfil(eventId: string): Promise<string>;
   /** Fulfils the events of the last `hours` that were never recorded; returns how many. */
   catchUp(hours?: number): Promise<number>;
+  /** Grants the months that have come due of plans paid for by the year; returns how many. */
+  months(): Promise<number>;
 };
 
 /** A fulfilment that cannot be done as things are: the event stays unrecorded, so a retry can succeed once they are put right. */
@@ -61,14 +63,15 @@ export function createBilling(stripe: StripeApi, db: Db, log: (message: string) 
   };
 
   /** What a price grants. A price that is not the studio's, or names no credit, cannot be fulfilled. */
-  const grantOf = (price: unknown): { priceId: string; plan: string; creditUsd: number } => {
+  const grantOf = (price: unknown): { priceId: string; plan: string; creditUsd: number; months: number } => {
     const p = (price ?? {}) as Obj;
     const meta = (p.metadata ?? {}) as Obj;
     const credit = creditOf(meta);
     if (meta.studio !== "flowchain" || credit === null) {
       throw new Unfulfillable(`the price ${String(p.id)} does not say how much credit it grants (metadata studio=flowchain, credit_usd)`);
     }
-    return { priceId: String(p.id), plan: str(meta.plan) ?? str(meta.key) ?? "plan", creditUsd: credit };
+    // A price's credit is a month's. One paid by the year pays for twelve of them, granted a month at a time.
+    return { priceId: String(p.id), plan: str(meta.plan) ?? str(meta.key) ?? "plan", creditUsd: credit, months: (p.recurring as Obj | null | undefined)?.interval === "year" ? 12 : 1 };
   };
 
   /**
@@ -149,13 +152,14 @@ export function createBilling(stripe: StripeApi, db: Db, log: (message: string) 
     const lines = (((invoice.lines as Obj | undefined)?.data as Obj[] | undefined) ?? []).filter((l) => l.proration !== true);
     if (lines.length !== 1) throw new Unfulfillable(`the invoice ${invoiceId} has ${lines.length} lines for a month; the studio expects one`);
     const grant = grantOf(lines[0].price);
-    const paid = paidFor(`the invoice ${invoiceId}`, invoice.currency, invoice.amount_paid, grant.creditUsd);
+    // (all the months it pays for: a year is not sold for less than its twelve months of credit either)
+    const paid = paidFor(`the invoice ${invoiceId}`, invoice.currency, invoice.amount_paid, Math.round(grant.creditUsd * grant.months * 10_000) / 10_000);
     const subscription = await stripe.get<Obj>(`/v1/subscriptions/${pathId(subscriptionId)}`);
     const chargeId = idOf(invoice.charge);
     if (!chargeId) throw new Unfulfillable(`the invoice ${invoiceId} is paid but names no charge`);
-    const outcome = await call("fulfil_plan_invoice", {
+    const outcome = await call("fulfil_plan_period", {
       p_event_id: eventId, p_user_id: user, p_invoice_id: invoiceId, p_subscription_id: subscriptionId, p_plan: grant.plan, p_price_id: grant.priceId,
-      p_paid_usd: paid, p_credit_usd: grant.creditUsd, p_period_end: iso(subscription.current_period_end),
+      p_paid_usd: paid, p_credit_usd: grant.creditUsd, p_period_end: iso(subscription.current_period_end), p_months: grant.months,
       p_charge_id: chargeId, p_invoice_url: str(invoice.hosted_invoice_url) ?? null,
     });
     await settleRefunds(eventId, chargeId);
@@ -269,9 +273,34 @@ export function createBilling(stripe: StripeApi, db: Db, log: (message: string) 
     return done;
   }
 
+  /**
+   * A year that was paid for is granted a month at a time, and only the first month comes with a Stripe event.
+   * The database decides everything (whether a month is due, the plan still live, the year not refunded) and
+   * moves its own count, so asking is all there is to do here, and asking twice grants once.
+   */
+  async function months(): Promise<number> {
+    const { data, error } = await db.from("plan_years").select("user_id").gt("months_left", 0);
+    if (error) throw new Error(`plan_years: ${error.message}`);
+    let granted = 0;
+    for (const row of data ?? []) {
+      // a worker that was away is owed more than one; never more than a year's worth in one pass
+      for (let i = 0; i < 12; i++) {
+        try {
+          if ((await call("grant_plan_month", { p_user_id: row.user_id })) !== "granted") break;
+          granted++;
+        } catch (err) {
+          log(`worker: could not grant a plan's month: ${err instanceof Error ? err.message : String(err)}`);
+          break;
+        }
+      }
+    }
+    return granted;
+  }
+
   return {
     customer,
     catchUp,
+    months,
     fulfil: async (eventId) => {
       try {
         return await fulfil(eventId);

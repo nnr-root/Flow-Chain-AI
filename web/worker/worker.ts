@@ -296,6 +296,13 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       if (done > 0) log(`worker: fulfilled ${done} Stripe event(s) no webhook had brought`);
     } catch (err) {
       log(`worker: could not ask Stripe for recent events: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    // In the same hourly pass, and whether or not Stripe answered: the months of plans paid for by the year.
+    try {
+      const months = await pay.months();
+      if (months > 0) log(`worker: granted ${months} month(s) of plans paid for by the year`);
+    } catch (err) {
+      log(`worker: could not look for plan months that are due: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       catchingUp = false;
     }

@@ -22,6 +22,7 @@ const PlansFile = z.object({
 /**
  * One thing on sale, as `billing/plans.json` describes it. `interval`: how often a plan is paid (a month when
  * absent). `plan`: the plan a yearly price is the yearly way of paying for. `minutes`: see `PlansFile`.
+ * `creditUsd` of a plan is what one month of it grants, however often it is paid.
  */
 export type Wanted = { key: string; kind: "plan" | "topup"; name: string; priceUsd: number; creditUsd: number; interval?: "month" | "year"; plan?: string; minutes?: number };
 
@@ -40,12 +41,12 @@ export function parsePlans(text: string): Wanted[] {
   }
   const wanted: Wanted[] = [
     ...parsed.data.plans.map((p): Wanted => ({ key: p.key, kind: "plan", name: p.name, priceUsd: p.monthlyUsd, creditUsd: p.creditUsd, interval: "month", plan: p.key, ...(p.minutes ? { minutes: p.minutes } : {}) })),
-    // By the year: the price of `yearlyMonths` months, and the credit of twelve, all granted with the one payment
-    // (a year's invoice is one invoice; nothing in the studio hands credit out month by month without one).
+    // By the year: the price of `yearlyMonths` months for twelve. Its credit is still a month's: the studio grants
+    // it month by month through the year (phase 6 spec §14), so a yearly price says what a month of it grants.
     ...(parsed.data.yearlyMonths
       ? parsed.data.plans.map((p): Wanted => ({
           key: `${p.key}-yearly`, kind: "plan", name: `${p.name}, yearly`, priceUsd: Math.round(p.monthlyUsd * parsed.data.yearlyMonths! * 100) / 100,
-          creditUsd: Math.round(p.creditUsd * 12 * 10_000) / 10_000, interval: "year", plan: p.key, ...(p.minutes ? { minutes: p.minutes * 12 } : {}),
+          creditUsd: p.creditUsd, interval: "year", plan: p.key, ...(p.minutes ? { minutes: p.minutes } : {}),
         }))
       : []),
     ...parsed.data.topups.map((t) => ({ key: t.key, kind: "topup" as const, name: t.name, priceUsd: t.priceUsd, creditUsd: t.creditUsd })),
@@ -121,7 +122,7 @@ export function describeStep(step: Step): string {
     case "rename-product":
       return `rename the product ${step.key} to "${step.name}"`;
     case "create-price":
-      return `create a price for ${step.key}: ${money(step.priceUsd)}${step.kind === "plan" ? (step.interval === "year" ? " a year" : " a month") : ""} for ${money(step.creditUsd)} of credit`;
+      return `create a price for ${step.key}: ${money(step.priceUsd)}${step.kind === "plan" ? (step.interval === "year" ? " a year" : " a month") : ""} for ${money(step.creditUsd)} of credit${step.kind === "plan" && step.interval === "year" ? " each month" : ""}`;
     case "archive-price":
       return `archive the price ${step.priceId} of ${step.key} (${step.why})`;
     case "archive-product":

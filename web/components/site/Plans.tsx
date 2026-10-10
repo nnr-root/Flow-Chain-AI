@@ -24,11 +24,11 @@ function Offer({ item, action, minutes, monthly }: { item: CatalogueItem; action
       </p>
       {paidFor !== null && paidFor < 12 && <p className="mt-2 text-[0.95rem]" data-testid={`yearly-${item.key}`}><span className="marked">Twelve months for the price of {paidFor}</span></p>}
       <p className="mt-4 text-[1.15rem] font-bold" data-testid={`credits-${item.key}`}>
-        {credits(item.creditUsd).toLocaleString("en-US")} credits{item.kind === "plan" ? (yearly ? " for the year, all at once" : " every month") : ""}
+        {credits(item.creditUsd).toLocaleString("en-US")} credits{item.kind === "plan" ? " every month" : ""}
       </p>
       <p className="mt-2 max-w-[22rem] flex-1 text-graphite">
         {minutes ? `About ${minutes} ${minutes === 1 ? "minute" : "minutes"} of video in which every scene moves. With stills, they go further. ` : ""}
-        {item.kind === "plan" ? `What is left at the end of ${yearly ? "the year" : "a month"} does not carry over.` : "They do not expire."}
+        {item.kind === "plan" ? "What is left at the end of a month does not carry over." : "They do not expire."}
       </p>
       <div className="mt-6">{action}</div>
     </li>

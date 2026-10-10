@@ -155,7 +155,7 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
       }
       const sub: Obj = {
         id: id("sub"), object: "subscription", customer: session.customer, status: "active", cancel_at_period_end: false,
-        current_period_end: now() + 30 * 86_400, items: { data: [{ price }] },
+        current_period_end: now() + (price.recurring?.interval === "year" ? 365 : 30) * 86_400, items: { data: [{ price }] },
       };
       subscriptions.set(sub.id, sub);
       session.subscription = sub.id;
@@ -163,7 +163,7 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
     },
     renew(subscriptionId) {
       const sub = subscriptions.get(subscriptionId)!;
-      sub.current_period_end += 30 * 86_400;
+      sub.current_period_end += (sub.items.data[0].price.recurring?.interval === "year" ? 365 : 30) * 86_400;
       return [emit("invoice.paid", invoice(sub, "subscription_cycle")), emit("customer.subscription.updated", sub)];
     },
     updateSubscription(subscriptionId, change) {

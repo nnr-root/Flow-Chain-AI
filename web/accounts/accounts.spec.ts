@@ -294,7 +294,7 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
   await page.getByTestId("billing-interval").getByRole("radio", { name: "Yearly" }).click();
   await expect(page.getByTestId("offer-starter-yearly")).toContainText("$190.00 / year");
   await expect(page.getByTestId("yearly-starter-yearly")).toHaveText("Twelve months for the price of 10");
-  await expect(page.getByTestId("credits-starter-yearly")).toHaveText("288,000 credits for the year, all at once");
+  await expect(page.getByTestId("credits-starter-yearly")).toHaveText("24,000 credits every month");
   await expect(page.getByTestId("offer-starter")).toHaveCount(0);
   await page.getByTestId("billing-interval").getByRole("radio", { name: "Monthly" }).click();
   // nothing on the page says what a credit costs the studio: the only dollars are prices

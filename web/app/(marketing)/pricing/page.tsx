@@ -31,7 +31,7 @@ export default async function Page() {
       <main className="mx-auto max-w-[84rem] px-6 pb-10 pt-14 sm:px-10 lg:pt-20">
         <h1 className="display max-w-[52rem] text-[clamp(2.4rem,1.2rem+5vw,5.5rem)] leading-[0.92]">Buy credits. Make videos with them.</h1>
         <p className="mt-7 max-w-[38rem] text-[1.15rem] leading-[1.5] text-graphite">
-          A plan gives you credits every month{yearly ? ", or a year's at once when it is paid by the year" : ""}{topups ? "; a top-up gives you credits that stay until you use them" : ""}. A video takes credits by its length and by how many of its scenes move, and you see the most it can take before it is made.
+          A plan gives you credits every month{yearly ? ", whether you pay by the month or, for less, by the year" : ""}{topups ? "; a top-up gives you credits that stay until you use them" : ""}. A video takes credits by its length and by how many of its scenes move, and you see the most it can take before it is made.
         </p>
         <div className="mt-16">
           {items ? <Plans items={items} signedIn={me !== null} plan={plan} minutes={minutesOnSale(items, measured, SHOWCASES.map((s) => s.receipt), new Date())} /> : <p className="text-graphite" data-testid="pricing-unavailable">Prices are not available right now. Try again in a moment.</p>}

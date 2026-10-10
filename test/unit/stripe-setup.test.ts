@@ -15,16 +15,16 @@ describe("billing/plans.json", () => {
     const shipped = parsePlans(readFileSync("billing/plans.json", "utf8"));
     expect(shipped.map((w) => [w.key, w.priceUsd, w.creditUsd, w.minutes])).toEqual([
       ["starter", 39, 2.5, 5], ["creator", 99, 7.5, 15], ["pro", 199, 22.5, 45],
-      ["starter-yearly", 390, 30, 60], ["creator-yearly", 990, 90, 180], ["pro-yearly", 1990, 270, 540],
+      ["starter-yearly", 390, 2.5, 5], ["creator-yearly", 990, 7.5, 15], ["pro-yearly", 1990, 22.5, 45],
     ]);
     // nothing is sold once: only plans
     expect(shipped.every((w) => w.kind === "plan")).toBe(true);
   });
 
-  it("sells each plan by the year too when the file says for how many months' price: twelve months of credit, granted with the one payment", () => {
+  it("sells each plan by the year too when the file says for how many months' price, and a yearly price says what a month of it grants", () => {
     expect(parsePlans(file([{ ...starter, minutes: 5 }], [], { yearlyMonths: 10 }))).toEqual([
       { key: "starter", kind: "plan", name: "Starter", priceUsd: 19, creditUsd: 12, interval: "month", plan: "starter", minutes: 5 },
-      { key: "starter-yearly", kind: "plan", name: "Starter, yearly", priceUsd: 190, creditUsd: 144, interval: "year", plan: "starter", minutes: 60 },
+      { key: "starter-yearly", kind: "plan", name: "Starter, yearly", priceUsd: 190, creditUsd: 12, interval: "year", plan: "starter", minutes: 5 },
     ]);
     // without the line, nothing is sold by the year
     expect(parsePlans(file([starter])).map((w) => w.key)).toEqual(["starter"]);
@@ -125,16 +125,16 @@ describe("what setup would change in Stripe", () => {
   it("makes a yearly price a price of its own: billed by the year, named for the plan it pays for, replaced when only its interval or minutes differ", () => {
     const yearly = parsePlans(file([{ ...starter, minutes: 5 }], [], { yearlyMonths: 10 }));
     const steps = planSetup(yearly, { products: [], prices: [] });
-    expect(describeStep(steps[3])).toBe("create a price for starter-yearly: $190.00 a year for $144.00 of credit");
+    expect(describeStep(steps[3])).toBe("create a price for starter-yearly: $190.00 a year for $12.00 of credit each month");
     expect(priceParams(steps[3] as never, "prod_y")).toEqual({
       product: "prod_y", currency: "usd", unit_amount: 19000, recurring: { interval: "year" },
-      metadata: { studio: "flowchain", key: "starter-yearly", credit_usd: "144", plan: "starter", minutes: "60" },
+      metadata: { studio: "flowchain", key: "starter-yearly", credit_usd: "12", plan: "starter", minutes: "5" },
     });
     const there: Listing = {
       products: [{ id: "prod_s", key: "starter", name: "Starter" }, { id: "prod_y", key: "starter-yearly", name: "Starter, yearly" }],
       prices: [
         { id: "price_s", productId: "prod_s", key: "starter", kind: "plan", priceUsd: 19, creditUsd: 12, interval: "month", plan: "starter", minutes: 5 },
-        { id: "price_y", productId: "prod_y", key: "starter-yearly", kind: "plan", priceUsd: 190, creditUsd: 144, interval: "year", plan: "starter", minutes: 60 },
+        { id: "price_y", productId: "prod_y", key: "starter-yearly", kind: "plan", priceUsd: 190, creditUsd: 12, interval: "year", plan: "starter", minutes: 5 },
       ],
     };
     expect(planSetup(yearly, there)).toEqual([]);

@@ -21,11 +21,24 @@ export type CatalogueItem = {
   plan?: string;
   /** How many minutes of video in which every scene moves it is built around; said on a page only while the measured cost bears it out. */
   minutes?: number;
-  /** What it grants. Less than the price: that difference is the studio's margin. */
+  /** What it grants: once for a top-up, every month for a plan (a plan paid by the year too: its credit comes month by month). Less than the price: that difference is the studio's margin. */
   creditUsd: number;
 };
 
-export type PlanView = { plan: string; status: string; periodEnd: string | null; cancelAtPeriodEnd: boolean };
+/** `nextCreditsAt`: for a plan paid by the year, when the next month's credits come (and this month's go); absent otherwise. */
+export type PlanView = { plan: string; status: string; periodEnd: string | null; cancelAtPeriodEnd: boolean; nextCreditsAt?: string };
+
+/**
+ * The day `months` months before another, as the database counts it: the same day of the month, or the month's
+ * last when it has no such day (a month before 31 March is the end of February, not 3 March).
+ */
+export function monthsBefore(iso: string, months: number): string {
+  const d = new Date(iso);
+  const first = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - months, 1, d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds(), d.getUTCMilliseconds()));
+  const lastDay = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  first.setUTCDate(Math.min(d.getUTCDate(), lastDay));
+  return first.toISOString();
+}
 export type PaymentView = { id: string; kind: "plan" | "topup"; plan: string | null; paidUsd: number; creditUsd: number; refundedUsd: number; invoiceUrl: string | null; at: string };
 
 /**

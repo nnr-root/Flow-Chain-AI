@@ -16,6 +16,6 @@ const stripe = await startStripe({
   deliverAfterMs: Number(process.env.FAKE_STRIPE_DELIVER_AFTER_MS ?? 0),
 });
 stripe.addPrice({ key: "starter", kind: "plan", priceUsd: 19, creditUsd: 12, name: "Starter" });
-stripe.addPrice({ key: "starter-yearly", kind: "plan", priceUsd: 190, creditUsd: 144, name: "Starter, yearly", interval: "year", metadata: { plan: "starter", minutes: "60" } });
+stripe.addPrice({ key: "starter-yearly", kind: "plan", priceUsd: 190, creditUsd: 12, name: "Starter, yearly", interval: "year", metadata: { plan: "starter" } });
 stripe.addPrice({ key: "topup-10", kind: "topup", priceUsd: 10, creditUsd: 6, name: "Top-up $10" });
 console.log(`stand-in Stripe at ${stripe.url}`);

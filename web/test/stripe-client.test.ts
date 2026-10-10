@@ -101,8 +101,8 @@ describe("talking to Stripe", () => {
     expect(catalogueItem(price)).toEqual({ priceId: "price_1", kind: "plan", key: "starter", name: "Starter", priceUsd: 19, creditUsd: 12, interval: "month", plan: "starter" });
     expect(catalogueItem({ ...price, recurring: null })).toEqual({ priceId: "price_1", kind: "topup", key: "starter", name: "Starter", priceUsd: 19, creditUsd: 12 });
     // by the year: the plan it pays for and the minutes it is built around come from the price's own words
-    expect(catalogueItem({ ...price, unit_amount: 19000, recurring: { interval: "year" }, metadata: { studio: "flowchain", key: "starter-yearly", plan: "starter", credit_usd: "144", minutes: "60" } }))
-      .toEqual({ priceId: "price_1", kind: "plan", key: "starter-yearly", name: "Starter", priceUsd: 190, creditUsd: 144, interval: "year", plan: "starter", minutes: 60 });
+    expect(catalogueItem({ ...price, unit_amount: 19000, recurring: { interval: "year" }, metadata: { studio: "flowchain", key: "starter-yearly", plan: "starter", credit_usd: "12", minutes: "5" } }))
+      .toEqual({ priceId: "price_1", kind: "plan", key: "starter-yearly", name: "Starter", priceUsd: 190, creditUsd: 12, interval: "year", plan: "starter", minutes: 5 });
     expect(catalogueItem({ ...price, metadata: { ...price.metadata, minutes: "many" } })?.minutes).toBeUndefined();
     for (const not of [
       { ...price, metadata: { key: "starter", credit_usd: "12" } }, // somebody else's price in the same account

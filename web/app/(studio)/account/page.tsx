@@ -48,7 +48,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
           <>
             {planCredit > 0 && (
               <p className="mt-2 text-[0.95rem]" data-testid="balance-split">
-                {amount(planCredit)} from your plan{plan?.periodEnd ? `, to use by ${day(plan.periodEnd)}` : ""}, and {amount(Math.max(me.balanceUsd - planCredit, 0))} that do not expire
+                {amount(planCredit)} from your plan{plan?.nextCreditsAt ?? plan?.periodEnd ? `, to use by ${day((plan?.nextCreditsAt ?? plan?.periodEnd)!)}` : ""}, and {amount(Math.max(me.balanceUsd - planCredit, 0))} that do not expire
               </p>
             )}
             <p className="mt-3"><Link href="/pricing" className="text-[0.95rem] underline" data-testid="add-credit">Add credit</Link></p>
@@ -60,7 +60,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
           {plan ? (
             <p className="text-[0.95rem]" data-testid="plan">
               <span className="font-bold capitalize">{plan.plan}</span>, {(STATUS[plan.status] ?? plan.status).toLowerCase()}
-              {plan.periodEnd && LIVE.includes(plan.status) && <span className="text-graphite">, {plan.cancelAtPeriodEnd ? "ends" : "renews"} on {day(plan.periodEnd)}</span>}
+              {plan.periodEnd && LIVE.includes(plan.status) && <span className="text-graphite">, {plan.cancelAtPeriodEnd ? "ends" : "renews"} on {day(plan.periodEnd)}{plan.nextCreditsAt ? `; the next month's credits come on ${day(plan.nextCreditsAt)}` : ""}</span>}
             </p>
           ) : (
             <p className="text-[0.95rem] text-graphite" data-testid="plan">No plan.</p>

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { Queue } from "bullmq";
 import { Redis } from "ioredis";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { signWebhook } from "@src/billing/stripe";
+import { signWebhook, StripeApi, stripeSettings } from "@src/billing/stripe";
 import { GET as accountRoute } from "@/app/api/account/route";
 import { POST as checkout } from "@/app/api/billing/checkout/route";
 import { POST as portal } from "@/app/api/billing/portal/route";
@@ -12,7 +12,8 @@ import { POST as webhook } from "@/app/api/stripe/webhook/route";
 import { forgetCatalogue } from "@/server/billing/catalogue";
 import { closeQueue } from "@/server/jobs/queue";
 import { JOB_OPTIONS, QUEUES } from "@/server/jobs/redis";
-import { localDb, newUser, serviceClient, type TestUser } from "../../test/helpers/db";
+import { createBilling } from "@/worker/billing";
+import { localDb, newUser, serviceClient, type TestUser, workerDb } from "../../test/helpers/db";
 import { request, until, useStudio } from "./helpers";
 import { hasRedisServer, startRedis, startWorkerProcess, type TestRedis, type TestWorker } from "./redis";
 import { type FakeEvent, type FakeStripe, startStripe } from "./stripe";
@@ -168,24 +169,52 @@ describe.skipIf(!supa || !hasRedisServer())("payments", () => {
     expect((await account(a)).balance).toBe(0);
   });
 
-  it("sells a plan by the year: the one payment grants the year's credit, under the plan's own name, and the next year's replaces what is left", async () => {
+  it("sells a plan by the year: the one payment grants the first month's credit under the plan's own name, and the worker grants each month after it when its day comes", async () => {
     await worker();
-    const yearly = stripe.addPrice({ key: "starter-yearly", kind: "plan", priceUsd: 190, creditUsd: 144, name: "Starter, yearly", interval: "year", metadata: { plan: "starter", minutes: "60" } });
+    const yearly = stripe.addPrice({ key: "starter-yearly", kind: "plan", priceUsd: 190, creditUsd: 12, name: "Starter, yearly", interval: "year", metadata: { plan: "starter" } });
     forgetCatalogue();
     const { sessionId } = await buy(aCookie, yearly);
     for (const event of stripe.completeCheckout(sessionId!)) expect((await deliver(event)).status).toBe(200);
-    expect(await account(a)).toMatchObject({ balance: 144, plan: 144 });
+    // a month's credit, not the year's
+    expect(await account(a)).toMatchObject({ balance: 12, plan: 12 });
     const sub = stripe.sessions.get(sessionId!)!.subscription as string;
     // the plan is the one it is the yearly way of paying for: that is what the pricing page marks as the user's
     expect((await a.client.from("subscriptions").select("plan,status").single()).data).toEqual({ plan: "starter", status: "active" });
-    expect((await a.client.from("payments").select("kind,plan,paid_usd,credit_usd").single()).data).toEqual({ kind: "plan", plan: "starter", paid_usd: 190, credit_usd: 144 });
+    expect((await a.client.from("payments").select("kind,plan,paid_usd,credit_usd").single()).data).toEqual({ kind: "plan", plan: "starter", paid_usd: 190, credit_usd: 12 });
+    // the user can see what is still to come of their own year, and nobody else's
+    expect((await a.client.from("plan_years").select("months,months_left")).data).toEqual([{ months: 12, months_left: 11 }]);
+    expect((await b.client.from("plan_years").select("months_left")).data).toEqual([]);
     // a second plan beside it, by the month, is refused like any other
     expect(await buy(aCookie, starter)).toMatchObject({ status: 409, error: { code: "already_subscribed" } });
+
+    // the worker's hourly look: nothing while no month is due; a month later, last month's goes and this month's comes
+    const pay = createBilling(new StripeApi(stripeSettings(stripe.env)!), workerDb(s), () => {});
+    const ledger = async () => (await a.client.from("ledger").select("kind,amount_usd").order("id")).data;
+    await pay.months();
+    expect(await ledger()).toEqual([{ kind: "plan", amount_usd: 12 }]);
+    await db().query("update public.plan_years set period_end = period_end - interval '1 month 1 day' where user_id = $1", [a.id]);
+    await pay.months();
+    await pay.months();
+    expect(await ledger()).toEqual([{ kind: "plan", amount_usd: 12 }, { kind: "expire", amount_usd: -12 }, { kind: "plan", amount_usd: 12 }]);
+    expect(await account(a)).toMatchObject({ balance: 12, plan: 12 });
+
+    // the next year is paid for: its first month comes with the invoice, and eleven more are owed again
     for (const event of stripe.renew(sub)) expect((await deliver(event)).status).toBe(200);
-    expect(await account(a)).toMatchObject({ balance: 144, plan: 144 });
-    expect((await a.client.from("ledger").select("kind,amount_usd").order("id")).data).toEqual([
-      { kind: "plan", amount_usd: 144 }, { kind: "expire", amount_usd: -144 }, { kind: "plan", amount_usd: 144 },
-    ]);
+    expect(await account(a)).toMatchObject({ balance: 12, plan: 12 });
+    expect((await a.client.from("plan_years").select("months_left").single()).data).toEqual({ months_left: 11 });
+  });
+
+  it("does not fulfil a year that was sold for less than its twelve months of credit", async () => {
+    await worker();
+    // $100 a year for $12 of credit a month: more credit than was paid for
+    const cheap = stripe.addPrice({ key: "starter-yearly", kind: "plan", priceUsd: 100, creditUsd: 12, name: "Starter, yearly", interval: "year", metadata: { plan: "starter" } });
+    forgetCatalogue();
+    const { sessionId } = await buy(aCookie, cheap);
+    const events = stripe.completeCheckout(sessionId!);
+    // the invoice is not recorded as done, so it can be fulfilled once the price is put right
+    expect((await deliver(events.find((e) => e.type === "invoice.paid")!)).status).toBe(503);
+    expect((await account(a)).balance).toBe(0);
+    expect((await db().from("plan_years").select("months_left").eq("user_id", a.id)).data).toEqual([]);
   });
 
   it("runs a subscription: a paid month grants credit that the next month replaces, whatever order the events come in", async () => {

@@ -427,3 +427,63 @@ tests, the accounts browser suite (the monthly and yearly choice on `/pricing`),
 seven now. Not done: `npm run stripe:setup` (the owner's click), so the real Stripe test account still sells the
 §12 prices; nobody has looked at the pricing page with the real three plans on it; a real yearly payment.
 
+
+## 14. A year's credits come a month at a time (owner's direction, 2026-10-10)
+
+The owner, on §13.3: not all at once. A plan paid by the year gives the same credits every month as the plan
+paid by the month, as other subscriptions sold by the year do. **This replaces §13.3 and its ruling.** The
+prices, the portal rule (§13.4) and everything else in §13 stand.
+
+§13.3 refused this because it needs credit granted without a payment behind each grant. It is built so that
+this stays one narrow thing:
+
+**What a yearly price says.** `credit_usd` in a price's metadata is what one month grants, for a monthly and a
+yearly price alike (`billing/plans.json`: the yearly item has the plan's own `creditUsd` and `minutes`). The
+worker reads twelve months from the price being billed by the year, and refuses an invoice that paid less than
+the twelve months of credit it stands for.
+
+**The invoice** (`fulfil_plan_period`, migration `20261010000005`). The worker calls it for every plan invoice,
+with the number of months paid for. It is `fulfil_plan_invoice`, unchanged, and in the same transaction a row in
+`plan_years`: the subscription, the invoice, a month's credit, how many months are still to come (eleven), and
+when the year ends. A plan by the month removes the row. There is no moment at which a year is paid for and its
+months are not owed. A second subscription beside a live one gets what its invoice grants and no row (owner's
+to put right; its outcome says so).
+
+**Each month after** (`grant_plan_month`, the worker's alone, asked for every row with months to come in the
+hourly pass that also asks Stripe for missed events). It takes only a user id. It grants a month's credit when
+all of these hold, and says which does not otherwise: there is a row; months are left; the day has come
+(counted back from the year's end, so the second month begins one month after the first); the subscription the
+row names is the user's and live (one set to end with its year is live until then); the invoice's refunds leave
+a month still owed (a refund takes months off the end: `floor(months × (1 − refunded / paid))` are owed in all).
+Then, exactly as at a monthly renewal: what is left of last month expires, the month counter moves on, a debt
+is paid first. The count is moved under the user's lock, so two workers, or one asking twice, grant once. The
+invoice's payment row is moved to the new month, so a refund from then on takes from the current month and
+notes what is out with jobs, as it does for a payment by the month.
+
+A worker that was away for months is owed them one call at a time; each but the last expires with the next, so
+one month's credit is there, as if it had never been away.
+
+**Why any worker may do it.** Unlike a series, this needs nothing from a disk and buys nothing: every worker on
+a database would do the same thing, and the database lets only one of them. So there is no `here()` check, on
+purpose.
+
+**What a customer sees.** `/pricing`: the same "N credits every month" under either way of paying, the year's
+price, and "Twelve months for the price of 10" worked out from the two prices. The account page: the plan's
+credits "to use by" the day the next month comes, and that day beside the renewal date (`plan_years` is readable
+by its own user and nobody else; `monthsBefore` counts the day as the database does).
+
+**Margins by the year** change with this: a year now costs the studio at most twelve months of credit as
+before ($30, $90, $270), but never more than one month's at a time, and a customer who uses little leaves the
+rest each month: $390, $990 and $1,990 for at most $30, $90 and $270 of cost.
+
+**Checked.** In the database: a year month by month to its twelfth and no further; not before its day; asked
+twice; a worker away for three months; an ended subscription and one set to end; a refund of all and of half;
+the next year; a plan by the month after; once per event and per invoice; the two roles. The 648-case sum of a
+refunded month with two jobs out runs a second time for the second month of a year, where "renews" is the
+worker's grant (1,296 cases). Through the stand-in Stripe: a year bought at Checkout, a month's credit, the
+worker's pass before and after the day, the next year's invoice; a year priced below its credit is not
+fulfilled. **Not checked:** a real yearly payment in Stripe's test mode; a real month going by.
+
+**Parked.** A refund in part takes whole months off the end and a share of the current month; it does not
+reach back into months that have expired (nothing is left of them to take). Telling a customer by email that a
+month's credits have come.

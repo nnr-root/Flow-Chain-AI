@@ -36,6 +36,22 @@ describe.skipIf(!supa)("billing in the database", () => {
       p_plan: opts.plan ?? "starter", p_price_id: "price_starter", p_paid_usd: opts.paid ?? 19, p_credit_usd: credit,
       p_period_end: new Date(Date.now() + 30 * 86_400_000).toISOString(), p_charge_id: opts.charge ?? unique("ch"), p_invoice_url: "https://stripe.test/i",
     });
+  /** A plan paid for by the year: the invoice grants the first of twelve months. */
+  const year = (u: TestUser, credit: number, opts: { event?: string; invoice?: string; sub?: string; paid?: number; charge?: string; months?: number } = {}) =>
+    rpc("fulfil_plan_period", {
+      p_event_id: opts.event ?? unique("evt"), p_user_id: u.id, p_invoice_id: opts.invoice ?? unique("in"), p_subscription_id: opts.sub ?? `sub_${u.id}`,
+      p_plan: "starter", p_price_id: "price_starter_yearly", p_paid_usd: opts.paid ?? 190, p_credit_usd: credit,
+      p_period_end: new Date(Date.now() + 365 * 86_400_000).toISOString(), p_months: opts.months ?? 12, p_charge_id: opts.charge ?? unique("ch"), p_invoice_url: "https://stripe.test/i",
+    });
+  /** Time goes by for one user's year (the database reads its own clock, so the year is moved, not the clock). */
+  const later = (u: TestUser, months = 1) => db().query("update public.plan_years set period_end = period_end - make_interval(months => $2, days => 1) where user_id = $1", [u.id, months]);
+  /**
+   * Asks for the next month, as the worker does every hour. What it answers is not asserted where a month is due:
+   * any worker on this database (another test file's, the owner's own studio) may have granted it a moment
+   * before, which is the point of the design. What the user then has is the same, and that is asserted.
+   */
+  const nextMonth = (u: TestUser) => rpc("grant_plan_month", { p_user_id: u.id });
+  const left = async (u: TestUser) => (await db().query<{ months_left: number }>("select months_left from public.plan_years where user_id = $1", [u.id]))[0]?.months_left;
   const run = async (u: TestUser) => {
     const id = freshRunId();
     const { error } = await u.client.rpc("create_run", { p_id: id, p_topic: "t" });
@@ -311,7 +327,124 @@ describe.skipIf(!supa)("billing in the database", () => {
     expect(await owed(b)).toEqual([2]);
   });
 
-  it("ends every way a refunded month can go with two jobs out at what a plain sum says", async () => {
+  it("grants a year that was paid for a month at a time: the first with the invoice, each next one when its day comes, and what is left of a month expires", async () => {
+    expect(await year(a, 10)).toBe("fulfilled");
+    expect(await account(a)).toMatchObject({ balance: 10, plan: 10 });
+    expect(await left(a)).toBe(11);
+    // not before its day, however often it is asked
+    expect([await nextMonth(a), await nextMonth(a)]).toEqual(["not_due", "not_due"]);
+    expect(await kinds(a)).toEqual(["plan 10 → 10"]);
+    const job = await reserve(a, await run(a), 4);
+    await settle(job, 4);
+    await later(a);
+    await nextMonth(a);
+    // asked again the same day: one month, not two
+    expect(await nextMonth(a)).toBe("not_due");
+    expect(await kinds(a)).toEqual(["plan 10 → 10", "reserve -4 → 6", "settle 0 → 6", "expire -6 → 0", "plan 10 → 10"]);
+    expect(await left(a)).toBe(10);
+    // the rest of the year, and nothing after its twelfth month
+    for (let i = 0; i < 10; i++) {
+      await later(a);
+      await nextMonth(a);
+    }
+    await later(a);
+    expect(await nextMonth(a)).toBe("done");
+    expect((await kinds(a)).filter((k) => k.startsWith("plan "))).toHaveLength(12);
+    expect(await account(a)).toMatchObject({ balance: 10, plan: 10 });
+    // nobody else's year moved
+    expect(await nextMonth(b)).toBe("none");
+  });
+
+  it("owes a worker that was away its months one at a time, each expiring with the next, so that one month's credit is there", async () => {
+    await year(a, 10);
+    await later(a, 3);
+    for (let i = 0; i < 5; i++) await nextMonth(a);
+    expect(await kinds(a)).toEqual(["plan 10 → 10", "expire -10 → 0", "plan 10 → 10", "expire -10 → 0", "plan 10 → 10", "expire -10 → 0", "plan 10 → 10"]);
+    expect(await left(a)).toBe(8);
+  });
+
+  it("grants no month of a year whose subscription has ended, and goes on granting one that is set to end with its year", async () => {
+    const sub = unique("sub");
+    await year(a, 10, { sub });
+    await rpc("sync_subscription", { p_event_id: unique("evt"), p_user_id: a.id, p_subscription_id: sub, p_plan: "starter", p_price_id: "p", p_status: "active", p_period_end: new Date(Date.now() + 365 * 86_400_000).toISOString(), p_cancel_at_period_end: true });
+    await later(a);
+    await nextMonth(a);
+    expect(await left(a)).toBe(10);
+    await rpc("end_subscription", { p_event_id: unique("evt"), p_user_id: a.id, p_subscription_id: sub });
+    await later(a);
+    expect(await nextMonth(a)).toBe("not_live");
+    expect(await account(a)).toMatchObject({ balance: 0, plan: 0 });
+    expect(await left(a)).toBe(10);
+  });
+
+  it("takes the months of a refunded year off its end: none after a refund of all of it, half of them after half", async () => {
+    const charge = unique("ch");
+    await year(a, 10, { paid: 120, charge });
+    await rpc("refund_payment", { p_event_id: unique("evt"), p_charge_id: charge, p_refunded_usd: 120 });
+    await later(a);
+    expect(await nextMonth(a)).toBe("refunded");
+    expect(await account(a)).toMatchObject({ balance: 0, plan: 0 });
+
+    const half = unique("ch");
+    await year(b, 10, { paid: 120, charge: half });
+    await later(b);
+    await nextMonth(b);
+    // in its second month: the refund takes half of this month's credit, and six months are owed in all
+    await rpc("refund_payment", { p_event_id: unique("evt"), p_charge_id: half, p_refunded_usd: 60 });
+    expect(await account(b)).toMatchObject({ balance: 5, plan: 5 });
+    for (let i = 0; i < 6; i++) {
+      await later(b);
+      await nextMonth(b);
+    }
+    expect(await nextMonth(b)).toBe("refunded");
+    expect((await kinds(b)).filter((k) => k.startsWith("plan "))).toHaveLength(6);
+    expect(await left(b)).toBe(6);
+  });
+
+  it("begins the months again when the next year is paid for, and owes none to a plan by the month that came after", async () => {
+    const sub = unique("sub");
+    await year(a, 10, { sub });
+    await later(a);
+    await nextMonth(a);
+    expect(await left(a)).toBe(10);
+    expect(await year(a, 10, { sub })).toBe("fulfilled");
+    expect(await left(a)).toBe(11);
+    expect(await account(a)).toMatchObject({ balance: 10, plan: 10 });
+    // by the month from here on: the row of the year is gone, and nothing is granted without an invoice
+    expect(await rpc("fulfil_plan_period", {
+      p_event_id: unique("evt"), p_user_id: a.id, p_invoice_id: unique("in"), p_subscription_id: sub, p_plan: "starter", p_price_id: "price_starter",
+      p_paid_usd: 19, p_credit_usd: 10, p_period_end: new Date(Date.now() + 30 * 86_400_000).toISOString(), p_months: 1,
+    })).toBe("fulfilled");
+    expect(await left(a)).toBeUndefined();
+    expect(await nextMonth(a)).toBe("none");
+    expect(await account(a)).toMatchObject({ balance: 10, plan: 10 });
+  });
+
+  it("writes a year's months down once per event and once per invoice, and refuses a number of months that is none", async () => {
+    const [event, invoice] = [unique("evt"), unique("in")];
+    expect(await year(a, 10, { event, invoice })).toBe("fulfilled");
+    await later(a);
+    await nextMonth(a);
+    expect(await year(a, 10, { event, invoice: unique("in") })).toBe("duplicate");
+    expect(await year(a, 10, { invoice })).toBe("duplicate_payment");
+    // the count was not begun again by either
+    expect(await left(a)).toBe(10);
+    expect(await account(a)).toMatchObject({ balance: 10, plan: 10 });
+    for (const months of [0, 13, -1, null]) expect((await db().rpc("fulfil_plan_period", {
+      p_event_id: unique("evt"), p_user_id: b.id, p_invoice_id: unique("in"), p_subscription_id: unique("sub"), p_plan: "starter", p_price_id: "p",
+      p_paid_usd: 19, p_credit_usd: 10, p_period_end: new Date().toISOString(), p_months: months,
+    })).error, String(months)).not.toBeNull();
+    expect((await account(b)).balance).toBe(0);
+    // a second subscription beside a live one is granted what its invoice grants, and is owed no months
+    await month(b, 10, { sub: unique("sub") });
+    expect(await year(b, 10, { sub: unique("sub") })).toBe("second_subscription");
+    expect(await left(b)).toBeUndefined();
+  });
+
+  it.each(["a month that was paid for", "the second month of a year that was paid for"] as const)("ends every way a refunded month can go with two jobs out at what a plain sum says: %s", async (start) => {
+    // By the year, the month in question is one the worker granted (the year's second), "renews" is the worker
+    // granting the next, and a year that was refunded whole is owed no next month: it goes on as it is.
+    const ofYear = start !== "a month that was paid for";
     // Every combination of: other credit or none; how much each job holds; how much of the month is refunded;
     // whether the month then ends, is followed by another, or goes on; what each job spends; which settles
     // first. The balance must be what was put in, less what was refunded and spent, less the plan credit that
@@ -337,18 +470,29 @@ describe.skipIf(!supa)("billing in the database", () => {
       const spent = c.spends[0] + c.spends[1];
       const spentOfPlan = Math.min(c.spends[0], parts[0]) + Math.min(c.spends[1], parts[1]);
       const takenBack = MONTH * c.refunded;
-      const unusedAtMonthsEnd = c.then === "goes on" ? 0 : Math.max(MONTH - takenBack - spentOfPlan, 0);
-      return c.topup + MONTH - takenBack - spent - unusedAtMonthsEnd + (c.then === "renews" ? MONTH : 0);
+      const then = ofYear && c.then === "renews" && c.refunded === 1 ? "goes on" : c.then;
+      const unusedAtMonthsEnd = then === "goes on" ? 0 : Math.max(MONTH - takenBack - spentOfPlan, 0);
+      return c.topup + MONTH - takenBack - spent - unusedAtMonthsEnd + (then === "renews" ? MONTH : 0);
     };
     const play = async (c: Case): Promise<string | null> => {
       const u = await newUser(s, "sum");
       const [charge, sub] = [unique("ch"), unique("sub")];
       if (c.topup > 0) await topup(u, c.topup);
-      await month(u, MONTH, { paid: 20, charge, sub });
+      if (ofYear) {
+        // the first month goes by untouched and expires; the second is the one the jobs hold
+        await year(u, MONTH, { paid: 20, charge, sub });
+        await later(u);
+        await nextMonth(u);
+      } else await month(u, MONTH, { paid: 20, charge, sub });
       const jobs = [await reserve(u, await run(u), c.caps[0]), await reserve(u, await run(u), c.caps[1])];
       if (c.refunded > 0) await rpc("refund_payment", { p_event_id: unique("evt"), p_charge_id: charge, p_refunded_usd: 20 * c.refunded });
       if (c.then === "ends") await rpc("end_subscription", { p_event_id: unique("evt"), p_user_id: u.id, p_subscription_id: sub });
-      if (c.then === "renews") await month(u, MONTH, { sub });
+      if (c.then === "renews") {
+        if (ofYear) {
+          await later(u);
+          await nextMonth(u);
+        } else await month(u, MONTH, { sub });
+      }
       for (const i of c.order) await settle(jobs[i], c.spends[i]);
       const end = await account(u);
       const { data: ledger } = await u.client.from("ledger").select("amount_usd");
@@ -474,6 +618,8 @@ describe.skipIf(!supa)("billing in the database", () => {
       ["link_stripe_customer", { p_user_id: a.id, p_customer_id: "cus_mine" }],
       ["claim_stripe_event", { p_event_id: event, p_type: "x", p_user_id: a.id }],
       ["expire_plan_credit", { p_user_id: b.id, p_note: "x" }],
+      ["fulfil_plan_period", { p_event_id: event, p_user_id: a.id, p_invoice_id: unique("in"), p_subscription_id: "sub_x", p_plan: "pro", p_price_id: "p", p_paid_usd: 1, p_credit_usd: 1000, p_period_end: new Date().toISOString(), p_months: 12 }],
+      ["grant_plan_month", { p_user_id: a.id }],
     ];
     for (const [name, args] of calls) expect((await a.client.rpc(name, args)).error?.code, name).toBe("42501");
     expect((await a.client.from("payments").insert({ id: "x", user_id: a.id, kind: "topup", paid_usd: 0, credit_usd: 99 })).error?.code).toBe("42501");

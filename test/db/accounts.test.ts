@@ -57,6 +57,8 @@ describe.skipIf(!local)("accounts and sessions in the database", () => {
         ["settle", { p_reservation_id: "00000000-0000-4000-8000-000000000000", p_run_total_usd: 0 }],
         ["set_run_state", { p_run_id: freshRunId(), p_state: "done" }],
         ["grant_welcome_credit", { p_user_id: u.id, p_amount: 5, p_cap: 1000 }],
+        ["grant_plan_month", { p_user_id: u.id }],
+        ["fulfil_plan_period", { p_event_id: "evt_y", p_user_id: u.id, p_invoice_id: "in_y", p_subscription_id: "sub_y", p_plan: "pro", p_price_id: "p", p_paid_usd: 1, p_credit_usd: 1000, p_period_end: new Date().toISOString(), p_months: 12 }],
         ["link_stripe_customer", { p_user_id: u.id, p_customer_id: "cus_x" }],
         ["fulfil_topup", { p_event_id: "evt_x", p_user_id: u.id, p_payment_id: "pi_x", p_paid_usd: 10, p_credit_usd: 6, p_charge_id: "ch_x", p_invoice_url: "" }],
         ["refund_payment", { p_event_id: "evt_y", p_charge_id: "ch_x", p_refunded_usd: 1 }],

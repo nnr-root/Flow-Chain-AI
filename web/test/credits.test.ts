@@ -3,8 +3,9 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import measured from "@/content/measured.json";
 import { amount, money } from "@/lib/api";
+import { monthsBefore } from "@/lib/billing";
 import { credits, CREDITS_PER_USD, inCredits, usdOfCredits } from "@/lib/credit";
-import { fullyGeneratedMinutes, minutesOnSale } from "@/lib/site/calculator";
+import { fullyGeneratedMinutes, minutesOnSale, pricePerCreditDollar } from "@/lib/site/calculator";
 import { SHOWCASES } from "@/lib/site/showcases";
 import { parsePlans } from "@src/deploy/stripe-setup";
 
@@ -35,6 +36,16 @@ describe("credits: the unit a customer is shown", () => {
   });
 });
 
+describe("a plan paid by the year", () => {
+  it("has its next month's credits on the day the database grants them: the same day a month on, or the month's last", () => {
+    // eleven months before the year ends is one month after it began
+    expect(monthsBefore("2027-10-10T09:30:00.000Z", 11)).toBe("2026-11-10T09:30:00.000Z");
+    expect(monthsBefore("2027-01-31T00:00:00.000Z", 11)).toBe("2026-02-28T00:00:00.000Z");
+    expect(monthsBefore("2028-03-31T12:00:00.000Z", 1)).toBe("2028-02-29T12:00:00.000Z");
+    expect(monthsBefore("2027-03-15T00:00:00.000Z", 3)).toBe("2026-12-15T00:00:00.000Z");
+  });
+});
+
 describe("what is on sale", () => {
   const plans = parsePlans(readFileSync(resolve("billing/plans.json"), "utf8"));
   const perScene = SHOWCASES.reduce((sum, s) => sum + s.receipt.seconds / s.receipt.scenes, 0) / SHOWCASES.length;
@@ -49,21 +60,23 @@ describe("what is on sale", () => {
     expect(plans.filter((p) => p.kind === "topup")).toEqual([]);
   });
 
-  it("is each plan by the year as well: twelve months of credits for the price of ten", () => {
+  it("is each plan by the year as well: the same credits every month, twelve months for the price of ten", () => {
     const monthly = plans.filter((p) => p.interval !== "year");
     const yearly = plans.filter((p) => p.interval === "year");
     expect(yearly.map((p) => p.plan)).toEqual(monthly.map((p) => p.key));
     for (const [i, y] of yearly.entries()) {
       expect(y.priceUsd).toBe(monthly[i].priceUsd * 10);
-      expect(credits(y.creditUsd)).toBe(credits(monthly[i].creditUsd) * 12);
-      expect(y.minutes).toBe(monthly[i].minutes! * 12);
+      expect(y.creditUsd).toBe(monthly[i].creditUsd);
+      expect(y.minutes).toBe(monthly[i].minutes);
+      // a credit costs ten twelfths of what it costs by the month
+      expect(pricePerCreditDollar({ ...y, priceId: "p" })).toBeCloseTo((pricePerCreditDollar({ ...monthly[i], priceId: "p" }) * 10) / 12, 6);
     }
   });
 
   it("says the minutes a plan is built around and no more, and fewer when the measured cost no longer covers them", () => {
     const items = plans.map((p) => ({ priceId: `price_${p.key}`, creditUsd: p.creditUsd, minutes: p.minutes }));
     const said = minutesOnSale(items, measured, SHOWCASES.map((s) => s.receipt), today);
-    expect(plans.map((p) => said[`price_${p.key}`])).toEqual([5, 15, 45, 60, 180, 540]);
+    expect(plans.map((p) => said[`price_${p.key}`])).toEqual([5, 15, 45, 5, 15, 45]);
     // video that came to cost twice as much: the page says what the credits still cover, not what the plan was built for
     const dearer = { fullyGenerated: { ...measured.fullyGenerated, usd: measured.fullyGenerated.usd * 2 } };
     const then = minutesOnSale(items, dearer, SHOWCASES.map((s) => s.receipt), today);

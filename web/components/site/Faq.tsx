@@ -24,7 +24,7 @@ const questions = ({ used, sells, clipHeight }: Facts): Array<{ q: string; a: st
   },
   ...(sells ? [{
     q: "Does my credit expire?",
-    a: ["A plan's credits are for the time that was paid for, a month or a year: what is left when the next one is paid for is gone, and so is what is left when a plan ends. Credits that did not come with a plan do not expire, and a plan's are spent first."],
+    a: ["A plan's credits are for their month, whether the plan is paid by the month or by the year: what is left when the next month's come is gone, and so is what is left when a plan ends. Credits that did not come with a plan do not expire, and a plan's are spent first."],
   }] : []),
   {
     q: "What happens if a video fails half-way, or I stop it?",
