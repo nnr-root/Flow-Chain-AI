@@ -84,7 +84,12 @@ export function runpodRates(p: Prices) {
     clipUsdPerSec: p.runpodClipUsdPerSec ?? 0.000306, // RTX 4090 (no 48 GB card was in stock in the volume's data centre)
     keyframeSec: p.runpodKeyframeSec ?? 8,
     referenceSec: p.runpodReferenceSec ?? 8,
-    clipSecPerFrame: p.runpodClipSecPerFrame ?? 1.5,
+    // What a clip is expected to cost before it is made (what it did cost is measured, job by job, and that is
+    // what a run is charged). 14 clips made on a warm worker in four runs on 2026-10-10 took 0.80 to 0.99 s a
+    // frame (49 to 64 s for 53 to 73 frames); 1.5 had been assumed, which priced a run's clips, and so the most
+    // its owner is asked to approve, half as high again as they came to. 1.0 is above every one measured: an
+    // estimate that is too low stops a run at its cap, so it is kept on the safe side of the measurements.
+    clipSecPerFrame: p.runpodClipSecPerFrame ?? 1.0,
     coldStartSec: p.runpodColdStartSec ?? 90,
     // Measured on the live endpoint (phase 5 spec §9.6): a line of about 85 characters took 4.6 s of GPU, and
     // the first line of a run another 40 s for the worker to load its models.

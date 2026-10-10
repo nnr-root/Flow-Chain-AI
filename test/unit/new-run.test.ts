@@ -58,7 +58,7 @@ describe("frozenModePrices", () => {
       runpodClipUsdPerSec: 0.0009,
       runpodKeyframeSec: 8,
       runpodReferenceSec: 8,
-      runpodClipSecPerFrame: 1.5,
+      runpodClipSecPerFrame: 1.0,
       runpodColdStartSec: 90,
     });
     expect(Prices.parse(frozen)).toEqual(frozen);

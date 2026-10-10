@@ -100,16 +100,17 @@ not show one.
 - **The model's time limit** for an answer was a minute; an answer of forty scenes takes longer. A run asked
   for by its length has five (`TIMEOUTS.llmLong`).
 
-## 8. What a long video costs and takes (worked out, not measured)
+## 8. What a long video costs and takes
 
-The pipeline makes one thing at a time. From the speeds the price table records: a clip takes about 100 to 120
-seconds to make, a picture about 6, a line of voice about 5.
+Worked out from what was measured on 2026-10-10 (§10, §12), not measured at these lengths. The pipeline makes
+one thing at a time. A clip on a warm worker takes about 55 seconds and costs about $0.017; the two-minute video
+of pictures only took 16 minutes for its 28 scenes, voice and render included.
 
 | | Scenes | Made of clips only | Made of pictures only |
 |---|---|---|---|
-| 30 seconds | 6 to 10 | about 15 minutes, about 600 credits | a few minutes, about 200 credits |
-| 1 minute | 12 to 20 | about half an hour | about 5 minutes |
-| 10 minutes | 120 to 200 | **4 to 6 hours**, about 10,000 credits | about half an hour, about 1,500 credits |
+| 30 seconds | 6 to 10 | about 12 minutes, about 450 credits | about 5 minutes, about 120 credits |
+| 1 minute | 12 to 20 | about 25 minutes, about 800 credits | about 9 minutes, about 150 credits |
+| 10 minutes | 120 to 200 | **about 3 to 4 hours**, about 6,500 credits | about an hour and a half, about 1,200 credits |
 
 A job is never retried on its own, so a ten-minute video of clips that meets one failure in those hours waits
 for its owner to continue it (nothing made is bought again). Ten minutes of clips is also more than the
@@ -187,7 +188,8 @@ All four done 320 seconds after they were sent; 552 GPU seconds billed.
   for 315 GPU seconds. Three workers took as long and billed three quarters more.
 - **A warm worker made 65 frames in 54 seconds**, 0.83 a frame, where the price table says 1.5. One
   observation; if it holds, clips cost the studio about half of what a run's ledger records, and ten minutes of
-  clips on one worker take about two and a quarter hours, not the four to six of §8.
+  clips on one worker take about two and a quarter hours of clips alone (see §8 and §12, which correct this
+  paragraph: the ledger records measured cost; it is the estimate that was high).
 
 What follows for a design (not built): extra workers pay only when there are many clips, roughly a dozen or
 more for each extra worker. The endpoint would scale by the number of jobs waiting (so that a run sending one
@@ -195,4 +197,34 @@ job at a time never starts a second worker, which is what phase 3.1 §16 met), a
 how many to send at once from how many clips a run has. The clips stage would then have several jobs in
 flight for one manifest, and every rule about recording a paid call before it can be lost has to hold for
 every order in which they can end.
+
+## 12. The clip speed in the price table, and no clips in parallel (owner's direction, 2026-10-10)
+
+The owner, on §11: making clips in parallel is shelved. No code for it is written and the endpoints stay as
+they are, one worker each. First confirm the warm speed, then bring the price table to it.
+
+**Confirmed without buying anything.** A clip's charge is its measured GPU time, so the runs already on disk
+say what each took. Fourteen clips made on a warm worker in four runs of 2026-10-10:
+
+| Run | Frames | GPU seconds | Seconds a frame |
+|---|---|---|---|
+| `…b4284b` | 61, 65, 57 | 59, 64, 57 | 0.97 to 0.99 |
+| `…c6cbc7` | 65, 73 | 55, 59 | 0.81 to 0.85 |
+| `…bf1f9b` | 57, 69, 69, 61 | 49, 56, 55, 51 | 0.80 to 0.86 |
+| `…447afb` | 53, 65, 73, 69, 65 | 49, 55, 59, 56, 55 | 0.81 to 0.93 |
+
+The first clip of a run that found no worker up took 140 and 161 seconds: the 90 seconds of start the table
+already has. (A clip is not quite so many seconds a frame: twenty more frames add ten seconds. Something like
+25 seconds a clip and half a second a frame fits better; the table keeps its one number.)
+
+**Changed:** `runpodClipSecPerFrame` 1.5 → **1.0** (`src/config.ts`), above every clip measured, because an
+estimate that is too low stops a run at its cap.
+
+**A correction to §11:** it said clips might cost the studio half of what a run's ledger records. They do not.
+The ledger records what each clip was measured to cost. What was too high is the *estimate*: what a draft's
+page shows before anything is made, and so the most its owner is asked to approve and has held from their
+credit. That falls by a third for clips. What a video is charged does not change, nor does the measurement the
+plans' minutes are worked out from.
+
+Not changed: the 720p speed (2.5 s a frame, from one earlier measurement; no clip at 720p was made today).
 

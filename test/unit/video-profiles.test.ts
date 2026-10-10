@@ -36,7 +36,7 @@ describe("wan22-480p@1", () => {
   });
 
   it("prices a clip by frames × GPU seconds per frame × $/s, plus one cold start per run", () => {
-    expect(wan.costUsd(prices, 81 / 16)).toBe(0.0372); // 81 × 1.5 s × $0.000306
+    expect(wan.costUsd(prices, 81 / 16)).toBe(0.0248); // 81 × 1.0 s × $0.000306
     expect(wan.runOverheadUsd(prices)).toBe(0.0275); // 90 s × $0.000306
     expect(VIDEO_PROFILES["kling-v2"].runOverheadUsd(prices)).toBe(0);
   });
