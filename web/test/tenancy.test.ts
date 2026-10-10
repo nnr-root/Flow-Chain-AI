@@ -277,7 +277,9 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
 
     it("answers a reset request the same way whether or not the address has an account, and mails only the one that has", async () => {
       const known = await reset(request("/api/auth/reset", { json: { email: a.email } }), undefined);
-      const unknown = await reset(request("/api/auth/reset", { json: { email: "nobody@example.test" } }), undefined);
+      // (an address of this run's own: requests are counted by address for an hour, in a database every run shares,
+      // and the fourth run within the hour was refused where this test expects an answer)
+      const unknown = await reset(request("/api/auth/reset", { json: { email: `nobody-${Date.now().toString(36)}@example.test` } }), undefined);
       expect([known.status, await known.json()]).toEqual([unknown.status, await unknown.json()]);
       expect(known.status).toBe(200);
       expect(mails().map((m) => [m.kind, m.to])).toEqual([["reset", a.email]]);
