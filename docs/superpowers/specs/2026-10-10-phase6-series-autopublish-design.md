@@ -233,3 +233,33 @@ project is audited, a "published" video is on the user's channel and only they c
 - TikTok and Instagram: not begun (D1).
 - The landing page still says nothing of series or publishing. It may once a real video has reached a real
   channel through a real audited client; until then the claim would be about a stand-in.
+
+## 11. First real consent, and what waits for a server and a domain (2026-10-10)
+
+**What is now verified against Google itself.** The owner made a Google Cloud project (YouTube Data API v3 on,
+an OAuth client for `http://127.0.0.1:3131/auth/youtube/callback`, the app in "Testing" with the owner as a
+test user), put the three settings in `.env`, and connected their own channel in the local studio. The
+database holds the channel by its name with a sealed token of 131 bytes: the consent page, the exchange of the
+code by the worker, reading which channel it is, sealing and keeping the token all worked against the real
+thing. **Not verified yet: an upload.** No post has been asked for (the account had no video and no credit).
+
+**Parked by the owner until there is a server (VDS) and a domain.** In this order, when they exist:
+
+1. **Publish the app** (Google Auth Platform → Audience → Publishing status → Publish app). While it is in
+   "Testing", a user's permission lapses after seven days and only listed test users can connect. After it,
+   every channel is connected once more (a permission given during testing still lapses). An unverified app in
+   production shows Google's "not verified" warning and is held to about a hundred users.
+2. **Add the server's redirect address** to the OAuth client: `https://<domain>/auth/youtube/callback`.
+3. **Write `/terms` and `/privacy`.** They still say that they are not written; Google's verification and
+   YouTube's audit both ask for a published privacy policy on a domain the owner has verified.
+4. **Ask for verification** of the app (same screen): the domain, the two pages, a short video of the consent
+   and of what the permission is used for, and a written reason for each scope. It removes the warning and the
+   limit on users.
+5. **Ask for YouTube's API audit** ("YouTube API Services: Audit and Quota Extension" form). Until it is
+   passed, every video the project uploads is kept private on the user's channel. This is separate from 1 and 4.
+
+Until then publishing is for the owner's own channel on the owner's own machine: the permission is given again
+each week, and what is uploaded is visible to the owner only. Nothing on any page says otherwise.
+
+These are Google's rules as remembered and as read from secondary sources on 2026-10-10; each is to be read on
+Google's own page when its step is taken, and what was found recorded here.

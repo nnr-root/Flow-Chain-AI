@@ -215,9 +215,11 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
   (`web/worker/publish.ts`). The web role cannot read `channels` at all. Do not move any of that to the web app.
 - A post is a row before the worker is told, is sent once, and what is there is never changed. A series posts
   by itself only when its owner turned "Show me each video first" off.
-- **Verified only against a stand-in** (`web/test/youtube.ts`, through `GOOGLE_TOKEN_URL` and
-  `YOUTUBE_API_BASE`). Until the owner's Google project is audited, YouTube keeps what it uploads private. No
-  page says "we post for you" until a real video has reached a real channel.
+- **What is real so far** (spec §11): connecting a channel worked against Google itself (the owner's own, on the
+  owner's machine, the app in "Testing"); an upload has only ever met the stand-in (`web/test/youtube.ts`,
+  through `GOOGLE_TOKEN_URL` and `YOUTUBE_API_BASE`). Publishing the app, the legal pages, Google's verification
+  and YouTube's audit are **parked by the owner until there is a server and a domain** (the list is in §11).
+  No page says "we post for you" until a real video has reached a real channel.
 
 ## Database workflow
 
