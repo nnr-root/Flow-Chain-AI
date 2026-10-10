@@ -1,15 +1,30 @@
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { lengthInWords, sceneBounds, sceneWords, totalWords, WORDS_PER_SECOND } from "../duration.js";
-import { LlmOutline, LlmPart, LlmScript, MAX_NARRATION_WORDS } from "../manifest/schema.js";
+import { LlmOutline, LlmPart, LlmScript, MAX_COUNTED_SCENES, MAX_NARRATION_WORDS } from "../manifest/schema.js";
 import { PRESETS } from "../presets.js";
 import type { LlmProvider, ScriptRequest } from "./types.js";
 
 /** Gemini's responseJsonSchema takes plain JSON Schema; drop the draft marker zod adds. */
-export function scriptJsonSchema(kind: "script" | "outline" | "part" = "script"): Record<string, unknown> {
+export function scriptJsonSchema(kind: "script" | "outline" | "part" = "script", most: number = MAX_COUNTED_SCENES): Record<string, unknown> {
   const of = kind === "outline" ? LlmOutline : kind === "part" ? LlmPart : LlmScript;
   const { $schema: _ignored, ...schema } = z.toJSONSchema(of) as Record<string, unknown>;
+  // The model's service refuses a schema whose list of scenes may be long: tried against it on 2026-10-10, a
+  // limit of 12 or 16 is taken and one of 24, 54 or 360 is answered "invalid argument", while no limit at all is
+  // taken. So a short list says its limit, as it always has, and a longer one says none: how many scenes an
+  // answer has is checked when it comes back, whatever the schema said.
+  const list = (schema.properties as Record<string, { maxItems?: number }>)[kind === "outline" ? "parts" : "scenes"];
+  if (most <= MAX_COUNTED_SCENES) list.maxItems = most;
+  else delete list.maxItems;
   return schema;
+}
+
+/** The most entries the answer to a request may have: what the script stage would still accept (see `timingProblems`). */
+export function mostEntries(req: ScriptRequest): number {
+  if (req.ask?.kind === "outline") return req.ask.partSec.length;
+  if (!req.timing) return MAX_COUNTED_SCENES;
+  const sec = req.ask?.kind === "part" ? req.ask.partSec[req.ask.index] : req.timing.targetSec;
+  return Math.ceil(sceneBounds(sec, req.timing.sceneSec).max * 1.2);
 }
 
 const seconds = (r: { min: number; max: number }): string => (r.min === r.max ? `about ${r.min}` : `${r.min} to ${r.max}`);
@@ -167,7 +182,7 @@ export class GeminiLlm implements LlmProvider {
     const res = await this.ai.models.generateContent({
       model: this.model,
       contents: buildScriptPrompt(req),
-      config: { responseMimeType: "application/json", responseJsonSchema: scriptJsonSchema(req.ask?.kind ?? "script"), temperature: 0.9 },
+      config: { responseMimeType: "application/json", responseJsonSchema: scriptJsonSchema(req.ask?.kind ?? "script", mostEntries(req)), temperature: 0.9 },
     });
     const text = res.text;
     if (!text) throw new Error("Gemini returned an empty response");

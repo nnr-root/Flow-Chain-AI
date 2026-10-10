@@ -89,6 +89,9 @@ describe("store", () => {
     const m = createManifest("run-1", { ...auto, modeBudgetUsd: 2, modePrices: Prices.parse({}) }, models);
     expect(m.scenes.map((s) => s.mode)).toEqual([1, 1, 1]);
     expect(m.request.modes).toBeUndefined();
+    // a pinned scene starts as what it was pinned to, so pictures only is priced as pictures before the script exists
+    const pinned = createManifest("run-1", { ...auto, modeBudgetUsd: 2, modePrices: Prices.parse({}), modeOverrides: [2, null, 2] }, models);
+    expect(pinned.scenes.map((s) => s.mode)).toEqual([2, 1, 2]);
     expect(() => createManifest("run-1", auto, models)).toThrow("auto modes need modeBudgetUsd and modePrices");
   });
 

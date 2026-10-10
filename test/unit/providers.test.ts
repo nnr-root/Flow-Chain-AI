@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { HttpError, isRetryable, NonRetryableError, UnusableResultError } from "../../src/providers/retry.js";
-import { buildScriptPrompt, scriptJsonSchema } from "../../src/providers/gemini.js";
+import { buildScriptPrompt, scriptJsonSchema, mostEntries } from "../../src/providers/gemini.js";
 import { PRESETS } from "../../src/presets.js";
 
 describe("gemini prompt and schema", () => {
@@ -62,7 +62,18 @@ describe("gemini prompt and schema", () => {
   it("produces a JSON schema without $schema", () => {
     const s = scriptJsonSchema() as { $schema?: string; properties: { scenes: { maxItems: number } } };
     expect(s.$schema).toBeUndefined();
-    expect(s.properties.scenes.maxItems).toBe(MAX_SCENES);
+    // the list is as long as this one answer may be, never as long as a run can be: the service refuses hundreds
+    expect(s.properties.scenes.maxItems).toBe(12);
+    expect(mostEntries({ topic: "t", sceneCount: 4, aspect: "9:16" })).toBe(12);
+    const timing = { targetSec: 600, sceneSec: { min: 2, max: 2 } };
+    expect(mostEntries({ topic: "t", sceneCount: 300, aspect: "9:16", timing: { targetSec: 30, sceneSec: { min: 3, max: 5 } } })).toBe(12);
+    expect(mostEntries({ topic: "t", sceneCount: 300, aspect: "9:16", timing, ask: { kind: "outline", partSec: Array(10).fill(60) } })).toBe(10);
+    expect(mostEntries({ topic: "t", sceneCount: 300, aspect: "9:16", timing, ask: { kind: "part", index: 0, partSec: Array(10).fill(60), outline: {} as never, previous: [] } })).toBe(36);
+    // a list longer than the service takes a limit for says none (the answer's count is checked when it is back)
+    expect((scriptJsonSchema("part", 36) as { properties: { scenes: { maxItems?: number } } }).properties.scenes.maxItems).toBeUndefined();
+    expect((scriptJsonSchema("script", 12) as { properties: { scenes: { maxItems?: number } } }).properties.scenes.maxItems).toBe(12);
+    expect((scriptJsonSchema("outline", 10) as { properties: { parts: { maxItems?: number } } }).properties.parts.maxItems).toBe(10);
+    expect(MAX_SCENES).toBeGreaterThan(36 * 9);
     // a long video's two kinds of answer have schemas of their own
     expect(Object.keys((scriptJsonSchema("outline") as { properties: object }).properties)).toEqual(["title", "stylePreset", "styleBible", "hook", "parts"]);
     expect(Object.keys((scriptJsonSchema("part") as { properties: object }).properties)).toEqual(["scenes"]);

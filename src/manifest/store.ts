@@ -71,8 +71,10 @@ export function createManifest(
     throw new Error("auto modes need modeBudgetUsd and modePrices");
   }
   if (request.modeOverrides) assertModeOverrides(request);
-  // auto runs start as all Mode 1 (the most expensive assumption) until the modes stage has run
-  const modes = request.modes ?? Array.from({ length: request.sceneCount }, (): Mode => 1);
+  // Auto runs start as all Mode 1 (the most expensive assumption) until the modes stage has run. A scene that
+  // was pinned starts as what it was pinned to: a run made of pictures only is not priced, before its script
+  // exists, as if every scene were a clip (which put a two-minute one over a cap it was nowhere near).
+  const modes = request.modes ?? Array.from({ length: request.sceneCount }, (_, i): Mode => request.modeOverrides?.[i] ?? 1);
   return {
     schemaVersion: SCHEMA_VERSION,
     runId,
