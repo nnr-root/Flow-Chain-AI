@@ -6,7 +6,7 @@ export default function PageError({ reset }: { error: Error; reset: () => void }
     <div className="mx-auto max-w-xl px-6 py-16 text-center" data-testid="page-error">
       <h1 className="text-lg font-semibold">This page could not be loaded</h1>
       <p className="mt-2 text-[0.95rem] text-graphite">The studio could not put it together just now; if the banner above says the job queue is unavailable, that is why. Your runs are safe on disk.</p>
-      <button type="button" onClick={reset} className="mt-6 rounded-md border border-hairline px-4 py-2 text-[0.95rem]">
+      <button type="button" onClick={reset} className="mt-6 rounded-[3px] border border-hairline px-4 py-2 text-[0.95rem]">
         Try again
       </button>
     </div>

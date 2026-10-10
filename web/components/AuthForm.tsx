@@ -40,9 +40,9 @@ export function AuthForm({ mode, next = "/", error: initialError = "", info = ""
     <div className="mt-4 flex items-start justify-between gap-16 lg:mt-10">
     <div className="w-full max-w-[26rem] space-y-6">
       <h1 className="display text-[clamp(2.6rem,1.6rem+4vw,4rem)] leading-[0.92]">{TITLE[mode]}</h1>
-      {info && !notice && <p role="status" data-testid="auth-info" className="border-l-4 border-good bg-good/5 px-4 py-2.5 text-[0.95rem] text-good">{info}</p>}
+      {info && !notice && <p role="status" data-testid="auth-info" className="bg-good/10 px-4 py-2.5 text-[0.95rem] text-good">{info}</p>}
       {notice ? (
-        <p role="status" data-testid="auth-notice" className="border-l-4 border-good bg-good/5 px-4 py-2.5 text-[0.95rem] text-good">{notice}</p>
+        <p role="status" data-testid="auth-notice" className="bg-good/10 px-4 py-2.5 text-[0.95rem] text-good">{notice}</p>
       ) : (
         <form onSubmit={submit} className="space-y-4" data-testid={`auth-${mode}`}>
           {withEmail && (
@@ -60,7 +60,7 @@ export function AuthForm({ mode, next = "/", error: initialError = "", info = ""
         </form>
       )}
       {google && (mode === "login" || mode === "signup") && !notice && (
-        <a href={`/auth/google?next=${encodeURIComponent(next)}`} className="block rounded-md border-[1.5px] border-ink/30 bg-sheet px-4 py-3 text-center font-semibold hover:border-ink" data-testid="auth-google">
+        <a href={`/auth/google?next=${encodeURIComponent(next)}`} className="block rounded-[3px] border-[1.5px] border-ink/30 bg-sheet px-4 py-3 text-center font-semibold hover:border-ink" data-testid="auth-google">
           Continue with Google
         </a>
       )}

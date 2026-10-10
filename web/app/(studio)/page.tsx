@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Frame } from "@/components/Sketch";
 import { StateBadge } from "@/components/ui";
 import { forUser } from "@/server/page";
 import { listRuns } from "@/server/runs";
@@ -12,7 +13,7 @@ export default async function Page() {
       <div className="max-w-[40rem] py-10">
         <h1 className="display text-[clamp(2.6rem,1.6rem+4vw,4.5rem)] leading-[0.92]">No videos yet.</h1>
         <p className="mt-5 text-[1.1rem] text-graphite">A video starts from one sentence. The script is written first, and you see what the rest will cost before any of it is made.</p>
-        <Link href="/new" className="mt-7 inline-block rounded-md bg-signal px-5 py-3 font-semibold text-sheet hover:bg-ink">Make the first one</Link>
+        <Link href="/new" className="mt-7 inline-block rounded-[3px] bg-ink px-5 py-3 font-semibold text-sheet hover:bg-signal">Make the first one</Link>
       </div>
     );
   }
@@ -23,7 +24,8 @@ export default async function Page() {
       {runs.map((r) => (
         <li key={r.runId}>
           <Link href={`/runs/${r.runId}`} className="group block">
-            <div className="grid aspect-video place-items-center overflow-hidden rounded-[10px] bg-stage outline-offset-2 group-hover:outline group-hover:outline-[3px] group-hover:outline-marker">
+            <div className="relative">
+            <div className="grid aspect-video place-items-center overflow-hidden bg-stage transition-opacity group-hover:opacity-85">
               {r.thumbnail ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={`/api/runs/${r.runId}/files/${r.thumbnail}`} alt="" className="h-full w-full object-cover" />
@@ -31,10 +33,12 @@ export default async function Page() {
                 <span className="text-[0.85rem] text-sheet/70">{r.state === "draft" ? "A draft: no pictures yet" : "No picture"}</span>
               )}
             </div>
+            <Frame seed={r.runId.length + r.runId.charCodeAt(r.runId.length - 1)} />
+            </div>
             <div className="mt-3 space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <StateBadge state={r.state} />
-                {r.spendUsd !== undefined && <span className="figures text-[0.85rem] text-graphite">${r.spendUsd.toFixed(2)}</span>}
+                {r.spendUsd !== undefined && <span className="note">${r.spendUsd.toFixed(2)}</span>}
               </div>
               <p className="line-clamp-2 font-semibold leading-snug group-hover:underline group-hover:underline-offset-4">{r.title ?? r.topic ?? r.runId}</p>
               {r.sceneCount ? <p className="text-[0.85rem] text-graphite">{r.sceneCount} scenes, {r.aspect}</p> : null}

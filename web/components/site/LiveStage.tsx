@@ -3,7 +3,9 @@ import { motion, useReducedMotion } from "motion/react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { type Controls, madeControls, mediaUrl, restyle } from "@/lib/site/restyle";
+import { Arrow, Frame } from "@/components/Sketch";
 import { SHOW_EVENT, type Showcase } from "@/lib/site/showcases";
+import type { ShowcasePlayerHandle } from "./ShowcasePlayer";
 import { Stage } from "./Stage";
 
 // the player and the composition are the heavy part of the page: fetched after the poster is on screen
@@ -24,10 +26,10 @@ function Choice<T extends string>({ label, options, value, onChange }: { label: 
       <legend className="text-[0.9rem] font-semibold">{label}</legend>
       <div className="mt-2 flex flex-wrap gap-x-1.5 gap-y-1.5">
         {options.map(([id, name]) => (
-          <label key={id} className="relative cursor-pointer rounded-[4px] px-2 py-0.5 text-[0.95rem] has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-signal">
+          <label key={id} className="relative cursor-pointer rounded-[2px] px-2 py-0.5 text-[0.95rem] has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-signal">
             <input type="radio" name={group} value={id} checked={value === id} onChange={() => onChange(id)} className="sr-only" />
             {/* the highlighter, which slides to the one chosen */}
-            {value === id && <motion.span layoutId={`${group}-mark`} transition={SNAP} className="absolute inset-0 rounded-[4px] bg-marker" />}
+            {value === id && <motion.span layoutId={`${group}-mark`} transition={SNAP} className="absolute inset-0 rounded-[0.5em_0.2em_0.55em_0.18em] bg-marker" />}
             <span className={`relative ${value === id ? "font-semibold" : "text-graphite hover:text-ink"}`}>{name}</span>
           </label>
         ))}
@@ -60,6 +62,7 @@ export function LiveStage({ showcases, children }: { showcases: Showcase[]; chil
   const [live, setLive] = useState(false);
   const still = useReducedMotion() ?? false;
   const frame = useRef<HTMLDivElement>(null);
+  const player = useRef<ShowcasePlayerHandle>(null);
 
   // not before the page has painted and the Stage is actually looked at
   useEffect(() => {
@@ -100,11 +103,15 @@ export function LiveStage({ showcases, children }: { showcases: Showcase[]; chil
   const changed = JSON.stringify(controls) !== JSON.stringify(madeControls(looks));
 
   return (
-    <section className="pb-6 pt-12 lg:pt-16" data-testid="live-stage">
-      <div className="grid items-start gap-x-10 gap-y-12 lg:grid-cols-12">
-        <div className="lg:col-span-7">{children}</div>
-        <div id="stage" className="w-full max-w-[21rem] scroll-mt-24 justify-self-center lg:col-span-5 lg:justify-self-end">
-          <Stage caption={[`${receipt.seconds.toFixed(1)} s, ${receipt.scenes} scenes`, `${usd(receipt.totalUsd)} of credit`]}>
+    <section className="pb-6 pt-10 lg:pt-14" data-testid="live-stage">
+      {/*
+        The board: the page's words, then the video's own scenes as panels, in order, and at the end of the row the
+        panel that moves. A click on a panel plays the video from that scene.
+      */}
+      <div className="grid items-start gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_19rem] xl:grid-cols-[minmax(0,1fr)_21rem]">
+        <div className="min-w-0">{children}</div>
+        <div id="stage" className="w-full max-w-[21rem] scroll-mt-24 justify-self-center lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:justify-self-end">
+          <Stage order={showcase.making.scenes.length + 1} caption={[`the finished cut, ${receipt.seconds.toFixed(1)} s`, `${usd(receipt.totalUsd)} of credit`]}>
             <div
               ref={frame}
               className="absolute inset-0"
@@ -122,19 +129,44 @@ export function LiveStage({ showcases, children }: { showcases: Showcase[]; chil
               <img src={`/showcase/${showcase.slug}/poster.jpg`} alt={`A frame of “${receipt.title}”, a video made with Flow Chain`} fetchPriority="high" className="absolute inset-0 h-full w-full object-cover" />
               {live && (
                 <motion.div key={showcase.slug} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }} className="absolute inset-0">
-                  <ShowcasePlayer props={props} resolve={resolve} autoPlay={!still} />
+                  <ShowcasePlayer props={props} resolve={resolve} autoPlay={!still} handle={player} />
                 </motion.div>
               )}
-        </div>
+            </div>
           </Stage>
+        </div>
+        {/* (after the video in the page, so that on a phone the video comes first; beside it on a wide screen) */}
+        <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+          <ol className="-mx-6 flex gap-2 overflow-x-auto px-6 pb-2 pt-1 sm:-mx-10 sm:px-10 lg:mx-0 lg:overflow-visible lg:px-0" data-testid="board" aria-label={`The scenes of “${receipt.title}”, in order`}>
+            {showcase.making.scenes.map((scene, i) => (
+              <li key={`${showcase.slug}-${i}`} className="flex w-[9.5rem] shrink-0 items-start gap-2 lg:w-auto lg:min-w-0 lg:flex-1 lg:shrink">
+                <div className="min-w-0 flex-1">
+                  <button
+                    type="button" data-testid={`board-${i + 1}`} aria-label={`Play from scene ${i + 1}`}
+                    onClick={(e) => player.current?.playFrom(props.scenes[i]?.from ?? 0, e)}
+                    className="group relative block w-full outline-offset-4"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/showcase/${showcase.slug}/${scene.thumb}`} alt="" loading={i === 0 ? "eager" : "lazy"} className="aspect-[9/16] w-full object-cover transition-opacity group-hover:opacity-85" />
+                    <Frame seed={i * 3 + 2} order={i} />
+                    <span className="absolute left-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-sheet text-[0.8rem] font-bold">{i + 1}</span>
+                  </button>
+                  <p className="note written mt-2.5" style={{ "--i": i } as React.CSSProperties}>{scene.kind === "clip" ? "moving clip" : "still, camera moves"}, {scene.seconds.toFixed(1)} s</p>
+                  <p className="mt-1.5 text-[0.86rem] leading-snug text-graphite">{scene.narration}</p>
+                </div>
+                {/* (the last panel keeps the room an arrow takes, so all four are one width) */}
+                {i < showcase.making.scenes.length - 1 ? <Arrow seed={i + 1} order={i + 1} className="mt-[4.2rem] hidden h-5 w-7 shrink-0 lg:block" /> : <span className="hidden w-7 shrink-0 lg:block" />}
+              </li>
+            ))}
+          </ol>
         </div>
       </div>
 
       {/* the desk under the monitor: what a free re-render can change, changed here at once */}
-      <form className="mt-14 border-t-2 border-ink pt-5" aria-label="Restyle this video" onSubmit={(e) => e.preventDefault()}>
+      <form className="mt-14 ruled" aria-label="Restyle this video" onSubmit={(e) => e.preventDefault()}>
         <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
           <p className="max-w-[44rem] text-[1.02rem] leading-snug">
-            That is not a recording. It is the real renderer, running in your browser on a video Flow Chain made: change how it is captioned and cut, and nothing is bought.
+            The video beside the board is not a recording. It is the real renderer, running in your browser on a video Flow Chain made: change how it is captioned and cut, and nothing is bought.
           </p>
           <button type="button" onClick={() => setControls(madeControls(looks))} disabled={!changed} data-testid="restyle-reset" className="text-[0.95rem] underline underline-offset-4 disabled:opacity-40">
             Back to how it was made
@@ -145,7 +177,7 @@ export function LiveStage({ showcases, children }: { showcases: Showcase[]; chil
             <legend className="text-[0.9rem] font-semibold">Video</legend>
             <div className="mt-2 flex gap-2.5">
               {showcases.map((s) => (
-                <label key={s.slug} title={s.receipt.title} className={`relative block w-12 shrink-0 cursor-pointer overflow-hidden rounded-[6px] outline-offset-2 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-signal ${s.slug === slug ? "ring-[3px] ring-marker ring-offset-2 ring-offset-paper" : "opacity-70 hover:opacity-100"}`}>
+                <label key={s.slug} title={s.receipt.title} className={`relative block w-12 shrink-0 cursor-pointer overflow-hidden rounded-[2px] outline-offset-2 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-signal ${s.slug === slug ? "ring-[3px] ring-signal ring-offset-2 ring-offset-paper" : "opacity-70 hover:opacity-100"}`}>
                   <input type="radio" name="video" value={s.slug} checked={s.slug === slug} onChange={() => choose(s.slug)} className="sr-only" aria-label={s.receipt.title} />
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`/showcase/${s.slug}/poster.jpg`} alt="" loading="lazy" className="aspect-[9/16] w-full object-cover" />
@@ -162,7 +194,7 @@ export function LiveStage({ showcases, children }: { showcases: Showcase[]; chil
                 <input
                   type="text" value={controls.hookText} onChange={(e) => set("hookText", e.target.value.slice(0, 60))} disabled={!controls.hook}
                   placeholder={looks.hook.text} aria-label="The opening title's words" data-testid="hook-text"
-                  className="mt-2 w-full rounded-md border border-hairline bg-sheet px-3 py-2 text-[0.95rem] placeholder:text-graphite/70 disabled:opacity-40"
+                  className="mt-2 w-full rounded-[3px] border border-hairline bg-sheet px-3 py-2 text-[0.95rem] placeholder:text-graphite/70 disabled:opacity-40"
                 />
               </div>
             )}

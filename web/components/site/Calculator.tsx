@@ -33,7 +33,7 @@ export function Calculator({ items, engine, others, asOf }: { items: CatalogueIt
         <div className="lg:col-span-5">
           <label htmlFor={slider} className="block text-[1.02rem]">
             Videos a month
-            <output htmlFor={slider} className="display float-right text-[2.6rem] leading-none" data-testid="calc-videos">{videos}</output>
+            <output htmlFor={slider} className="display float-right text-[3.4rem] leading-none text-pencil" data-testid="calc-videos">{videos}</output>
           </label>
           <input id={slider} type="range" min={1} max={150} step={1} value={videos} onChange={(e) => setVideos(Number(e.target.value))} className="range mt-5 w-full" />
           <p className="mt-8 text-[1.02rem]">
@@ -63,7 +63,7 @@ export function Calculator({ items, engine, others, asOf }: { items: CatalogueIt
 
       {others.length > 0 && q && seconds > 0 && (
         <div className="mt-16" data-testid="calc-others">
-          <h3 className="display text-[1.9rem] leading-[0.98]">The same month elsewhere</h3>
+          <h3 className="printed text-[1.5rem] leading-[1.1]">The same month elsewhere</h3>
           <p className="mt-3 max-w-[44rem] text-[1.02rem] leading-[1.5]">
             Other tools sell generated clips by the second. {videos} such videos hold about {Math.round(videos * seconds)} seconds of generated clips ({seconds} each), so that is what is priced below, at each plan’s price per credit. The script, the voice, the captions and the edit are not part of what they sell.
           </p>

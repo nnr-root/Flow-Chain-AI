@@ -19,26 +19,26 @@ const STATES: Record<string, { label: string; cls: string }> = {
 
 export function StateBadge({ state }: { state: string }) {
   const s = STATES[state] ?? { label: state, cls: "bg-wash text-graphite" };
-  return <span data-state={state} className={`whitespace-nowrap rounded-[4px] px-2 py-0.5 text-[0.8rem] font-semibold ${s.cls}`}>{s.label}</span>;
+  return <span data-state={state} className={`whitespace-nowrap rounded-[2px] px-2 py-0.5 text-[0.8rem] font-semibold ${s.cls}`}>{s.label}</span>;
 }
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { tone?: "primary" | "plain" | "danger" };
 
 export function Button({ tone = "plain", className = "", ...rest }: ButtonProps) {
   const tones = {
-    primary: "bg-signal text-sheet hover:bg-ink",
+    primary: "bg-ink text-sheet hover:bg-signal",
     plain: "border-[1.5px] border-ink/30 bg-sheet hover:border-ink",
     danger: "border-[1.5px] border-bad/50 text-bad hover:bg-bad hover:text-sheet",
   };
-  return <button type="button" {...rest} className={`rounded-md px-4 py-2 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-45 ${tones[tone]} ${className}`} />;
+  return <button type="button" {...rest} className={`rounded-[3px] px-4 py-2 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-45 ${tones[tone]} ${className}`} />;
 }
 
 /** A part of a page: a heading over an ink rule, and what belongs to it. Not a box: the page is the sheet. */
 export function Panel({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
   return (
-    <section className="border-t-2 border-ink pt-4">
+    <section className="ruled">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="display text-[1.5rem] leading-none">{title}</h2>
+        <h2 className="printed text-[1.2rem] leading-none">{title}</h2>
         {aside}
       </div>
       {children}
@@ -58,7 +58,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 
 export function ErrorNote({ children }: { children: ReactNode }) {
   if (!children) return null;
-  return <p role="alert" className="border-l-4 border-bad bg-bad/5 px-4 py-2.5 text-[0.95rem] text-bad">{children}</p>;
+  return <p role="alert" className="bg-bad/8 px-4 py-2.5 text-[0.95rem] text-bad">{children}</p>;
 }
 
 /** A row of mutually exclusive choices: the highlighter is on the one chosen. */
@@ -66,7 +66,7 @@ export function Segmented<T extends string>({ value, options, onChange, disabled
   value: T; options: Array<{ value: T; label: string }>; onChange: (v: T) => void; disabled?: boolean; label: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex gap-0.5 rounded-md border-[1.5px] border-ink/30 bg-sheet p-0.5 text-[0.85rem]">
+    <div role="radiogroup" aria-label={label} className="inline-flex gap-0.5 rounded-[3px] border-[1.5px] border-ink/30 bg-sheet p-0.5 text-[0.85rem]">
       {options.map((o) => (
         <button
           key={o.value}
@@ -75,7 +75,7 @@ export function Segmented<T extends string>({ value, options, onChange, disabled
           aria-checked={o.value === value}
           disabled={disabled}
           onClick={() => onChange(o.value)}
-          className={`rounded-[4px] px-2.5 py-1 font-semibold disabled:opacity-50 ${o.value === value ? "bg-marker" : "text-graphite hover:text-ink"}`}
+          className={`rounded-[2px] px-2.5 py-1 font-semibold disabled:opacity-50 ${o.value === value ? "bg-marker" : "text-graphite hover:text-ink"}`}
         >
           {o.label}
         </button>

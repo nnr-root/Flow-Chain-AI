@@ -15,14 +15,14 @@ const at = (frame: number, fps: number): string => `${Math.floor(frame / fps / 6
 
 function Feature({ name, children }: { name: string; children: React.ReactNode }) {
   return (
-    <li className="border-t-2 border-ink py-7 first:pt-5">
-      <h3 className="display text-[2.1rem] leading-[0.95]">{name}</h3>
+    <li className="ruled pb-8">
+      <h3 className="printed text-[1.5rem] leading-[1.1]">{name}</h3>
       <div className="mt-3 max-w-[34rem] space-y-4 text-[1.02rem] leading-[1.5]">{children}</div>
     </li>
   );
 }
 
-const act = "rounded-md border-[1.5px] border-ink/30 bg-sheet px-4 py-2 text-[0.95rem] font-semibold hover:border-ink";
+const act = "rounded-[3px] border-[1.5px] border-ink/30 bg-sheet px-4 py-2 text-[0.95rem] font-semibold hover:border-ink";
 
 /**
  * The features, each shown on a real video rather than described (Phase 4 spec §5, block 4): a video made with a
@@ -88,7 +88,7 @@ export function FeatureStage({ showcase }: { showcase: Showcase }) {
               <input
                 type="text" value={controls.hookText} onChange={(e) => setControls((c) => ({ ...c, hook: true, hookText: e.target.value.slice(0, 60) }))}
                 placeholder={looks.hook.text} aria-label="The opening title's words" data-testid="feature-hook"
-                className="min-w-0 flex-1 rounded-md border-[1.5px] border-hairline bg-sheet px-3 py-2 text-[0.95rem] placeholder:text-graphite/70"
+                className="min-w-0 flex-1 rounded-[3px] border-[1.5px] border-hairline bg-sheet px-3 py-2 text-[0.95rem] placeholder:text-graphite/70"
               />
               <button type="button" className={act} onClick={(e) => player.current?.playFrom(0, e)}>Play the opening</button>
             </div>

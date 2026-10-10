@@ -13,6 +13,7 @@ import { encodeLookToken } from "@/lib/look-token";
 import type { KitSummary } from "@/server/library";
 import type { JobView } from "@/server/jobs";
 import type { RunView } from "@/server/runs";
+import { Frame } from "./Sketch";
 import { StudioPlayer, type StudioPlayerHandle } from "./StudioPlayer";
 import { Button, ErrorNote, Field, Panel, Segmented, StateBadge } from "./ui";
 
@@ -200,20 +201,24 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
         {preview ? (
           <>
             {preview.draft && (
-              <p data-testid="draft-note" className="border-l-4 border-marker bg-marker/20 px-3 py-2 text-[0.85rem]">
+              <p data-testid="draft-note" className="bg-marker/45 px-3 py-2 text-[0.85rem]">
                 Draft preview: placeholder pictures, estimated timing, no voice yet. The captions, the opening title, the cuts, the brand, the music and the sound effects are real.
               </p>
             )}
-            <StudioPlayer ref={player} props={preview.props} resolve={resolve} className="overflow-hidden rounded-[14px] bg-stage" />
+            <div className="relative">
+              <StudioPlayer ref={player} props={preview.props} resolve={resolve} className="overflow-hidden bg-stage" />
+              <Frame seed={7} weight={2.4} />
+            </div>
             <SceneStrip props={preview.props} scenes={status?.scenes ?? []} onSeek={(frame) => player.current?.seekTo(frame)} />
           </>
         ) : (
-          <div className="grid aspect-[9/16] place-items-center rounded-[14px] bg-stage p-6 text-center text-[0.95rem] text-sheet/75">
+          <div className="relative grid aspect-[9/16] place-items-center bg-wash p-6 text-center text-graphite">
+            <Frame seed={7} weight={2.4} />
             {previewError || (state === "queued" ? "Waiting in line…" : working ? "Writing the script…" : "No preview yet")}
           </div>
         )}
         {state === "done" && (
-          <a className="inline-block rounded-md border-[1.5px] border-ink/30 bg-sheet px-4 py-2 text-[0.95rem] font-semibold hover:border-ink" href={`/api/runs/${id}/files/${encodeLookToken({ v: mediaKey })}/final.mp4`} download={`${id}.mp4`}>
+          <a className="inline-block rounded-[3px] border-[1.5px] border-ink/30 bg-sheet px-4 py-2 text-[0.95rem] font-semibold hover:border-ink" href={`/api/runs/${id}/files/${encodeLookToken({ v: mediaKey })}/final.mp4`} download={`${id}.mp4`}>
             Download the video (MP4)
           </a>
         )}
@@ -222,7 +227,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
       <div className="space-y-10">
         <ErrorNote>{error}</ErrorNote>
 
-        <Panel title="Next step" aside={status && <span className="text-[0.95rem] text-graphite">spent so far {usd(status.spendUsd)}</span>}>
+        <Panel title="Next step" aside={status && <span className="note">spent so far {usd(status.spendUsd)}</span>}>
           {working && (
             <div className="flex items-center justify-between gap-3">
               <p className="text-[0.95rem]" data-testid="working">
@@ -251,7 +256,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
                 {state === "incomplete" && "This run is not finished."}
               </p>
               {failures.map((f, i) => (
-                <p key={i} className="border-l-4 border-bad bg-bad/5 px-3 py-2 text-[0.85rem] text-bad">
+                <p key={i} className="bg-bad/8 px-3 py-2 text-[0.85rem] text-bad">
                   {labelOf(STAGE_LABELS, f.stage)}{"scene" in f ? `, scene ${f.scene}` : ""}: {f.error}
                 </p>
               ))}
@@ -274,6 +279,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
                 <SceneRow
                   key={s.scene}
                   scene={s}
+                  picture={pictureOf(id, s, mediaKey)}
                   draft={state === "draft"}
                   canReroll={!working && (state === "done" || RESUMABLE.includes(state))}
                   busy={busy}
@@ -283,7 +289,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
               ))}
             </ul>
             {ask && (
-              <div role="dialog" aria-label="Confirm regeneration" className="mt-4 flex flex-wrap items-center gap-3 border-l-4 border-marker bg-marker/20 px-4 py-3 text-[0.95rem]">
+              <div role="dialog" aria-label="Confirm regeneration" className="mt-4 flex flex-wrap items-center gap-3 bg-marker/45 px-4 py-3 text-[0.95rem]">
                 <span className="flex-1">New {ask.label} for scene {ask.scene}, and whatever follows from it: {ask.totalUsd > 0 ? `up to ${usd(ask.totalUsd)}` : "free"}.</span>
                 <Button tone="primary" onClick={confirmReroll} disabled={busy}>Confirm</Button>
                 <Button onClick={() => setAsk(null)}>Cancel</Button>
@@ -342,7 +348,7 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
         )}
 
         {status && status.ledger.length > 0 && (
-          <Panel title="Spend" aside={<span className="text-[0.95rem]">{usd(status.spendUsd)}</span>}>
+          <Panel title="Spend" aside={<span className="note !text-[1.6rem]">{usd(status.spendUsd)}</span>}>
             <table className="w-full text-[0.95rem]">
               <tbody>
                 {spendByStage(status.ledger).map(([stage, n, total]) => (
@@ -358,8 +364,8 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
         )}
 
         {log.length > 0 && (
-          <details className="border-t-2 border-ink pt-4" open={working}>
-            <summary className="display cursor-pointer text-[1.5rem] leading-none">Job output</summary>
+          <details className="ruled" open={working}>
+            <summary className="printed cursor-pointer text-[1.2rem] leading-none">Job output</summary>
             <pre data-testid="log" className="mt-3 max-h-64 overflow-auto text-[0.85rem] leading-5 whitespace-pre-wrap text-graphite">{log.join("\n")}</pre>
           </details>
         )}
@@ -396,7 +402,7 @@ function SceneStrip({ props, scenes, onSeek }: { props: RenderProps; scenes: Sce
           onClick={() => onSeek(s.from)}
           style={{ flexGrow: s.frames, flexBasis: 0 }}
           title={scenes[i]?.narration}
-          className="min-w-0 rounded-[5px] border-[1.5px] border-hairline bg-sheet px-1.5 py-1 text-left text-[0.72rem] leading-4 hover:border-ink"
+          className="min-w-0 rounded-[2px] border-[1.5px] border-hairline bg-sheet px-1.5 py-1 text-left text-[0.72rem] leading-4 hover:border-ink"
         >
           <span className="block font-semibold">{i + 1}</span>
           <span className="block truncate text-graphite">{scenes[i] ? `${scenes[i].mode === 1 ? "clip" : "still"}, ${(s.frames / props.fps).toFixed(1)} s` : ""}</span>
@@ -406,19 +412,35 @@ function SceneStrip({ props, scenes, onSeek }: { props: RenderProps; scenes: Sce
   );
 }
 
-function SceneRow({ scene, draft, canReroll, busy, onMode, onReroll }: {
-  scene: SceneStatus; draft: boolean; canReroll: boolean; busy: boolean;
+/** Where a scene's own picture is, once it has one. A scene that carries on from the one before it has none: it starts from that scene's last frame. */
+function pictureOf(runId: string, scene: SceneStatus, version: string): string | null {
+  if (!scene.steps.some((s) => s.stage === "keyframes" && s.status === "done")) return null;
+  return `/api/runs/${runId}/files/${encodeLookToken({ v: version })}/images/keyframe_${String(scene.scene).padStart(2, "0")}.png`;
+}
+
+/** A scene as a panel of the board: its picture in a drawn frame, its line, and in red pencil what it is and how long it runs. */
+function SceneRow({ scene, picture, draft, canReroll, busy, onMode, onReroll }: {
+  scene: SceneStatus; picture: string | null; draft: boolean; canReroll: boolean; busy: boolean;
   onMode: (mode: Mode) => void; onReroll: (stage: string, label: string) => void;
 }) {
   const has = (stage: string) => scene.steps.some((s) => s.stage === stage);
   return (
-    <li className="border-t border-hairline py-4 first:border-t-0 first:pt-0" data-testid={`scene-${scene.scene}`}>
-      <div className="flex flex-wrap items-center gap-2 text-[0.85rem] text-graphite">
-        <span className="display text-[1.15rem] leading-none text-ink">Scene {scene.scene}</span>
-        {scene.shot && <span>{scene.shot}</span>}
-        {scene.actionLevel && <span>{scene.actionLevel} action</span>}
-        <span>{scene.mode === 1 ? "clip" : "still"}{scene.modeReason ? ` (${scene.modeReason})` : draft ? " (provisional)" : ""}</span>
-        {scene.audioSec !== undefined && <span>{scene.audioSec.toFixed(1)} s</span>}
+    <li className="flex gap-5 border-t border-hairline py-5 first:border-t-0 first:pt-1" data-testid={`scene-${scene.scene}`}>
+      <div className="relative mt-1 grid aspect-[9/16] w-[4.5rem] shrink-0 place-items-center self-start bg-wash">
+        {picture ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={picture} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+        ) : (
+          <span className="display text-[2rem] leading-none text-graphite">{scene.scene}</span>
+        )}
+        <Frame seed={scene.scene * 5 + 1} weight={1.6} />
+      </div>
+      <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.85rem] text-graphite">
+        <span className="printed text-[1rem] leading-none text-ink">Scene {scene.scene}</span>
+        <span className="note">{scene.mode === 1 ? "clip" : "still"}{scene.audioSec !== undefined ? `, ${scene.audioSec.toFixed(1)} s` : ""}</span>
+        {scene.shot === "continue" && <span>carries on from scene {scene.scene - 1}</span>}
+        {scene.modeReason ? <span>{scene.modeReason}</span> : draft ? <span>provisional</span> : null}
         <span className="ml-auto">
           {draft ? (
             <Segmented<"auto" | "1" | "2">
@@ -443,6 +465,7 @@ function SceneRow({ scene, draft, canReroll, busy, onMode, onReroll }: {
           {has("reference") && <Button className="!px-2 !py-1 !text-[0.85rem]" disabled={busy} onClick={() => onReroll("reference", "character portrait")}>New portrait</Button>}
         </div>
       )}
+      </div>
     </li>
   );
 }

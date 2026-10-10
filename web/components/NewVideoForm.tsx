@@ -123,7 +123,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
               aria-checked={f.style === p.name}
               data-testid={`look-${p.name}`}
               onClick={() => set("style", p.name)}
-              className={`rounded-md border-[1.5px] bg-sheet p-3.5 text-left ${f.style === p.name ? "border-ink" : "border-hairline hover:border-ink/50"}`}
+              className={`rounded-[3px] border-[1.5px] bg-sheet p-3.5 text-left ${f.style === p.name ? "border-ink" : "border-hairline hover:border-ink/50"}`}
             >
               <span className="block font-semibold"><span className={f.style === p.name ? "marked" : ""}>{p.label}</span></span>
               <span className="mt-1 block text-[0.85rem] text-graphite">{p.name === "auto" ? "The look that fits the topic is picked when the script is written." : `For ${p.description}.`}</span>
@@ -177,8 +177,8 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         </div>
       </Panel>
 
-      <details className="border-t-2 border-ink pt-4">
-        <summary className="display cursor-pointer text-[1.5rem] leading-none">More choices</summary>
+      <details className="ruled">
+        <summary className="printed cursor-pointer text-[1.2rem] leading-none">More choices</summary>
         <div className="mt-5 grid gap-5 sm:grid-cols-2">
           <Field label="Opening title">
             <select value={f.hookMode} onChange={(e) => set("hookMode", e.target.value)}>

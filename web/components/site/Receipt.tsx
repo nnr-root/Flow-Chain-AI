@@ -30,7 +30,7 @@ export function Receipt({ receipt }: { receipt: ShowcaseReceipt }) {
       </dl>
       <p className="mt-3 flex items-baseline justify-between border-t border-dashed border-ink/30 pt-3 text-[1rem] font-semibold">
         <span>Credit used</span>
-        <span data-testid="receipt-total">{exact(receipt.totalUsd)}</span>
+        <span data-testid="receipt-total" className="note !text-[1.7rem]">{exact(receipt.totalUsd)}</span>
       </p>
     </div>
   );

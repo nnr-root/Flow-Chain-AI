@@ -25,10 +25,10 @@ export function Shelf({ showcases }: { showcases: Showcase[] }) {
       <ul className="grid gap-x-10 gap-y-14 md:grid-cols-3">
         {showcases.map((s) => (
           <li key={s.slug} className="flex items-start gap-4">
-            <button type="button" onClick={() => play(s.slug)} data-testid={`shelf-play-${s.slug}`} className="group relative w-24 shrink-0 overflow-hidden rounded-[10px]" aria-label={`Play “${s.receipt.title}” in the player above`}>
+            <button type="button" onClick={() => play(s.slug)} data-testid={`shelf-play-${s.slug}`} className="group relative w-24 shrink-0 overflow-hidden rounded-[2px]" aria-label={`Play “${s.receipt.title}” in the player above`}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={`/showcase/${s.slug}/poster.jpg`} alt="" loading="lazy" className="aspect-[9/16] w-full object-cover" />
-              <span className="absolute inset-x-1.5 bottom-1.5 rounded-[4px] bg-marker py-1 text-center text-[0.75rem] font-semibold opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">Play above</span>
+              <span className="absolute inset-x-1.5 bottom-1.5 rounded-[2px] bg-marker py-1 text-center text-[0.75rem] font-semibold opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100">Play above</span>
             </button>
             <Receipt receipt={s.receipt} />
           </li>

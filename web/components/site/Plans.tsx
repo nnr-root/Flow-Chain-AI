@@ -3,14 +3,14 @@ import { useStripePage } from "@/components/Pricing";
 import { type CatalogueItem, LIVE, type PlanView } from "@/lib/billing";
 
 const usd = (n: number): string => `$${n.toFixed(2)}`;
-const button = "rounded-md bg-signal px-5 py-3 text-[1rem] font-semibold text-sheet hover:bg-ink disabled:opacity-50";
+const button = "rounded-[3px] bg-ink px-5 py-3 text-[1rem] font-semibold text-sheet hover:bg-signal disabled:opacity-50";
 
 function Offer({ item, action }: { item: CatalogueItem; action: React.ReactNode }) {
   return (
-    <li data-testid={`offer-${item.key}`} className="flex flex-col border-t border-ink/30 pt-5">
-      <h3 className="display text-[1.9rem] leading-none">{item.name}</h3>
+    <li data-testid={`offer-${item.key}`} className="ruled flex flex-col">
+      <h3 className="printed text-[1.5rem] leading-none">{item.name}</h3>
       <p className="mt-4 text-[1.02rem]">
-        <span className="display text-[2.6rem] leading-none">{usd(item.priceUsd)}</span>{item.kind === "plan" && " / month"}
+        <span className="display text-[3.4rem] leading-none text-pencil">{usd(item.priceUsd)}</span>{item.kind === "plan" && " / month"}
       </p>
       <p className="mt-3 max-w-[22rem] flex-1 text-graphite">
         {usd(item.creditUsd)} of credit{item.kind === "plan" ? " every month. What is left at the end of a month does not carry over." : ". It does not expire."}

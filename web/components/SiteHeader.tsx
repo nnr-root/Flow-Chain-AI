@@ -5,7 +5,7 @@ import { usd } from "@/lib/api";
 export type HeaderAccount = { email: string; balanceUsd: number } | null;
 
 const link = "underline-offset-4 hover:underline";
-const solid = "rounded-md bg-signal px-4 py-2 font-semibold text-sheet hover:bg-ink";
+const solid = "rounded-[3px] bg-ink px-4 py-2 font-semibold text-sheet hover:bg-signal";
 
 /**
  * The one header of the whole site. What it offers depends on who is looking, never on which page they are on:
@@ -15,7 +15,7 @@ const solid = "rounded-md bg-signal px-4 py-2 font-semibold text-sheet hover:bg-
 export function SiteHeader({ studio, account, sells, free = false }: { studio: boolean; account: HeaderAccount; sells: boolean; free?: boolean }) {
   return (
     <header className="mx-auto flex w-full max-w-[84rem] items-center gap-5 px-6 pt-6 sm:gap-7 sm:px-10">
-      <Link href="/" className="display whitespace-nowrap text-[1.7rem] leading-none">Flow Chain</Link>
+      <Link href="/" className="display whitespace-nowrap text-[2.1rem] leading-none">Flow Chain</Link>
       <nav aria-label="Site" className="ml-auto flex items-center gap-5 whitespace-nowrap text-[0.95rem] sm:gap-7">
         {studio && (
           <>

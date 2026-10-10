@@ -167,10 +167,10 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   const look = () => page.evaluate(() => ({ background: getComputedStyle(document.body).backgroundColor, heading: getComputedStyle(document.querySelector("h1")!).fontFamily.split(",")[0], text: getComputedStyle(document.body).fontFamily.split(",")[0], wordmark: document.querySelector("header a")?.textContent }));
   const site = await look();
   expect(site.background).toBe("rgb(250, 250, 247)");
-  // (one file under two names: headings are given a narrower stand-in for the moment before it arrives)
-  expect(site.heading).toMatch(/^"?archivo/i);
+  // a title is written by hand and text is printed: two faces, both from the site's own files
+  expect(site.heading).toMatch(/^"?hand/i);
   expect(site.text).toMatch(/^"?archivo/i);
-  expect(await page.evaluate(() => document.fonts.ready.then(() => [...document.fonts].filter((f) => f.status === "loaded").length))).toBeGreaterThanOrEqual(1);
+  expect(await page.evaluate(() => document.fonts.ready.then(() => [...document.fonts].filter((f) => f.status === "loaded").length))).toBeGreaterThanOrEqual(2);
   // the way in: the account form, and from there the first video
   // (nothing is given to new accounts in this studio, so nothing is promised: the button says what it does)
   await expect(page.locator('[data-cta="hero-signup"]')).toHaveText("Create an account");
@@ -478,6 +478,11 @@ test("a video on the landing page has its sound on: it is heard from the visitor
   // the bar under the video has the volume from here on
   await player.hover();
   await expect(player.getByRole("button", { name: "Mute sound" })).toBeVisible();
+  // the scenes are panels of a board beside the video, and a click on one plays the video from that scene
+  await expect(page.getByTestId("board").locator("> li")).toHaveCount(4);
+  await page.getByTestId("board-3").click();
+  await expect.poll(time).toBeGreaterThan(10);
+  await expect(voice).toHaveJSProperty("paused", false);
   // a video further down the page comes with its sound on, and the one that left the window is not heard under it
   const feature = page.getByTestId("feature-player");
   await feature.scrollIntoViewIfNeeded();

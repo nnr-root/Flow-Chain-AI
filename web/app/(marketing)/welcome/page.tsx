@@ -5,7 +5,6 @@ import { LiveStage } from "@/components/site/LiveStage";
 import { MakingStrip } from "@/components/site/MakingStrip";
 import { Plans } from "@/components/site/Plans";
 import { Shelf } from "@/components/site/Shelf";
-import { Spoken } from "@/components/site/Spoken";
 import { TopicStart } from "@/components/site/TopicStart";
 import comparison from "@/content/comparison.json";
 import { billingOn, type CatalogueItem } from "@/lib/billing";
@@ -65,8 +64,8 @@ export default async function Page() {
     <div data-testid="landing">
       <main className="mx-auto max-w-[84rem] px-6 pb-4 sm:px-10">
         <LiveStage showcases={SHOWCASES}>
-          <h1 className="display text-display" data-claim={claim}><Spoken text={claim ? "A finished short video for about what others charge for the clips." : "Type a topic. Get a finished short video."} /></h1>
-          <p className="mt-7 max-w-[34rem] text-[1.2rem] leading-[1.45]">
+          <h1 className="display text-display" data-claim={claim}>{claim ? "A finished short video for about what others charge for the clips." : "Type a topic. Get a finished short video."}</h1>
+          <p className="mt-5 max-w-[36rem] text-[1.15rem] leading-[1.45]">
             Flow Chain writes the script, records the voice, generates the pictures and cuts the video to the words.
             You see what it will cost, and approve it, before anything is bought.
           </p>
@@ -114,7 +113,7 @@ export default async function Page() {
           <div className="mt-10"><Faq usedCents={SHOWCASES.map((s) => Math.round(s.receipt.totalUsd * 100))} sells={sells} clipHeight={SHOWCASES.find((s) => s.receipt.madeOn === "own" && s.receipt.clipHeight)?.receipt.clipHeight} /></div>
         </section>
 
-        <section className="mt-28 border-t-2 border-ink pt-12" aria-labelledby="close-title">
+        <section className="mt-28 ruled" aria-labelledby="close-title">
           <h2 id="close-title" className="display max-w-[46rem] text-[clamp(2.4rem,1.2rem+5vw,5rem)] leading-[0.92]">Start with one sentence.</h2>
           <TopicStart signedIn={signedIn} free={free} sells={sells} id="closing-topic" />
         </section>

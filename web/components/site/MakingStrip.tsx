@@ -20,8 +20,8 @@ function Track({ n, name, cost, note, children }: { n: number; name: string; cos
   return (
     <li className="grid grid-cols-[9.5rem_minmax(0,1fr)] gap-x-5 border-t border-hairline py-5 first:border-t-0 lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-x-8">
       <div className="sticky left-0 z-10 bg-paper pr-2">
-        <p className="display text-[1.6rem] leading-none"><span className="figures mr-2 text-graphite">{n}</span>{name}</p>
-        <p className="figures mt-1.5 text-[0.9rem] font-semibold">{cost}</p>
+        <p className="printed text-[1.25rem] leading-none"><span className="figures mr-2 font-normal text-graphite">{n}</span>{name}</p>
+        <p className="note mt-1">{cost}</p>
         <p className="mt-1.5 text-[0.85rem] leading-snug text-graphite">{note}</p>
       </div>
       <div className="min-w-0 self-center">{children}</div>
@@ -44,7 +44,7 @@ export function MakingStrip({ showcase }: { showcase: Showcase }) {
   const span = (seconds: number) => ({ flexGrow: seconds, flexBasis: 0 });
   return (
     <div className="-mx-6 overflow-x-auto px-6 sm:-mx-10 sm:px-10 lg:mx-0 lg:overflow-visible lg:px-0">
-      <ol className="min-w-[54rem] border-y-2 border-ink lg:min-w-0" data-testid="making">
+      <ol className="ruled min-w-[54rem] !pt-1 lg:min-w-0" data-testid="making">
         <Track n={1} name="Topic" cost="free" note="One sentence is all it starts from.">
           <p className="display text-[clamp(1.5rem,1rem+1.4vw,2.1rem)] leading-[1.02]">“{making.topic}”</p>
         </Track>
@@ -63,7 +63,7 @@ export function MakingStrip({ showcase }: { showcase: Showcase }) {
             {making.scenes.map((s, i) => (
               <li key={i} style={span(s.seconds)} className="relative min-w-0">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/showcase/${slug}/${s.thumb}`} alt={`Scene ${i + 1}: a ${s.kind}`} loading="lazy" className="h-28 w-full rounded-[5px] object-cover" />
+                <img src={`/showcase/${slug}/${s.thumb}`} alt={`Scene ${i + 1}: a ${s.kind}`} loading="lazy" className="h-28 w-full rounded-[2px] object-cover" />
                 <span className="absolute bottom-1.5 left-1.5 rounded-[3px] bg-sheet px-1.5 text-[0.75rem] font-semibold">{s.kind}, {s.seconds.toFixed(1)} s</span>
               </li>
             ))}
@@ -72,7 +72,7 @@ export function MakingStrip({ showcase }: { showcase: Showcase }) {
         <Track n={5} name="The cut" cost="free" note="Cutting it again with another look costs nothing.">
           <div className="flex items-center gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={`/showcase/${slug}/poster.jpg`} alt={`The finished video, “${receipt.title}”`} loading="lazy" className="aspect-[9/16] w-14 rounded-[6px] object-cover" />
+            <img src={`/showcase/${slug}/poster.jpg`} alt={`The finished video, “${receipt.title}”`} loading="lazy" className="aspect-[9/16] w-14 rounded-[2px] object-cover" />
             <p className="max-w-[34rem] text-[1.02rem] leading-snug">Captions word by word, the opening title, the cuts between scenes, music turned down under the voice, and a sound on each cut.</p>
           </div>
         </Track>

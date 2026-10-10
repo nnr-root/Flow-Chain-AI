@@ -23,7 +23,7 @@ export function TopicStart({ signedIn, free, sells = true, id = "hero-topic" }: 
   const [topic, setTopic] = useState("");
   return (
     <form
-      className="mt-10 max-w-[34rem]" data-testid={id === "hero-topic" ? "topic-start" : `topic-start-${id}`}
+      className="mt-7 max-w-[36rem]" data-testid={id === "hero-topic" ? "topic-start" : `topic-start-${id}`}
       onSubmit={(e) => {
         e.preventDefault();
         window.location.assign(startAddress(topic, signedIn));
@@ -34,9 +34,9 @@ export function TopicStart({ signedIn, free, sells = true, id = "hero-topic" }: 
         <input
           id={id} type="text" value={topic} onChange={(e) => setTopic(e.target.value)} maxLength={CARRIED_CHARS} data-testid={id}
           placeholder="Three mistakes that make product photos look cheap"
-          className="min-w-0 flex-1 basis-64 rounded-md border-[1.5px] border-ink/30 bg-sheet px-4 py-3.5 text-[1.05rem] placeholder:text-graphite/60 focus:border-ink"
+          className="min-w-0 flex-1 basis-64 rounded-[3px] border-[1.5px] border-ink/30 bg-sheet px-4 py-3.5 text-[1.05rem] placeholder:text-graphite/60 focus:border-ink"
         />
-        <button type="submit" data-cta={`${id === "hero-topic" ? "hero" : "closing"}-${signedIn ? "new" : "signup"}`} className="rounded-md bg-signal px-6 py-3.5 text-[1.05rem] font-semibold text-sheet hover:bg-ink">
+        <button type="submit" data-cta={`${id === "hero-topic" ? "hero" : "closing"}-${signedIn ? "new" : "signup"}`} className="rounded-[3px] bg-ink px-6 py-3.5 text-[1.05rem] font-semibold text-sheet hover:bg-signal">
           {signedIn ? "Make this video" : free ? "Make a free draft" : "Create an account"}
         </button>
       </div>

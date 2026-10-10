@@ -302,3 +302,53 @@ stand-in face shrunk to the narrow width (0.001 after).
 - Not looked at in Safari or Firefox; every check here was in Chromium. Parked with the owner's own look.
 - The run list shows a video's picture in a wide frame although most videos are upright. Parked.
 - `/terms` and `/privacy` still say that they are not written.
+
+## 15. The storyboard (owner's choice, 2026-10-10)
+
+The owner, on seeing §14's look: better can be done, and a third-party design skill may be used. §14's look
+(blue ink, yellow highlighter, one narrow face) is replaced by this section. §14's one-site rule, its sound
+rule, its lists of banned details and its tests stand.
+
+**How it was chosen.** Three skills were looked at. *Impeccable* (Apache 2.0) was used: it is written for
+redesigning a product that exists, on both a page that persuades and screens that are worked in, and it asks
+for a visual world taken from the audience's own before any code. *UI/UX Pro Max* picks from tables of styles
+and palettes by industry, which is how a template is arrived at; *Taste Skill* is a set of dials for one
+premium look. Impeccable's files were read from a clone and followed by hand: its launcher downloads a program
+and runs it, and that was not done. Four worlds were put to the owner (a video feed, broadcast colour bars, a
+storyboard, a cinema's box office) with how strongly things should move; the owner chose **the storyboard**
+and **measured** movement.
+
+**The world** (`web/app/theme.css`, `web/components/Sketch.tsx`): where a video begins, on a drawing desk.
+
+- **Paper** `#fafaf7`. **Graphite** `#25252b` for everything printed: text, labels, controls, solid buttons.
+- **Non-photo blue**, the animator's construction pencil: every rule (`hairline`), the loose first line of
+  every drawn frame, and as shading (`marker`) behind the thing that is on. A deeper **blue pencil** `#1c6ea4`
+  (`signal`) for focus, links and switches.
+- **Red pencil** `#c92c2c` (`pencil`): what is noted on a board. What a scene is, how long it runs, what a
+  thing cost. In the hand (`.note`), never for an error (errors are `bad`, on a tint, in the printed face).
+- **Two voices.** What is written on the board is in a hand (Covered By Your Grace, a file with its licence):
+  titles (`.display`), the wordmark, notes. What is printed on it is Archivo: text, controls, and the headings
+  of a form's parts (`.printed`).
+- **What is drawn is drawn twice** (`Frame`, `Arrow`, `Underline`): loosely in blue, then over it in pencil;
+  neither line is straight, and the unevenness is worked out from a number so that server and browser draw the
+  same. A part of a page begins under a pencil rule (`.ruled`).
+- **The one movement nobody asked for:** when the landing page is first shown, the board's frames are drawn
+  one after another and its notes are written. Nothing else moves by itself except a video.
+
+**The landing page's first screen is a board:** the page's words; the video's own scenes as numbered panels,
+each with its line and a note; arrows from one to the next; and the panel that moves, the playing video. A
+click on a panel plays the video from that scene. On a phone the video comes before the panels (found by the
+phone test: under them it was never reached, and never started).
+
+**The studio** takes from the world only its type, its palette and one move: a run's scenes are panels of a
+board (the scene's own picture in a drawn frame; a scene that carries on from the one before has none), and
+the videos in the list and the player are framed the same way. Controls are ordinary controls.
+
+**Rulings and parked**
+
+- Looked at in Chromium only (desktop and a phone's width), on the landing page, the account form, the new
+  video form, the list and a run. Parked: Safari and Firefox; the account, pricing and brand kit pages.
+- The hand at small sizes (a note beside a scene) is at the edge of comfortable reading. Parked: the owner's
+  eye on it.
+- The landing page shows scenes of videos made before the looks of phase 2.2 §12 existed; no picture of the
+  fourteen looks is on it, because none has been made (a paid check, still waiting for the owner's click).

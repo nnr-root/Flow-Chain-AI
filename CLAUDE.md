@@ -123,11 +123,14 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 
 ## The landing page (Phase 4)
 
-- **One site, one look** (phase 4 spec §14, which replaces its §3): one root layout (`web/app/layout.tsx`),
-  one stylesheet (`web/app/theme.css`), one typeface, one header and foot for the landing page, the account
-  forms and the studio. A browser test holds the three to the same background, typeface and wordmark. Yellow
-  (`marker`) is only ever on the thing that is "on"; the only dark thing on a page is a video; a part of a page
-  is a heading over a rule (`Panel`), not a card. The spec's lists of banned details are binding.
+- **One site, one look: a storyboard** (phase 4 spec §14 for the one-site rule, §15 for the look): one root
+  layout (`web/app/layout.tsx`), one stylesheet (`web/app/theme.css`), one header and foot for the landing page,
+  the account forms and the studio; a browser test holds the three to the same background, typefaces and
+  wordmark. Printed things are graphite Archivo (`.printed` for a form's headings); written things are in the
+  hand (`.display` for titles, `.note` for red-pencil notes: what a thing is, how long, what it cost); drawn
+  things come from `web/components/Sketch.tsx` (blue first, pencil over it). Red pencil is never an error; the
+  only dark thing on a page is a video; a part of a page begins under a pencil rule (`.ruled`), not in a card.
+  The spec's lists of banned details are binding.
 - **A visitor without a session at `/` is shown `/welcome`** (a rewrite in `web/proxy.ts`). `PUBLIC_PAGES`
   lists what anyone may open; adding to it is a security decision.
 - **Every number on the page is computed** (`web/lib/site/calculator.ts`) from a showcase's receipt, the live
