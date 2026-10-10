@@ -42,13 +42,22 @@ export function createBilling(stripe: StripeApi, db: Db, log: (message: string) 
     return String(data);
   };
 
-  /** Whose customer this is: the user id the worker itself wrote on it when it created it. Nobody's otherwise. */
+  /**
+   * Whose customer this is: the user id the worker itself wrote on it when it created it. Nobody's otherwise,
+   * and nobody's when this database has no such user: one Stripe account can serve two databases (the owner's
+   * machine and a server, or a local one loaded afresh), and the other's payments are not this one's to fulfil.
+   * Such an event is set aside like any stranger's. Failing it instead would have it offered again every hour
+   * for three days, with no way for it ever to succeed: a user id is made by the database and never comes back.
+   */
   const userOf = async (customer: unknown): Promise<string | undefined> => {
     const id = idOf(customer);
     if (!id) return undefined;
     const c = await stripe.get<Obj>(`/v1/customers/${pathId(id)}`);
     const user = str((c.metadata as Obj | undefined)?.user_id);
-    return user && UUID.test(user) ? user : undefined;
+    if (!user || !UUID.test(user)) return undefined;
+    const { data, error } = await db.from("users").select("id").eq("id", user).maybeSingle();
+    if (error) throw new Error(`reading the user: ${error.message}`);
+    return data ? user : undefined;
   };
 
   /** What a price grants. A price that is not the studio's, or names no credit, cannot be fulfilled. */

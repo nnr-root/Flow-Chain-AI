@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { Queue } from "bullmq";
@@ -327,6 +328,21 @@ describe.skipIf(!supa || !hasRedisServer())("payments", () => {
     stripe.customers.set("cus_stranger", { id: "cus_stranger", metadata: {} });
     session.customer = "cus_stranger";
     expect(await outcome(await deliver(stripe.completeCheckout(sessionId!)[0]))).toEqual({ received: true, outcome: "unknown_customer" });
+    expect((await account(a)).balance).toBe(0);
+  });
+
+  it("sets aside, once, a payment by a customer of another studio's database on the same Stripe account", async () => {
+    await worker();
+    // the same Stripe account serves a second studio (the owner's machine and a server, or a database loaded
+    // afresh): its customers carry user ids this database has never had
+    const { sessionId } = await buy(aCookie, topup);
+    const session = stripe.sessions.get(sessionId!)!;
+    stripe.customers.set("cus_elsewhere", { id: "cus_elsewhere", metadata: { user_id: randomUUID(), studio: "flowchain" } });
+    session.customer = "cus_elsewhere";
+    const event = stripe.completeCheckout(sessionId!)[0];
+    // recorded, not failed: an event that fails is offered again every hour for three days and can never succeed
+    expect(await outcome(await deliver(event))).toEqual({ received: true, outcome: "unknown_customer" });
+    expect((await db().from("stripe_events").select("outcome").eq("id", event.id)).data).toEqual([{ outcome: "unknown_customer" }]);
     expect((await account(a)).balance).toBe(0);
   });
 
