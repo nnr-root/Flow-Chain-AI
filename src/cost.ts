@@ -8,7 +8,10 @@ export const FALLBACK_NARRATION_CHARS = 130;
 
 export const round4 = (n: number): number => Math.round(n * 10_000) / 10_000;
 
-export function scriptCost(p: Prices): number {
+/** The two prices a script's cost is worked out from. */
+export type LlmRates = Pick<Prices, "llmPerMInputTokens" | "llmPerMOutputTokens">;
+
+export function scriptCost(p: LlmRates): number {
   return round4((SCRIPT_TOKENS.input * p.llmPerMInputTokens + SCRIPT_TOKENS.output * p.llmPerMOutputTokens) / 1e6);
 }
 

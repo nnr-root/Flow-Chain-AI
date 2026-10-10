@@ -42,6 +42,16 @@ export function fakeScript(sceneCount: number, opts: FakeScriptOptions = {}) {
   };
 }
 
+/** `count` words. */
+export const words = (count: number, word = "fox"): string => Array.from({ length: count }, () => word).join(" ");
+
+/** A script whose scenes have the narrations given by their word counts (for a run asked for by its length). */
+export function timedScript(wordCounts: number[], opts: FakeScriptOptions = {}) {
+  const script = fakeScript(wordCounts.length, opts);
+  script.scenes.forEach((s, i) => (s.narration = words(wordCounts[i])));
+  return script;
+}
+
 export class FakeLlm implements LlmProvider {
   calls: ScriptRequest[] = [];
   constructor(private readonly respond: (req: ScriptRequest, callNo: number) => unknown) {}

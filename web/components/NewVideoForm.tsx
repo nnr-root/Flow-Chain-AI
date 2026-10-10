@@ -1,9 +1,10 @@
 "use client";
+import { DEFAULT_SCENE_SECONDS, DEFAULT_VIDEO_SECONDS, lengthInWords, SCENE_SECONDS, sceneBounds, VIDEO_SECONDS } from "@src/duration";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { amount, errorText, getJson, sendForm, sendJson } from "@/lib/api";
 import { CreditNote, tooLittle, useBalance } from "@/lib/balance";
-import { credits, DRAFT_CAP_USD, showsCredits, usdOfCredits } from "@/lib/credit";
+import { draftCapUsd } from "@/lib/credit";
 import { NOT_READY } from "@/lib/engines";
 import { CAPTION_LABELS, labelOf, TRANSITION_LABELS } from "@/lib/labels";
 import type { StudioHealth } from "@/server/jobs";
@@ -15,6 +16,15 @@ export type PresetCard = { name: string; label: string; description: string };
 const CAPTION_STYLES = ["preset", "hormozi", "mrbeast", "minimalist"];
 const TRANSITIONS = ["auto", "cut", "fade", "dissolve", "blur", "zoom", "glitch"];
 
+const sceneChoices = Array.from({ length: SCENE_SECONDS.max - SCENE_SECONDS.min + 1 }, (_, i) => SCENE_SECONDS.min + i);
+
+/** What a video can be made of, in the studio's words (the request calls them stills, auto and clips). */
+const MADE_OF = [
+  { value: "stills", label: "Pictures only", note: "Every scene is a generated picture that the camera moves over. It costs the least." },
+  { value: "auto", label: "Pictures and clips", note: "A moving clip where something happens, a picture where little does: the script decides scene by scene." },
+  { value: "clips", label: "Clips only", note: "Every scene is a generated moving clip. It costs the most." },
+] as const;
+
 /**
  * The form a video starts from. `series`: the same choices are saved as a series instead of being spent on one
  * video: there is a name and a premise in place of a topic, and nothing is bought (phase 6 spec §3).
@@ -24,7 +34,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
   const [health, setHealth] = useState(initialHealth);
   const [tracks, setTracks] = useState(initialTracks);
   const [f, setF] = useState({
-    topic, aspect: "9:16", scenes: 4, style: "auto", motion: "auto", clips: "480p",
+    topic, aspect: "9:16", durationSec: DEFAULT_VIDEO_SECONDS as number, sceneMin: DEFAULT_SCENE_SECONDS.min, sceneMax: DEFAULT_SCENE_SECONDS.max, style: "auto", motion: "auto", clips: "480p",
     brandKit: "", music: "", musicGain: 0.35, hookMode: "auto", hookText: "",
     sfx: true, sfxGain: 0.6, characters: "", seed: "", voiceId: "", captionStyle: "preset", transition: "auto",
     name: "", premise: "",
@@ -35,6 +45,10 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
   const balance = useBalance();
   const set = <K extends keyof typeof f>(key: K, value: (typeof f)[K]) => setF((old) => ({ ...old, [key]: value }));
   const missing = health.missing;
+  const timing = { targetSec: f.durationSec, sceneSec: { min: f.sceneMin, max: f.sceneMax } };
+  const scenes = sceneBounds(timing.targetSec, timing.sceneSec);
+  // what the script may cost follows from the length: a long video's script is written in several answers
+  const hold = draftCapUsd(timing);
   const offline = health.queue.mode === "queue" && !(health.queue.redis && health.queue.worker);
 
   // A page loaded while the worker was away does not know which of its keys are set: ask again until it is
@@ -60,7 +74,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
     setError("");
     try {
       const choices = {
-        aspect: f.aspect, scenes: f.scenes, style: f.style, motion: f.motion, clips: f.clips,
+        aspect: f.aspect, durationSec: f.durationSec, sceneSec: { min: f.sceneMin, max: f.sceneMax }, style: f.style, motion: f.motion, clips: f.clips,
         brandKit: f.brandKit || null, music: f.music || null, musicGain: f.musicGain,
         hook: f.hookMode === "custom" ? { mode: "custom", text: f.hookText } : { mode: f.hookMode },
         sfx: f.sfx, sfxGain: f.sfxGain, captionStyle: f.captionStyle, transition: f.transition,
@@ -120,9 +134,28 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
                 <option value="16:9">16:9 (wide)</option>
               </select>
             </Field>
-            <Field label="Scenes">
-              <input type="number" min={1} max={12} value={f.scenes} onChange={(e) => set("scenes", Number(e.target.value))} />
+            <Field label="Length" hint="About: a video is as long as its narration turns out.">
+              <select data-testid="length" value={f.durationSec} onChange={(e) => set("durationSec", Number(e.target.value))}>
+                {VIDEO_SECONDS.map((sec) => <option key={sec} value={sec}>{lengthInWords(sec)}</option>)}
+              </select>
             </Field>
+            {/* (a fieldset, not a Field: it holds two controls, and a label can name only one) */}
+            <fieldset className="text-[0.95rem]">
+              <legend className="mb-1.5 font-bold">Each scene stays</legend>
+              <div className="flex items-center gap-2">
+                {/* the two ends never cross: moving one past the other takes the other with it */}
+                <select data-testid="scene-min" aria-label="Shortest scene, in seconds" value={f.sceneMin} onChange={(e) => setF((old) => ({ ...old, sceneMin: Number(e.target.value), sceneMax: Math.max(old.sceneMax, Number(e.target.value)) }))}>
+                  {sceneChoices.map((sec) => <option key={sec} value={sec}>{sec} s</option>)}
+                </select>
+                <span className="text-graphite">to</span>
+                <select data-testid="scene-max" aria-label="Longest scene, in seconds" value={f.sceneMax} onChange={(e) => setF((old) => ({ ...old, sceneMax: Number(e.target.value), sceneMin: Math.min(old.sceneMin, Number(e.target.value)) }))}>
+                  {sceneChoices.map((sec) => <option key={sec} value={sec}>{sec} s</option>)}
+                </select>
+              </div>
+              <span className="mt-1.5 block text-[0.85rem] text-graphite" data-testid="scene-count">
+                {scenes.min === scenes.max ? `${scenes.min} ${scenes.min === 1 ? "scene" : "scenes"}` : `${scenes.min} to ${scenes.max} scenes`}: the script decides how many, and how long each is. Set both the same for scenes of one length.
+              </span>
+            </fieldset>
           </div>
         </div>
       </Panel>
@@ -146,18 +179,20 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         </div>
       </Panel>
 
-      <Panel title="Motion">
+      <Panel title="Made of">
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-3 text-[0.95rem]">
-            <span>Scenes start as</span>
-            <Segmented label="Motion" value={f.motion} onChange={(v) => set("motion", v)} options={[{ value: "auto", label: "Auto" }, { value: "clips", label: "All clips" }, { value: "stills", label: "All stills" }]} />
-            <span className="text-[0.85rem] text-graphite">You can change each scene on the draft before anything is generated.</span>
+            <Segmented label="What the video is made of" value={f.motion} onChange={(v) => set("motion", v)} options={MADE_OF.map(({ value, label }) => ({ value, label }))} />
+            <span className="text-[0.85rem] text-graphite" data-testid="made-of-note">{MADE_OF.find((m) => m.value === f.motion)?.note} You can still change any one scene on the draft, before anything is generated.</span>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-[0.95rem]">
-            <span>Moving clips in</span>
-            <Segmented label="Clip quality" value={f.clips} onChange={(v) => set("clips", v)} options={[{ value: "480p", label: "Standard" }, { value: "720p", label: "HD (720p)" }]} />
-            <span className="text-[0.85rem] text-graphite">HD clips are sharper and cost about twice as much; the draft shows the price before anything is made.</span>
-          </div>
+          {/* (a video of pictures only has no clip to choose a size for) */}
+          {f.motion !== "stills" && (
+            <div className="flex flex-wrap items-center gap-3 text-[0.95rem]">
+              <span>Moving clips in</span>
+              <Segmented label="Clip quality" value={f.clips} onChange={(v) => set("clips", v)} options={[{ value: "480p", label: "Standard" }, { value: "720p", label: "HD (720p)" }]} />
+              <span className="text-[0.85rem] text-graphite">HD clips are sharper and cost about twice as much; the draft shows the price before anything is made.</span>
+            </div>
+          )}
           {missing.length > 0 && <ErrorNote>{missing[0] === NOT_READY ? "The studio is not ready to make videos yet. Please try again later." : `Not set in .env: ${missing.join(", ")}. Add them in the repository's .env file.`}</ErrorNote>}
         </div>
       </Panel>
@@ -232,10 +267,10 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         </div>
       ) : (
         <>
-          <CreditNote balance={balance} needUsd={DRAFT_CAP_USD} />
+          <CreditNote balance={balance} needUsd={hold} />
           <div className="flex items-center gap-3">
-            <Button type="submit" tone="primary" data-testid="create-draft" disabled={busy || offline || missing.length > 0 || !f.topic.trim() || tooLittle(balance, DRAFT_CAP_USD)}>
-              {busy ? "Writing the script…" : `Write the script, up to ${amount(DRAFT_CAP_USD)}`}
+            <Button type="submit" tone="primary" data-testid="create-draft" disabled={busy || offline || missing.length > 0 || !f.topic.trim() || tooLittle(balance, hold)}>
+              {busy ? "Writing the script…" : `Write the script, up to ${amount(hold)}`}
             </Button>
             <span className="text-[0.85rem] text-graphite" data-testid="create-note">
               {offline ? "The worker is offline: nothing can be started until it is back." : "Buys only the script. You preview and price the rest before generating."}

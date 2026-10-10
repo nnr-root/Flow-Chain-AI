@@ -19,6 +19,7 @@ import { JOB_OPTIONS, QUEUES } from "@/server/jobs/redis";
 import { ObjectStore } from "@/server/store/s3";
 import { keys } from "@/server/store/sync";
 import { freshRunId, localDb, newUser, serviceClient, type TestUser } from "../../test/helpers/db";
+import { DRAFT_CAP_USD, draftCapUsd } from "@/lib/credit";
 import { draftManifest, finishedManifest, params, until, useStudio } from "./helpers";
 import { hasDocker, startStore, type TestStore } from "./minio";
 import { hasRedisServer, startRedis, startWorkerProcess, type TestRedis, type TestWorker } from "./redis";
@@ -166,7 +167,7 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     await worker();
     await grant(a, 1);
     await writeFile(join(folder(a), "_draft-manifest.json"), JSON.stringify(draftManifest("20261006-120000-000000")));
-    const input = { topic: "foxes at night", aspect: "9:16", scenes: 3, style: "auto", motion: "auto", clips: "480p", captionStyle: "preset", transition: "auto", musicGain: 0.35, sfxGain: 0.6, sfx: true, hook: { mode: "auto" } };
+    const input = { topic: "foxes at night", aspect: "9:16", durationSec: 30, sceneSec: { min: 3, max: 5 }, style: "auto", motion: "auto", clips: "480p", captionStyle: "preset", transition: "auto", musicGain: 0.35, sfxGain: 0.6, sfx: true, hook: { mode: "auto" } };
     const res = await createDraft(as(aCookie, "/api/drafts", { json: input }), undefined);
     expect(res.status).toBe(202);
     const { runId } = (await res.json()) as { runId: string };
@@ -180,6 +181,31 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     const broke = await createDraft(as(bCookie, "/api/drafts", { json: input }), undefined);
     expect([broke.status, await error(broke)]).toEqual([402, "insufficient_credit"]);
     expect(await calls(b)).toEqual([]);
+  });
+
+  it("holds more for the script of a long video, and the worker takes the job only with exactly that held", async () => {
+    await worker();
+    await grant(a, 1);
+    await writeFile(join(folder(a), "_draft-manifest.json"), JSON.stringify(draftManifest("20261006-120000-000000")));
+    const input = { topic: "the whole history of foxes", durationSec: 600, sceneSec: { min: 2, max: 2 } };
+    const hold = draftCapUsd({ targetSec: 600, sceneSec: { min: 2, max: 2 } });
+    // a ten-minute script is an outline and ten answers: many times what a short one holds
+    expect(hold).toBeGreaterThan(DRAFT_CAP_USD * 10);
+    const res = await createDraft(as(aCookie, "/api/drafts", { json: input }), undefined);
+    expect(res.status).toBe(202);
+    const { runId } = (await res.json()) as { runId: string };
+    expect((await db().from("reservations").select("cap_usd,kind").eq("run_id", runId).single()).data).toEqual({ cap_usd: hold, kind: "draft" });
+    // the worker found that amount held for the command it was given, ran it, and gave back what the script did not use
+    await until(async () => (await openReservations()) === 0);
+    expect(await jobCalls(a)).toHaveLength(1);
+    expect((await jobCalls(a))[0]).toEqual(expect.arrayContaining(["--duration", "600", "--scene-seconds", "2"]));
+    expect(await balance(a)).toBe(0.9945);
+
+    // someone with less than that is told so before anything is queued
+    await grant(b, DRAFT_CAP_USD);
+    const short = await createDraft(as(bCookie, "/api/drafts", { json: input }), undefined);
+    expect([short.status, await error(short)]).toEqual([402, "insufficient_credit"]);
+    expect((await createDraft(as(bCookie, "/api/drafts", { json: { topic: "a fox" } }), undefined)).status).toBe(202);
   });
 
   it("refuses a paid job that has no credit held for exactly it, whoever put it in the queue", async () => {

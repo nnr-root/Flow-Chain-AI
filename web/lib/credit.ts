@@ -1,10 +1,40 @@
-/* Figures about credit that the pages, the server and the worker must agree on. No imports: all three read this. */
+/*
+ * Figures about credit that the pages, the server and the worker must agree on: all three read this. Its one
+ * import is the pipeline's arithmetic of a video's length, which reads nothing and runs in a browser too.
+ */
+import { DEFAULT_SCENE_SECONDS, DEFAULT_VIDEO_SECONDS, parseDuration, parseSceneSeconds, timedScriptCost, type Timing } from "@src/duration";
 
-/** What a draft holds from the user's credit (the script costs about $0.006). The worker checks a draft's reservation against this. */
+/** The least a draft holds from the user's credit (the script of a short video costs about $0.006): what the shortest ones hold. */
 export const DRAFT_CAP_USD = 0.02;
 
 /** Amounts are kept to four decimals everywhere (the pipeline's ledger, the database). */
 export const round4 = (usd: number): number => Math.round(usd * 10_000) / 10_000;
+
+/** The price table's own defaults for the script's model (`Prices` in the pipeline's config; a test holds the two together). */
+export const SCRIPT_RATES = { llmPerMInputTokens: 0.3, llmPerMOutputTokens: 2.5 };
+
+/**
+ * What a draft of this length holds from the user's credit: the script, were every answer it is made of sent
+ * back once and bought again (an answer is paid for whether or not it is accepted), and a little over. A long
+ * video's script is several answers, so it holds more; what is not used comes back when the draft is settled.
+ * The worker checks a draft's reservation against this, worked out from the command it is given.
+ */
+export function draftCapUsd(timing: Timing = { targetSec: DEFAULT_VIDEO_SECONDS, sceneSec: DEFAULT_SCENE_SECONDS }): number {
+  return Math.max(DRAFT_CAP_USD, round4(2 * timedScriptCost(SCRIPT_RATES, timing) + 0.005));
+}
+
+/** The same for a draft's command line (`--duration`, `--scene-seconds`), or NaN for one that names no length a video can have. */
+export function draftCapOfArgs(args: string[]): number {
+  const value = (flag: string): string | undefined => (args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined);
+  try {
+    const duration = value("--duration");
+    if (duration === undefined) return Number.NaN;
+    const scene = value("--scene-seconds");
+    return draftCapUsd({ targetSec: parseDuration(duration), sceneSec: scene === undefined ? DEFAULT_SCENE_SECONDS : parseSceneSeconds(scene) });
+  } catch {
+    return Number.NaN;
+  }
+}
 
 /*
  * Credits (phase 6 spec §12). The database, the worker and the pipeline account in dollars of what a video

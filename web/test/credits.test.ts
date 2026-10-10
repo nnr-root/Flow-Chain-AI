@@ -4,7 +4,10 @@ import { afterEach, describe, expect, it } from "vitest";
 import measured from "@/content/measured.json";
 import { amount, money } from "@/lib/api";
 import { monthsBefore } from "@/lib/billing";
-import { credits, CREDITS_PER_USD, inCredits, usdOfCredits } from "@/lib/credit";
+import { credits, CREDITS_PER_USD, DRAFT_CAP_USD, draftCapOfArgs, draftCapUsd, inCredits, SCRIPT_RATES, usdOfCredits } from "@/lib/credit";
+import { draftArgs, NewVideo } from "@/server/schemas";
+import { Prices } from "@src/config";
+import { SCENE_SECONDS, timedScriptCost, VIDEO_SECONDS } from "@src/duration";
 import { fullyGeneratedMinutes, minutesOnSale, pricePerCreditDollar } from "@/lib/site/calculator";
 import { SHOWCASES } from "@/lib/site/showcases";
 import { parsePlans } from "@src/deploy/stripe-setup";
@@ -33,6 +36,42 @@ describe("credits: the unit a customer is shown", () => {
     // real money is always dollars: a plan's price, a payment
     process.env.DATABASE_URL = "postgres://x";
     expect(money(19)).toBe("$19.00");
+  });
+});
+
+describe("what a draft holds", () => {
+  const input = (durationSec: number, sceneSec: { min: number; max: number }) => NewVideo.parse({ topic: "t", durationSec, sceneSec });
+
+  it("is the least there is for a short video, and more for one whose script is several answers", () => {
+    expect(draftCapUsd()).toBe(DRAFT_CAP_USD);
+    for (const sec of [5, 10, 15, 20, 30]) expect(draftCapUsd({ targetSec: sec, sceneSec: { min: 3, max: 5 } }), String(sec)).toBe(DRAFT_CAP_USD);
+    const caps = VIDEO_SECONDS.map((sec) => draftCapUsd({ targetSec: sec, sceneSec: { min: 3, max: 5 } }));
+    expect([...caps].sort((x, y) => x - y)).toEqual(caps);
+    expect(caps[caps.length - 1]).toBeGreaterThan(DRAFT_CAP_USD * 5);
+  });
+
+  it("covers the script with every answer bought twice, at the prices the pipeline charges, for every length and scene", () => {
+    const prices = Prices.parse({});
+    // the two prices the hold is worked out from are the price table's own
+    expect(SCRIPT_RATES).toEqual({ llmPerMInputTokens: prices.llmPerMInputTokens, llmPerMOutputTokens: prices.llmPerMOutputTokens });
+    for (const sec of VIDEO_SECONDS) {
+      for (let min = SCENE_SECONDS.min; min <= SCENE_SECONDS.max; min++) {
+        for (let max = min; max <= SCENE_SECONDS.max; max++) {
+          const timing = { targetSec: sec, sceneSec: { min, max } };
+          expect(draftCapUsd(timing), JSON.stringify(timing)).toBeGreaterThanOrEqual(2 * timedScriptCost(prices, timing));
+        }
+      }
+    }
+  });
+
+  it("is worked out by the worker from the command it is given, to the same amount the studio held", () => {
+    for (const [sec, scene] of [[30, { min: 3, max: 5 }], [60, { min: 5, max: 5 }], [600, { min: 2, max: 2 }], [5, { min: 2, max: 5 }]] as const) {
+      expect(draftCapOfArgs(draftArgs(input(sec, scene), "20261006-120000-abc001")), `${sec}`).toBe(draftCapUsd({ targetSec: sec, sceneSec: scene }));
+    }
+    // a command that names no length a video can have holds nothing the worker would accept
+    expect(draftCapOfArgs(["run", "--draft", "--topic", "t"])).toBeNaN();
+    expect(draftCapOfArgs(["run", "--draft", "--duration", "31"])).toBeNaN();
+    expect(draftCapOfArgs(["run", "--draft", "--duration", "30", "--scene-seconds", "9"])).toBeNaN();
   });
 });
 

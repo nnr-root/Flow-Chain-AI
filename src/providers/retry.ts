@@ -4,7 +4,9 @@
  * image/video bound the wait for one submitted request.
  */
 export const TIMEOUTS = {
-  llm: 60_000, tts: 60_000, prepare: 180_000, submit: 60_000, image: 120_000, video: 600_000,
+  llm: 60_000,
+  // an answer of up to forty-odd scenes (a video asked for by its length) takes minutes to write, not seconds
+  llmLong: 300_000, tts: 60_000, prepare: 180_000, submit: 60_000, image: 120_000, video: 600_000,
 } as const;
 
 /** Retrying the same call cannot fix this error. */

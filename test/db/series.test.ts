@@ -7,7 +7,7 @@ import { freshRunId, localDb, newUser, serviceClient, type TestUser, visitorDb }
  * same database at the same time: every test here makes its own users and looks only at their rows.
  */
 const supa = localDb();
-const RECIPE = { aspect: "9:16", scenes: 4, style: "anime" };
+const RECIPE = { aspect: "9:16", durationSec: 30, sceneSec: { min: 3, max: 5 }, style: "anime" };
 
 describe.skipIf(!supa)("series in the database", () => {
   const s = supa!;

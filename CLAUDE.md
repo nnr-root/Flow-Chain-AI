@@ -104,6 +104,13 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - **Budgets:** `--budget` asks before spending more; `--cap` is the hard limit the studio passes. Prices
   come from the table in `src/config.ts`.
 - Manifest fields are added as **optional**, so old runs still load (that is what the compat test checks).
+- **A run is asked for by its length or by a number of scenes** (phase 7 spec). By its length
+  (`request.timing`, `--duration`, `--scene-seconds`; all the studio sends) the script decides how many scenes
+  there are, the run is laid out again once it has (`layOutScenes`), and nothing can be given per scene before
+  that. The arithmetic is in `src/duration.ts`, which reads nothing and is imported by the browser too: keep it
+  that way. A length is a target for the writing, never a duration a visual is made to fit.
+- **A script of more than 90 seconds is written in parts** (an outline, then each part), each answer checked
+  and saved with its charge (`manifest.scriptParts`), so a stopped run buys none again.
 
 ## How the studio is built
 
@@ -321,6 +328,7 @@ graphify god-nodes --top 20       # the hubs
 | Payments | `2026-10-08-phase3.4-stripe-billing-design.md` (§13–§15 win) |
 | The landing page, showcases, welcome credit, the look of the whole site | `2026-10-08-phase4-landing-page-design.md` (the latest of §13–§17 wins) |
 | Own database and sign-in, own voice, one GPU provider, unnamed engines | `2026-10-09-phase5-independence-design.md` |
+| A video's length, scene seconds, what it is made of; scripts written in parts | `2026-10-10-phase7-length-design.md` (built against fakes; no real script yet) |
 | Series and their schedule, publishing to a channel, credits, plans | `2026-10-10-phase6-series-autopublish-design.md` (built against stand-ins) |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.

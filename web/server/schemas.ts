@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { loadBrandKit } from "@src/brand";
 import { Aspect } from "@src/config";
+import { DEFAULT_SCENE_SECONDS, DEFAULT_VIDEO_SECONDS, SCENE_SECONDS, VIDEO_SECONDS } from "@src/duration";
 import { MAX_SCENES, MAX_SEED, Mode } from "@src/manifest/schema";
 import { CaptionStyleName, Transition } from "@src/media/remotion/props";
 import { PresetName } from "@src/presets";
@@ -24,9 +25,18 @@ const HookText = z.string().trim().min(1).max(60);
 export const NewVideo = z.object({
   topic: z.string().trim().min(1).max(500),
   aspect: Aspect.default("9:16"),
-  scenes: z.number().int().min(1).max(MAX_SCENES).default(4),
+  /** About how long the video runs, in seconds: one of the lengths on offer. The script decides how many scenes that is. */
+  durationSec: z.number().refine((n) => (VIDEO_SECONDS as readonly number[]).includes(n), "not a length a video can have").default(DEFAULT_VIDEO_SECONDS),
+  /** How long each scene stays, in whole seconds: one length (both the same) or a range, within what a clip can be. */
+  sceneSec: z.object({
+    min: z.number().int().min(SCENE_SECONDS.min).max(SCENE_SECONDS.max),
+    max: z.number().int().min(SCENE_SECONDS.min).max(SCENE_SECONDS.max),
+  }).refine((r) => r.min <= r.max, "the shortest scene cannot be longer than the longest").default(DEFAULT_SCENE_SECONDS),
   style: z.union([PresetName, z.literal("auto")]).default("auto"),
-  /** The starting position of every scene's mode switch. */
+  /**
+   * What the video is made of: `stills` = generated pictures only, `clips` = generated clips only, `auto` = both,
+   * each scene by how much happens in it. (It is where every scene's own switch starts on the draft's page.)
+   */
   motion: z.enum(["auto", "clips", "stills"]).default("auto"),
   /** The size moving clips are generated at; 720p costs about twice as much. */
   clips: z.enum(["480p", "720p"]).default("480p"),
@@ -71,7 +81,8 @@ export const NO_BUDGET_USD = 100;
 export function draftArgs(input: NewVideo, runId: string): string[] {
   const args = [
     "run", "--draft", "--yes", "--run-id", runId, "--topic", input.topic, "--aspect", input.aspect,
-    "--scenes", String(input.scenes), "--mode", "auto", "--clips", input.clips, "--budget", String(NO_BUDGET_USD),
+    "--duration", String(input.durationSec), "--scene-seconds", input.sceneSec.min === input.sceneSec.max ? String(input.sceneSec.min) : `${input.sceneSec.min}-${input.sceneSec.max}`,
+    "--mode", "auto", "--clips", input.clips, "--budget", String(NO_BUDGET_USD),
     "--caption-style", input.captionStyle, "--transition", input.transition,
     "--bgm-gain", String(input.musicGain), "--sfx-gain", String(input.sfxGain),
   ];

@@ -17,14 +17,14 @@ describe("the new-video form", () => {
     for (const style of PresetName.options) expect(NewVideo.parse({ ...base, style }).style).toBe(style);
     for (const captionStyle of [...CaptionStyleName.options, "preset"]) expect(NewVideo.safeParse({ ...base, captionStyle }).success).toBe(true);
     for (const transition of [...Transition.options, "auto"]) expect(NewVideo.safeParse({ ...base, transition }).success).toBe(true);
-    for (const bad of [{ aspect: "1:1" }, { style: "noir" }, { captionStyle: "comic" }, { transition: "wipe" }, { scenes: 13 }, { scenes: 0 }, { clips: "1080p" }, { topic: " " }, { topic: undefined }]) {
+    for (const bad of [{ aspect: "1:1" }, { style: "noir" }, { captionStyle: "comic" }, { transition: "wipe" }, { durationSec: 25 }, { durationSec: 660 }, { durationSec: 0 }, { sceneSec: { min: 1, max: 5 } }, { sceneSec: { min: 3, max: 6 } }, { sceneSec: { min: 5, max: 3 } }, { sceneSec: { min: 2.5, max: 4 } }, { clips: "1080p" }, { topic: " " }, { topic: undefined }]) {
       expect(NewVideo.safeParse({ ...base, ...bad }).success).toBe(false);
     }
   });
 
   it("fills the pipeline's defaults", () => {
     expect(NewVideo.parse(base)).toMatchObject({
-      aspect: "9:16", scenes: 4, style: "auto", motion: "auto", brandKit: null, music: null, musicGain: 0.35,
+      aspect: "9:16", durationSec: 30, sceneSec: { min: 3, max: 5 }, style: "auto", motion: "auto", brandKit: null, music: null, musicGain: 0.35,
       hook: { mode: "auto" }, sfx: true, sfxGain: 0.6, captionStyle: "preset", transition: "auto",
     });
   });
@@ -39,7 +39,7 @@ describe("the new-video form", () => {
   it("becomes a `run --draft` command line, one option per field", () => {
     const minimal = draftArgs(NewVideo.parse(base), "20261006-120000-abcdef");
     expect(minimal).toEqual([
-      "run", "--draft", "--yes", "--run-id", "20261006-120000-abcdef", "--topic", "foxes", "--aspect", "9:16", "--scenes", "4",
+      "run", "--draft", "--yes", "--run-id", "20261006-120000-abcdef", "--topic", "foxes", "--aspect", "9:16", "--duration", "30", "--scene-seconds", "3-5",
       "--mode", "auto", "--clips", "480p", "--budget", "100", "--caption-style", "preset", "--transition", "auto",
       "--bgm-gain", "0.35", "--sfx-gain", "0.6",
     ]);

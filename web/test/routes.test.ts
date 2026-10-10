@@ -135,7 +135,7 @@ describe("creating a draft", () => {
   it("starts `run --draft` with a new run id and the form's options; the run then shows as a draft", async () => {
     withKeys();
     await stub(studio, "_draft-manifest.json", draftManifest("placeholder"));
-    const res = await createDraft(request("/api/drafts", { json: { topic: "foxes at night", scenes: 3, motion: "stills" } }), undefined);
+    const res = await createDraft(request("/api/drafts", { json: { topic: "foxes at night", durationSec: 60, sceneSec: { min: 5, max: 5 }, motion: "stills" } }), undefined);
     expect(res.status).toBe(202);
     const { runId, job } = await res.json();
     expect(RUN_ID.test(runId)).toBe(true);
@@ -143,7 +143,7 @@ describe("creating a draft", () => {
     await jobDone(runId);
     const [args] = await calls(studio);
     expect(args.slice(0, 5)).toEqual(["run", "--draft", "--yes", "--run-id", runId]);
-    expect(args).toEqual(expect.arrayContaining(["--topic", "foxes at night", "--scenes", "3", "--budget", "100", "--pin-modes", "2"]));
+    expect(args).toEqual(expect.arrayContaining(["--topic", "foxes at night", "--duration", "60", "--scene-seconds", "5", "--budget", "100", "--pin-modes", "2"]));
     expect((await (await run(request(`/api/runs/${runId}`), params({ id: runId }))).json()).state).toBe("draft");
   });
 

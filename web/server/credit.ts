@@ -4,7 +4,7 @@ import { userDb } from "./tenant";
 
 /* Credit, as the web sees it: it can hold a user's own credit for a job, through the user's own session. Settling is the worker's. */
 
-export { DRAFT_CAP_USD } from "@/lib/credit";
+export { DRAFT_CAP_USD, draftCapUsd } from "@/lib/credit";
 
 const REFUSALS: Record<string, () => ApiError> = {
   not_found: () => new ApiError("not_found", "no such run"),

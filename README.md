@@ -26,6 +26,7 @@ and `docs/superpowers/specs/2026-10-06-phase3.1-web-ui-player-design.md` (the st
 ```bash
 npm run flowchain -- run --topic "The last lighthouse keeper" --scenes 4            # auto modes, Gemini picks the style
 npm run flowchain -- run --topic "…" --style cyberpunk --budget 2                   # a fixed style preset and budget
+npm run flowchain -- run --topic "…" --duration 60 --scene-seconds 3-5              # by length: the script decides the number of scenes
 npm run flowchain -- run --topic "…" --modes 1,2,1,1 --aspect 16:9 --bgm music.mp3 # hybrid, modes fixed by hand
 npm run flowchain -- run --topic "…" --caption-style mrbeast --transition zoom      # override the preset's look
 npm run flowchain -- run --topic "…" --brand assets/brand/example                  # watermark, brand font and colours

@@ -150,7 +150,7 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await expect(page.getByTestId("faq").locator("details")).toHaveCount(7);
   await page.getByText("Does my credit expire?").click();
   await expect(page.getByTestId("faq")).toContainText("Credits that did not come with a plan do not expire, and a plan's are spent first.");
-  await expect(page.getByTestId("faq")).toContainText("up to twelve scenes");
+  await expect(page.getByTestId("faq")).toContainText("from 5 seconds to 10 minutes");
   // (the answer about cost quotes the receipts on this very page)
   await expect(page.getByTestId("faq").locator("details").first()).toContainText("458, 634 and 1,625 credits");
   await expect(page.locator('[data-cta="closing-signup"]')).toHaveText("Create an account");
@@ -529,7 +529,7 @@ test("a user sets up a series and has its first video started from it; another u
   await expect(page).toHaveURL(/\/series\/[0-9a-f-]{36}$/);
   const id = page.url().split("/").at(-1)!;
   await expect(page.getByTestId("series-title")).toHaveText("Greek myths");
-  await expect(page.getByText("Anime, 4 scenes, 9:16")).toBeVisible();
+  await expect(page.getByText("Anime, about 30 seconds, 9:16")).toBeVisible();
   // saving it bought nothing
   expect(await balance(A.email)).toBe(before);
   await namesNothing(page);

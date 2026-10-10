@@ -1,43 +1,62 @@
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
-import { LlmScript, MAX_NARRATION_WORDS } from "../manifest/schema.js";
+import { lengthInWords, sceneBounds, sceneWords, totalWords, WORDS_PER_SECOND } from "../duration.js";
+import { LlmOutline, LlmPart, LlmScript, MAX_NARRATION_WORDS } from "../manifest/schema.js";
 import { PRESETS } from "../presets.js";
 import type { LlmProvider, ScriptRequest } from "./types.js";
 
 /** Gemini's responseJsonSchema takes plain JSON Schema; drop the draft marker zod adds. */
-export function scriptJsonSchema(): Record<string, unknown> {
-  const { $schema: _ignored, ...schema } = z.toJSONSchema(LlmScript) as Record<string, unknown>;
+export function scriptJsonSchema(kind: "script" | "outline" | "part" = "script"): Record<string, unknown> {
+  const of = kind === "outline" ? LlmOutline : kind === "part" ? LlmPart : LlmScript;
+  const { $schema: _ignored, ...schema } = z.toJSONSchema(of) as Record<string, unknown>;
   return schema;
 }
 
-export function buildScriptPrompt(req: ScriptRequest): string {
+const seconds = (r: { min: number; max: number }): string => (r.min === r.max ? `about ${r.min}` : `${r.min} to ${r.max}`);
+
+/** What a stretch of a video asked for by its length must come to: its words, and the scenes it may be told in. */
+function lengthRules(what: string, sec: number, sceneSec: { min: number; max: number }): string[] {
+  const words = sceneWords(sceneSec);
+  const scenes = sceneBounds(sec, sceneSec);
+  return [
+    `Length: ${what} runs about ${Math.round(sec)} seconds when spoken. The voice speaks about ${WORDS_PER_SECOND} words a second, so all its narrations together are about ${totalWords(sec)} words. Count them: far fewer and the video is too short, far more and it is too long.`,
+    `Each scene stays on screen for ${seconds(sceneSec)} seconds, so each scene's narration is ${words.min} to ${words.max} words.`,
+    scenes.min === scenes.max
+      ? `Return exactly ${scenes.min} ${scenes.min === 1 ? "scene" : "scenes"}.`
+      : `Return between ${scenes.min} and ${scenes.max} scenes. You decide how many and how long each one is, within those limits: a quick beat gets a short scene, a thought that needs room a longer one.`,
+  ];
+}
+
+const presetRules = (req: ScriptRequest): string[] => [
+  "Style presets (each sets the art style, image and motion wording, and the caption look), with the topics each one suits:",
+  ...Object.values(PRESETS).map((p) => `- ${p.name}: ${p.description}`),
+  req.style
+    ? `- stylePreset: use exactly "${req.style}".`
+    : "- stylePreset: set it to the preset that best fits the topic.",
+];
+
+const hookRule = "- hook: 2-6 punchy words shown as a big title over the first 3 seconds; tease the payoff without giving it away; no emojis, hashtags or quotes.";
+
+const bibleRules = (req: ScriptRequest): string[] => [
+  "- styleBible.artStyle: one visual style used by every scene (medium, lighting, lens, mood), matching the style preset.",
+  req.characters
+    ? `- styleBible.characters: use exactly: "${req.characters}". Refer to these characters consistently in every scene they appear in.`
+    : '- styleBible.characters: a precise, reusable description of every recurring character (age, clothing, hair, colors), or "none".',
+  "- styleBible.palette: 3-5 dominant colors, as plain colour names.",
+];
+
+/** The rules for a scene's own fields: the same whether the script is written in one answer or in parts. */
+function sceneRules(req: ScriptRequest): string[] {
   const orientation =
     req.aspect === "9:16"
       ? "vertical 9:16 (subject centered, tall composition)"
       : "horizontal 16:9 (wide cinematic composition)";
+  const clip = req.timing ? `a clip of ${req.timing.sceneSec.min === req.timing.sceneSec.max ? req.timing.sceneSec.min : `${req.timing.sceneSec.min}-${req.timing.sceneSec.max}`} seconds` : "a 5-10 second clip";
   return [
-    `You are writing a faceless short-form video about: "${req.topic}".`,
-    `Return exactly ${req.sceneCount} scenes.`,
-    "",
-    "Style presets (each sets the art style, image and motion wording, and the caption look), with the topics each one suits:",
-    ...Object.values(PRESETS).map((p) => `- ${p.name}: ${p.description}`),
-    req.style
-      ? `- stylePreset: use exactly "${req.style}".`
-      : "- stylePreset: set it to the preset that best fits the topic.",
-    "",
-    "Rules:",
-    `- narration: the spoken voiceover for the scene, at most ${MAX_NARRATION_WORDS} words (ideally 12-15), plain text, no stage directions, emojis or hashtags.`,
-    "- All narrations together read as one continuous script with a strong hook in scene 1.",
-    "- hook: 2-6 punchy words shown as a big title over the first 3 seconds; tease the payoff without giving it away; no emojis, hashtags or quotes.",
-    "- styleBible.artStyle: one visual style used by every scene (medium, lighting, lens, mood), matching the style preset.",
-    req.characters
-      ? `- styleBible.characters: use exactly: "${req.characters}". Refer to these characters consistently in every scene they appear in.`
-      : '- styleBible.characters: a precise, reusable description of every recurring character (age, clothing, hair, colors), or "none".',
-    "- styleBible.palette: 3-5 dominant colors, as plain colour names.",
     `- imagePrompt: what a single still frame of the scene shows, ${orientation}. Do not describe the art style or repeat the style bible; they are added automatically. Never ask for text, captions, logos or watermarks.`,
     "- imagePrompt, how to write it: one or two plain sentences that a painter could work from. Name one clear main subject and what it is doing, where it is, how close the camera is (close-up, medium shot or wide shot) and from where it looks, and the light or time of day. Only things that can be seen: no feelings, ideas, metaphors, sounds or story. Say what is in the frame, never what is absent from it. Every scene's frame must differ from the one before it in subject, distance or angle.",
     "- showsCharacter: true only when a recurring character is visible in the scene's frame, and then the imagePrompt says what they are doing; false for a scene of a place, an object or a detail, whose imagePrompt must not mention them.",
-    "- motionPrompt: camera movement plus subject motion during the scene in one or two sentences, physically plausible for a 5-10 second clip.",
+    `- motionPrompt: camera movement plus subject motion during the scene in one or two sentences, physically plausible for ${clip}.`,
     "- motionPrompt, how to write it: one camera move (for example a slow push-in, a pan left, an orbit, a tilt up, or a static camera) and one or two simple motions of things already in the frame. Nothing new enters the frame, nothing changes place or shape, and nobody speaks to the camera. Do not describe how anything looks.",
     '- shot: "continue" if the scene happens in the same place and moment as the previous scene and should flow on from its last frame; "cut" for a new location, time or framing. Scene 1 must be "cut".',
     "- camera: the programmatic camera move used if this scene is rendered from a still image.",
@@ -49,8 +68,89 @@ export function buildScriptPrompt(req: ScriptRequest): string {
             'Write every "continue" scene (its imagePrompt and motionPrompt) as the same place and moment carrying on.',
         ]
       : []),
-    ...(req.feedback ? ["", "Your previous answer was rejected for these reasons. Fix them:", req.feedback] : []),
+  ];
+}
+
+const narrationRule = (req: ScriptRequest): string =>
+  req.timing
+    ? `- narration: the spoken voiceover for the scene, ${sceneWords(req.timing.sceneSec).min} to ${sceneWords(req.timing.sceneSec).max} words and never more than ${MAX_NARRATION_WORDS}, plain text, no stage directions, emojis or hashtags.`
+    : `- narration: the spoken voiceover for the scene, at most ${MAX_NARRATION_WORDS} words (ideally 12-15), plain text, no stage directions, emojis or hashtags.`;
+
+const feedbackLines = (req: ScriptRequest): string[] => (req.feedback ? ["", "Your previous answer was rejected for these reasons. Fix them:", req.feedback] : []);
+
+/** The whole script in one answer: by a number of scenes, or (`timing`) by its length. */
+function wholePrompt(req: ScriptRequest): string {
+  return [
+    `You are writing a faceless short-form video about: "${req.topic}".`,
+    ...(req.timing ? lengthRules("the video", req.timing.targetSec, req.timing.sceneSec) : [`Return exactly ${req.sceneCount} scenes.`]),
+    "",
+    ...presetRules(req),
+    "",
+    "Rules:",
+    narrationRule(req),
+    "- All narrations together read as one continuous script with a strong hook in scene 1.",
+    hookRule,
+    ...bibleRules(req),
+    ...sceneRules(req),
+    ...feedbackLines(req),
   ].join("\n");
+}
+
+/** A long video's first answer: what every part shares, and what each part tells. */
+function outlinePrompt(req: ScriptRequest, partSec: number[]): string {
+  const total = partSec.reduce((a, b) => a + b, 0);
+  return [
+    `You are planning a faceless video about: "${req.topic}".`,
+    `It runs about ${lengthInWords(Math.round(total))} and is told by one narrator over pictures. It will be written in ${partSec.length} parts of about ${Math.round(partSec[0])} seconds each; here you plan them, and write none of the narration.`,
+    "",
+    ...presetRules(req),
+    "",
+    "Rules:",
+    "- title: the video's title.",
+    hookRule,
+    ...bibleRules(req),
+    `- parts: exactly ${partSec.length}, in order. For each, summary: what that part tells, in one or two plain sentences, specific enough that someone else could write it.`,
+    "- The parts together are one story with a direction: part 1 opens on the hook and makes a promise, each part adds something the ones before did not, and the last part pays the promise off. No part repeats another, and none is filler.",
+    ...feedbackLines(req),
+  ].join("\n");
+}
+
+/** One part of a long video: its scenes, written to carry on from the part before. */
+function partPrompt(req: ScriptRequest, ask: Extract<NonNullable<ScriptRequest["ask"]>, { kind: "part" }>): string {
+  const { index, partSec, outline, previous } = ask;
+  const [first, last] = [index === 0, index === partSec.length - 1];
+  const sceneSec = req.timing!.sceneSec;
+  return [
+    `You are writing part ${index + 1} of ${partSec.length} of a faceless video about: "${req.topic}".`,
+    `The video is called "${outline.title}". One narrator tells it over pictures; the parts are joined end to end into one video.`,
+    "",
+    "What each part tells:",
+    ...outline.parts.map((p, i) => `${i + 1}. ${p.summary}`),
+    "",
+    `Write only part ${index + 1}: its scenes, in order.`,
+    ...lengthRules("this part", partSec[index], sceneSec),
+    first
+      ? "- This is the opening: scene 1 is a strong hook."
+      : `- This part carries straight on from the end of part ${index}, whose last lines were: ${previous.map((n) => `"${n}"`).join(" ")} Do not greet, do not introduce the topic again, and do not repeat what an earlier part has told.`,
+    last ? "- This is the end of the video: its last scene lands the payoff and closes." : "- Do not conclude or sum up: the next part carries on from your last line.",
+    "",
+    "The look is settled, and is added to every picture automatically:",
+    `- style preset: ${outline.stylePreset}`,
+    `- characters: ${req.characters ?? outline.styleBible.characters}`,
+    `- palette: ${outline.styleBible.palette}`,
+    "",
+    "Rules:",
+    narrationRule(req),
+    "- The narrations of this part read as one continuous script.",
+    ...sceneRules(req),
+    ...feedbackLines(req),
+  ].join("\n");
+}
+
+export function buildScriptPrompt(req: ScriptRequest): string {
+  if (req.ask?.kind === "outline") return outlinePrompt(req, req.ask.partSec);
+  if (req.ask?.kind === "part") return partPrompt(req, req.ask);
+  return wholePrompt(req);
 }
 
 export class GeminiLlm implements LlmProvider {
@@ -67,7 +167,7 @@ export class GeminiLlm implements LlmProvider {
     const res = await this.ai.models.generateContent({
       model: this.model,
       contents: buildScriptPrompt(req),
-      config: { responseMimeType: "application/json", responseJsonSchema: scriptJsonSchema(), temperature: 0.9 },
+      config: { responseMimeType: "application/json", responseJsonSchema: scriptJsonSchema(req.ask?.kind ?? "script"), temperature: 0.9 },
     });
     const text = res.text;
     if (!text) throw new Error("Gemini returned an empty response");

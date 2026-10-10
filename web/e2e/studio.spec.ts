@@ -99,6 +99,49 @@ test("a reroll first saves the look being previewed, then starts capped at the c
   expect(all.slice(0, at)).toContainEqual(["look", DONE_ID, "--caption-style", "minimalist"]);
 });
 
+test("a new video is asked for by its length, how long each scene stays and what it is made of; there is no number of scenes to give", async ({ page }) => {
+  await page.goto("/new");
+  // from five seconds to ten minutes, and nothing longer
+  const lengths = page.getByTestId("length").locator("option");
+  await expect(lengths).toHaveCount(16);
+  await expect(lengths.first()).toHaveText("5 seconds");
+  await expect(lengths.last()).toHaveText("10 minutes");
+  await expect(page.getByTestId("length")).toHaveValue("30");
+  await expect(page.getByLabel("Scenes", { exact: true })).toHaveCount(0);
+  // a scene stays as long as a clip can be, and the page says how many scenes that makes
+  await expect(page.getByTestId("scene-min").locator("option")).toHaveText(["2 s", "3 s", "4 s", "5 s"]);
+  await expect(page.getByTestId("scene-count")).toContainText("6 to 10 scenes");
+  // the two ends never cross: the longest follows the shortest up, and one length is both the same
+  await page.getByTestId("scene-max").selectOption("3");
+  await page.getByTestId("scene-min").selectOption("5");
+  await expect(page.getByTestId("scene-max")).toHaveValue("5");
+  await expect(page.getByTestId("scene-count")).toContainText("6 scenes:");
+  await page.getByTestId("length").selectOption("600");
+  await expect(page.getByTestId("scene-count")).toContainText("120 scenes:");
+  // a long script is several answers, and the button says what it may cost
+  await expect(page.getByTestId("create-draft")).toHaveText(/Write the script, up to \$0\.[1-9]/);
+  await page.getByTestId("length").selectOption("60");
+  await page.getByTestId("scene-min").selectOption("3");
+
+  // pictures only, both, or clips only
+  const madeOf = page.getByRole("radiogroup", { name: "What the video is made of" });
+  await expect(madeOf.getByRole("radio")).toHaveText(["Pictures only", "Pictures and clips", "Clips only"]);
+  await expect(madeOf.getByRole("radio", { name: "Pictures and clips" })).toBeChecked();
+  await madeOf.getByRole("radio", { name: "Pictures only" }).click();
+  await expect(page.getByTestId("made-of-note")).toContainText("Every scene is a generated picture");
+  // (and with no clip in it, there is no clip size to choose)
+  await expect(page.getByRole("radiogroup", { name: "Clip quality" })).toHaveCount(0);
+  if (process.env.E2E_SHOT) await page.screenshot({ path: process.env.E2E_SHOT, fullPage: true });
+
+  await page.getByTestId("topic").fill("A lighthouse keeper's daughter takes over the light");
+  const before = calls().length;
+  await page.getByTestId("create-draft").click();
+  await expect.poll(() => calls().slice(before).find((c) => c[0] === "run")).toBeTruthy();
+  const sent = calls().slice(before).find((c) => c[0] === "run")!;
+  expect(sent).toEqual(expect.arrayContaining(["--duration", "60", "--scene-seconds", "3-5", "--pin-modes", "2"]));
+  expect(sent).not.toContain("--scenes");
+});
+
 test("a studio without accounts has no landing page: the bare address is the studio, as ever", async ({ page }) => {
   expect((await page.goto("/welcome"))!.status()).toBe(404);
   await page.goto("/");

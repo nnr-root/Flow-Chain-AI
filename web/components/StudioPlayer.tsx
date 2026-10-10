@@ -5,7 +5,7 @@ import type { RenderProps } from "@src/media/remotion/props";
 import { Video } from "@src/media/remotion/Video";
 import { forwardRef, useCallback, useImperativeHandle, useMemo, useRef } from "react";
 
-/** 12 scenes at most: 11 cuts + the hook's impact + narration + music, with a little room. */
+/** Narration, music, and the sounds of the cuts that are close enough together to sound at once, with room to spare. */
 const MAX_AUDIO_TAGS = 16;
 
 export type StudioPlayerHandle = { seekTo: (frame: number) => void };

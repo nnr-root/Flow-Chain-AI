@@ -7,9 +7,11 @@ import { type BrandKit, installBrand, installReference, loadBrandKit } from "./b
 import { FONTS_DIR, SFX_DIR } from "./assets.js";
 import { type Env, FPS, keyframeSize, loadEnv, loadPrices, outputSize } from "./config.js";
 import { formatChecks, runDoctor } from "./doctor.js";
+import { DEFAULT_SCENE_SECONDS, SCENE_SECONDS, VIDEO_SECONDS } from "./duration.js";
 import { type Manifest, MAX_SEED, type Models, RunRequest, StageName } from "./manifest/schema.js";
 import {
   createManifest, loadManifest, newRunId, resolveModes, resolveShots, saveManifest, withRunLock,
+  resolveShape,
 } from "./manifest/store.js";
 import { CaptionStyleName, Transition } from "./media/remotion/props.js";
 import { type Plan, planRun, RunAborted, runPipeline } from "./pipeline.js";
@@ -161,6 +163,8 @@ type RunFlags = {
   draft?: boolean;
   runId?: string;
   pinModes?: string;
+  duration?: string;
+  sceneSeconds?: string;
 };
 
 /** --pin-modes: one entry per scene, or a single value for every scene. */
@@ -197,7 +201,9 @@ program
   .description("start a new run")
   .requiredOption("--topic <text>", "what the video is about")
   .addOption(new Option("--aspect <ratio>", "output aspect ratio").choices(["9:16", "16:9"]).default("9:16"))
-  .option("--scenes <n>", "number of scenes (1-12)", "4")
+  .option("--scenes <n>", "number of scenes (1-12; default 4), for a run asked for by its scenes")
+  .option("--duration <seconds>", `about how long the video runs (${VIDEO_SECONDS.join(", ")}); the script decides the number of scenes`)
+  .option("--scene-seconds <n|a-b>", `with --duration: how long each scene stays, one length or a range within ${SCENE_SECONDS.min}-${SCENE_SECONDS.max} (default ${DEFAULT_SCENE_SECONDS.min}-${DEFAULT_SCENE_SECONDS.max})`)
   .addOption(
     new Option("--mode <mode>", "auto = per scene from its action level and the budget; 1 or 2 = every scene")
       .choices(["auto", "1", "2"])
@@ -229,7 +235,7 @@ program
   .option("--run-id <id>", "use this run id instead of a new one")
   .action(async (o: RunFlags) => {
     const env = loadEnv();
-    const sceneCount = Number(o.scenes);
+    const { sceneCount, timing } = resolveShape(o);
     const modes = resolveModes(o.mode, o.modes, sceneCount);
     const shots = resolveShots(o.shots, sceneCount);
     const budgetUsd = budget(o.budget, env);
@@ -241,6 +247,7 @@ program
       topic: o.topic,
       aspect: o.aspect,
       sceneCount,
+      timing,
       modes,
       // auto runs freeze the budget and price table their mode rules use; a later --budget only changes when to ask
       modeBudgetUsd: modes ? undefined : budgetUsd,

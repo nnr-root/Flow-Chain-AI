@@ -12,7 +12,8 @@ import { scriptStage } from "../../src/stages/script.js";
 import { silenceStage } from "../../src/stages/silence.js";
 import { ttsStage } from "../../src/stages/tts.js";
 import { planningCopy, planQuery, RUN_ID, runDraft } from "../../src/studio/commands.js";
-import { isDraft } from "../../src/studio/draft.js";
+import { isDraft, setDraftModes } from "../../src/studio/draft.js";
+import { timedScript } from "../fakes/providers.js";
 import { makeTestContext } from "../helpers/context.js";
 
 const run = promisify(execFile);
@@ -45,6 +46,20 @@ describe("runDraft", () => {
     ctx.manifest.request.modeOverrides = [2, 2, 2];
     await runDraft(ctx, opts);
     expect(ctx.manifest.scenes.map((s) => s.mode)).toEqual([2, 2, 2]);
+  });
+
+  it("prices and pins a draft asked for by its length by the scenes its script has", async () => {
+    const timing = { targetSec: 30, sceneSec: { min: 3, max: 5 } };
+    const { ctx } = await makeTestContext({ modes: "auto", timing, script: () => timedScript(Array(7).fill(12), { actionLevels: ["high", "low", "high", "low", "medium", "low", "high"] }) });
+    // eight scenes were assumed; "pictures only" pinned each of them
+    ctx.manifest.request.modeOverrides = Array(8).fill(2);
+    await runDraft(ctx, opts);
+    expect(isDraft(ctx.manifest)).toBe(true);
+    expect(ctx.manifest.scenes.map((s) => s.mode)).toEqual(Array(7).fill(2));
+    // and its owner can still change any one of the seven
+    const plan = setDraftModes(ctx.manifest, [1, null, null, null, null, null, null], ctx.keyframeSize);
+    expect(plan.modes).toEqual([1, 2, 1, 2, 1, 2, 1]);
+    expect(() => setDraftModes(ctx.manifest, Array(8).fill(null), ctx.keyframeSize)).toThrow("expected 7 modes");
   });
 
   it("leaves an explicit run's modes alone", async () => {

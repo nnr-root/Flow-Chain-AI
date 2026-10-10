@@ -40,7 +40,7 @@ export default async function Page() {
                 {r.spendUsd !== undefined && <span className="note">{amount(r.spendUsd)}</span>}
               </div>
               <p className="line-clamp-2 font-bold leading-snug group-hover:underline group-hover:underline-offset-4">{r.title ?? r.topic ?? r.runId}</p>
-              {r.sceneCount ? <p className="text-[0.85rem] text-graphite">{r.sceneCount} scenes, {r.aspect}</p> : null}
+              {r.sceneCount ? <p className="text-[0.85rem] text-graphite">{r.sceneCount} {r.sceneCount === 1 ? "scene" : "scenes"}, {r.aspect}</p> : null}
             </div>
           </Link>
         </li>

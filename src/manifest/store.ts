@@ -3,7 +3,8 @@ import { rmSync } from "node:fs";
 import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { z } from "zod";
-import { Manifest, type Mode, type Models, RunRequest, SCHEMA_VERSION, type Shot } from "./schema.js";
+import { DEFAULT_SCENE_SECONDS, expectedScenes, parseDuration, parseSceneSeconds, type Timing } from "../duration.js";
+import { Manifest, MAX_COUNTED_SCENES, type Mode, type Models, RunRequest, SCHEMA_VERSION, type Shot } from "./schema.js";
 
 export const MANIFEST_FILE = "manifest.json";
 export const LOCK_FILE = ".lock";
@@ -84,6 +85,42 @@ export function createManifest(
   };
 }
 
+/**
+ * Gives a run asked for by its length the number of scenes its script turned out to have (phase 7 spec §3).
+ * Until the script is written such a run is laid out for an assumed number.
+ *
+ * A scene that is still there keeps its state (a script written again changes what its stages read, and they
+ * run again by their hashes, as for any run). A scene that is no longer there may have had a provider job on
+ * its way: the provider bills it all the same, so what it was expected to cost, and what the scene had already
+ * given up, moves to the run's own `abandonedUsd` before the scene is dropped. No paid call leaves the record.
+ */
+export function layOutScenes(m: Manifest, count: number): void {
+  const r = m.request;
+  if (!r.timing) throw new Error("only a run asked for by its length has its scenes laid out again");
+  // one choice for every scene is all such a run can have been given (the CLI refuses a list with --duration)
+  const uniform = <T>(list: T[] | undefined, what: string): T[] | undefined => {
+    if (!list) return undefined;
+    if (list.some((v) => v !== list[0])) throw new Error(`a run asked for by its length cannot have ${what} per scene`);
+    return Array.from({ length: count }, () => list[0]);
+  };
+  if (r.shots) throw new Error("a run asked for by its length cannot have shots per scene");
+  r.modes = uniform(r.modes, "modes");
+  r.modeOverrides = uniform(r.modeOverrides, "pinned modes");
+  if (r.modes === undefined) delete r.modes;
+  if (r.modeOverrides === undefined) delete r.modeOverrides;
+  r.sceneCount = count;
+  let lost = 0;
+  for (const gone of m.scenes.slice(count)) {
+    lost += gone.abandonedUsd ?? 0;
+    for (const job of Object.values(gone.jobs)) {
+      if (job && !job.result && !(job.chargedUsd > 0) && job.expectedUsd !== undefined && job.expectedUsd > 0) lost += job.expectedUsd;
+    }
+  }
+  if (lost > 0) m.abandonedUsd = Math.round(((m.abandonedUsd ?? 0) + lost) * 10_000) / 10_000;
+  const mode = (): Mode => r.modes?.[0] ?? r.modeOverrides?.[0] ?? 1;
+  m.scenes = Array.from({ length: count }, (_, idx) => m.scenes[idx] ?? { idx, mode: mode(), nonces: {}, stages: {}, jobs: {} });
+}
+
 /** Validates, then writes to a temp file and renames, so a crash never leaves a half-written manifest. */
 export async function saveManifest(dir: string, manifest: Manifest): Promise<void> {
   const valid = Manifest.parse(manifest);
@@ -102,6 +139,25 @@ export async function loadManifest(dir: string): Promise<Manifest> {
     );
   }
   return Manifest.parse(raw);
+}
+
+/**
+ * How many scenes a new run is laid out for, and its timing when it is asked for by its length. By its length
+ * the script decides the number of scenes, so nothing can be given per scene: a list of modes or shots has no
+ * scenes to belong to yet.
+ */
+export function resolveShape(o: { scenes?: string; duration?: string; sceneSeconds?: string; modes?: string; shots?: string; pinModes?: string }): { sceneCount: number; timing?: Timing } {
+  if (o.duration === undefined) {
+    if (o.sceneSeconds !== undefined) throw new Error("--scene-seconds goes with --duration");
+    const sceneCount = Number(o.scenes ?? 4);
+    if (!Number.isInteger(sceneCount) || sceneCount < 1 || sceneCount > MAX_COUNTED_SCENES) throw new Error(`--scenes must be a whole number from 1 to ${MAX_COUNTED_SCENES}; got "${o.scenes}"`);
+    return { sceneCount };
+  }
+  if (o.scenes !== undefined) throw new Error("give --duration or --scenes, not both: with a length, the script decides the number of scenes");
+  const lists = [["--modes", o.modes], ["--shots", o.shots], ["--pin-modes", o.pinModes?.includes(",") ? o.pinModes : undefined]].filter(([, v]) => v !== undefined);
+  if (lists.length > 0) throw new Error(`${lists[0][0]} lists a value per scene, and with --duration the number of scenes is the script's to decide`);
+  const timing = { targetSec: parseDuration(o.duration), sceneSec: parseSceneSeconds(o.sceneSeconds ?? `${DEFAULT_SCENE_SECONDS.min}-${DEFAULT_SCENE_SECONDS.max}`) };
+  return { sceneCount: expectedScenes(timing), timing };
 }
 
 /** Explicit per-scene modes from --modes or --mode 1|2; undefined for --mode auto (the modes stage decides). */

@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { lengthInWords } from "@src/duration";
 import { PRESETS } from "@src/presets";
 import { SeriesPublishing } from "@/components/Publishing";
 import { SeriesActions } from "@/components/SeriesActions";
 import { SeriesSchedule } from "@/components/SeriesSchedule";
 import { Panel, StateBadge } from "@/components/ui";
 import { amount } from "@/lib/api";
+import { draftCapUsd } from "@/lib/credit";
 import { publishingOn } from "@/lib/publishing";
 import { listChannels } from "@/server/channels";
 import { ApiError } from "@/server/http";
@@ -35,9 +37,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <p className="text-[0.95rem]"><Link href="/series" className="text-graphite underline underline-offset-4 hover:text-ink">Your series</Link></p>
         <h1 className="display mt-3 text-[clamp(2.4rem,1.6rem+3vw,3.8rem)] leading-[0.95]" data-testid="series-title">{series.name}</h1>
         <p className="mt-4 max-w-[40rem] text-[1.1rem] text-graphite">{series.premise}</p>
-        <p className="note mt-4 text-[0.95rem]">{look}, {series.scenes} scenes, {series.aspect}</p>
+        <p className="note mt-4 text-[0.95rem]">{look}, about {lengthInWords(series.durationSec)}, {series.aspect}</p>
       </div>
-      <SeriesActions id={series.id} name={series.name} episodes={series.episodes.length} />
+      <SeriesActions id={series.id} name={series.name} episodes={series.episodes.length} holdUsd={draftCapUsd({ targetSec: series.durationSec, sceneSec: series.sceneSec })} />
       <SeriesSchedule series={series} />
       {publishingOn() && <SeriesPublishing series={series} channels={channels} />}
       <Panel title="Its videos">

@@ -43,7 +43,10 @@ export type SeriesView = {
   /** The look's name as the form knows it ("auto" when the topic chooses). */
   style: string;
   aspect: string;
-  scenes: number;
+  /** About how long each of its videos runs, in seconds. */
+  durationSec: number;
+  /** How long each scene of them stays, in seconds. */
+  sceneSec: { min: number; max: number };
   createdAt: string;
   /** Its schedule, which is its owner's approval to make videos by itself (phase 6 spec §15). */
   cadence: Cadence;

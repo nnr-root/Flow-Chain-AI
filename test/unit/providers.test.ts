@@ -1,3 +1,4 @@
+import { MAX_SCENES } from "../../src/manifest/schema.js";
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -61,7 +62,10 @@ describe("gemini prompt and schema", () => {
   it("produces a JSON schema without $schema", () => {
     const s = scriptJsonSchema() as { $schema?: string; properties: { scenes: { maxItems: number } } };
     expect(s.$schema).toBeUndefined();
-    expect(s.properties.scenes.maxItems).toBe(12);
+    expect(s.properties.scenes.maxItems).toBe(MAX_SCENES);
+    // a long video's two kinds of answer have schemas of their own
+    expect(Object.keys((scriptJsonSchema("outline") as { properties: object }).properties)).toEqual(["title", "stylePreset", "styleBible", "hook", "parts"]);
+    expect(Object.keys((scriptJsonSchema("part") as { properties: object }).properties)).toEqual(["scenes"]);
   });
 
   it("requires the 2.2 fields in Gemini's answer", () => {

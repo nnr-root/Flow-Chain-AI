@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { type Job as QueueJob, Queue, Worker } from "bullmq";
 import type { Redis } from "ioredis";
 import { RUN_ID } from "@src/studio/commands";
-import { DRAFT_CAP_USD } from "../lib/credit";
+import { draftCapOfArgs } from "../lib/credit";
 import { multiTenant } from "../lib/accounts";
 import { baseRoots, health, roots } from "../server/config";
 import {
@@ -209,7 +209,8 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     if (!db || !PAID.has(data.kind)) return;
     const r = data.reservationId && UUID.test(data.reservationId) ? await db.reservation(data.reservationId) : null;
     const capArg = data.args.includes("--cap") ? Number(data.args[data.args.indexOf("--cap") + 1]) : Number.NaN;
-    const cap = data.kind === "draft" ? DRAFT_CAP_USD : capArg;
+    // (a draft's command carries no amount: what it holds follows from the length it asks for)
+    const cap = data.kind === "draft" ? draftCapOfArgs(data.args) : capArg;
     const matches = r && r.status === "open" && r.run_id === data.runId && r.user_id === data.userId && r.kind === data.kind && Math.abs(r.cap_usd - cap) < 0.00005;
     if (!matches) throw new Error(`no credit is held for this ${data.kind} of ${data.runId}`);
   };

@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { newRunId } from "@src/manifest/store";
 import type { PlanJson } from "@src/studio/commands";
 import { statusOf } from "@src/studio/status";
-import { DRAFT_CAP_USD, newTenantRun, reserve } from "./credit";
+import { draftCapUsd, newTenantRun, reserve } from "./credit";
 import { ApiError } from "./http";
 import { round4 } from "@/lib/credit";
 import { cliJson, cliText, jobReady, type JobView, releaseJob, startJob, studioHealthRaw, viewJob } from "./jobs";
@@ -37,7 +37,7 @@ export async function createDraft(input: NewVideo, seriesId?: string): Promise<{
   if (multiTenant()) {
     // the run is registered as the user's, and the script's cost is held from their credit, before anything is queued
     const runId = await newTenantRun(input.topic, seriesId);
-    return { runId, job: await startPaid(runId, "draft", draftArgs(input, runId), DRAFT_CAP_USD) };
+    return { runId, job: await startPaid(runId, "draft", draftArgs(input, runId), draftCapUsd({ targetSec: input.durationSec, sceneSec: input.sceneSec })) };
   }
   const runId = newRunId();
   return { runId, job: await startJob(runId, "draft", draftArgs(input, runId)) };

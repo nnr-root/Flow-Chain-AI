@@ -9,13 +9,41 @@ import { type Plan, planRun, RunAborted, type RunOptions, runPipeline } from "..
 import { bumpNonce } from "../../src/reroll.js";
 import { STAGES } from "../../src/stages/index.js";
 import { abs, paths } from "../../src/stages/paths.js";
-import { fakeScript } from "../fakes/providers.js";
+import { fakeScript, timedScript } from "../fakes/providers.js";
 import { makeTestContext } from "../helpers/context.js";
 import { frameDiff } from "../helpers/media.js";
 
 const auto: RunOptions = { budgetUsd: 100, confirm: async () => true };
 
 describe("end-to-end with fakes", () => {
+  it("makes a video asked for by its length, with the number of scenes its script decided", async () => {
+    // ten seconds in scenes of three to five: three are assumed, and the script tells it in two
+    const timing = { targetSec: 10, sceneSec: { min: 3, max: 5 } };
+    const { ctx, fakes } = await makeTestContext({ modes: "auto", timing, script: () => timedScript([13, 13]) });
+    expect(ctx.manifest.scenes).toHaveLength(3);
+    await runPipeline(ctx, STAGES, auto);
+    expect(ctx.manifest.scenes).toHaveLength(2);
+    expect(fakes.tts.calls).toHaveLength(2);
+    expect(fakes.video.submits).toHaveLength(2);
+    const final = abs(ctx, paths.final);
+    const total = ctx.manifest.scenes.reduce((a, s) => a + s.audio!.duration, 0);
+    expect(await countFrames(final)).toBe(Math.round(total * 30));
+    // every stage of every scene that is there, and of none that is not
+    expect((await loadManifest(ctx.dir)).scenes.map((s) => s.stages.fit?.status)).toEqual(["done", "done"]);
+  });
+
+  it("makes one asked for in pictures only without buying a clip, however many scenes it has", async () => {
+    const timing = { targetSec: 10, sceneSec: { min: 3, max: 5 } };
+    const { ctx, fakes } = await makeTestContext({ modes: "auto", timing, script: () => timedScript([13, 13]) });
+    // what the studio's "Pictures only" becomes: every scene pinned to a still, for the scenes assumed
+    ctx.manifest.request.modeOverrides = [2, 2, 2];
+    await runPipeline(ctx, STAGES, auto);
+    expect(ctx.manifest.scenes.map((s) => s.mode)).toEqual([2, 2]);
+    expect(fakes.video.submits).toHaveLength(0);
+    expect(fakes.image.submits).toHaveLength(2);
+    expect((await loadManifest(ctx.dir)).final).toBeDefined();
+  });
+
   it("renders a hybrid 1,2,1,1 video with a 4-row chain sheet", async () => {
     const { ctx } = await makeTestContext({ modes: [1, 2, 1, 1], shots: ["cut", "continue", "continue", "cut"] });
     await runPipeline(ctx, STAGES, auto);

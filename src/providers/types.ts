@@ -1,5 +1,6 @@
 import type { Aspect } from "../config.js";
-import type { Shot, WordTiming } from "../manifest/schema.js";
+import type { Timing } from "../duration.js";
+import type { LlmOutline, Shot, WordTiming } from "../manifest/schema.js";
 import type { PresetName } from "../presets.js";
 
 export type ScriptRequest = {
@@ -12,6 +13,19 @@ export type ScriptRequest = {
   /** Fixed character bible; absent = the LLM describes the characters. */
   characters?: string;
   feedback?: string;
+  /**
+   * The video was asked for by its length: the answer keeps to these seconds (as words) and decides the number
+   * of scenes itself. Absent = exactly `sceneCount` scenes.
+   */
+  timing?: Timing;
+  /**
+   * A long video is written in parts (phase 7 spec §4). `outline`: what the parts share and what each tells,
+   * answered as an `LlmOutline`. `part`: one part's scenes, answered as an `LlmPart`; `previous` are the last
+   * lines of the part before it. Absent = the whole script in one answer (`LlmScript`).
+   */
+  ask?:
+    | { kind: "outline"; partSec: number[] }
+    | { kind: "part"; index: number; partSec: number[]; outline: LlmOutline; previous: string[] };
 };
 export interface LlmProvider {
   /** Returns parsed JSON; the script stage validates it against the LlmScript schema. */

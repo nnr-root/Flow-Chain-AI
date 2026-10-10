@@ -1,5 +1,5 @@
 import type React from "react";
-import { Audio, Sequence } from "remotion";
+import { Audio, Sequence, useVideoConfig } from "remotion";
 import { useMedia } from "../media.js";
 import type { RenderProps } from "../props.js";
 import { duckVolume, fadeOutVolume } from "../timeline.js";
@@ -7,16 +7,19 @@ import { duckVolume, fadeOutVolume } from "../timeline.js";
 /**
  * Narration is one sample-exact WAV from frame 0 (per-scene audio would snap each start to a frame and click).
  * BGM loops under it: ducked inside speech, faded out at the end (curves follow the video's frame, not the loop's).
- * Sound effects start at their cue frames; they neither duck nor are ducked.
+ * Sound effects start at their cue frames; they neither duck nor are ducked. Each is mounted for two seconds,
+ * longer than any of them lasts (the longest is 1.2 s): mounted to the end of the video, a long video's hundreds
+ * of cuts would each hold an audio tag at once, and a player has only so many.
  */
 export const AudioLayer: React.FC<{ audio: RenderProps["audio"]; totalFrames: number }> = ({ audio, totalFrames }) => {
   const { bgm, speech } = audio;
   const media = useMedia();
+  const { fps } = useVideoConfig();
   return (
     <>
       <Audio src={media(audio.narration)} />
       {audio.sfx.map((cue, i) => (
-        <Sequence key={i} from={cue.frame} layout="none" name={`sfx ${i + 1}`}>
+        <Sequence key={i} from={cue.frame} durationInFrames={fps * 2} layout="none" name={`sfx ${i + 1}`}>
           <Audio src={media(cue.src)} volume={cue.gain} />
         </Sequence>
       ))}

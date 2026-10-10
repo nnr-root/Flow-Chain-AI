@@ -5,10 +5,14 @@ import { draftArgs, rerenderArgs } from "@/server/schemas";
 describe("what the worker agrees to run", () => {
   it("runs exactly the commands the studio sends", () => {
     const draft = draftArgs(
-      { topic: "t", aspect: "9:16", scenes: 4, style: "auto", motion: "auto", clips: "480p", captionStyle: "preset", transition: "auto", musicGain: 0.35, sfxGain: 0.6, sfx: true, hook: { mode: "auto" } } as Parameters<typeof draftArgs>[0],
+      { topic: "t", aspect: "9:16", durationSec: 30, sceneSec: { min: 3, max: 5 }, style: "auto", motion: "auto", clips: "480p", captionStyle: "preset", transition: "auto", musicGain: 0.35, sfxGain: 0.6, sfx: true, hook: { mode: "auto" } } as Parameters<typeof draftArgs>[0],
       "20261006-120000-abc001",
     );
     expect(refusal("runs", draft)).toBeUndefined();
+    // a draft is asked for by its length; a number of scenes is not something the studio sends
+    expect(draft).toEqual(expect.arrayContaining(["--duration", "30", "--scene-seconds", "3-5"]));
+    expect(refusal("runs", [...draft, "--scenes", "4"])).toBeTruthy();
+    expect(refusal("runs", [...draft, "--duration", "600"])).toBeTruthy();
     expect(refusal("runs", draft, "20261006-120000-abc001")).toBeUndefined();
     expect(refusal("runs", ["resume", "x", "--budget", "1", "--cap", "1"], "x")).toBeUndefined();
     expect(refusal("runs", ["resume", "x", "--budget", "1", "--cap", "1"])).toBeUndefined();

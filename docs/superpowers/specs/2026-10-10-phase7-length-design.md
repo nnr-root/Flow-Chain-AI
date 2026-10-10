@@ -1,0 +1,135 @@
+# Phase 7: a video asked for by its length
+
+Date: 2026-10-10. Owner's direction; built the same day against the fake providers and the stand-in CLI.
+**Nothing here has met a real engine yet** (§9).
+
+## 1. What was asked
+
+In place of a number of scenes, the owner chooses:
+
+- **how long the video runs**: whole minutes from one to ten and nothing longer, and shorter lengths that suit a
+  short;
+- **how long each scene stays**, as one length ("5 seconds") or a range ("3 to 5"), with the longest no longer
+  than the clip model can make;
+- **what the video is made of**: generated pictures only, both, or generated clips only.
+
+The script's model does the planning: how many scenes there are, and how long each is. The number of scenes
+leaves the form. This is for every side of the product, not the form alone.
+
+## 2. Decisions
+
+- **Lengths** (`VIDEO_SECONDS`, `src/duration.ts`): 5, 10, 15, 20, 30 and 45 seconds, then 1 to 10 minutes. The
+  short ones are the usual lengths of a short and of an ad; 30 seconds is where the form starts.
+- **A scene stays 2 to 5 seconds** (`SCENE_SECONDS`), whole seconds, 3 to 5 unless said. Both ends are the clip
+  model's: it makes 33 to 81 frames at 16 a second, 2.06 to 5.06 seconds. Five and not six, though the fit step
+  can slow a clip by a quarter: that slack is what covers a scene whose voice ran long.
+- **Audio still drives timing.** A length is a target for the writing. The script is asked for so many words,
+  the voice speaks them, and the video is as long as the voice was. Every page says "about".
+- **The voice speaks 2.7 words a second** (`WORDS_PER_SECOND`): the mean of seven videos the studio's own voice
+  narrated on 2026-10-09 and -10, pauses trimmed (2.39 to 3.06). It is the one number that turns seconds into
+  words, and the first thing to measure again if videos come out long or short.
+- **`--scenes` stays in the CLI** for the owner (1 to 12, as before) and every earlier run loads and continues
+  unchanged. The studio no longer sends it, and the worker refuses a draft that carries it.
+
+## 3. The pipeline
+
+A run asked for by its length has `request.timing = { targetSec, sceneSec: { min, max } }` (optional, so old
+runs load). It is created with `--duration <seconds> [--scene-seconds <n|a-b>]`. With it nothing can be given
+per scene (`--modes`, `--shots`, a list for `--pin-modes`): there are no scenes yet to belong to.
+
+- **Before the script** the run is laid out for an assumed number of scenes (`expectedScenes`), which is what
+  its first estimate is made on.
+- **The script** is asked for a length, as words, and for scenes within the range, and told how many scenes
+  that allows (`sceneBounds`); it decides. Its answer is checked against limits wider than the ones it was
+  given (`timingProblems`): an answer is paid for whether or not it is accepted, and the real length is the
+  voice's anyway, so only an answer that would come out clearly wrong is sent back (once, with what was wrong).
+- **After the script** the run has as many scenes as the script (`layOutScenes`): `request.sceneCount` and the
+  scene states follow, and the one choice the run was made with (a mode for every scene) is spread over them.
+  A scene that is dropped when a script is written again may have had a provider job on its way; what it was
+  expected to cost moves to the run's `abandonedUsd` first, so no paid call leaves the record.
+- **The script stage is keyed on the timing**, not on the number of scenes, which is its own answer: writing
+  seven scenes where eight were assumed changes nothing it was written from.
+
+Everything after the script is as it was: it works on the scenes that are there.
+
+## 4. A long video is written in parts
+
+One answer of two hundred scenes does not keep to its rules. So a video of more than 90 seconds
+(`SINGLE_ANSWER_MAX_SECONDS`) is written in parts of about a minute (`scriptParts`): at most thirty scenes an
+answer.
+
+1. **An outline**: title, hook, look, characters, palette, and for each part what it tells, in a sentence or
+   two. One story with a direction: no part repeats another.
+2. **Each part**, in order: its scenes, for its own seconds, given the whole outline and the last two lines of
+   the part before. The first is told to open on the hook, the last to land the payoff, the others not to
+   conclude. Each part's first scene begins on a fresh picture.
+
+Each answer is checked on its own and sent back once on its own. **Each accepted answer is saved with its
+charge** (`manifest.scriptParts`, keyed by the stage's input hash), so continuing a stopped run buys none of
+them again; the field is gone once the script is whole.
+
+**What a script costs** (`scriptAnswerCost`): an answer of few scenes costs what a script always has, so a
+video of about twenty seconds costs what it did and the measurement the plans are sized by still stands;
+beyond that an answer grows by its scenes. A ten-minute script is eleven answers.
+
+## 5. What the video is made of
+
+The form's choice is the request's `motion`, as before, now said in the studio's words and for the whole video:
+**Pictures only** (every scene pinned to a still), **Pictures and clips** (the mode rules: a clip where the
+script says something happens, a still where little does), **Clips only** (every scene pinned to a clip). A
+scene can still be changed on the draft. With pictures only there is no clip size to choose, and the form does
+not show one.
+
+## 6. The studio
+
+- **The request** (`NewVideo`): `durationSec` (one of the lengths) and `sceneSec` in place of `scenes`. A
+  series' saved choices are the same shape; one saved before this is read with today's defaults.
+- **The form**: Length; "Each scene stays" from and to, which cannot cross, with the number of scenes that
+  makes; Made of. No number of scenes.
+- **What a draft holds** follows from its length (`draftCapUsd`): the script with every answer bought twice,
+  and a little over; never less than the $0.02 a short one always held. The worker works the same amount out
+  from the command it is given (`draftCapOfArgs`) and takes the job only with exactly that held; a command that
+  names no length a video can have matches no hold.
+- **A run can have 360 scenes** (`MAX_SCENES`): ten minutes of two-second scenes, with the fifth more a script
+  is allowed. A run asked for by a number of scenes is still held to twelve.
+
+## 7. Found while building
+
+- **A long video would have run the player out of audio tags.** Each cut's sound was mounted from its cue to
+  the end of the video; with hundreds of cuts, hundreds of audio tags at once, and a player has sixteen. Each is
+  now mounted for two seconds (the longest sound is 1.2 s). The sound is the same.
+- **The model's time limit** for an answer was a minute; an answer of forty scenes takes longer. A run asked
+  for by its length has five (`TIMEOUTS.llmLong`).
+
+## 8. What a long video costs and takes (worked out, not measured)
+
+The pipeline makes one thing at a time. From the speeds the price table records: a clip takes about 100 to 120
+seconds to make, a picture about 6, a line of voice about 5.
+
+| | Scenes | Made of clips only | Made of pictures only |
+|---|---|---|---|
+| 30 seconds | 6 to 10 | about 15 minutes, about 600 credits | a few minutes, about 200 credits |
+| 1 minute | 12 to 20 | about half an hour | about 5 minutes |
+| 10 minutes | 120 to 200 | **4 to 6 hours**, about 10,000 credits | about half an hour, about 1,500 credits |
+
+A job is never retried on its own, so a ten-minute video of clips that meets one failure in those hours waits
+for its owner to continue it (nothing made is bought again). Ten minutes of clips is also more than the
+smallest plan's month of credits. Neither was changed here; both are the owner's to know.
+
+## 9. Checked, and not
+
+**Ran:** the arithmetic of lengths, scenes, words, parts and prices; the prompts (the prompt of a run asked for
+by its scenes is the same text as before, compared byte for byte); the script stage for a short video, a
+sent-back answer, two refusals, a video in parts, a part sent back alone, a stopped run continued, answers kept
+for other inputs; laying scenes out again with money on its way; a whole run by its length through every
+stage with the fake providers, in clips and in pictures only; a draft priced and pinned by its script's
+scenes; the request, the command and the worker's refusal of a number of scenes; a ten-minute draft's hold
+with accounts, and the worker's own reckoning of it; the form in a browser.
+
+**Not checked, and this is most of the risk:** no script here was written by the real model. Whether it keeps
+to a word count, how far a "30 second" video really lands from 30 seconds, whether a ten-minute outline holds
+together as one story, and whether hours of clips complete, are all unknown until the owner runs one. The
+first to run is a 30-second one, then a two-minute one (the shortest that is written in parts).
+
+**Parked:** making several clips at once (what would bring ten minutes of clips from hours to less); saying on
+the draft how far the script's own estimate is from the length asked for; an email when a long video is done.

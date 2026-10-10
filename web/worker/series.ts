@@ -4,7 +4,7 @@ import { join } from "node:path";
 import type { Queue } from "bullmq";
 import type { Db } from "@src/db/client";
 import { newRunId } from "@src/manifest/store";
-import { DRAFT_CAP_USD, round4 } from "../lib/credit";
+import { draftCapOfArgs, round4 } from "../lib/credit";
 import { episodeTopic } from "../lib/series";
 import { JOB_OPTIONS, type RunJobData } from "../server/jobs/redis";
 import { runFolder, runShort } from "../server/jobs/run-cli";
@@ -127,7 +127,7 @@ export function autopilot({ db, line, asUser, here, post, busy, log }: Autopilot
       const topic = episodeTopic(s.premise, earlier);
       return { topic, args: draftArgs({ ...recipe.data, topic }, runId) };
     });
-    const began = await ask("start_series_episode", { p_series_id: s.id, p_run_id: runId, p_topic: topic, p_draft_cap_usd: DRAFT_CAP_USD });
+    const began = await ask("start_series_episode", { p_series_id: s.id, p_run_id: runId, p_topic: topic, p_draft_cap_usd: draftCapOfArgs(args) });
     if (began.refused) {
       const pause = PAUSES[began.refused];
       if (pause) return finish(s, runId, pause, `its next video could not be begun (${began.refused})`);

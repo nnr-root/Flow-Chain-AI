@@ -41,6 +41,8 @@ export type RunStatus = {
   topic: string;
   aspect: string;
   sceneCount: number;
+  /** About how long the video was asked to run, in seconds, when it was asked for by its length. */
+  targetSec?: number;
   modes: Mode[] | "auto";
   title?: string;
   style: { name: string | null; source: "flag" | "auto" | "pending" | "none" };
@@ -74,6 +76,7 @@ export function statusOf(m: Manifest): RunStatus {
     topic: r.topic,
     aspect: r.aspect,
     sceneCount: r.sceneCount,
+    ...(r.timing ? { targetSec: r.timing.targetSec } : {}),
     modes: r.modes ?? "auto",
     title: m.script?.title,
     style: preset

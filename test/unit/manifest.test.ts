@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Prices } from "../../src/config.js";
 import { fileSha256, inputHash, sha256, stableStringify } from "../../src/manifest/hash.js";
-import { Manifest } from "../../src/manifest/schema.js";
-import { createManifest, loadManifest, newRunId, resolveModes, resolveShots, saveManifest } from "../../src/manifest/store.js";
+import { Manifest, MAX_SCENES } from "../../src/manifest/schema.js";
+import { createManifest, loadManifest, newRunId, resolveModes, resolveShape, resolveShots, saveManifest } from "../../src/manifest/store.js";
 
 const request = { topic: "foxes", aspect: "9:16" as const, sceneCount: 2, modes: [1, 2] as (1 | 2)[], voiceId: "v1" };
 const models = { llm: "l", tts: "t", image: "i", video: "v" };
@@ -64,7 +64,24 @@ describe("store", () => {
       sfx: true,
       sfxGain: 0.6,
     });
-    expect(() => createManifest("r", { ...request, sceneCount: 13, modes: Array(13).fill(1) }, models)).toThrow();
+    expect(() => createManifest("r", { ...request, sceneCount: MAX_SCENES + 1, modes: Array(MAX_SCENES + 1).fill(1) }, models)).toThrow();
+    expect(() => createManifest("r", { ...request, sceneCount: 0, modes: [] }, models)).toThrow();
+  });
+
+  it("lays a new run out by a number of scenes or by a length, never both, and by a length takes nothing per scene", () => {
+    expect(resolveShape({})).toEqual({ sceneCount: 4 });
+    expect(resolveShape({ scenes: "12" })).toEqual({ sceneCount: 12 });
+    // a counted run is one answer of the model's, as it always was
+    for (const scenes of ["13", "0", "2.5", "many"]) expect(() => resolveShape({ scenes }), scenes).toThrow("--scenes must be a whole number from 1 to 12");
+    expect(resolveShape({ duration: "30" })).toEqual({ sceneCount: 8, timing: { targetSec: 30, sceneSec: { min: 3, max: 5 } } });
+    expect(resolveShape({ duration: "600", sceneSeconds: "5", pinModes: "2" })).toEqual({ sceneCount: 120, timing: { targetSec: 600, sceneSec: { min: 5, max: 5 } } });
+    expect(() => resolveShape({ duration: "30", scenes: "4" })).toThrow("give --duration or --scenes, not both");
+    expect(() => resolveShape({ sceneSeconds: "3-5" })).toThrow("--scene-seconds goes with --duration");
+    expect(() => resolveShape({ duration: "31" })).toThrow("--duration must be one of");
+    expect(() => resolveShape({ duration: "30", sceneSeconds: "1-9" })).toThrow("--scene-seconds must be");
+    for (const [flag, flags] of [["--modes", { modes: "1,2" }], ["--shots", { shots: "cut,cut" }], ["--pin-modes", { pinModes: "auto,2" }]] as const) {
+      expect(() => resolveShape({ duration: "30", ...flags }), flag).toThrow(`${flag} lists a value per scene`);
+    }
   });
 
   it("starts an auto run as all Mode 1 until the modes stage runs, and needs a frozen budget and price table", () => {

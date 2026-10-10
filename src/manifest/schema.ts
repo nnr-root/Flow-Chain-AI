@@ -7,7 +7,13 @@ import { ImageProfileId } from "../image-profiles.js";
 import { VideoProfileId } from "../video-profiles.js";
 
 export const MAX_NARRATION_WORDS = 16;
-export const MAX_SCENES = 12;
+/**
+ * The most scenes a run can have: ten minutes of the shortest scene a clip can be (phase 7 spec; `VIDEO_SECONDS`,
+ * `SCENE_SECONDS`). A run asked for by a number of scenes is held to `MAX_COUNTED_SCENES`, as it always was.
+ */
+export const MAX_SCENES = 360;
+/** The most scenes of a run that is asked for by their number: one answer of the script's model. */
+export const MAX_COUNTED_SCENES = 12;
 export const MAX_HOOK_WORDS = 6;
 // fal's Flux seed is a signed 32-bit integer; every seed it has returned is below 2^31.
 export const MAX_SEED = 2 ** 31 - 1;
@@ -82,6 +88,21 @@ export const LlmScript = Script.extend({
     .describe("2-6 punchy words shown as a big title in the first 3 seconds; tease the payoff without giving it away"),
 });
 export type LlmScript = z.infer<typeof LlmScript>;
+
+/**
+ * A long video's script is written in parts (phase 7 spec §4): first what every part has in common and what each
+ * tells, then each part's scenes. These are those two answers.
+ */
+export const LlmOutline = z.object({
+  title: z.string(),
+  stylePreset: PresetName.describe("The style preset that best fits the topic"),
+  styleBible: Script.shape.styleBible,
+  hook: LlmScript.shape.hook,
+  parts: z.array(z.object({ summary: z.string().describe("What this part of the video tells, in one or two sentences") })).min(1).max(20),
+});
+export type LlmOutline = z.infer<typeof LlmOutline>;
+export const LlmPart = z.object({ scenes: z.array(LlmSceneSpec).min(1).max(60) });
+export type LlmPart = z.infer<typeof LlmPart>;
 
 export const WordTiming = z.object({ text: z.string(), start: z.number(), end: z.number() });
 export type WordTiming = z.infer<typeof WordTiming>;
@@ -177,7 +198,20 @@ export type RenderOptions = z.infer<typeof RenderOptions>;
 export const RunRequest = z.object({
   topic: z.string().min(1),
   aspect: Aspect,
+  /**
+   * How many scenes. On a run asked for by its length (`timing`) this is what was assumed until the script was
+   * written, and what the script has from then on.
+   */
   sceneCount: z.number().int().min(1).max(MAX_SCENES),
+  /**
+   * The run was asked for by its length (phase 7 spec): about how long the whole video runs and how long each
+   * scene may stay, in seconds. The script's model then decides how many scenes there are. Absent on a run asked
+   * for by a number of scenes (the CLI's `--scenes`, and every run made before); frozen.
+   */
+  timing: z.object({
+    targetSec: z.number().positive().max(600),
+    sceneSec: z.object({ min: z.number().positive(), max: z.number().positive() }),
+  }).optional(),
   /** Absent = auto: the modes stage picks each scene's mode from its action level and modeBudgetUsd. */
   modes: z.array(Mode).optional(),
   /** Frozen budget for the auto mode rules (required when modes is absent). */
@@ -246,5 +280,11 @@ export const Manifest = z.object({
    * the first clip has settled what it cost. Its expected cost is in `inFlight` for as long as this is here.
    */
   warmup: z.object({ requestId: z.string(), submittedAt: z.string() }).optional(),
+  /**
+   * A script that is being written in parts: the answers that were bought and accepted so far, for the inputs
+   * `inputHash` stands for. Each is saved with its charge, so continuing a stopped run buys none of them again.
+   * Gone once the script is whole.
+   */
+  scriptParts: z.object({ inputHash: z.string(), outline: LlmOutline.optional(), parts: z.array(LlmPart.shape.scenes) }).optional(),
 });
 export type Manifest = z.infer<typeof Manifest>;

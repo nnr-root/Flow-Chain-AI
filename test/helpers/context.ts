@@ -4,7 +4,9 @@ import { Prices } from "../../src/config.js";
 import type { ActionLevel, Mode, SuggestedTransition } from "../../src/manifest/schema.js";
 import { createManifest } from "../../src/manifest/store.js";
 import type { PresetName } from "../../src/presets.js";
+import type { ScriptRequest } from "../../src/providers/types.js";
 import type { StageContext } from "../../src/stages/types.js";
+import { expectedScenes, type Timing } from "../../src/duration.js";
 import { FakeImage, FakeLlm, FakeTts, FakeVideo, fakeScript, type Shot } from "../fakes/providers.js";
 import { tempDir } from "./media.js";
 
@@ -20,22 +22,24 @@ export type TestContextOptions = {
   shots?: Shot[];
   actionLevels?: ActionLevel[];
   transitions?: SuggestedTransition[];
-  /** Overrides the LLM answer; receives the 1-based call number. */
-  script?: (callNo: number) => unknown;
+  /** Overrides the LLM answer; receives the 1-based call number and what was asked. */
+  script?: (callNo: number, req: ScriptRequest) => unknown;
+  /** The run is asked for by its length: the script decides the number of scenes (which `sceneCount` then only assumes). */
+  timing?: Timing;
   bgm?: string;
 };
 
 /** A run in a temp dir with fake providers and small output sizes so media steps stay fast. */
 export async function makeTestContext(opts: TestContextOptions = {}) {
   const modes = opts.modes === "auto" ? undefined : (opts.modes ?? [1, 1]);
-  const sceneCount = modes?.length ?? opts.sceneCount ?? 3;
+  const sceneCount = opts.timing ? expectedScenes(opts.timing) : (modes?.length ?? opts.sceneCount ?? 3);
   const dir = await tempDir("flowchain-run-");
   const fakesDir = join(dir, "_fakes");
   await mkdir(fakesDir);
   const fakes = {
     llm: new FakeLlm((req, callNo) =>
       opts.script
-        ? opts.script(callNo)
+        ? opts.script(callNo, req)
         : fakeScript(req.sceneCount, { shots: opts.shots, actionLevels: opts.actionLevels, transitions: opts.transitions }),
     ),
     tts: new FakeTts(fakesDir),
@@ -48,7 +52,8 @@ export async function makeTestContext(opts: TestContextOptions = {}) {
       topic: "foxes",
       aspect: "9:16",
       sceneCount,
-      modes,
+      timing: opts.timing,
+      modes: opts.timing && modes ? Array.from({ length: sceneCount }, () => modes[0]) : modes,
       modeBudgetUsd: modes ? undefined : (opts.budgetUsd ?? 3),
       modePrices: modes ? undefined : Prices.parse({}),
       style: opts.style,
