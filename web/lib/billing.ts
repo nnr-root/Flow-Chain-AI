@@ -13,8 +13,14 @@ export type CatalogueItem = {
   /** The plan's or top-up's own name in `billing/plans.json` ("starter", "topup-10"). */
   key: string;
   name: string;
-  /** What is paid (a month, for a plan). */
+  /** What is paid: once for a top-up, each `interval` for a plan. */
   priceUsd: number;
+  /** How often a plan is paid (absent on a top-up). A yearly price is another way of paying for the plan named in `plan`. */
+  interval?: "month" | "year";
+  /** The plan this price is for ("starter" for both its monthly and its yearly price). */
+  plan?: string;
+  /** How many minutes of video in which every scene moves it is built around; said on a page only while the measured cost bears it out. */
+  minutes?: number;
   /** What it grants. Less than the price: that difference is the studio's margin. */
   creditUsd: number;
 };

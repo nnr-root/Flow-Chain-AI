@@ -36,7 +36,8 @@ export function quote(videos: number, creditPerVideoUsd: number, items: Catalogu
   const units = (i: CatalogueItem) => Math.round(i.creditUsd * 10_000);
   const price = (i: CatalogueItem) => Math.round(i.priceUsd * 100);
   const need = Math.round(videos * creditPerVideoUsd * 10_000);
-  const plans = items.filter((i) => i.kind === "plan" && units(i) > 0);
+  // (a month's videos are paid for by the month: a plan's yearly price is another way of paying, not another plan)
+  const plans = items.filter((i) => i.kind === "plan" && i.interval !== "year" && units(i) > 0);
   const topups = items.filter((i) => i.kind === "topup" && units(i) > 0);
   type Way = { buy: Array<{ item: CatalogueItem; times: number }>; cents: number; credit: number };
   let best: Way | null = null;
@@ -150,8 +151,13 @@ export function fullyGeneratedMinutes(creditUsd: number, measured: unknown, seco
 }
 
 /** For each thing on sale, the minutes of fully generated video its credits cover (see `fullyGeneratedMinutes`), by price id. */
-export function minutesOnSale(items: Array<{ priceId: string; creditUsd: number }>, measured: unknown, videos: Array<{ seconds: number; scenes: number }>, today: Date): Record<string, number | null> {
+export function minutesOnSale(items: Array<{ priceId: string; creditUsd: number; minutes?: number }>, measured: unknown, videos: Array<{ seconds: number; scenes: number }>, today: Date): Record<string, number | null> {
   // how long a scene runs, from the videos on the page themselves
   const perScene = videos.length > 0 ? mean(videos.map((v) => v.seconds / v.scenes)) : 0;
-  return Object.fromEntries(items.map((item) => [item.priceId, fullyGeneratedMinutes(item.creditUsd, measured, perScene, today)]));
+  return Object.fromEntries(items.map((item) => {
+    const covered = fullyGeneratedMinutes(item.creditUsd, measured, perScene, today);
+    // A plan is built around a number of minutes and holds some credits to spare. The page says the number it
+    // is built around while the measurement covers it, and what the measurement gives when it does not: never more.
+    return [item.priceId, covered !== null && item.minutes ? Math.min(item.minutes, covered) : covered];
+  }));
 }

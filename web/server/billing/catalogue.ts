@@ -20,11 +20,16 @@ export function catalogueItem(price: Price): CatalogueItem | null {
   if (price.currency !== "usd" || typeof price.unit_amount !== "number") return null;
   // credit is bought at a mark-up: a price that grants more than it costs is a mistake (or worse), not an offer
   if (credit > usdOf(price.unit_amount)) return null;
-  // a plan is billed by the month; anything recurring otherwise is not something the studio sells
-  if (price.recurring && price.recurring.interval !== "month") return null;
+  // a plan is paid by the month or by the year; anything recurring otherwise is not something the studio sells
+  const interval = price.recurring?.interval;
+  if (price.recurring && interval !== "month" && interval !== "year") return null;
   const product = typeof price.product === "object" ? price.product : {};
   if (product.active === false) return null;
-  return { priceId: price.id, kind: price.recurring ? "plan" : "topup", key: meta.key, name: product.name ?? meta.key, priceUsd: usdOf(price.unit_amount), creditUsd: credit };
+  return {
+    priceId: price.id, kind: price.recurring ? "plan" : "topup", key: meta.key, name: product.name ?? meta.key, priceUsd: usdOf(price.unit_amount), creditUsd: credit,
+    ...(interval === "month" || interval === "year" ? { interval, plan: meta.plan || meta.key } : {}),
+    ...(/^[1-9]\d*$/.test(meta.minutes ?? "") ? { minutes: Number(meta.minutes) } : {}),
+  };
 }
 
 export async function fetchCatalogue(stripe: StripeApi): Promise<CatalogueItem[]> {

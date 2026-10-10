@@ -8,7 +8,7 @@ import { inWords } from "@/lib/site/calculator";
 type Facts = {
   /** What the videos on the page used, in words ("460, 634 and 1,625 credits"). */
   used: string;
-  /** The studio takes payments: only then are plans, top-ups and Stripe something to ask about. */
+  /** The studio takes payments: only then are plans and Stripe something to ask about. */
   sells: boolean;
   /** The height clips are generated at (480), from a video on the page made the way the studio makes them now; absent when none says. */
   clipHeight?: number;
@@ -24,7 +24,7 @@ const questions = ({ used, sells, clipHeight }: Facts): Array<{ q: string; a: st
   },
   ...(sells ? [{
     q: "Does my credit expire?",
-    a: ["A plan's credit is for its month: what is left when the next month is paid for is gone, and so is what is left when a plan ends. Credit from a top-up does not expire. Plan credit is spent first."],
+    a: ["A plan's credits are for the time that was paid for, a month or a year: what is left when the next one is paid for is gone, and so is what is left when a plan ends. Credits that did not come with a plan do not expire, and a plan's are spent first."],
   }] : []),
   {
     q: "What happens if a video fails half-way, or I stop it?",

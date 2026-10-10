@@ -48,8 +48,8 @@ describe("setting up Stripe", () => {
     const first = await setup(plans());
     expect(first.steps.map((s) => s.do)).toEqual(["create-product", "create-price", "create-product", "create-price", "create-product", "create-price"]);
     expect(await fetchCatalogue(api)).toEqual([
-      { priceId: expect.stringMatching(/^price_/), kind: "plan", key: "starter", name: "Starter", priceUsd: 19, creditUsd: 12 },
-      { priceId: expect.stringMatching(/^price_/), kind: "plan", key: "pro", name: "Pro", priceUsd: 49, creditUsd: 35 },
+      { priceId: expect.stringMatching(/^price_/), kind: "plan", key: "starter", name: "Starter", priceUsd: 19, creditUsd: 12, interval: "month", plan: "starter" },
+      { priceId: expect.stringMatching(/^price_/), kind: "plan", key: "pro", name: "Pro", priceUsd: 49, creditUsd: 35, interval: "month", plan: "pro" },
       { priceId: expect.stringMatching(/^price_/), kind: "topup", key: "topup-10", name: "Top-up $10", priceUsd: 10, creditUsd: 6 },
     ]);
     expect([...stripe.prices.values()].find((p) => p.metadata.key === "pro")!.metadata).toEqual({ studio: "flowchain", key: "pro", credit_usd: "35", plan: "pro" });
@@ -168,7 +168,11 @@ describe("npm run stripe:setup", () => {
     expect(first.out).not.toContain(endpoint.secret);
     expect(readFileSync(join(dir, ".env"), "utf8")).toBe(`GEMINI_API_KEY=keep-me\n# a comment\nRUNPOD_API_KEY=and-me\nSTRIPE_WEBHOOK_SECRET=${endpoint.secret}\nSTRIPE_WEBHOOK_ENDPOINT=${endpoint.id}\n`);
     expect(statSync(join(dir, ".env")).mode & 0o777).toBe(0o600);
-    expect([...stripe.prices.values()].filter((p) => p.active).map((p) => p.metadata.key).sort()).toEqual(["creator", "pro", "starter", "topup-10", "topup-25"]);
+    expect([...stripe.prices.values()].filter((p) => p.active).map((p) => p.metadata.key).sort()).toEqual(["creator", "creator-yearly", "pro", "pro-yearly", "starter", "starter-yearly"]);
+    // by the year: billed once a year, and only the monthly plans can be switched between in Stripe's portal
+    const yearly = [...stripe.prices.values()].find((p) => p.active && p.metadata.key === "pro-yearly")!;
+    expect([yearly.recurring, yearly.unit_amount, yearly.metadata]).toEqual([{ interval: "year" }, 199000, { studio: "flowchain", key: "pro-yearly", credit_usd: "270", plan: "pro", minutes: "540" }]);
+    expect(Object.keys(stripe.portalConfigurations[0].features.subscription_update.products)).toHaveLength(3);
 
     const before = writes();
     const again = await run(["--yes"]);

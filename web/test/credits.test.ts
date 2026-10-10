@@ -40,16 +40,35 @@ describe("what is on sale", () => {
   const perScene = SHOWCASES.reduce((sum, s) => sum + s.receipt.seconds / s.receipt.scenes, 0) / SHOWCASES.length;
   const today = new Date("2026-10-10T12:00:00Z");
 
-  it("is three plans whose credits are round numbers, each cheaper per credit than the one before, and top-ups dearer than any plan", () => {
-    const sold = plans.filter((p) => p.kind === "plan");
-    expect(sold.map((p) => [p.key, p.priceUsd, credits(p.creditUsd)])).toEqual([["starter", 19, 5000], ["creator", 39, 15000], ["pro", 89, 45000]]);
+  it("is three plans whose credits are round numbers, each cheaper per credit than the one before, and nothing that is bought once", () => {
+    const sold = plans.filter((p) => p.interval !== "year");
+    expect(sold.map((p) => [p.key, p.priceUsd, credits(p.creditUsd)])).toEqual([["starter", 39, 5000], ["creator", 99, 15000], ["pro", 199, 45000]]);
     const perCredit = (p: { priceUsd: number; creditUsd: number }) => p.priceUsd / credits(p.creditUsd);
     expect(perCredit(sold[1])).toBeLessThan(perCredit(sold[0]));
     expect(perCredit(sold[2])).toBeLessThan(perCredit(sold[1]));
-    for (const topup of plans.filter((p) => p.kind === "topup")) {
-      expect(credits(topup.creditUsd) % 1000).toBe(0);
-      expect(perCredit(topup)).toBeGreaterThan(perCredit(sold[0]));
+    expect(plans.filter((p) => p.kind === "topup")).toEqual([]);
+  });
+
+  it("is each plan by the year as well: twelve months of credits for the price of ten", () => {
+    const monthly = plans.filter((p) => p.interval !== "year");
+    const yearly = plans.filter((p) => p.interval === "year");
+    expect(yearly.map((p) => p.plan)).toEqual(monthly.map((p) => p.key));
+    for (const [i, y] of yearly.entries()) {
+      expect(y.priceUsd).toBe(monthly[i].priceUsd * 10);
+      expect(credits(y.creditUsd)).toBe(credits(monthly[i].creditUsd) * 12);
+      expect(y.minutes).toBe(monthly[i].minutes! * 12);
     }
+  });
+
+  it("says the minutes a plan is built around and no more, and fewer when the measured cost no longer covers them", () => {
+    const items = plans.map((p) => ({ priceId: `price_${p.key}`, creditUsd: p.creditUsd, minutes: p.minutes }));
+    const said = minutesOnSale(items, measured, SHOWCASES.map((s) => s.receipt), today);
+    expect(plans.map((p) => said[`price_${p.key}`])).toEqual([5, 15, 45, 60, 180, 540]);
+    // video that came to cost twice as much: the page says what the credits still cover, not what the plan was built for
+    const dearer = { fullyGenerated: { ...measured.fullyGenerated, usd: measured.fullyGenerated.usd * 2 } };
+    const then = minutesOnSale(items, dearer, SHOWCASES.map((s) => s.receipt), today);
+    expect(then.price_starter).toBeLessThan(5);
+    expect(then.price_starter).toBe(fullyGeneratedMinutes(2.5, dearer, perScene, today));
   });
 
   it("covers at least the minutes each plan is built around, by the measured cost of a fully generated video", () => {

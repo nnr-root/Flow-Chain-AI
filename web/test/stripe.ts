@@ -29,7 +29,7 @@ export type FakeStripe = {
   products: Map<string, Obj>;
   prices: Map<string, Obj>;
   webhookEndpoints: Obj[];
-  addPrice(p: { key: string; kind: "plan" | "topup"; priceUsd: number; creditUsd?: number; name?: string; metadata?: Record<string, string> }): string;
+  addPrice(p: { key: string; kind: "plan" | "topup"; priceUsd: number; creditUsd?: number; name?: string; interval?: "month" | "year"; metadata?: Record<string, string> }): string;
   /**
    * The customer pays a Checkout session the studio created. Returns the events Stripe would send. With `later`
    * the session completes with a payment method that confirms afterwards: nothing is paid until `payLater`.
@@ -123,7 +123,7 @@ export async function startStripe(opts: { port?: number; secretKey?: string; web
     addPrice(p) {
       const priceId = id("price");
       prices.set(priceId, {
-        id: priceId, object: "price", active: true, currency: "usd", unit_amount: cents(p.priceUsd), recurring: p.kind === "plan" ? { interval: "month" } : null,
+        id: priceId, object: "price", active: true, currency: "usd", unit_amount: cents(p.priceUsd), recurring: p.kind === "plan" ? { interval: p.interval ?? "month" } : null,
         metadata: { studio: "flowchain", key: p.key, ...(p.kind === "plan" ? { plan: p.key } : {}), ...(p.creditUsd === undefined ? {} : { credit_usd: String(p.creditUsd) }), ...p.metadata },
         product: { id: id("prod"), name: p.name ?? p.key, active: true },
       });

@@ -336,3 +336,94 @@ clips", and the page opens with the plain headline instead. That is the rule wor
 - Users of an existing plan keep its old price and credit until they change plan (Stripe's behaviour, phase
   3.4). There are none: nothing is live.
 - A welcome credit of $0.05 shows as 100 credits.
+
+## 13. Only plans, by the month or the year, at the market's prices (owner's direction, 2026-10-10)
+
+The owner: no top-ups for now, only plans, monthly and yearly; a year costs ten months; and the §12 prices were
+far too low for what is sold ("45 minutes of fully generated video for $89 is giving it away"). The plans are
+built around 5, 15 and 45 minutes, and the page is to say those numbers, not the 17 and 53 the arithmetic gave.
+Where this section and §12 differ, this one wins. The unit, the measured cost and everything about how credits
+are shown are as §12 has them.
+
+### 13.1 What others charge (looked up 2026-10-10; secondary sources where a vendor's page gave no figures)
+
+| Who | What it is | Monthly tiers | What that buys |
+|---|---|---|---|
+| FacelessReels / AutoShorts | scheduled faceless shorts, mostly stills with motion effects | $19 / $39 / $69 | 3 posts a week, daily, twice daily |
+| Revid | the same market, more generated footage | $39 / $99 / $199 | credits |
+| Higgsfield | generated clips, sold in credits | $19 / $59 / $129 | 270 / 1,200 / 3,000 credits; about $0.82 to $1.38 for a usable clip of a few seconds |
+| Luma | generated clips | $30 / $90 / $300 | 10,000 / 40,000 / 150,000 credits at 10 to 20 a second |
+| Runway | generated clips | $15 / $35 / $95 | credits |
+| Kling | generated clips | about $10 / $37 / $92 / $180 | credits |
+
+Read together: the schedulers charge $19 to $69 for videos that are mostly stills; whoever sells generated
+footage with a finished video around it charges $39 to $199; clip generators alone charge $15 to $300 and leave
+the script, the voice, the captions and the edit to the customer. A minute of fully generated footage bought as
+clips at Higgsfield's rates is $10 to $16 before any of that. The studio sells the finished video.
+
+### 13.2 The plans
+
+| | A month | A year (ten months) | Credits a month | Minutes built around | Cost if all are used | Left of a month's price | A minute costs the customer |
+|---|---|---|---|---|---|---|---|
+| Starter | $39 | $390 | 5,000 | 5 | $2.50 | $36.50 (94%) | $7.80 |
+| Creator | $99 | $990 | 15,000 | 15 | $7.50 | $91.50 (92%) | $6.60 |
+| Pro | $199 | $1,990 | 45,000 | 45 | $22.50 | $176.50 (89%) | $4.42 |
+
+Before Stripe's fee (about 2.9% and 30 cents: $1.43, $3.17 and $6.07 a month) and before the server, the idle
+time of the engines and the domain, none of which a video's receipt carries. By the year a plan grants twelve
+months of credits for ten months' price, so what is left is $360 of $390, $900 of $990 and $1,720 of $1,990
+(92%, 91%, 86%). Each larger plan is cheaper per credit than the one before; a test holds that.
+
+The tiers are Revid's, on purpose: it is the nearest thing to what the studio sells, and a customer comparing
+the two sees the same three numbers. They are a proposal the owner can change in one file; nothing else needs
+editing (`npm run stripe:setup` archives the old prices and makes the new).
+
+**What the page says.** A plan carries `minutes` (5, 15, 45) in `billing/plans.json`; it travels to Stripe as
+the price's `metadata.minutes` and back in the catalogue. `minutesOnSale` says the smaller of that and what the
+measured cost gives: 5,000 credits cover 5.9 minutes today, and the page says 5. Should video come to cost more,
+the page says the smaller true figure; should the measurement go stale, it says nothing. Never more than is so.
+
+**What the higher prices cost the page.** The landing page's opening claim that a finished video costs about
+what others charge for the clips alone no longer holds at these prices against the cheapest clip generator
+listed, so `clipsClaimHolds` is false and the page opens with its plain line. The comparison table shows the
+studio dearer than Luma for raw clips. Both are the page being truthful, and neither was changed.
+
+### 13.3 By the year
+
+`yearlyMonths: 10` in the file makes, for every plan, a second thing on sale: key `<plan>-yearly`, a Stripe
+price billed once a year at ten times the month's, with `credit_usd` twelve times the month's and
+`metadata.plan` naming the plan. No SQL changed. A year's invoice is one invoice, and credit is only ever
+granted by an invoice, so **the year's credits are granted at once** and are the customer's until the next
+year is paid for. Ruling: this is more generous than twelve monthly portions (nothing lapses within the year),
+and the alternative, a worker handing out credit month by month with no payment behind each grant, would be a
+second way of creating credit, which the money rules do not have. The studio's cost is bounded the same either
+way: no more than the credits granted. A refund takes back what it should, as for any payment.
+
+The worker already named a plan by `metadata.plan` before `key`, so a yearly customer's plan is `starter`, the
+pricing page marks it as theirs under either way of paying, and the one-plan-at-a-time rule covers both.
+
+### 13.4 Stripe's portal: monthly plans only
+
+Found while building: the portal lets a customer switch between the listed prices without proration. A switch
+that changes the interval (month to year) is billed by Stripe at once, on an invoice whose reason is
+`subscription_update`; the worker grants credit only for `subscription_create` and `subscription_cycle`, on
+purpose (a proration is not a month). A customer would have paid for a year and been given nothing. So the
+portal lists only the monthly prices (`ensurePortal`). A customer goes to a year by ending the plan and
+subscribing again; a yearly customer can cancel in the portal and cannot switch there. Parked: granting on an
+interval change, which needs a database test for every ordering first (money rules).
+
+### 13.5 Top-ups
+
+Not on sale: `topups: []`. The mechanism is untouched (`fulfil_topup`, the `purchase` ledger rows, their tests,
+the account page's labels for payments already made), so listing one in the file sells it again. Copy that
+spoke of top-ups now speaks of them only when one is on sale.
+
+### 13.6 Checked, and not
+
+Ran: the planner and catalogue unit tests, a billing test that buys a plan by the year through the stand-in
+Stripe (144 dollars of credit for 190 paid, under the plan's own name, replaced at renewal), the database
+tests, the accounts browser suite (the monthly and yearly choice on `/pricing`), the studio browser suite.
+`test/unit/db-migrations.test.ts` had been left listing three migrations when phase 6 added four; it lists
+seven now. Not done: `npm run stripe:setup` (the owner's click), so the real Stripe test account still sells the
+§12 prices; nobody has looked at the pricing page with the real three plans on it; a real yearly payment.
+

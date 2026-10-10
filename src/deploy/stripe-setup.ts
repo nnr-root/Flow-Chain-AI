@@ -9,12 +9,21 @@ const Usd = z.number().min(0.5).max(10_000).refine((n) => Math.abs(n * 100 - Mat
 const Name = z.string().trim().min(1).max(80);
 
 const PlansFile = z.object({
-  plans: z.array(z.object({ key: Key, name: Name, monthlyUsd: Usd, creditUsd: Usd }).strict()),
+  /**
+   * `minutes`: how much video in which every scene moves the plan is built around. The page says so only while
+   * the measured cost of such video bears it out (phase 6 spec §13).
+   */
+  plans: z.array(z.object({ key: Key, name: Name, monthlyUsd: Usd, creditUsd: Usd, minutes: z.number().int().positive().max(100_000).optional() }).strict()),
   topups: z.array(z.object({ key: Key, name: Name, priceUsd: Usd, creditUsd: Usd }).strict()),
+  /** With it, every plan can also be paid by the year: twelve months for the price of this many. */
+  yearlyMonths: z.number().int().min(1).max(12).optional(),
 }).strict();
 
-/** One thing on sale, as `billing/plans.json` describes it. */
-export type Wanted = { key: string; kind: "plan" | "topup"; name: string; priceUsd: number; creditUsd: number };
+/**
+ * One thing on sale, as `billing/plans.json` describes it. `interval`: how often a plan is paid (a month when
+ * absent). `plan`: the plan a yearly price is the yearly way of paying for. `minutes`: see `PlansFile`.
+ */
+export type Wanted = { key: string; kind: "plan" | "topup"; name: string; priceUsd: number; creditUsd: number; interval?: "month" | "year"; plan?: string; minutes?: number };
 
 /** Reads `billing/plans.json`. Credit above the price would sell a dollar for less than a dollar: refused. */
 export function parsePlans(text: string): Wanted[] {
@@ -30,7 +39,15 @@ export function parsePlans(text: string): Wanted[] {
     throw new Error(`billing/plans.json: ${issue.path.join(".") || "the file"}: ${issue.message}`);
   }
   const wanted: Wanted[] = [
-    ...parsed.data.plans.map((p) => ({ key: p.key, kind: "plan" as const, name: p.name, priceUsd: p.monthlyUsd, creditUsd: p.creditUsd })),
+    ...parsed.data.plans.map((p): Wanted => ({ key: p.key, kind: "plan", name: p.name, priceUsd: p.monthlyUsd, creditUsd: p.creditUsd, interval: "month", plan: p.key, ...(p.minutes ? { minutes: p.minutes } : {}) })),
+    // By the year: the price of `yearlyMonths` months, and the credit of twelve, all granted with the one payment
+    // (a year's invoice is one invoice; nothing in the studio hands credit out month by month without one).
+    ...(parsed.data.yearlyMonths
+      ? parsed.data.plans.map((p): Wanted => ({
+          key: `${p.key}-yearly`, kind: "plan", name: `${p.name}, yearly`, priceUsd: Math.round(p.monthlyUsd * parsed.data.yearlyMonths! * 100) / 100,
+          creditUsd: Math.round(p.creditUsd * 12 * 10_000) / 10_000, interval: "year", plan: p.key, ...(p.minutes ? { minutes: p.minutes * 12 } : {}),
+        }))
+      : []),
     ...parsed.data.topups.map((t) => ({ key: t.key, kind: "topup" as const, name: t.name, priceUsd: t.priceUsd, creditUsd: t.creditUsd })),
   ];
   const seen = new Set<string>();
@@ -46,13 +63,13 @@ export function parsePlans(text: string): Wanted[] {
 /** The studio's own products and active prices as Stripe has them (those with `metadata.studio = flowchain`). */
 export type Listing = {
   products: Array<{ id: string; key: string; name: string }>;
-  prices: Array<{ id: string; productId: string; key: string; kind: "plan" | "topup"; priceUsd: number; creditUsd: number | null }>;
+  prices: Array<{ id: string; productId: string; key: string; kind: "plan" | "topup"; priceUsd: number; creditUsd: number | null; interval?: string; minutes?: number; plan?: string }>;
 };
 
 export type Step =
   | { do: "create-product"; key: string; name: string }
   | { do: "rename-product"; key: string; productId: string; name: string }
-  | { do: "create-price"; key: string; kind: "plan" | "topup"; priceUsd: number; creditUsd: number }
+  | { do: "create-price"; key: string; kind: "plan" | "topup"; priceUsd: number; creditUsd: number; interval?: "month" | "year"; plan?: string; minutes?: number }
   | { do: "archive-price"; key: string; priceId: string; why: string }
   | { do: "archive-product"; key: string; productId: string };
 
@@ -74,11 +91,13 @@ export function planSetup(wanted: Wanted[], existing: Listing): Step[] {
     else if (product.name !== w.name) steps.push({ do: "rename-product", key: w.key, productId: product.id, name: w.name });
     let kept = false;
     for (const price of existing.prices.filter((p) => p.key === w.key)) {
-      const same = price.kind === w.kind && cents(price.priceUsd) === cents(w.priceUsd) && cents(price.creditUsd) === cents(w.creditUsd) && price.productId === product?.id;
+      // (how often it is paid, the plan it stands for and the minutes it is said to cover are part of what a price is)
+      const same = price.kind === w.kind && cents(price.priceUsd) === cents(w.priceUsd) && cents(price.creditUsd) === cents(w.creditUsd) && price.productId === product?.id &&
+        (w.kind !== "plan" || ((price.interval ?? "month") === (w.interval ?? "month") && (price.plan ?? price.key) === (w.plan ?? w.key) && (price.minutes ?? 0) === (w.minutes ?? 0)));
       if (same && !kept) kept = true;
       else archive.push({ do: "archive-price", key: w.key, priceId: price.id, why: same ? "a second copy" : "its price or credit changed" });
     }
-    if (!kept) steps.push({ do: "create-price", key: w.key, kind: w.kind, priceUsd: w.priceUsd, creditUsd: w.creditUsd });
+    if (!kept) steps.push({ do: "create-price", key: w.key, kind: w.kind, priceUsd: w.priceUsd, creditUsd: w.creditUsd, ...(w.kind === "plan" ? { interval: w.interval ?? "month", plan: w.plan ?? w.key } : {}), ...(w.minutes ? { minutes: w.minutes } : {}) });
   }
   for (const price of existing.prices) {
     if (!keys.has(price.key)) archive.push({ do: "archive-price", key: price.key, priceId: price.id, why: "no longer in billing/plans.json" });
@@ -102,7 +121,7 @@ export function describeStep(step: Step): string {
     case "rename-product":
       return `rename the product ${step.key} to "${step.name}"`;
     case "create-price":
-      return `create a price for ${step.key}: ${money(step.priceUsd)}${step.kind === "plan" ? " a month" : ""} for ${money(step.creditUsd)} of credit`;
+      return `create a price for ${step.key}: ${money(step.priceUsd)}${step.kind === "plan" ? (step.interval === "year" ? " a year" : " a month") : ""} for ${money(step.creditUsd)} of credit`;
     case "archive-price":
       return `archive the price ${step.priceId} of ${step.key} (${step.why})`;
     case "archive-product":
@@ -116,8 +135,12 @@ export function priceParams(step: Extract<Step, { do: "create-price" }>, product
     product: productId,
     currency: "usd",
     unit_amount: cents(step.priceUsd),
-    ...(step.kind === "plan" ? { recurring: { interval: "month" } } : {}),
-    metadata: { studio: "flowchain", key: step.key, credit_usd: String(step.creditUsd), ...(step.kind === "plan" ? { plan: step.key } : {}) },
+    ...(step.kind === "plan" ? { recurring: { interval: step.interval ?? "month" } } : {}),
+    metadata: {
+      studio: "flowchain", key: step.key, credit_usd: String(step.creditUsd),
+      ...(step.kind === "plan" ? { plan: step.plan ?? step.key } : {}),
+      ...(step.minutes ? { minutes: String(step.minutes) } : {}),
+    },
   };
 }
 

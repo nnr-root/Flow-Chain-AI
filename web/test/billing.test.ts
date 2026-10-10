@@ -168,6 +168,26 @@ describe.skipIf(!supa || !hasRedisServer())("payments", () => {
     expect((await account(a)).balance).toBe(0);
   });
 
+  it("sells a plan by the year: the one payment grants the year's credit, under the plan's own name, and the next year's replaces what is left", async () => {
+    await worker();
+    const yearly = stripe.addPrice({ key: "starter-yearly", kind: "plan", priceUsd: 190, creditUsd: 144, name: "Starter, yearly", interval: "year", metadata: { plan: "starter", minutes: "60" } });
+    forgetCatalogue();
+    const { sessionId } = await buy(aCookie, yearly);
+    for (const event of stripe.completeCheckout(sessionId!)) expect((await deliver(event)).status).toBe(200);
+    expect(await account(a)).toMatchObject({ balance: 144, plan: 144 });
+    const sub = stripe.sessions.get(sessionId!)!.subscription as string;
+    // the plan is the one it is the yearly way of paying for: that is what the pricing page marks as the user's
+    expect((await a.client.from("subscriptions").select("plan,status").single()).data).toEqual({ plan: "starter", status: "active" });
+    expect((await a.client.from("payments").select("kind,plan,paid_usd,credit_usd").single()).data).toEqual({ kind: "plan", plan: "starter", paid_usd: 190, credit_usd: 144 });
+    // a second plan beside it, by the month, is refused like any other
+    expect(await buy(aCookie, starter)).toMatchObject({ status: 409, error: { code: "already_subscribed" } });
+    for (const event of stripe.renew(sub)) expect((await deliver(event)).status).toBe(200);
+    expect(await account(a)).toMatchObject({ balance: 144, plan: 144 });
+    expect((await a.client.from("ledger").select("kind,amount_usd").order("id")).data).toEqual([
+      { kind: "plan", amount_usd: 144 }, { kind: "expire", amount_usd: -144 }, { kind: "plan", amount_usd: 144 },
+    ]);
+  });
+
   it("runs a subscription: a paid month grants credit that the next month replaces, whatever order the events come in", async () => {
     await worker();
     await db().rpc("grant_credit", { p_email: a.email, p_amount_usd: 5 });

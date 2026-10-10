@@ -351,16 +351,19 @@ What to know:
 With `STRIPE_SECRET_KEY` set (and accounts, which payments need) users buy credit themselves. Without it
 nothing below exists and credit is granted by hand as before.
 
-- **What is sold.** `billing/plans.json` lists monthly plans and one-off top-ups, each with its price and the
-  cost it covers (`creditUsd`, in dollars of what videos cost you). A customer is never shown those dollars:
-  they see **credits**, 2,000 to a dollar of cost (`CREDITS_PER_USD` in `web/lib/credit.ts`). The defaults are
-  Starter $19 for 5,000 credits, Creator $39 for 15,000 and Pro $89 for 45,000 a month, and top-ups of $10 for
-  2,000 and $25 for 6,000. A fully generated video of four scenes was measured at $0.141 (about 280 credits), so
-  those plans cover about 5, 17 and 53 minutes of such video, and about three times that in stills; what is
-  left of a plan's price after that cost is yours (87%, 81% and 75% before Stripe's fee and the server).
+- **What is sold.** `billing/plans.json` lists the plans, each with its monthly price, the cost it covers
+  (`creditUsd`, in dollars of what videos cost you) and the minutes of fully generated video it is built around.
+  A customer is never shown those dollars: they see **credits**, 2,000 to a dollar of cost (`CREDITS_PER_USD` in
+  `web/lib/credit.ts`). The defaults are Starter $39 for 5,000 credits, Creator $99 for 15,000 and Pro $199 for
+  45,000 a month: 5, 15 and 45 minutes of video in which every scene moves (measured at $0.141 for four scenes),
+  and about three times that in stills. `yearlyMonths: 10` sells each plan by the year as well, for the price of
+  ten months, with the twelve months of credits granted at once. Nothing is sold once: `topups` is empty (the
+  studio can still sell top-ups if you list some). What is left of a plan's price after its cost is yours: 94%,
+  92% and 89% before Stripe's fee and the server (phase 6 spec §13 has the market these prices were set against).
   In your own studio without accounts, amounts stay in dollars: that is your bill.
-- **Two kinds of credit.** A plan's credit is for its month: what is left when the next month is paid for
-  expires, and so does what is left when the plan ends. Top-up credit, and credit you grant, never expires.
+- **Two kinds of credit.** A plan's credit is for the time that was paid for, a month or a year: what is left
+  when the next one is paid for expires, and so does what is left when the plan ends. Credit you grant (and a
+  top-up's, if you sell any) never expires.
   Plan credit is spent first. The account page shows both, the plan, and every payment with its receipt.
 - **Buying.** `/pricing` shows what is on sale (anyone may read it). A button there opens Stripe's own
   checkout page; the studio never sees a card. "Manage subscription" on the account page opens Stripe's portal:

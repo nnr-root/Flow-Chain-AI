@@ -25,6 +25,8 @@ export async function readListing(stripe: StripeApi): Promise<Listing> {
         kind: p.recurring ? ("plan" as const) : ("topup" as const), priceUsd: usdOf(p.unit_amount),
         // a price in another currency, or one that does not say what it grants, matches nothing wanted
         creditUsd: p.currency === "usd" ? creditOf(p.metadata) : null,
+        ...(p.recurring ? { interval: p.recurring.interval, plan: p.metadata!.plan || p.metadata!.key } : {}),
+        ...(/^[1-9]\d*$/.test(p.metadata!.minutes ?? "") ? { minutes: Number(p.metadata!.minutes) } : {}),
       };
     }),
   };
@@ -54,9 +56,14 @@ export async function applySteps(stripe: StripeApi, steps: Step[], existing: Lis
  * The Customer Portal as the studio's users see it: cancelling ends the plan with the month that was paid for,
  * and switching plans charges nothing in between — the new plan's price and credit start with the next month's
  * invoice. Created once and brought up to date after that. Returns its id.
+ *
+ * Only the plans paid by the month can be switched between. A switch to or from a year changes how often the
+ * customer is billed, which Stripe charges for at once, on an invoice that is neither a first one nor a renewal:
+ * the studio grants credit for neither, so the customer would have paid for a year and been given nothing. Going
+ * to a year is done by ending the plan and subscribing again (phase 6 spec §13.4).
  */
 export async function ensurePortal(stripe: StripeApi, listing: Listing): Promise<string> {
-  const plans = listing.prices.filter((p) => p.kind === "plan");
+  const plans = listing.prices.filter((p) => p.kind === "plan" && (p.interval ?? "month") === "month");
   const byProduct = new Map<string, string[]>();
   for (const p of plans) byProduct.set(p.productId, [...(byProduct.get(p.productId) ?? []), p.id]);
   const params = {

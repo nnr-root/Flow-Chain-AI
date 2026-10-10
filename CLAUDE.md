@@ -192,12 +192,16 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - **Credit:** a paid job reserves its approved cap before it is queued; the worker settles at what the
   run's manifest says was spent (ledger + pending `expectedUsd` + `abandonedUsd`). Users cannot cancel a
   reservation. Rounding is to four decimals; compare money in ten-thousandths, never as floats.
-- **Two kinds of credit:** plan credit (expires when the next month is paid for, spent first) and
-  permanent credit (top-ups, grants). `plan_credit_usd` is never more than the balance (a trigger keeps it).
+- **Two kinds of credit:** plan credit (expires when the next month, or year, is paid for; spent first) and
+  permanent credit (grants; top-ups, which are not on sale now but still work). `plan_credit_usd` is never more than the balance (a trigger keeps it).
 - **Payments:** the web verifies Stripe's signature and hands the worker only the event id. The worker
   asks Stripe for the event and its objects, takes the user from `customer.metadata.user_id` and the grant
   from `price.metadata` (`studio=flowchain`, `credit_usd`), and calls one SQL function that records the
   event id with its effect. A payment must name a charge, be in USD, and be at least the credit granted.
+- **Only plans are sold** (phase 6 spec §13): by the month, and by the year for the price of ten months with
+  the year's credits granted at once by the one invoice. A yearly price is its own Stripe price whose
+  `metadata.plan` names the plan. Stripe's portal switches between monthly plans only: a change of interval is
+  billed at once on an invoice the studio grants nothing for.
 - Every fulfilment function is **exactly-once by event id** and safe to call again. Keep it that way.
 - A change to `settle`, `reserve_credit`, `refund_payment` or `fulfil_*` needs a database test for every
   ordering it could meet; `test/db/billing.test.ts` has a 648-case matrix to extend.

@@ -93,8 +93,11 @@ describe("applying them", () => {
 
   it("the repository's own files are named, ordered and readable as migrations", () => {
     const files = migrationFiles();
-    expect(files.map((f) => f.name)).toEqual(["20261006000001_accounts.sql", "20261007000001_tenancy.sql", "20261008000001_billing.sql"]);
-    expect(pendingMigrations(files, []).length).toBe(3);
+    expect(files.map((f) => f.name)).toEqual([
+      "20261006000001_accounts.sql", "20261007000001_tenancy.sql", "20261008000001_billing.sql",
+      "20261010000001_series.sql", "20261010000002_series_schedule.sql", "20261010000003_series_month.sql", "20261010000004_publishing.sql",
+    ]);
+    expect(pendingMigrations(files, []).length).toBe(files.length);
     // no secret is ever in a migration: roles get their passwords from the setup command
     for (const f of files) expect(f.sql, f.name).not.toMatch(/\bpassword\s+'/i);
   });

@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 const WHAT = {
   grant: "Credit added", reserve: "Held for a job", settle: "Job settled",
-  purchase: "Top-up bought", plan: "Plan credit for the month", expire: "Plan credit expired", refund: "Refund",
+  purchase: "Top-up bought", plan: "Plan credit", expire: "Plan credit expired", refund: "Refund",
 } as const;
 /** Rows whose note is an identifier for the books, not something to read. */
 const QUIET = ["reserve", "purchase", "refund"];
@@ -74,7 +74,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
                 {billing.payments.map((p) => (
                   <tr key={p.id} className="border-t border-hairline">
                     <td className="py-2 text-[0.85rem] text-graphite">{day(p.at)}</td>
-                    <td className="py-2">{p.kind === "plan" ? <span className="capitalize">{p.plan ?? "Plan"}, a month</span> : "Top-up"}{p.refundedUsd > 0 && <span className="text-warn">, {money(p.refundedUsd)} refunded</span>}</td>
+                    <td className="py-2">{p.kind === "plan" ? <span className="capitalize">{p.plan ?? "Plan"} plan</span> : "Top-up"}{p.refundedUsd > 0 && <span className="text-warn">, {money(p.refundedUsd)} refunded</span>}</td>
                     <td className="py-2 text-right tabular-nums">{money(p.paidUsd)}</td>
                     <td className="py-2 text-right tabular-nums text-good">+{amount(p.creditUsd)}</td>
                     <td className="py-2 text-right text-[0.85rem]">{p.invoiceUrl?.startsWith("https://") && <a href={p.invoiceUrl} target="_blank" rel="noreferrer" className="underline">Receipt</a>}</td>

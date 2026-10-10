@@ -149,7 +149,7 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await expect(page.getByTestId("plans").getByTestId("offer-starter")).toContainText("$19.00 / month");
   await expect(page.getByTestId("faq").locator("details")).toHaveCount(7);
   await page.getByText("Does my credit expire?").click();
-  await expect(page.getByTestId("faq")).toContainText("Credit from a top-up does not expire.");
+  await expect(page.getByTestId("faq")).toContainText("Credits that did not come with a plan do not expire, and a plan's are spent first.");
   await expect(page.getByTestId("faq")).toContainText("up to twelve scenes");
   // (the answer about cost quotes the receipts on this very page)
   await expect(page.getByTestId("faq").locator("details").first()).toContainText("458, 634 and 1,625 credits");
@@ -289,6 +289,14 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
   await expect(page.getByTestId("credits-topup-10")).toHaveText("12,000 credits");
   await expect(page.getByTestId("credits-starter")).toHaveText("24,000 credits every month");
   await expect(page.getByTestId("offer-topup-10")).toContainText("They do not expire.");
+  // by the year: the same plan, a year's credits at once, and how many months it is the price of, worked out from the two prices
+  await expect(page.getByTestId("offer-starter-yearly")).toHaveCount(0);
+  await page.getByTestId("billing-interval").getByRole("radio", { name: "Yearly" }).click();
+  await expect(page.getByTestId("offer-starter-yearly")).toContainText("$190.00 / year");
+  await expect(page.getByTestId("yearly-starter-yearly")).toHaveText("Twelve months for the price of 10");
+  await expect(page.getByTestId("credits-starter-yearly")).toHaveText("288,000 credits for the year, all at once");
+  await expect(page.getByTestId("offer-starter")).toHaveCount(0);
+  await page.getByTestId("billing-interval").getByRole("radio", { name: "Monthly" }).click();
   // nothing on the page says what a credit costs the studio: the only dollars are prices
   expect((await page.getByTestId("plans").innerText()).match(/\$[\d.]+/g)?.sort()).toEqual(["$10", "$10.00", "$19.00"]);
   await expect(page.getByRole("link", { name: "Sign up to buy" })).toHaveCount(2);

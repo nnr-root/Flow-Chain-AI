@@ -50,7 +50,7 @@ export function Calculator({ items, engine, others, asOf }: { items: CatalogueIt
               </p>
               <p className="mt-5 max-w-[36rem] text-[1.02rem] leading-[1.5]" data-testid="calc-buy">
                 Buy {q.buy.map((b) => `${b.times > 1 ? `${b.times} × ` : ""}${b.item.name} (${usd(b.item.priceUsd)}${b.item.kind === "plan" ? " a month" : ""})`).join(" and ")}: {inCredits(q.creditUsd)}, enough for about {q.videos} such videos.
-                {q.buy.some((b) => b.item.kind === "plan") ? " A plan's credits are for its month; a top-up's do not expire." : " A top-up's credits do not expire, so what you do not use this month is still there the next."}
+                {q.buy.some((b) => b.item.kind === "plan") ? " A plan's credits are for its month." : " These credits do not expire, so what you do not use this month is still there the next."}
               </p>
             </>
           ) : (

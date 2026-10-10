@@ -2,18 +2,34 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { describeStep, type Endpoint, type Listing, parsePlans, planSetup, planWebhook, priceParams, webhookUrl, withEnvValue } from "../../src/deploy/stripe-setup.js";
 
-const file = (plans: unknown[], topups: unknown[] = []) => JSON.stringify({ plans, topups });
+const file = (plans: unknown[], topups: unknown[] = [], more: object = {}) => JSON.stringify({ plans, topups, ...more });
 const starter = { key: "starter", name: "Starter", monthlyUsd: 19, creditUsd: 12 };
 const topup = { key: "topup-10", name: "Top-up $10", priceUsd: 10, creditUsd: 6 };
 
 describe("billing/plans.json", () => {
   it("is read as the things on sale, and the one in the repository is valid", () => {
     expect(parsePlans(file([starter], [topup]))).toEqual([
-      { key: "starter", kind: "plan", name: "Starter", priceUsd: 19, creditUsd: 12 },
+      { key: "starter", kind: "plan", name: "Starter", priceUsd: 19, creditUsd: 12, interval: "month", plan: "starter" },
       { key: "topup-10", kind: "topup", name: "Top-up $10", priceUsd: 10, creditUsd: 6 },
     ]);
     const shipped = parsePlans(readFileSync("billing/plans.json", "utf8"));
-    expect(shipped.map((w) => [w.key, w.priceUsd, w.creditUsd])).toEqual([["starter", 19, 12], ["pro", 49, 35], ["topup-10", 10, 6], ["topup-25", 25, 16]]);
+    expect(shipped.map((w) => [w.key, w.priceUsd, w.creditUsd, w.minutes])).toEqual([
+      ["starter", 39, 2.5, 5], ["creator", 99, 7.5, 15], ["pro", 199, 22.5, 45],
+      ["starter-yearly", 390, 30, 60], ["creator-yearly", 990, 90, 180], ["pro-yearly", 1990, 270, 540],
+    ]);
+    // nothing is sold once: only plans
+    expect(shipped.every((w) => w.kind === "plan")).toBe(true);
+  });
+
+  it("sells each plan by the year too when the file says for how many months' price: twelve months of credit, granted with the one payment", () => {
+    expect(parsePlans(file([{ ...starter, minutes: 5 }], [], { yearlyMonths: 10 }))).toEqual([
+      { key: "starter", kind: "plan", name: "Starter", priceUsd: 19, creditUsd: 12, interval: "month", plan: "starter", minutes: 5 },
+      { key: "starter-yearly", kind: "plan", name: "Starter, yearly", priceUsd: 190, creditUsd: 144, interval: "year", plan: "starter", minutes: 60 },
+    ]);
+    // without the line, nothing is sold by the year
+    expect(parsePlans(file([starter])).map((w) => w.key)).toEqual(["starter"]);
+    expect(() => parsePlans(file([starter], [], { yearlyMonths: 13 }))).toThrow("yearlyMonths");
+    expect(() => parsePlans(file([starter, { ...starter, key: "starter-yearly" }], [], { yearlyMonths: 10 }))).toThrow('the key "starter-yearly" is used twice');
   });
 
   it.each([
@@ -47,7 +63,7 @@ describe("what setup would change in Stripe", () => {
   it("creates everything in an empty account, and nothing in one that already matches", () => {
     expect(planSetup(wanted, { products: [], prices: [] })).toEqual([
       { do: "create-product", key: "starter", name: "Starter" },
-      { do: "create-price", key: "starter", kind: "plan", priceUsd: 19, creditUsd: 12 },
+      { do: "create-price", key: "starter", kind: "plan", priceUsd: 19, creditUsd: 12, interval: "month", plan: "starter" },
       { do: "create-product", key: "topup-10", name: "Top-up $10" },
       { do: "create-price", key: "topup-10", kind: "topup", priceUsd: 10, creditUsd: 6 },
     ]);
@@ -57,7 +73,7 @@ describe("what setup would change in Stripe", () => {
   it("replaces a price whose amount or credit changed, the new one first", () => {
     const dearer = parsePlans(file([{ ...starter, monthlyUsd: 24 }], [{ ...topup, creditUsd: 7 }]));
     expect(planSetup(dearer, inPlace)).toEqual([
-      { do: "create-price", key: "starter", kind: "plan", priceUsd: 24, creditUsd: 12 },
+      { do: "create-price", key: "starter", kind: "plan", priceUsd: 24, creditUsd: 12, interval: "month", plan: "starter" },
       { do: "create-price", key: "topup-10", kind: "topup", priceUsd: 10, creditUsd: 7 },
       { do: "archive-price", key: "starter", priceId: "price_s", why: "its price or credit changed" },
       { do: "archive-price", key: "topup-10", priceId: "price_t", why: "its price or credit changed" },
@@ -104,6 +120,29 @@ describe("what setup would change in Stripe", () => {
       product: "prod_1", currency: "usd", unit_amount: 1900, recurring: { interval: "month" }, metadata: { studio: "flowchain", key: "starter", credit_usd: "12", plan: "starter" },
     });
     expect(priceParams(steps[3] as never, "prod_2")).toEqual({ product: "prod_2", currency: "usd", unit_amount: 1000, metadata: { studio: "flowchain", key: "topup-10", credit_usd: "6" } });
+  });
+
+  it("makes a yearly price a price of its own: billed by the year, named for the plan it pays for, replaced when only its interval or minutes differ", () => {
+    const yearly = parsePlans(file([{ ...starter, minutes: 5 }], [], { yearlyMonths: 10 }));
+    const steps = planSetup(yearly, { products: [], prices: [] });
+    expect(describeStep(steps[3])).toBe("create a price for starter-yearly: $190.00 a year for $144.00 of credit");
+    expect(priceParams(steps[3] as never, "prod_y")).toEqual({
+      product: "prod_y", currency: "usd", unit_amount: 19000, recurring: { interval: "year" },
+      metadata: { studio: "flowchain", key: "starter-yearly", credit_usd: "144", plan: "starter", minutes: "60" },
+    });
+    const there: Listing = {
+      products: [{ id: "prod_s", key: "starter", name: "Starter" }, { id: "prod_y", key: "starter-yearly", name: "Starter, yearly" }],
+      prices: [
+        { id: "price_s", productId: "prod_s", key: "starter", kind: "plan", priceUsd: 19, creditUsd: 12, interval: "month", plan: "starter", minutes: 5 },
+        { id: "price_y", productId: "prod_y", key: "starter-yearly", kind: "plan", priceUsd: 190, creditUsd: 144, interval: "year", plan: "starter", minutes: 60 },
+      ],
+    };
+    expect(planSetup(yearly, there)).toEqual([]);
+    // the same amount billed every month would be another thing altogether
+    const monthly: Listing = { ...there, prices: [there.prices[0], { ...there.prices[1], interval: "month" }] };
+    expect(planSetup(yearly, monthly).map((s) => [s.do, s.key])).toEqual([["create-price", "starter-yearly"], ["archive-price", "starter-yearly"]]);
+    const otherMinutes: Listing = { ...there, prices: [{ ...there.prices[0], minutes: 4 }, there.prices[1]] };
+    expect(planSetup(yearly, otherMinutes).map((s) => [s.do, s.key])).toEqual([["create-price", "starter"], ["archive-price", "starter"]]);
   });
 });
 

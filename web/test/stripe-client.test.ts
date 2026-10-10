@@ -98,14 +98,18 @@ describe("talking to Stripe", () => {
 
   it("lists only prices that are the studio's and say what they grant", () => {
     const price = { id: "price_1", unit_amount: 1900, currency: "usd", recurring: { interval: "month" }, metadata: { studio: "flowchain", key: "starter", credit_usd: "12" }, product: { name: "Starter", active: true } };
-    expect(catalogueItem(price)).toEqual({ priceId: "price_1", kind: "plan", key: "starter", name: "Starter", priceUsd: 19, creditUsd: 12 });
-    expect(catalogueItem({ ...price, recurring: null })?.kind).toBe("topup");
+    expect(catalogueItem(price)).toEqual({ priceId: "price_1", kind: "plan", key: "starter", name: "Starter", priceUsd: 19, creditUsd: 12, interval: "month", plan: "starter" });
+    expect(catalogueItem({ ...price, recurring: null })).toEqual({ priceId: "price_1", kind: "topup", key: "starter", name: "Starter", priceUsd: 19, creditUsd: 12 });
+    // by the year: the plan it pays for and the minutes it is built around come from the price's own words
+    expect(catalogueItem({ ...price, unit_amount: 19000, recurring: { interval: "year" }, metadata: { studio: "flowchain", key: "starter-yearly", plan: "starter", credit_usd: "144", minutes: "60" } }))
+      .toEqual({ priceId: "price_1", kind: "plan", key: "starter-yearly", name: "Starter", priceUsd: 190, creditUsd: 144, interval: "year", plan: "starter", minutes: 60 });
+    expect(catalogueItem({ ...price, metadata: { ...price.metadata, minutes: "many" } })?.minutes).toBeUndefined();
     for (const not of [
       { ...price, metadata: { key: "starter", credit_usd: "12" } }, // somebody else's price in the same account
       { ...price, metadata: { studio: "flowchain", key: "starter" } }, // grants nothing it knows of
       { ...price, metadata: { studio: "flowchain", key: "starter", credit_usd: "lots" } },
       { ...price, currency: "eur" },
-      { ...price, recurring: { interval: "year" } },
+      { ...price, recurring: { interval: "week" } }, // the studio's credit is a month's or a year's
       { ...price, product: { name: "Starter", active: false } },
       { ...price, metadata: { studio: "flowchain", key: "starter", credit_usd: "1e1" } }, // plain decimals only
       { ...price, metadata: { studio: "flowchain", key: "starter", credit_usd: "0" } },
