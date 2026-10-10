@@ -1,7 +1,8 @@
+import { credits } from "@/lib/credit";
 import type { ShowcaseReceipt } from "@/lib/site/showcases";
 
-/** To the hundredth of a cent, as the ledger keeps it. */
-const exact = (usd: number): string => `$${usd.toFixed(4)}`;
+/** In credits, the unit a customer is shown (phase 6 spec §12): each line is what that part of the video used. */
+const exact = (usd: number): string => credits(usd).toLocaleString("en-US");
 
 /**
  * What a video cost, as a till slip: every line from the run's own ledger (Phase 4 spec §3.3). The amounts are
@@ -29,8 +30,9 @@ export function Receipt({ receipt }: { receipt: ShowcaseReceipt }) {
         </div>
       </dl>
       <p className="mt-3 flex items-baseline justify-between border-t border-dashed border-ink/30 pt-3 text-[1rem] font-bold">
-        <span>Credit used</span>
-        <span data-testid="receipt-total" className="note !text-[1.7rem]">{exact(receipt.totalUsd)}</span>
+        <span>Credits used</span>
+        {/* (the sum of the lines as they are shown, so that a slip adds up to its own total to the credit) */}
+        <span data-testid="receipt-total" className="note !text-[1.7rem]">{receipt.lines.reduce((sum, line) => sum + credits(line.usd), 0).toLocaleString("en-US")}</span>
       </p>
     </div>
   );

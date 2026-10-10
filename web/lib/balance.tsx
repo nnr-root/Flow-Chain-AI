@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { getJson, usd } from "./api";
+import { getJson, amount } from "./api";
 
 /**
  * Whether this studio sells credit: learned with the balance and the same for everyone, so kept once for the page.
@@ -50,7 +50,7 @@ export function CreditNote({ balance, needUsd }: { balance: number | null; needU
   if (!tooLittle(balance, needUsd)) return null;
   return (
     <p className="text-[0.85rem] text-warn" data-testid="credit-note" role="status">
-      This needs up to {usd(needUsd!)}; you have {usd(Math.max(balance!, 0))}.{" "}
+      This needs up to {amount(needUsd!)}; you have {amount(Math.max(balance!, 0))}.{" "}
       {sells ? <a href="/pricing" className="underline" data-testid="add-credit">Add credit</a> : <a href="/account" className="underline">Your account</a>}
     </p>
   );

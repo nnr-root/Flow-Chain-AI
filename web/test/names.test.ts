@@ -75,7 +75,10 @@ describe("a job's output as a customer may read it", () => {
       "Resume with: npm run flowchain -- resume 20261009-101010-abc123",
     ]);
     expect(log[0]).toContain("Run 20261009-101010-abc123");
-    expect(log[1]).toBe("✓ script — done ($0.0055)");
+    // what a step cost is said in credits, like every other amount a customer sees: no dollar figure is left
+    expect(log[1]).toBe("✓ script — done (11 credits)");
+    expect(publicLog(["✓ clips — done ($0.1045)", "spent so far $0.31 of the $0.50 approved"])).toEqual(["✓ clips — done (209 credits)", "spent so far 620 credits of the 1,000 credits approved"]);
+    expect(log.join("\n")).not.toContain("$");
     // three lines in a row said how it is built: one line stands for them, and none of their words is left
     expect(log).toHaveLength(4);
     expect(log[2]).toMatch(/details are kept with the studio/);

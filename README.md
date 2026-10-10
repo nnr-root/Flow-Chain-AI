@@ -352,9 +352,13 @@ With `STRIPE_SECRET_KEY` set (and accounts, which payments need) users buy credi
 nothing below exists and credit is granted by hand as before.
 
 - **What is sold.** `billing/plans.json` lists monthly plans and one-off top-ups, each with its price and the
-  credit it grants. The credit is less than the price: the difference is your margin, and credit is still
-  spent at what a video costs you. The defaults are Starter $19 → $12 and Pro $49 → $35 a month, and top-ups
-  of $10 → $6 and $25 → $16. The better rate is all that sets the plans apart.
+  cost it covers (`creditUsd`, in dollars of what videos cost you). A customer is never shown those dollars:
+  they see **credits**, 2,000 to a dollar of cost (`CREDITS_PER_USD` in `web/lib/credit.ts`). The defaults are
+  Starter $19 for 5,000 credits, Creator $39 for 15,000 and Pro $89 for 45,000 a month, and top-ups of $10 for
+  2,000 and $25 for 6,000. A fully generated video of four scenes was measured at $0.141 (about 280 credits), so
+  those plans cover about 5, 17 and 53 minutes of such video, and about three times that in stills; what is
+  left of a plan's price after that cost is yours (87%, 81% and 75% before Stripe's fee and the server).
+  In your own studio without accounts, amounts stay in dollars: that is your bill.
 - **Two kinds of credit.** A plan's credit is for its month: what is left when the next month is paid for
   expires, and so does what is left when the plan ends. Top-up credit, and credit you grant, never expires.
   Plan credit is spent first. The account page shows both, the plan, and every payment with its receipt.

@@ -1,3 +1,4 @@
+import { inCredits, showsCredits } from "./credit";
 /** An error answer from the studio API, with its code so the UI can react to specific ones. */
 export class ApiFailure extends Error {
   constructor(
@@ -27,7 +28,14 @@ export const sendJson = <T>(url: string, body: unknown = {}, method = "POST"): P
 
 export const sendForm = <T>(url: string, form: FormData): Promise<T> => fetch(url, { method: "POST", body: form }).then((r) => parse<T>(r));
 
-export const usd = (n: number): string => (n > 0 && n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`);
+/** Real money, as a customer pays it: a plan's price, a payment. Always dollars. */
+export const money = (n: number): string => (n > 0 && n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`);
+
+/**
+ * What something costs, or what there is to spend: credits where the studio has customers, dollars in the
+ * owner's own studio (see `showsCredits`). Every cost, balance, cap and estimate on a page goes through this.
+ */
+export const amount = (usd: number): string => (showsCredits() ? inCredits(usd) : money(usd));
 
 export const errorText = (err: unknown): string =>
   err instanceof ApiFailure ? `${err.message}${err.hint ? ` — ${err.hint}` : ""}` : err instanceof Error ? err.message : String(err);

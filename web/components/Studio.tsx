@@ -5,7 +5,7 @@ import type { SceneStatus } from "@src/studio/status";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { type ActionKind, afterRefusal } from "@/lib/approval";
-import { ApiFailure, errorText, sendJson, usd } from "@/lib/api";
+import { ApiFailure, errorText, sendJson, amount } from "@/lib/api";
 import { CreditNote, tooLittle, useBalance } from "@/lib/balance";
 import { CAPTION_LABELS, JOB_LABELS, labelOf, STAGE_LABELS, TRANSITION_LABELS } from "@/lib/labels";
 import { controlsOf, type LookControls, pendingLook } from "@/lib/look";
@@ -223,7 +223,7 @@ export function Studio({ initial, initialLog, kits, publishing = false }: { init
       <div className="space-y-10">
         <ErrorNote>{error}</ErrorNote>
 
-        <Panel title="Next step" aside={status && <span className="note">spent so far {usd(status.spendUsd)}</span>}>
+        <Panel title="Next step" aside={status && <span className="note">spent so far {amount(status.spendUsd)}</span>}>
           {working && (
             <div className="flex items-center justify-between gap-3">
               <p className="text-[0.95rem]" data-testid="working">
@@ -238,7 +238,7 @@ export function Studio({ initial, initialLog, kits, publishing = false }: { init
             <div className="space-y-3">
               <p className="text-[0.95rem] text-graphite">Only the script is bought. Check the preview, set each scene to a clip or a still below, then generate.</p>
               <Button tone="primary" data-testid="generate" onClick={generate} disabled={busy || !estimate || tooLittle(balance, estimate?.totalUsd)}>
-                {estimate ? `Generate video, up to ${usd(estimate.totalUsd)}` : "Pricing…"}
+                {estimate ? `Generate video, up to ${amount(estimate.totalUsd)}` : "Pricing…"}
               </Button>
               <CreditNote balance={balance} needUsd={estimate?.totalUsd} />
             </div>
@@ -258,7 +258,7 @@ export function Studio({ initial, initialLog, kits, publishing = false }: { init
               ))}
               <div className="flex flex-wrap gap-2">
                 <Button tone="primary" data-testid="generate" onClick={generate} disabled={busy || !estimate || tooLittle(balance, estimate?.totalUsd)}>
-                  {estimate ? `${state === "needs_approval" ? "Approve and continue" : "Resume"}, up to ${usd(estimate.totalUsd)}` : "Pricing…"}
+                  {estimate ? `${state === "needs_approval" ? "Approve and continue" : "Resume"}, up to ${amount(estimate.totalUsd)}` : "Pricing…"}
                 </Button>
                 {view.staleLock && <Button onClick={unlock} disabled={busy}>Clear the stale lock</Button>}
               </div>
@@ -289,7 +289,7 @@ export function Studio({ initial, initialLog, kits, publishing = false }: { init
             </ul>
             {ask && (
               <div role="dialog" aria-label="Confirm regeneration" className="mt-4 flex flex-wrap items-center gap-3 bg-wash px-4 py-3 text-[0.95rem]">
-                <span className="flex-1">New {ask.label} for scene {ask.scene}, and whatever follows from it: {ask.totalUsd > 0 ? `up to ${usd(ask.totalUsd)}` : "free"}.</span>
+                <span className="flex-1">New {ask.label} for scene {ask.scene}, and whatever follows from it: {ask.totalUsd > 0 ? `up to ${amount(ask.totalUsd)}` : "free"}.</span>
                 <Button tone="primary" onClick={confirmReroll} disabled={busy}>Confirm</Button>
                 <Button onClick={() => setAsk(null)}>Cancel</Button>
               </div>
@@ -347,14 +347,14 @@ export function Studio({ initial, initialLog, kits, publishing = false }: { init
         )}
 
         {status && status.ledger.length > 0 && (
-          <Panel title="Spend" aside={<span className="note !text-[1.6rem]">{usd(status.spendUsd)}</span>}>
+          <Panel title="Spend" aside={<span className="note !text-[1.6rem]">{amount(status.spendUsd)}</span>}>
             <table className="w-full text-[0.95rem]">
               <tbody>
                 {spendByStage(status.ledger).map(([stage, n, total]) => (
                   <tr key={stage} className="figures border-t border-hairline first:border-0">
                     <td className="py-1">{labelOf(STAGE_LABELS, stage)}</td>
                     <td className="py-1 text-graphite">{n === 1 ? "once" : `${n} times`}</td>
-                    <td className="py-1 text-right tabular-nums">{usd(total)}</td>
+                    <td className="py-1 text-right tabular-nums">{amount(total)}</td>
                   </tr>
                 ))}
               </tbody>

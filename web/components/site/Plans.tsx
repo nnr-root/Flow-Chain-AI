@@ -1,19 +1,23 @@
 "use client";
 import { useStripePage } from "@/components/Pricing";
 import { type CatalogueItem, LIVE, type PlanView } from "@/lib/billing";
+import { credits } from "@/lib/credit";
 
 const usd = (n: number): string => `$${n.toFixed(2)}`;
 const button = "rounded-full bg-signal px-5 py-3 text-[1rem] font-bold text-paper hover:bg-ink disabled:opacity-50";
 
-function Offer({ item, action }: { item: CatalogueItem; action: React.ReactNode }) {
+/** `minutes`: how many minutes of video in which every scene moves its credits cover, when that can be said (worked out by the page, never typed). */
+function Offer({ item, action, minutes }: { item: CatalogueItem; action: React.ReactNode; minutes: number | null | undefined }) {
   return (
     <li data-testid={`offer-${item.key}`} className="ruled flex flex-col">
       <h3 className="printed text-[1.5rem] leading-none">{item.name}</h3>
       <p className="mt-4 text-[1.02rem]">
         <span className="display text-[3.4rem] leading-none text-ink">{usd(item.priceUsd)}</span>{item.kind === "plan" && " / month"}
       </p>
-      <p className="mt-3 max-w-[22rem] flex-1 text-graphite">
-        {usd(item.creditUsd)} of credit{item.kind === "plan" ? " every month. What is left at the end of a month does not carry over." : ". It does not expire."}
+      <p className="mt-4 text-[1.15rem] font-bold" data-testid={`credits-${item.key}`}>{credits(item.creditUsd).toLocaleString("en-US")} credits{item.kind === "plan" ? " every month" : ""}</p>
+      <p className="mt-2 max-w-[22rem] flex-1 text-graphite">
+        {minutes ? `About ${minutes} ${minutes === 1 ? "minute" : "minutes"} of video in which every scene moves. With stills, they go further. ` : ""}
+        {item.kind === "plan" ? "What is left at the end of a month does not carry over." : "They do not expire."}
       </p>
       <div className="mt-6">{action}</div>
     </li>
@@ -25,7 +29,7 @@ function Offer({ item, action }: { item: CatalogueItem; action: React.ReactNode 
  * whether a button buys or leads to an account; `plan` is the visitor's own, and a visitor who has one is
  * offered to manage it rather than buy another.
  */
-export function Plans({ items, signedIn, plan }: { items: CatalogueItem[]; signedIn: boolean; plan: PlanView | null }) {
+export function Plans({ items, signedIn, plan, minutes = {} }: { items: CatalogueItem[]; signedIn: boolean; plan: PlanView | null; minutes?: Record<string, number | null> }) {
   const { busy, error, go } = useStripePage();
   const hasPlan = !!plan && LIVE.includes(plan.status);
   const buy = (item: CatalogueItem, label: string) =>
@@ -56,6 +60,7 @@ export function Plans({ items, signedIn, plan }: { items: CatalogueItem[]; signe
               <Offer
                 key={item.priceId}
                 item={item}
+                minutes={minutes[item.priceId]}
                 action={hasPlan ? <p className="text-graphite" data-testid={plan.plan === item.key ? "your-plan" : undefined}>{plan.plan === item.key ? "Your plan" : "Switch under Manage subscription"}</p> : buy(item, "Subscribe")}
               />
             ))}
@@ -66,13 +71,13 @@ export function Plans({ items, signedIn, plan }: { items: CatalogueItem[]; signe
         <section aria-labelledby="topups-title" className={plans.length > 0 ? "mt-16" : ""}>
           <h2 id="topups-title" className="text-[1.02rem] text-graphite">Top-ups, bought once</h2>
           <ul className="mt-5 grid gap-x-12 gap-y-10 sm:grid-cols-2 lg:grid-cols-3">
-            {topups.map((item) => <Offer key={item.priceId} item={item} action={buy(item, "Buy")} />)}
+            {topups.map((item) => <Offer key={item.priceId} item={item} minutes={minutes[item.priceId]} action={buy(item, "Buy")} />)}
           </ul>
         </section>
       )}
       {items.length === 0 && <p className="text-graphite">Nothing is on sale yet.</p>}
       <p className="mt-14 max-w-[44rem] text-[0.95rem] text-graphite">
-        Credit pays for what a video costs to generate, and you are shown the most a video can cost before it is made. Plan credit is spent before top-up credit. Payments are handled by Stripe; Flow Chain never sees your card.
+        Credits are what a video is made with: before one is made you are shown the most it can use, and that is the limit. A plan's credits are spent before a top-up's. Payments are handled by Stripe; Flow Chain never sees your card.
       </p>
     </div>
   );

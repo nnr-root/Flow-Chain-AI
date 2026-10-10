@@ -1,3 +1,5 @@
+import { inCredits } from "./credit";
+
 /*
  * What makes each part of a video is the studio's own business (phase 5 spec §7, and §9.17 for the owner's
  * ruling that it is given no name at all): the models and the companies behind them can change without
@@ -39,7 +41,10 @@ export const namesInternals = (text: string): boolean => INTERNAL_NAMES.some((na
 export function publicLog(lines: string[]): string[] {
   const out: string[] = [];
   for (const line of lines) {
-    const shown = namesInternals(line) ? "(a step reported; the details are kept with the studio)" : line;
+    // (a dollar amount is what a step cost the studio: a customer is shown it in credits, like every other amount)
+    const shown = namesInternals(line)
+      ? "(a step reported; the details are kept with the studio)"
+      : line.replace(/\$(\d+(?:\.\d+)?)/g, (_whole, usd: string) => inCredits(Number(usd)));
     if (shown !== out.at(-1)) out.push(shown);
   }
   return out;

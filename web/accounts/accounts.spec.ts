@@ -99,18 +99,20 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   const steps = page.getByTestId("making").locator("> li");
   await expect(steps).toHaveCount(5);
   await expect(steps.nth(0)).toContainText("A clockmaker's apprentice repairs the town clock before the midnight bell");
-  await expect(steps.nth(1)).toContainText("$0.0055");
+  await expect(steps.nth(1)).toContainText("11 credits");
   await expect(steps.nth(3).locator("img")).toHaveCount(4);
   const receipts = page.getByTestId("receipt");
   await expect(receipts).toHaveCount(3);
   for (const receipt of await receipts.all()) {
-    const amounts = (await receipt.locator("dd").allInnerTexts()).filter((t) => t.startsWith("$")).map((t) => Math.round(Number(t.slice(1)) * 10_000));
-    const total = Math.round(Number((await receipt.getByTestId("receipt-total").innerText()).slice(1)) * 10_000);
+    // (in credits: a slip's lines are whole numbers, and it shows no dollar figure at all)
+    const amounts = (await receipt.locator("dd").allInnerTexts()).filter((t) => /^[\d,]+$/.test(t)).map((t) => Number(t.replaceAll(",", "")));
+    const total = Number((await receipt.getByTestId("receipt-total").innerText()).replaceAll(",", ""));
+    expect(await receipt.innerText()).not.toContain("$");
     expect(amounts.length).toBeGreaterThanOrEqual(3);
     expect(amounts.reduce((a, b) => a + b, 0)).toBe(total);
   }
-  await expect(page.getByTestId("shelf-compare")).toContainText("32 cents, with 3 moving scenes");
-  await expect(page.getByTestId("shelf-compare")).toContainText("81 cents, with 2 moving scenes");
+  await expect(page.getByTestId("shelf-compare")).toContainText("634 credits, with 3 moving scenes");
+  await expect(page.getByTestId("shelf-compare")).toContainText("1,625 credits, with 2 moving scenes");
   // a feature is shown on a real video, not described: the brand comes off it, the sounds come out of it
   const feature = page.getByTestId("feature-player");
   await feature.scrollIntoViewIfNeeded();
@@ -126,7 +128,7 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   // the top-up covers them, and is cheaper than the plan.
   await expect(page.getByTestId("calc-videos")).toHaveText("20");
   await expect(page.getByTestId("calc-answer")).toHaveText("$10.00 for the month, which is $0.50 a video.");
-  await expect(page.getByTestId("calc-buy")).toContainText("Top-up $10 ($10.00): $6.00 of credit, enough for about 21 such videos");
+  await expect(page.getByTestId("calc-buy")).toContainText("Top-up $10 ($10.00): 12,000 credits, enough for about 21 such videos");
   // forty use about $10.92: the plan's $12
   await page.getByLabel("Videos a month").fill("40");
   await expect(page.getByTestId("calc-answer")).toHaveText("$19.00 for the month, which is $0.48 a video.");
@@ -150,7 +152,7 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await expect(page.getByTestId("faq")).toContainText("Credit from a top-up does not expire.");
   await expect(page.getByTestId("faq")).toContainText("up to twelve scenes");
   // (the answer about cost quotes the receipts on this very page)
-  await expect(page.getByTestId("faq").locator("details").first()).toContainText("23, 32 and 81 cents");
+  await expect(page.getByTestId("faq").locator("details").first()).toContainText("458, 634 and 1,625 credits");
   await expect(page.locator('[data-cta="closing-signup"]')).toHaveText("Create an account");
   // every receipt, the making of a video, the calculator and the questions are open on this page by now
   for (const answer of await page.getByTestId("faq").locator("details").all()) await answer.evaluate((d) => ((d as HTMLDetailsElement).open = true));
@@ -193,13 +195,13 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await expect(page.getByText("No videos yet.")).toBeVisible();
   // and so is the studio itself, once inside
   expect(await look()).toEqual(site);
-  await expect(page.getByTestId("header-balance")).toHaveText("$0.00");
+  await expect(page.getByTestId("header-balance")).toHaveText("0 credits");
 
   // with no credit not even a draft can be started, and the page says why
   await page.goto("/new");
   await page.getByTestId("topic").fill("foxes at night");
   await expect(page.getByTestId("create-draft")).toBeDisabled();
-  await expect(page.getByTestId("credit-note")).toContainText("you have $0.00");
+  await expect(page.getByTestId("credit-note")).toContainText("you have 0 credits");
 
   // the owner of the studio grants credit (npm run studio:grant does exactly this)
   expect((await service.rpc("grant_credit", { p_email: A.email, p_amount_usd: 1, p_note: "a test's grant" })).error).toBeNull();
@@ -223,7 +225,7 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
 
   // the approved amount is held, the stand-in CLI "spends" $0.20 of it, the rest comes back
   const generate = page.getByTestId("generate");
-  await expect(generate).toHaveText("Generate video, up to $0.31", { timeout: 30_000 });
+  await expect(generate).toHaveText("Generate video, up to 620 credits", { timeout: 30_000 });
   await generate.click();
   await expect.poll(() => balance(A.email), { timeout: 30_000 }).toBe(0.7945);
   const calls = readFileSync(join(mine, "_calls.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l) as string[]);
@@ -238,7 +240,7 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await namesNothing(page);
 
   await page.goto("/account");
-  await expect(page.getByTestId("balance")).toHaveText("$0.79");
+  await expect(page.getByTestId("balance")).toHaveText("1,589 credits");
   await expect(page.getByTestId("ledger").locator("tr")).toHaveCount(5); // grant; draft held, settled; generation held, settled
   await page.goto("/");
   await expect(page.getByTestId("runs").locator("li")).toHaveCount(1);
@@ -282,15 +284,19 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
   await page.goto("/pricing");
   await expect(page).toHaveURL(/\/pricing$/);
   expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(0, 0, 0)");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Buy credit. Spend it at what a video costs.");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Buy credits. Make videos with them.");
   await expect(page.getByTestId("offer-starter")).toContainText("$19.00 / month");
-  await expect(page.getByTestId("offer-topup-10")).toContainText("$6.00 of credit. It does not expire.");
+  await expect(page.getByTestId("credits-topup-10")).toHaveText("12,000 credits");
+  await expect(page.getByTestId("credits-starter")).toHaveText("24,000 credits every month");
+  await expect(page.getByTestId("offer-topup-10")).toContainText("They do not expire.");
+  // nothing on the page says what a credit costs the studio: the only dollars are prices
+  expect((await page.getByTestId("plans").innerText()).match(/\$[\d.]+/g)?.sort()).toEqual(["$10", "$10.00", "$19.00"]);
   await expect(page.getByRole("link", { name: "Sign up to buy" })).toHaveCount(2);
   expect((await page.request.post("/api/billing/checkout", { data: { priceId: "price_x" }, headers: { "sec-fetch-site": "same-origin" } })).status()).toBe(401);
 
   // B has nothing; the note under a button they cannot use says where credit comes from
   await signIn(page, B);
-  await expect(page.getByTestId("header-balance")).toHaveText("$0.00");
+  await expect(page.getByTestId("header-balance")).toHaveText("0 credits");
   await page.goto("/new");
   await page.getByTestId("topic").fill("owls at dusk");
   await page.getByTestId("credit-note").getByTestId("add-credit").click();
@@ -301,9 +307,9 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
   await expect(page).toHaveURL(/\/account\?paid=\d{13}$/, { timeout: 30_000 });
   // the browser is back before Stripe has told the studio: the page says so, and brings the credit in when it comes
   await expect(page.getByTestId("paid-note")).toHaveAttribute("data-state", "waiting");
-  await expect(page.getByTestId("balance")).toHaveText("$0.00");
+  await expect(page.getByTestId("balance")).toHaveText("0 credits");
   await expect(page.getByTestId("paid-note")).toHaveAttribute("data-state", "confirmed", { timeout: 20_000 });
-  await expect(page.getByTestId("balance")).toHaveText("$6.00");
+  await expect(page.getByTestId("balance")).toHaveText("12,000 credits");
   await expect(page.getByTestId("payments").locator("tbody tr")).toHaveCount(1);
   await expect(page.getByTestId("payments")).toContainText("Top-up");
   await expect(page.getByTestId("payments")).toContainText("$10.00");
@@ -318,9 +324,9 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
   // a payment made a moment ago (the top-up) is not this one: the page waits for the plan's
   await expect(page.getByTestId("paid-note")).toHaveAttribute("data-state", "waiting");
   await expect(page.getByTestId("paid-note")).toHaveAttribute("data-state", "confirmed", { timeout: 20_000 });
-  await expect(page.getByTestId("balance")).toHaveText("$18.00");
-  await expect(page.getByTestId("balance-split")).toContainText("$12.00 from your plan, to use by ");
-  await expect(page.getByTestId("balance-split")).toContainText("$6.00 that does not expire");
+  await expect(page.getByTestId("balance")).toHaveText("36,000 credits");
+  await expect(page.getByTestId("balance-split")).toContainText("24,000 credits from your plan, to use by ");
+  await expect(page.getByTestId("balance-split")).toContainText("12,000 credits that do not expire");
   await expect(page.getByTestId("plan")).toContainText("starter, active, renews on ");
   await expect(page.getByTestId("payments").locator("tbody tr")).toHaveCount(2);
   // one plan at a time: the pricing page now offers to manage it, not to buy another
@@ -333,7 +339,7 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
 
   // an old address with the note's mark, or a made-up one, shows no note
   await page.goto("/account?paid=1");
-  await expect(page.getByTestId("balance")).toHaveText("$18.00");
+  await expect(page.getByTestId("balance")).toHaveText("36,000 credits");
   await expect(page.getByTestId("paid-note")).toHaveCount(0);
 
   // A bought nothing and sees nothing of it
@@ -343,7 +349,7 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
   await expect(page).toHaveURL(/\/login$/);
   await signIn(page, A);
   await page.goto("/account");
-  await expect(page.getByTestId("balance")).toHaveText("$0.79");
+  await expect(page.getByTestId("balance")).toHaveText("1,589 credits");
   await expect(page.getByTestId("payments")).toHaveCount(0);
   await expect(page.getByTestId("plan")).toHaveCount(0);
   await expect(page.getByTestId("ledger")).not.toContainText("Top-up bought");
@@ -374,7 +380,7 @@ test("a visitor types a topic on the landing page, creates an account, and finds
     // straight to the new-video form, with their own sentence in it, and five cents to draft it with
     await expect(page).toHaveURL(/\/new\?topic=/, { timeout: 20_000 });
     await expect(page.getByTestId("topic")).toHaveValue(topic);
-    await expect(page.getByTestId("header-balance")).toHaveText("$0.05");
+    await expect(page.getByTestId("header-balance")).toHaveText("100 credits");
     expect(await balance(C.email)).toBe(0.05);
 
     const mine = join(data, "runs", await userId(C.email));
@@ -525,14 +531,14 @@ test("a user sets up a series and has its first video started from it; another u
   // looks at series once an hour, so nothing is begun here.)
   await expect(page.getByTestId("series-status")).toHaveCount(0);
   await page.getByTestId("series-cadence").selectOption("daily");
-  await page.getByTestId("series-cap").fill("0.4");
-  await page.getByTestId("series-budget").fill("0.2");
+  await page.getByTestId("series-cap").fill("800");
+  await page.getByTestId("series-budget").fill("400");
   await expect(page.getByTestId("save-schedule")).toBeDisabled();
-  await page.getByTestId("series-budget").fill("3");
-  await expect(page.getByTestId("save-schedule")).toHaveText("Approve: up to $0.40 a video, $3.00 a month");
+  await page.getByTestId("series-budget").fill("6000");
+  await expect(page.getByTestId("save-schedule")).toHaveText("Approve: up to 800 credits a video, 6,000 credits a month");
   await page.getByTestId("save-schedule").click();
   await expect(page.getByTestId("series-status")).toHaveText("Running");
-  await expect(page.getByTestId("series-month")).toContainText("$0.00 of $3.00");
+  await expect(page.getByTestId("series-month")).toContainText("0 credits of 6,000 credits");
   expect((await service.from("series").select("cadence,per_video_cap_usd,monthly_budget_usd,status").eq("id", id).single()).data).toEqual({ cadence: "daily", per_video_cap_usd: 0.4, monthly_budget_usd: 3, status: "active" });
   await page.getByTestId("series-toggle").click();
   await expect(page.getByTestId("series-status")).toHaveText("Stopped");

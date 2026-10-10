@@ -5,6 +5,7 @@ import { SeriesPublishing } from "@/components/Publishing";
 import { SeriesActions } from "@/components/SeriesActions";
 import { SeriesSchedule } from "@/components/SeriesSchedule";
 import { Panel, StateBadge } from "@/components/ui";
+import { amount } from "@/lib/api";
 import { publishingOn } from "@/lib/publishing";
 import { listChannels } from "@/server/channels";
 import { ApiError } from "@/server/http";
@@ -49,7 +50,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
                 <Link href={`/runs/${e.runId}`} className="flex items-center gap-4 rounded-[18px] bg-sheet px-5 py-3.5 hover:bg-wash">
                   <span className="note w-6 text-graphite">{i + 1}</span>
                   <span className="min-w-0 flex-1 truncate font-bold">{e.title ?? "Being written"}</span>
-                  {e.spendUsd !== undefined && <span className="note text-[0.9rem] text-graphite">${e.spendUsd.toFixed(2)}</span>}
+                  {e.spendUsd !== undefined && <span className="note text-[0.9rem] text-graphite">{amount(e.spendUsd)}</span>}
                   <StateBadge state={e.state} />
                 </Link>
               </li>

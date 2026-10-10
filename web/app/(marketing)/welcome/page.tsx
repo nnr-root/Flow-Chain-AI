@@ -9,9 +9,10 @@ import { Shelf } from "@/components/site/Shelf";
 import { Spoken } from "@/components/site/Spoken";
 import { TopicStart } from "@/components/site/TopicStart";
 import comparison from "@/content/comparison.json";
+import measured from "@/content/measured.json";
 import { billingOn, type CatalogueItem } from "@/lib/billing";
-import { DRAFT_CAP_USD } from "@/lib/credit";
-import { clipsClaimHolds, freshComparisons, inWords, mean } from "@/lib/site/calculator";
+import { credits, DRAFT_CAP_USD } from "@/lib/credit";
+import { clipsClaimHolds, freshComparisons, inWords, mean, minutesOnSale } from "@/lib/site/calculator";
 import type { Showcase } from "@/lib/site/showcases";
 import { catalogue } from "@/server/billing/catalogue";
 import { welcomeOffer } from "@/server/site/welcome";
@@ -112,12 +113,12 @@ export default async function Page() {
 
         {items.length > 0 && (
           <Part id="sale" title="What is on sale">
-            <Plans items={items} signedIn={signedIn} plan={plan} />
+            <Plans items={items} signedIn={signedIn} plan={plan} minutes={minutesOnSale(items, measured, SHOWCASES.map((s) => s.receipt), today)} />
           </Part>
         )}
 
         <Part id="faq" title="Before you ask" narrow>
-          <Faq usedCents={SHOWCASES.map((s) => Math.round(s.receipt.totalUsd * 100))} sells={sells} clipHeight={SHOWCASES.find((s) => s.receipt.madeOn === "own" && s.receipt.clipHeight)?.receipt.clipHeight} />
+          <Faq usedCredits={SHOWCASES.map((s) => credits(s.receipt.totalUsd))} sells={sells} clipHeight={SHOWCASES.find((s) => s.receipt.madeOn === "own" && s.receipt.clipHeight)?.receipt.clipHeight} />
         </Part>
 
         <section className="mt-28 rounded-[32px] bg-sheet px-6 py-14 text-center sm:px-10 lg:mt-36 lg:py-20" aria-labelledby="close-title">

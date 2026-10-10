@@ -263,3 +263,76 @@ each week, and what is uploaded is visible to the owner only. Nothing on any pag
 
 These are Google's rules as remembered and as read from secondary sources on 2026-10-10; each is to be read on
 Google's own page when its step is taken, and what was found recorded here.
+
+## 12. Credits, and three plans measured in minutes (owner's direction, 2026-10-10)
+
+The owner: show a customer credits, as other video tools do, not dollars; let them not see what a video costs
+the studio; and size three plans by how much fully generated video each covers (about 5, 15 and 45 minutes),
+since most people will make more than that with stills and mixed videos.
+
+This replaces the phase 3.4 pricing (Starter $19 for $12 of credit, Pro $49 for $35) and the principle of the
+phase 4 page that a customer is shown costs in dollars. What stays: a customer is shown the most a video can
+use before it is made and approves it; what is not used comes back; every figure on a page is worked out.
+
+**The unit.** Nothing in the database, the worker or the pipeline changed: they account in dollars of cost to
+four decimals. A credit is that same amount in another unit, `CREDITS_PER_USD = 2000` (`web/lib/credit.ts`):
+one credit is a twentieth of a cent of cost. `amount()` (`web/lib/api.ts`) shows credits wherever the studio
+has customers (accounts) and dollars in the owner's own studio without accounts, which is the owner's bill.
+`money()` is for real money and is always dollars: a plan's price, a payment, a refund. The two amounts of a
+series' approval and a new video's budget are typed in credits and kept in dollars. A job's output shown to a
+customer has its dollar figures turned into credits (`publicLog`).
+
+**What a fully generated video costs** (`web/content/measured.json`, dated and sourced like another company's
+price, and like one not used once it is ninety days old): **$0.141** for four scenes, every one a moving clip,
+at the standard clip size (phase 5 spec §9.16). A scene runs about five seconds in the videos on the page, so
+that is about twenty seconds: **about $0.42 a minute**, or about 850 credits. From the same checks: at the
+larger clip size about twice that; a video of stills only, about a third (the script, the portrait, the voice
+and four pictures, with the starts those pay).
+
+**The plans** (`billing/plans.json`; they reach Stripe when the owner runs `npm run stripe:setup`):
+
+| | Price | Credits | Cost if all are used | Minutes fully generated (worked out) | Left after cost, before Stripe's fee |
+|---|---|---|---|---|---|
+| Starter | $19 / month | 5,000 | $2.50 | 5 | $16.50 (87%) |
+| Creator | $39 / month | 15,000 | $7.50 | 17 | $31.50 (81%) |
+| Pro | $89 / month | 45,000 | $22.50 | 53 | $66.50 (75%) |
+| Top-up $10 | $10 | 2,000 | $1.00 | 2 | $9.00 |
+| Top-up $25 | $25 | 6,000 | $3.00 | 7 | $22.00 |
+
+- Each plan is cheaper for a credit than the one before; a top-up is dearer than any plan. A test holds both.
+- The plans are built around 5, 15 and 45 minutes and give somewhat more (the measured figure leaves about a
+  sixth to spare): a start that takes longer or a clip made twice does not make the plan fall short of what the
+  page says. The page says what the figures give, rounded down (`fullyGeneratedMinutes`), and says nothing
+  about minutes when the measurement is stale or missing.
+- **The margin is the plan, not the video.** A user's credits are a fixed amount of cost however they are
+  spent: someone who makes only stills gets three times the videos from them, and the studio's cost for that
+  plan is the same $2.50. What the studio does not control is how much of a plan goes unused; unused plan
+  credits expire with the month, as before.
+- To change the margin later: change what a plan's price covers (`creditUsd`), or the rate. Raising the rate
+  shows every balance as more credits and every video as costing more credits by the same factor, so it changes
+  nothing for credits already held and gives new purchases less.
+
+**Not counted above:** Stripe's fee (about 3% and 30 cents a payment), the server, storage, the worker's idle
+starts that no video pays for, refunds, and tax. They come out of the last column.
+
+**What the page no longer says.** No dollar figure for what a video used: receipts, the making timeline, the
+shelf, the questions and the calculator's "a video uses about" are in credits. The calculator still works out
+the month's price in dollars from what is on sale (that is a price, not a cost) and still sets it beside other
+companies' dated prices; the headline that compares with them is shown only while that comparison holds, as
+before, and with these plans it no longer holds: a month here is no longer "about what others charge for the
+clips", and the page opens with the plain headline instead. That is the rule working, not a fault.
+
+**Rulings and parked**
+
+- **A credit's worth can be worked out by anyone who looks.** The API's answers still carry dollars of cost (a
+  browser's network panel shows them), and the three showcase receipts in `web/public/showcase/` are in
+  dollars. Hiding them means changing every answer's shape and re-exporting the showcases. Parked: it is a
+  day's work across the routes and their tests, and until then the cost is out of sight, not secret.
+- The three videos on the landing page were made before the cost came down (458, 634 and 1,625 credits for
+  about twenty seconds each); a fully generated video now uses about 280. They are what they were; a new
+  showcase made today would show the plans in a better light. Parked: it is a paid run, the owner's click.
+- The stand-in Stripe of the tests still sells the old sizes (a $19 plan for $12 of cost): the tests are about
+  the mechanism, not the price list. `web/test/credits.test.ts` holds the real list.
+- Users of an existing plan keep its old price and credit until they change plan (Stripe's behaviour, phase
+  3.4). There are none: nothing is live.
+- A welcome credit of $0.05 shows as 100 credits.

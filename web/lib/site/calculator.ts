@@ -124,3 +124,34 @@ export const inWords = (n: number): string => (Number.isInteger(n) && n >= 0 && 
 
 /** The mean of some amounts, to the hundredth of a cent; 0 for none. */
 export const mean = (amounts: number[]): number => (amounts.length === 0 ? 0 : Math.round((amounts.reduce((a, b) => a + b, 0) / amounts.length) * 10_000) / 10_000);
+
+/** What one fully generated video was measured to cost: a dated entry of `web/content/measured.json`, with where it was read. */
+export const Measured = z.object({
+  fullyGenerated: z.object({ what: z.string().min(1), scenes: z.number().int().positive(), usd: z.number().positive(), measuredOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), source: z.string().min(1) }),
+});
+export type Measured = z.infer<typeof Measured>;
+
+/**
+ * How many minutes of video in which every scene moves an amount of credit covers, or null when that cannot be
+ * said (phase 6 spec §12). It is worked out, not typed: from the cost one such video was measured at (a dated
+ * entry, which like another company's price is no longer used once it is older than `FRESH_DAYS`) and from
+ * how long a scene runs in the videos on the page. Rounded down to whole minutes, and never promised above
+ * what the figures give: a plan is described by what it certainly covers.
+ */
+export function fullyGeneratedMinutes(creditUsd: number, measured: unknown, secondsPerScene: number, today: Date): number | null {
+  const parsed = Measured.safeParse(measured);
+  if (!parsed.success || !(secondsPerScene > 0) || !(creditUsd > 0)) return null;
+  const m = parsed.data.fullyGenerated;
+  const days = Math.floor(today.getTime() / 86_400_000) - Math.floor(Date.parse(`${m.measuredOn}T00:00:00Z`) / 86_400_000);
+  if (!(days >= -1 && days <= FRESH_DAYS)) return null;
+  const videos = creditUsd / m.usd;
+  const minutes = Math.floor((videos * m.scenes * secondsPerScene) / 60);
+  return minutes >= 1 ? minutes : null;
+}
+
+/** For each thing on sale, the minutes of fully generated video its credits cover (see `fullyGeneratedMinutes`), by price id. */
+export function minutesOnSale(items: Array<{ priceId: string; creditUsd: number }>, measured: unknown, videos: Array<{ seconds: number; scenes: number }>, today: Date): Record<string, number | null> {
+  // how long a scene runs, from the videos on the page themselves
+  const perScene = videos.length > 0 ? mean(videos.map((v) => v.seconds / v.scenes)) : 0;
+  return Object.fromEntries(items.map((item) => [item.priceId, fullyGeneratedMinutes(item.creditUsd, measured, perScene, today)]));
+}

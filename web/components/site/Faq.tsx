@@ -6,7 +6,7 @@ import { inWords } from "@/lib/site/calculator";
  * Every answer here is a statement about the code; when the code changes, so must the answer.
  */
 type Facts = {
-  /** What the videos on the page used, in words ("23, 32 and 81 cents"). */
+  /** What the videos on the page used, in words ("460, 634 and 1,625 credits"). */
   used: string;
   /** The studio takes payments: only then are plans, top-ups and Stripe something to ask about. */
   sells: boolean;
@@ -18,8 +18,8 @@ const questions = ({ used, sells, clipHeight }: Facts): Array<{ q: string; a: st
   {
     q: "What will a video cost me?",
     a: [
-      "It depends on its length and on how many scenes move. Before anything is generated you are shown the most it can cost, and that amount is the limit: you approve it, it is held from your credit, and what the video did not use comes back.",
-      `The videos on this page used ${used} of credit. Their receipts are above.`,
+      "It depends on its length and on how many scenes move. Before anything is generated you are shown the most credits it can use, and that amount is the limit: you approve it, it is held from your credits, and what the video did not use comes back.",
+      `The videos on this page used ${used}. Their receipts are above.`,
     ],
   },
   ...(sells ? [{
@@ -56,10 +56,10 @@ const questions = ({ used, sells, clipHeight }: Facts): Array<{ q: string; a: st
   ] : []),
 ];
 
-/** `usedCents`: what each showcase video on the page used, from its receipt, so the answer quotes the page's own figures. */
-export function Faq({ usedCents, sells, clipHeight }: { usedCents: number[]; sells: boolean; clipHeight?: number }) {
-  const sorted = [...usedCents].sort((a, b) => a - b).map(String);
-  const used = sorted.length > 1 ? `${sorted.slice(0, -1).join(", ")} and ${sorted.at(-1)} cents` : `${sorted[0] ?? "a few"} cents`;
+/** `usedCredits`: what each showcase video on the page used, from its receipt, so the answer quotes the page's own figures. */
+export function Faq({ usedCredits, sells, clipHeight }: { usedCredits: number[]; sells: boolean; clipHeight?: number }) {
+  const sorted = [...usedCredits].sort((a, b) => a - b).map((n) => n.toLocaleString("en-US"));
+  const used = sorted.length > 1 ? `${sorted.slice(0, -1).join(", ")} and ${sorted.at(-1)} credits` : `${sorted[0] ?? "a few hundred"} credits`;
   return (
     <div className="max-w-[52rem]" data-testid="faq">
       {questions({ used, sells, clipHeight }).map(({ q, a }) => (

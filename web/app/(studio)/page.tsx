@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { amount } from "@/lib/api";
 import { StateBadge } from "@/components/ui";
 import { forUser } from "@/server/page";
 import { listRuns } from "@/server/runs";
@@ -36,7 +37,7 @@ export default async function Page() {
             <div className="mt-3 space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <StateBadge state={r.state} />
-                {r.spendUsd !== undefined && <span className="note">${r.spendUsd.toFixed(2)}</span>}
+                {r.spendUsd !== undefined && <span className="note">{amount(r.spendUsd)}</span>}
               </div>
               <p className="line-clamp-2 font-bold leading-snug group-hover:underline group-hover:underline-offset-4">{r.title ?? r.topic ?? r.runId}</p>
               {r.sceneCount ? <p className="text-[0.85rem] text-graphite">{r.sceneCount} scenes, {r.aspect}</p> : null}

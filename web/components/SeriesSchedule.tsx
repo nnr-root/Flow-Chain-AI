@@ -1,7 +1,8 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { errorText, sendJson, usd } from "@/lib/api";
+import { errorText, sendJson, amount } from "@/lib/api";
+import { credits, showsCredits, usdOfCredits } from "@/lib/credit";
 import { type Cadence, CADENCES, PAUSED, type SeriesView } from "@/lib/series";
 import { Button, ErrorNote, Field, Panel } from "./ui";
 
@@ -20,6 +21,8 @@ export function SeriesSchedule({ series }: { series: SeriesView }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const scheduled = series.cadence !== "manual";
+  const inCredits = showsCredits();
+  const unit = inCredits ? "credits" : "$";
   const changed = cadence !== series.cadence || (cadence !== "manual" && (cap !== series.perVideoCapUsd || budget !== series.monthlyBudgetUsd));
 
   const send = (body: unknown) => {
@@ -46,7 +49,7 @@ export function SeriesSchedule({ series }: { series: SeriesView }) {
         )}
         {scheduled && (
           <p className="text-[0.95rem] text-graphite" data-testid="series-month">
-            Used this month: <span className="note text-ink">{usd(series.monthUsd)}</span> of {usd(series.monthlyBudgetUsd ?? 0)}.
+            Used this month: <span className="note text-ink">{amount(series.monthUsd)}</span> of {amount(series.monthlyBudgetUsd ?? 0)}.
             {series.active && series.nextDueAt && ` Next video due ${day(series.nextDueAt)}.`}
           </p>
         )}
@@ -58,11 +61,12 @@ export function SeriesSchedule({ series }: { series: SeriesView }) {
           </Field>
           {cadence !== "manual" && (
             <>
-              <Field label="Most for one video ($)" hint="A video that would cost more is not made.">
-                <input data-testid="series-cap" type="number" min={0.05} max={100} step={0.05} value={cap} onChange={(e) => setCap(Number(e.target.value))} />
+              {/* (typed in the unit the user is shown; kept in dollars of cost like every other amount) */}
+              <Field label={`Most for one video (${unit})`} hint="A video that would cost more is not made.">
+                <input data-testid="series-cap" type="number" min={inCredits ? 100 : 0.05} max={inCredits ? 200000 : 100} step={inCredits ? 50 : 0.05} value={inCredits ? credits(cap) : cap} onChange={(e) => setCap(inCredits ? usdOfCredits(Number(e.target.value)) : Number(e.target.value))} />
               </Field>
-              <Field label="Most in a month ($)" hint="It stops when its videos of the month have used this.">
-                <input data-testid="series-budget" type="number" min={0.05} max={10000} step={0.5} value={budget} onChange={(e) => setBudget(Number(e.target.value))} />
+              <Field label={`Most in a month (${unit})`} hint="It stops when its videos of the month have used this.">
+                <input data-testid="series-budget" type="number" min={inCredits ? 100 : 0.05} max={inCredits ? 20000000 : 10000} step={inCredits ? 500 : 0.5} value={inCredits ? credits(budget) : budget} onChange={(e) => setBudget(inCredits ? usdOfCredits(Number(e.target.value)) : Number(e.target.value))} />
               </Field>
             </>
           )}
@@ -76,7 +80,7 @@ export function SeriesSchedule({ series }: { series: SeriesView }) {
         <ErrorNote>{error}</ErrorNote>
         <div className="flex flex-wrap items-center gap-3">
           <Button tone="primary" data-testid="save-schedule" onClick={save} disabled={busy || !changed || (cadence !== "manual" && !(cap > 0 && budget >= cap))}>
-            {cadence === "manual" ? "Save: only when I ask" : `Approve: up to ${usd(cap)} a video, ${usd(budget)} a month`}
+            {cadence === "manual" ? "Save: only when I ask" : `Approve: up to ${amount(cap)} a video, ${amount(budget)} a month`}
           </Button>
           {scheduled && (
             <Button data-testid="series-toggle" onClick={() => send({ active: !series.active })} disabled={busy}>{series.active ? "Stop it" : "Let it go on"}</Button>

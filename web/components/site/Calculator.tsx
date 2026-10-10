@@ -1,4 +1,5 @@
 "use client";
+import { inCredits } from "@/lib/credit";
 import { useId, useState } from "react";
 import type { CatalogueItem } from "@/lib/billing";
 import { clipsCostUsd, type Comparison, quote } from "@/lib/site/calculator";
@@ -37,7 +38,7 @@ export function Calculator({ items, engine, others, asOf }: { items: CatalogueIt
           </label>
           <input id={slider} type="range" min={1} max={150} step={1} value={videos} onChange={(e) => setVideos(Number(e.target.value))} className="range mt-5 w-full" />
           <p className="mt-8 text-[1.02rem]">
-            A video <span className="figures text-[0.8rem] text-graphite">about {usd(engine.creditPerVideoUsd)} of credit</span>
+            A video <span className="figures text-[0.8rem] text-graphite">about {inCredits(engine.creditPerVideoUsd)}</span>
           </p>
         </div>
 
@@ -48,15 +49,15 @@ export function Calculator({ items, engine, others, asOf }: { items: CatalogueIt
                 {usd(q.monthUsd)} for the month, which is {usd(q.perVideoUsd)} a video.
               </p>
               <p className="mt-5 max-w-[36rem] text-[1.02rem] leading-[1.5]" data-testid="calc-buy">
-                Buy {q.buy.map((b) => `${b.times > 1 ? `${b.times} × ` : ""}${b.item.name} (${usd(b.item.priceUsd)}${b.item.kind === "plan" ? " a month" : ""})`).join(" and ")}: {usd(q.creditUsd)} of credit, enough for about {q.videos} such videos.
-                {q.buy.some((b) => b.item.kind === "plan") ? " A plan's credit is for its month; a top-up's does not expire." : " A top-up's credit does not expire, so what you do not use this month is still there the next."}
+                Buy {q.buy.map((b) => `${b.times > 1 ? `${b.times} × ` : ""}${b.item.name} (${usd(b.item.priceUsd)}${b.item.kind === "plan" ? " a month" : ""})`).join(" and ")}: {inCredits(q.creditUsd)}, enough for about {q.videos} such videos.
+                {q.buy.some((b) => b.item.kind === "plan") ? " A plan's credits are for its month; a top-up's do not expire." : " A top-up's credits do not expire, so what you do not use this month is still there the next."}
               </p>
             </>
           ) : (
             <p className="max-w-[36rem] text-[1.1rem]" data-testid="calc-answer">That many videos is more than what is on sale covers in one month. <a href="/pricing" className="underline underline-offset-4">See what is on sale.</a></p>
           )}
           <p className="mt-4 max-w-[36rem] text-[0.92rem] text-graphite">
-            “About {usd(engine.creditPerVideoUsd)}” is the mean of the {engine.videos === 1 ? "one video" : `${engine.videos} videos`} above that were made the way every video is made now, about {Math.round(engine.seconds)} seconds each. Yours will use more or less with their length and how many scenes move; you are shown the most a video can cost before it is made.
+            “About {inCredits(engine.creditPerVideoUsd)}” is the mean of the {engine.videos === 1 ? "one video" : `${engine.videos} videos`} above that were made the way every video is made now, about {Math.round(engine.seconds)} seconds each. Yours will use more or less with their length and how many scenes move; you are shown the most a video can cost before it is made.
           </p>
         </div>
       </div>

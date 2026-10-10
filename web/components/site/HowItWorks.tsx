@@ -1,9 +1,10 @@
 import { PRESETS } from "@src/presets";
+import { inCredits } from "@/lib/credit";
 import { inWords } from "@/lib/site/calculator";
 import type { Showcase } from "@/lib/site/showcases";
 
-const exact = (usd: number): string => `$${usd.toFixed(4)}`;
-const usd = (n: number): string => `$${n.toFixed(2)}`;
+const exact = (usd: number): string => inCredits(usd);
+const usd = exact;
 
 /** One step: what it is called, what happens in it, and beside the words a picture of it made from a real video's own data. */
 function Step({ n, name, lead, points, flip, children }: { n: number; name: string; lead: string; points: string[]; flip?: boolean; children: React.ReactNode }) {
@@ -39,7 +40,7 @@ export function HowItWorks({ showcase }: { showcase: Showcase }) {
   const looks = Object.values(PRESETS);
   return (
     <ol className="space-y-20" data-testid="how">
-      <Step n={1} name="Type one sentence" lead="The script is written from it: an opening title, a line for each scene, and for each line a picture and a camera move." points={["Only the script is bought at this point", `This one's script cost ${exact(script)}`, "Upright for a phone, or wide"]}>
+      <Step n={1} name="Type one sentence" lead="The script is written from it: an opening title, a line for each scene, and for each line a picture and a camera move." points={["Only the script is bought at this point", `This one's script used ${exact(script)}`, "Upright for a phone, or wide"]}>
         <p className="note text-[0.85rem] text-graphite">The sentence</p>
         <p className="mt-2 rounded-[18px] bg-wash px-4 py-3 text-[1.02rem] leading-snug">{making.topic}</p>
         <p className="note mt-6 text-[0.85rem] text-graphite">The script written from it</p>
@@ -64,7 +65,7 @@ export function HowItWorks({ showcase }: { showcase: Showcase }) {
           <dl className="space-y-3 text-[1.02rem]">
             <div><dt className="text-[0.85rem] text-graphite">The video</dt><dd className="note">{receipt.title}</dd></div>
             <div><dt className="text-[0.85rem] text-graphite">Length</dt><dd className="note">{receipt.seconds.toFixed(1)} s, {receipt.scenes} scenes</dd></div>
-            <div><dt className="text-[0.85rem] text-graphite">Credit used, all in</dt><dd className="note text-[1.6rem] leading-none">{usd(receipt.totalUsd)}</dd></div>
+            <div><dt className="text-[0.85rem] text-graphite">Used, all in</dt><dd className="note text-[1.6rem] leading-none">{usd(receipt.totalUsd)}</dd></div>
           </dl>
         </div>
       </Step>

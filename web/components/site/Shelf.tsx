@@ -1,9 +1,10 @@
 "use client";
 import { useReducedMotion } from "motion/react";
+import { inCredits } from "@/lib/credit";
 import { SHOW_EVENT, type Showcase } from "@/lib/site/showcases";
 import { Receipt } from "./Receipt";
 
-const cents = (usd: number): string => `${Math.round(usd * 100)} cents`;
+const cents = (usd: number): string => inCredits(usd);
 
 /**
  * The videos the product made, each with its receipt (Phase 4 spec §5, block 5): what stands in for
@@ -14,7 +15,7 @@ export function Shelf({ showcases }: { showcases: Showcase[] }) {
   const own = showcases.filter((s) => s.receipt.madeOn === "own");
   const hosted = showcases.filter((s) => !own.includes(s));
   const moving = (s: Showcase) => s.making.scenes.filter((scene) => scene.kind === "clip").length;
-  /** "32 cents, with 3 moving scenes": the two things that make one video's cost comparable with another's. */
+  /** "634 credits, with 3 moving scenes": the two things that make one video's cost comparable with another's. */
   const cost = (s: Showcase) => `${cents(s.receipt.totalUsd)}, with ${moving(s)} moving ${moving(s) === 1 ? "scene" : "scenes"}`;
   const play = (slug: string) => {
     window.dispatchEvent(new CustomEvent(SHOW_EVENT, { detail: slug }));
@@ -40,7 +41,7 @@ export function Shelf({ showcases }: { showcases: Showcase[] }) {
         </p>
       )}
       <p className="mt-4 max-w-[44rem] text-[0.92rem] text-graphite">
-        These are the amounts of credit these videos used. Other videos use more or less with their length and how many scenes move.
+        These are the credits these videos used. Other videos use more or less with their length and how many scenes move.
       </p>
     </div>
   );

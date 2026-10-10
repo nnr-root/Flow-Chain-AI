@@ -1,9 +1,9 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { errorText, getJson, sendForm, sendJson } from "@/lib/api";
+import { amount, errorText, getJson, sendForm, sendJson } from "@/lib/api";
 import { CreditNote, tooLittle, useBalance } from "@/lib/balance";
-import { DRAFT_CAP_USD } from "@/lib/credit";
+import { credits, DRAFT_CAP_USD, showsCredits, usdOfCredits } from "@/lib/credit";
 import { NOT_READY } from "@/lib/engines";
 import { CAPTION_LABELS, labelOf, TRANSITION_LABELS } from "@/lib/labels";
 import type { StudioHealth } from "@/server/jobs";
@@ -128,9 +128,16 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
             <Field label="Scenes">
               <input type="number" min={1} max={12} value={f.scenes} onChange={(e) => set("scenes", Number(e.target.value))} />
             </Field>
-            <Field label="Budget ($)" hint="Auto motion keeps the estimate under it">
-              <input type="number" min={0.1} max={100} step={0.1} value={f.budgetUsd} onChange={(e) => set("budgetUsd", Number(e.target.value))} />
-            </Field>
+            {/* (the most the video may cost, which the auto motion keeps the estimate under: typed in the unit the user is shown) */}
+            {showsCredits() ? (
+              <Field label="Budget (credits)" hint="Auto motion keeps the estimate under it">
+                <input type="number" min={200} max={200000} step={100} value={credits(f.budgetUsd)} onChange={(e) => set("budgetUsd", usdOfCredits(Number(e.target.value)))} />
+              </Field>
+            ) : (
+              <Field label="Budget ($)" hint="Auto motion keeps the estimate under it">
+                <input type="number" min={0.1} max={100} step={0.1} value={f.budgetUsd} onChange={(e) => set("budgetUsd", Number(e.target.value))} />
+              </Field>
+            )}
           </div>
         </div>
       </Panel>
@@ -243,7 +250,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
           <CreditNote balance={balance} needUsd={DRAFT_CAP_USD} />
           <div className="flex items-center gap-3">
             <Button type="submit" tone="primary" data-testid="create-draft" disabled={busy || offline || missing.length > 0 || !f.topic.trim() || tooLittle(balance, DRAFT_CAP_USD)}>
-              {busy ? "Writing the script…" : "Write the script, about $0.006"}
+              {busy ? "Writing the script…" : `Write the script, up to ${amount(DRAFT_CAP_USD)}`}
             </Button>
             <span className="text-[0.85rem] text-graphite" data-testid="create-note">
               {offline ? "The worker is offline: nothing can be started until it is back." : "Buys only the script. You preview and price the rest before generating."}

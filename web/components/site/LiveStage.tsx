@@ -2,6 +2,7 @@
 import { motion, useReducedMotion } from "motion/react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { inCredits } from "@/lib/credit";
 import { type Controls, madeControls, mediaUrl, restyle } from "@/lib/site/restyle";
 import { SHOW_EVENT, type Showcase } from "@/lib/site/showcases";
 import type { ShowcasePlayerHandle } from "./ShowcasePlayer";
@@ -15,7 +16,6 @@ const SNAP = { type: "spring", stiffness: 520, damping: 38, mass: 0.7 } as const
 
 const CAPTIONS: Array<[Controls["captions"], string]> = [["preset", "Matched"], ["hormozi", "Punchy"], ["mrbeast", "Playful"], ["minimalist", "Quiet"]];
 const CUTS: Array<[Controls["cuts"], string]> = [["auto", "As scripted"], ["cut", "Hard cut"], ["fade", "Fade"], ["dissolve", "Dissolve"], ["blur", "Blur"], ["zoom", "Zoom"], ["glitch", "Glitch"]];
-const usd = (n: number): string => `$${n.toFixed(2)}`;
 
 /** A row of choices where one is on; the mark under it slides to the one chosen. */
 function Choice<T extends string>({ label, options, value, onChange }: { label: string; options: Array<[T, string]>; value: T; onChange: (v: T) => void }) {
@@ -132,7 +132,7 @@ export function LiveStage({ showcases, title, children }: { showcases: Showcase[
         <div className="flex items-center justify-center gap-4 sm:gap-6">
           {others[0] && <Side showcase={others[0]} onPick={choose} />}
           <div id="stage" className="w-full max-w-[19.5rem] shrink-0 scroll-mt-24">
-            <Stage caption={[`${receipt.seconds.toFixed(1)} s, ${receipt.scenes} scenes`, `${usd(receipt.totalUsd)} of credit`]}>
+            <Stage caption={[`${receipt.seconds.toFixed(1)} s, ${receipt.scenes} scenes`, inCredits(receipt.totalUsd)]}>
               <div
                 ref={frame}
                 className="absolute inset-0"

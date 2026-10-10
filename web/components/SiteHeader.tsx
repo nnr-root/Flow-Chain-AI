@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { usd } from "@/lib/api";
+import { amount } from "@/lib/api";
 
 /** Who is looking: nobody, or a signed-in user with what they may still spend. `null` in a studio without accounts. */
 export type HeaderAccount = { email: string; balanceUsd: number } | null;
@@ -31,7 +31,7 @@ export function SiteHeader({ studio, account, sells, free = false }: { studio: b
         {!studio && <a href="/#faq" className={`hidden md:inline ${link}`}>FAQ</a>}
         {account && (
           <Link href="/account" className={link} data-testid="account-link" title={account.email}>
-            <span data-testid="header-balance" className="figures font-bold">{usd(account.balanceUsd)}</span>
+            <span data-testid="header-balance" className="figures font-bold">{amount(account.balanceUsd)}</span>
             <span className="hidden lg:inline">, {account.email}</span>
           </Link>
         )}

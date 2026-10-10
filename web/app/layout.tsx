@@ -27,8 +27,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const studio = !accounts || me !== null;
   // a new account is given credit for a first draft: only then does the way in say "free"
   const free = accounts && !me && (await welcomeOffer().catch(() => 0)) >= DRAFT_CAP_USD;
+  // (`data-credits`: amounts are shown as credits where the studio has customers; the browser's side of `showsCredits`)
   return (
-    <html lang="en" className={`${montserrat.variable} ${montserratDisplay.variable}`}>
+    <html lang="en" className={`${montserrat.variable} ${montserratDisplay.variable}`} data-credits={accounts ? "1" : undefined}>
       <body className="flex min-h-screen flex-col">
         <SiteHeader studio={studio} account={me ? { email: me.email, balanceUsd: me.balanceUsd } : null} sells={billingOn()} free={free} />
         <div className="flex-1">{children}</div>

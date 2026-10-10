@@ -180,6 +180,15 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 
 ## Money rules
 
+- **A customer is shown credits, never what a video cost in dollars** (phase 6 spec §12). The database, the
+  worker and the pipeline still count in dollars of cost; `amount()` (`web/lib/api.ts`) shows them as credits at
+  `CREDITS_PER_USD` wherever the studio has accounts, and as dollars only in the owner's own studio without
+  them. `money()` is for real money (a price, a payment). On a page, in a message and in a job's output, a cost
+  goes through `amount()` or `inCredits()`: never write `$${…}` for one. An amount typed by a user is typed in
+  credits and kept in dollars.
+- What a plan is said to cover ("about 5 minutes…") is worked out by `fullyGeneratedMinutes` from the dated
+  measurement in `web/content/measured.json`; when a new live check changes the cost, change that file.
+
 - **Credit:** a paid job reserves its approved cap before it is queued; the worker settles at what the
   run's manifest says was spent (ledger + pending `expectedUsd` + `abandonedUsd`). Users cannot cancel a
   reservation. Rounding is to four decimals; compare money in ten-thousandths, never as floats.

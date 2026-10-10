@@ -6,6 +6,7 @@ import { inWords } from "@/lib/site/calculator";
 import { type Controls, madeControls, mediaUrl, restyle } from "@/lib/site/restyle";
 import type { Showcase } from "@/lib/site/showcases";
 import type { ShowcasePlayerHandle } from "./ShowcasePlayer";
+import { inCredits } from "@/lib/credit";
 import { Stage } from "./Stage";
 
 const ShowcasePlayer = dynamic(() => import("./ShowcasePlayer"), { ssr: false });
@@ -59,7 +60,7 @@ export function FeatureStage({ showcase }: { showcase: Showcase }) {
     <div className="grid gap-x-16 gap-y-12 lg:grid-cols-12" data-testid="features">
       <div className="lg:col-span-4">
         <div className="mx-auto w-full max-w-[19rem] lg:sticky lg:top-10">
-          <Stage caption={[`${receipt.seconds.toFixed(1)} s, ${receipt.scenes} scenes`, `$${receipt.totalUsd.toFixed(2)} of credit`]}>
+          <Stage caption={[`${receipt.seconds.toFixed(1)} s, ${receipt.scenes} scenes`, inCredits(receipt.totalUsd)]}>
             <div ref={frame} className="absolute inset-0" data-testid="feature-player" data-live={live} data-brand={props.brand !== null} data-hook={props.hook?.text ?? ""} data-sounds={props.audio.sfx.length}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={`/showcase/${showcase.slug}/poster.jpg`} alt={`A frame of “${receipt.title}”`} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />

@@ -168,7 +168,7 @@ describe("npm run stripe:setup", () => {
     expect(first.out).not.toContain(endpoint.secret);
     expect(readFileSync(join(dir, ".env"), "utf8")).toBe(`GEMINI_API_KEY=keep-me\n# a comment\nRUNPOD_API_KEY=and-me\nSTRIPE_WEBHOOK_SECRET=${endpoint.secret}\nSTRIPE_WEBHOOK_ENDPOINT=${endpoint.id}\n`);
     expect(statSync(join(dir, ".env")).mode & 0o777).toBe(0o600);
-    expect([...stripe.prices.values()].filter((p) => p.active).map((p) => p.metadata.key).sort()).toEqual(["pro", "starter", "topup-10", "topup-25"]);
+    expect([...stripe.prices.values()].filter((p) => p.active).map((p) => p.metadata.key).sort()).toEqual(["creator", "pro", "starter", "topup-10", "topup-25"]);
 
     const before = writes();
     const again = await run(["--yes"]);

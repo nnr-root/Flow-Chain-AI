@@ -4,7 +4,7 @@ import { Channels } from "@/components/Publishing";
 import { ManageBilling } from "@/components/Pricing";
 import { SignOut } from "@/components/SignOut";
 import { Panel } from "@/components/ui";
-import { usd } from "@/lib/api";
+import { amount, money } from "@/lib/api";
 import { arrivedSince, billingOn, LIVE, purchaseTime } from "@/lib/billing";
 import { CHANNEL_NOTES, publishingOn } from "@/lib/publishing";
 import { account, ledger } from "@/server/auth";
@@ -42,13 +42,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
       {since !== null && billing && <PaidNote since={since} confirmed={billing.payments.some((p) => arrivedSince(p.at, since))} />}
       <Panel title="Account" aside={<SignOut />}>
         <p className="text-[0.95rem] text-graphite">{me.email}</p>
-        <p className="display mt-3 text-[clamp(3.5rem,2rem+6vw,6rem)] leading-[0.9] text-ink" data-testid="balance">{usd(me.balanceUsd)}</p>
-        <p className="mt-1 text-[0.85rem] text-graphite">Your credit. A job holds the amount you approve and gives back what it does not spend.</p>
+        <p className="display mt-3 text-[clamp(3.5rem,2rem+6vw,6rem)] leading-[0.9] text-ink" data-testid="balance">{amount(me.balanceUsd)}</p>
+        <p className="mt-1 text-[0.85rem] text-graphite">A job holds the amount you approve and gives back what it does not use.</p>
         {billing && (
           <>
             {planCredit > 0 && (
               <p className="mt-2 text-[0.95rem]" data-testid="balance-split">
-                {usd(planCredit)} from your plan{plan?.periodEnd ? `, to use by ${day(plan.periodEnd)}` : ""}, and {usd(Math.max(me.balanceUsd - planCredit, 0))} that does not expire
+                {amount(planCredit)} from your plan{plan?.periodEnd ? `, to use by ${day(plan.periodEnd)}` : ""}, and {amount(Math.max(me.balanceUsd - planCredit, 0))} that do not expire
               </p>
             )}
             <p className="mt-3"><Link href="/pricing" className="text-[0.95rem] underline" data-testid="add-credit">Add credit</Link></p>
@@ -74,9 +74,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
                 {billing.payments.map((p) => (
                   <tr key={p.id} className="border-t border-hairline">
                     <td className="py-2 text-[0.85rem] text-graphite">{day(p.at)}</td>
-                    <td className="py-2">{p.kind === "plan" ? <span className="capitalize">{p.plan ?? "Plan"}, a month</span> : "Top-up"}{p.refundedUsd > 0 && <span className="text-warn">, {usd(p.refundedUsd)} refunded</span>}</td>
-                    <td className="py-2 text-right tabular-nums">{usd(p.paidUsd)}</td>
-                    <td className="py-2 text-right tabular-nums text-good">+{usd(p.creditUsd)}</td>
+                    <td className="py-2">{p.kind === "plan" ? <span className="capitalize">{p.plan ?? "Plan"}, a month</span> : "Top-up"}{p.refundedUsd > 0 && <span className="text-warn">, {money(p.refundedUsd)} refunded</span>}</td>
+                    <td className="py-2 text-right tabular-nums">{money(p.paidUsd)}</td>
+                    <td className="py-2 text-right tabular-nums text-good">+{amount(p.creditUsd)}</td>
                     <td className="py-2 text-right text-[0.85rem]">{p.invoiceUrl?.startsWith("https://") && <a href={p.invoiceUrl} target="_blank" rel="noreferrer" className="underline">Receipt</a>}</td>
                   </tr>
                 ))}
@@ -96,8 +96,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
                 <tr key={r.id} className="border-t border-hairline first:border-t-0">
                   <td className="py-2 text-[0.85rem] text-graphite">{minute(r.at)}</td>
                   <td className="py-2">{WHAT[r.kind]}{r.runId && <>, <Link href={`/runs/${r.runId}`} className="underline underline-offset-4">this video</Link></>}{r.note && !QUIET.includes(r.kind) ? <span className="text-graphite">, {r.note}</span> : null}</td>
-                  <td className={`py-2 text-right tabular-nums ${r.amountUsd < 0 ? "text-warn" : "text-good"}`}>{r.amountUsd < 0 ? "−" : "+"}${Math.abs(r.amountUsd).toFixed(4)}</td>
-                  <td className="py-2 text-right tabular-nums text-graphite">${r.balanceAfterUsd.toFixed(4)}</td>
+                  <td className={`py-2 text-right tabular-nums ${r.amountUsd < 0 ? "text-warn" : "text-good"}`}>{r.amountUsd < 0 ? "−" : "+"}{amount(Math.abs(r.amountUsd))}</td>
+                  <td className="py-2 text-right tabular-nums text-graphite">{amount(r.balanceAfterUsd)}</td>
                 </tr>
               ))}
             </tbody>

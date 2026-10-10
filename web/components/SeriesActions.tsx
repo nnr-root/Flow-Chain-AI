@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { errorText, sendJson, usd } from "@/lib/api";
+import { errorText, sendJson, amount } from "@/lib/api";
 import { CreditNote, tooLittle, useBalance } from "@/lib/balance";
 import { DRAFT_CAP_USD } from "@/lib/credit";
 import { Button, ErrorNote } from "./ui";
@@ -48,7 +48,7 @@ export function SeriesActions({ id, name, episodes }: { id: string; name: string
       <ErrorNote>{error}</ErrorNote>
       <div className="flex flex-wrap items-center gap-3">
         <Button tone="primary" data-testid="next-episode" onClick={next} disabled={!!busy || tooLittle(balance, DRAFT_CAP_USD)}>
-          {busy === "next" ? "Writing the script…" : `Make ${episodes === 0 ? "the first video" : "the next video"}, about ${usd(DRAFT_CAP_USD)}`}
+          {busy === "next" ? "Writing the script…" : `Make ${episodes === 0 ? "the first video" : "the next video"}, up to ${amount(DRAFT_CAP_USD)}`}
         </Button>
         <span className="text-[0.85rem] text-graphite">Buys only the script. You see the draft and the price of the rest before anything else is made.</span>
       </div>

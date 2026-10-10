@@ -1,6 +1,7 @@
+import { inCredits } from "@/lib/credit";
 import type { Showcase } from "@/lib/site/showcases";
 
-const exact = (usd: number): string => `$${usd.toFixed(4)}`;
+const exact = (usd: number): string => inCredits(usd);
 
 /** The voice as it was spoken: one bar for each stretch of the recording. */
 function Waveform({ peaks }: { peaks: number[] }) {
