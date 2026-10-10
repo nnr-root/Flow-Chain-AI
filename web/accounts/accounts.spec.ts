@@ -163,22 +163,23 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await expect(player).toHaveAttribute("data-slug", "robot-painter");
   // the videos' own files are for anyone; nothing else of the server is
   expect((await page.request.get("/showcase/clockmaker/props.json")).status()).toBe(200);
-  const site = await page.evaluate(() => ({ background: getComputedStyle(document.body).backgroundColor, heading: getComputedStyle(document.querySelector("h1")!).fontFamily, text: getComputedStyle(document.body).fontFamily }));
-  expect(site.background).toBe("rgb(244, 239, 230)");
-  await expect.poll(() => page.evaluate(() => getComputedStyle(document.querySelector("h1")!).fontFamily)).toMatch(/fraunces/i);
-  expect(site.heading).toMatch(/fraunces/i);
-  expect(site.text).toMatch(/schibsted/i);
-  // the typefaces are the page's own files, and they arrived
-  expect(await page.evaluate(() => document.fonts.ready.then(() => [...document.fonts].filter((f) => f.status === "loaded").length))).toBeGreaterThanOrEqual(2);
-  await expect(page.getByText("Flow-Chain Studio")).toHaveCount(0);
+  // the look of the page: the site's paper, and one typeface for headings and text, from the site's own file
+  const look = () => page.evaluate(() => ({ background: getComputedStyle(document.body).backgroundColor, heading: getComputedStyle(document.querySelector("h1")!).fontFamily.split(",")[0], text: getComputedStyle(document.body).fontFamily.split(",")[0], wordmark: document.querySelector("header a")?.textContent }));
+  const site = await look();
+  expect(site.background).toBe("rgb(250, 250, 247)");
+  // (one file under two names: headings are given a narrower stand-in for the moment before it arrives)
+  expect(site.heading).toMatch(/^"?archivo/i);
+  expect(site.text).toMatch(/^"?archivo/i);
+  expect(await page.evaluate(() => document.fonts.ready.then(() => [...document.fonts].filter((f) => f.status === "loaded").length))).toBeGreaterThanOrEqual(1);
   // the way in: the account form, and from there the first video
   // (nothing is given to new accounts in this studio, so nothing is promised: the button says what it does)
   await expect(page.locator('[data-cta="hero-signup"]')).toHaveText("Create an account");
   await page.locator('[data-cta="hero-signup"]').click();
   await expect(page).toHaveURL(/\/signup\?next=%2Fnew$/);
-  // house lights down: the studio's side is dark, and has nothing of the landing page's look
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(11, 13, 18)");
-  expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).not.toMatch(/schibsted|fraunces/i);
+  // The account form is the same place, not another site: the same paper, the same typeface for its heading and
+  // its text, the same header with the same name in it (phase 4 spec §14).
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Create your account");
+  expect(await look()).toEqual(site);
   // nothing of the studio itself without signing in
   await page.goto("/runs/20261006-120000-e2e001");
   await expect(page).toHaveURL(/\/login\?next=%2Fruns%2F20261006-120000-e2e001$/);
@@ -189,6 +190,8 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   await page.goto("/");
   await expect(page.getByTestId("landing")).toHaveCount(0);
   await expect(page.getByText("No videos yet.")).toBeVisible();
+  // and so is the studio itself, once inside
+  expect(await look()).toEqual(site);
   await expect(page.getByTestId("header-balance")).toHaveText("$0.00");
 
   // with no credit not even a draft can be started, and the page says why
@@ -219,7 +222,7 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
 
   // the approved amount is held, the stand-in CLI "spends" $0.20 of it, the rest comes back
   const generate = page.getByTestId("generate");
-  await expect(generate).toHaveText("Generate video — up to $0.31", { timeout: 30_000 });
+  await expect(generate).toHaveText("Generate video, up to $0.31", { timeout: 30_000 });
   await generate.click();
   await expect.poll(() => balance(A.email), { timeout: 30_000 }).toBe(0.7945);
   const calls = readFileSync(join(mine, "_calls.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l) as string[]);
@@ -277,8 +280,7 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
   // anyone may read what is on sale; buying asks for an account
   await page.goto("/pricing");
   await expect(page).toHaveURL(/\/pricing$/);
-  // the pricing page is the landing page's side: its paper, its typefaces
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(244, 239, 230)");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(250, 250, 247)");
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Buy credit. Spend it at what a video costs.");
   await expect(page.getByTestId("offer-starter")).toContainText("$19.00 / month");
   await expect(page.getByTestId("offer-topup-10")).toContainText("$6.00 of credit. It does not expire.");
@@ -318,7 +320,7 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
   await expect(page.getByTestId("balance")).toHaveText("$18.00");
   await expect(page.getByTestId("balance-split")).toContainText("$12.00 from your plan, to use by ");
   await expect(page.getByTestId("balance-split")).toContainText("$6.00 that does not expire");
-  await expect(page.getByTestId("plan")).toContainText("starter · Active · renews on ");
+  await expect(page.getByTestId("plan")).toContainText("starter, active, renews on ");
   await expect(page.getByTestId("payments").locator("tbody tr")).toHaveCount(2);
   // one plan at a time: the pricing page now offers to manage it, not to buy another
   await page.goto("/pricing");
@@ -451,16 +453,18 @@ test("the pages anyone may read are there, say what is not written yet, and the 
   expect(seen.cls).toBeLessThan(0.1);
 });
 
-test("a video on the landing page is heard once the visitor turns its sound on, from where it had got to", async ({ page }) => {
+test("a video on the landing page has its sound on: it is heard from the visitor's first click anywhere, from where it had got to", async ({ page }) => {
   await page.goto("/");
   const player = page.getByTestId("showcase-player");
   await expect(player).toHaveAttribute("data-live", "true", { timeout: 20_000 });
   const voice = player.locator('audio[src$="narration.mp3"]');
   const time = () => voice.evaluate((a: HTMLAudioElement) => a.currentTime);
-  // it starts by itself, so it starts silent: a browser allows nothing else
+  // before the visitor has touched the page a browser allows no sound, so it plays silently
   await expect(voice).toHaveJSProperty("muted", true);
   await expect.poll(time, { timeout: 20_000 }).toBeGreaterThan(1);
-  await player.getByTestId("sound-on").click();
+  // there is no button for it: any click on the page will do (here, on the headline)
+  await expect(player.getByRole("button", { name: /sound on/i })).toHaveCount(0);
+  await page.getByRole("heading", { level: 1 }).click();
   // The voice and the music are still playing, and are no longer muted. (Unmuting the silent player loses them:
   // its audio elements are made again under the sounds that were playing, and those are left without one.)
   for (const sound of [voice, player.locator('audio[src$="bgm.mp3"]')]) {
@@ -471,8 +475,15 @@ test("a video on the landing page is heard once the visitor turns its sound on, 
   const then = await time();
   expect(then).toBeGreaterThan(1);
   await expect.poll(time).toBeGreaterThan(then);
-  // the player's own bar has the volume from here on; the page's button has done its work
-  await expect(player.getByTestId("sound-on")).toHaveCount(0);
+  // the bar under the video has the volume from here on
   await player.hover();
   await expect(player.getByRole("button", { name: "Mute sound" })).toBeVisible();
+  // a video further down the page comes with its sound on, and the one that left the window is not heard under it
+  const feature = page.getByTestId("feature-player");
+  await feature.scrollIntoViewIfNeeded();
+  await expect(feature).toHaveAttribute("data-live", "true", { timeout: 20_000 });
+  const second = feature.locator('audio[src$="narration.mp3"]');
+  await expect(second).toHaveJSProperty("muted", false);
+  await expect(second).toHaveJSProperty("paused", false);
+  await expect(voice).toHaveJSProperty("paused", true);
 });

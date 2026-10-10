@@ -6,7 +6,7 @@ export function SignOut() {
     <button
       type="button"
       data-testid="sign-out"
-      className="text-xs text-dim underline hover:text-white"
+      className="text-[0.85rem] text-graphite underline hover:text-signal"
       onClick={() => void sendJson("/api/auth/logout").finally(() => window.location.assign("/login"))}
     >
       Sign out

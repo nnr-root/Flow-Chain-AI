@@ -111,9 +111,9 @@ export function KitForm({ defaultFont }: { defaultFont: { family: string; file: 
   }
 
   return (
-    <form onSubmit={submit} className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]">
+    <form onSubmit={submit} className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_16rem]">
       <Panel title="New brand kit">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Name"><input data-testid="kit-name" required value={f.name} onChange={(e) => set("name", e.target.value)} /></Field>
           <Field label="Logo" hint="PNG or SVG, up to 2 MB"><input data-testid="kit-logo" type="file" required accept=".png,.svg,image/png,image/svg+xml" onChange={(e) => setLogo(e.target.files?.[0] ?? null)} /></Field>
           <Field label="Logo corner">
@@ -148,8 +148,8 @@ export function KitForm({ defaultFont }: { defaultFont: { family: string; file: 
         </div>
       </Panel>
       <div>
-        <p className="mb-2 text-xs text-dim">Preview with a sample scene</p>
-        <StudioPlayer props={props} resolve={resolve} className="overflow-hidden rounded-xl border border-line bg-black" />
+        <p className="mb-2 text-[0.85rem] text-graphite">Preview with a sample scene</p>
+        <StudioPlayer props={props} resolve={resolve} className="overflow-hidden rounded-[14px] bg-stage" />
       </div>
     </form>
   );

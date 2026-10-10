@@ -38,8 +38,9 @@ read the one for the area you are changing before changing it (table at the end)
 | `src/media/` | ffmpeg and Remotion helpers |
 | `src/billing/stripe.ts` | the Stripe HTTP client (shared by web, worker and `stripe:setup`) |
 | `src/deploy/`, `scripts/` | pure planners (`src/deploy`) and the commands that act (`scripts`) for the server, the database, Stripe |
-| `web/app/(studio)/` | the studio's pages (dark); `web/app/api/`, `web/app/auth/`: route handlers |
-| `web/app/(marketing)/` | the landing page, `/pricing`, `/terms`, `/privacy` (light): **its own root layout, CSS and fonts** |
+| `web/app/(studio)/` | the studio's pages; `web/app/api/`, `web/app/auth/`: route handlers |
+| `web/app/(marketing)/` | the landing page, `/pricing`, `/terms`, `/privacy` |
+| `web/app/layout.tsx`, `theme.css`, `typeface.ts`, `fonts/` | the one layout, look and typeface of the whole site |
 | `web/components/site/`, `web/lib/site/`, `web/public/showcase/`, `web/content/` | the landing page's parts, its arithmetic, the published videos, other companies' dated prices |
 | `web/server/` | everything the routes do: `http.ts` (`route()`), `tenant.ts`, `session.ts`, `runs.ts`, `jobs/`, `store/`, `billing/` |
 | `web/worker/` | `worker.ts` (the queue), `tenant.ts` (credit), `billing.ts` (Stripe fulfilment) |
@@ -122,9 +123,11 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 
 ## The landing page (Phase 4)
 
-- **Two root layouts.** Nothing under `(marketing)` imports the studio's `globals.css` or components styled
-  for it, and the reverse; a browser test checks backgrounds and typefaces on both sides. Going from one
-  side to the other is a full page load, on purpose.
+- **One site, one look** (phase 4 spec §14, which replaces its §3): one root layout (`web/app/layout.tsx`),
+  one stylesheet (`web/app/theme.css`), one typeface, one header and foot for the landing page, the account
+  forms and the studio. A browser test holds the three to the same background, typeface and wordmark. Yellow
+  (`marker`) is only ever on the thing that is "on"; the only dark thing on a page is a video; a part of a page
+  is a heading over a rule (`Panel`), not a card. The spec's lists of banned details are binding.
 - **A visitor without a session at `/` is shown `/welcome`** (a rewrite in `web/proxy.ts`). `PUBLIC_PAGES`
   lists what anyone may open; adding to it is a security decision.
 - **Every number on the page is computed** (`web/lib/site/calculator.ts`) from a showcase's receipt, the live
@@ -144,7 +147,8 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
   studio's words for them are in `web/lib/labels.ts` and `StylePreset.label`. The API and the CLI keep the names.
 - Showcases are published by `npm run make:showcase` (free) and listed by hand in
   `web/lib/site/showcases.ts`; what is published must never carry a machine path or a GPU endpoint id.
-- Design: the spec's §3 (and its amended list of banned details) is binding for anything on this side.
+- A video on the landing page has its sound on from the visitor's first click or key anywhere (a browser allows
+  none before); a video out of view stops. Do not unmute a muted Remotion Player: swap it (`ShowcasePlayer`).
 
 ## Multi-tenant rules
 

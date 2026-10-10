@@ -1,5 +1,3 @@
-import { SiteFooter } from "@/components/site/SiteFooter";
-import { SiteNav } from "@/components/site/SiteNav";
 import { billingOn } from "@/lib/billing";
 import { accountsOnly, headerAccount } from "@/server/page";
 
@@ -15,12 +13,10 @@ export default async function Page() {
   const signedIn = (await headerAccount()) !== null;
   return (
     <>
-      <SiteNav signedIn={signedIn} sells={billingOn()} />
       <main className="mx-auto max-w-[84rem] px-6 pb-10 pt-14 sm:px-10 lg:pt-20" data-testid="legal-pending">
-        <h1 className="display text-[clamp(2.4rem,1.2rem+5vw,5rem)] leading-[0.98] tracking-[-0.03em]">Terms</h1>
+        <h1 className="display text-[clamp(2.4rem,1.2rem+5vw,5rem)] leading-[0.92]">Terms</h1>
         <p className="mt-7 max-w-[38rem] text-[1.15rem] leading-[1.5]">The terms of use are being written and are not published yet.</p>
       </main>
-      <SiteFooter sells={billingOn()} />
     </>
   );
 }

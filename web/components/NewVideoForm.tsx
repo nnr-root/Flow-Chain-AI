@@ -89,14 +89,14 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
   }
 
   return (
-    <form onSubmit={submit} className="mx-auto max-w-3xl space-y-4">
-      <h1 className="text-xl font-semibold">New video</h1>
+    <form onSubmit={submit} className="max-w-[56rem] space-y-12">
+      <h1 className="display text-[clamp(2.6rem,1.6rem+4vw,4.5rem)] leading-[0.92]">New video</h1>
       <Panel title="What it is about">
-        <div className="space-y-3">
+        <div className="space-y-5">
           <Field label="Topic">
             <textarea data-testid="topic" required rows={2} maxLength={500} value={f.topic} onChange={(e) => set("topic", e.target.value)} placeholder="A lighthouse keeper's daughter takes over the light" />
           </Field>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-3">
             <Field label="Shape">
               <select value={f.aspect} onChange={(e) => set("aspect", e.target.value)}>
                 <option value="9:16">9:16 (vertical)</option>
@@ -113,7 +113,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         </div>
       </Panel>
 
-      <Panel title="Look" aside={<span className="text-xs text-dim">sets the pictures, the motion and the captions</span>}>
+      <Panel title="Look" aside={<span className="text-[0.85rem] text-graphite">sets the pictures, the motion and the captions</span>}>
         <div role="radiogroup" aria-label="Look" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {[{ name: "auto", label: "Choose for me", description: "" }, ...presets].map((p) => (
             <button
@@ -123,33 +123,33 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
               aria-checked={f.style === p.name}
               data-testid={`look-${p.name}`}
               onClick={() => set("style", p.name)}
-              className={`rounded-lg border p-3 text-left ${f.style === p.name ? "border-accent bg-accent/10" : "border-line hover:border-dim"}`}
+              className={`rounded-md border-[1.5px] bg-sheet p-3.5 text-left ${f.style === p.name ? "border-ink" : "border-hairline hover:border-ink/50"}`}
             >
-              <span className="block text-sm font-medium">{p.label}</span>
-              <span className="mt-1 block text-xs text-dim">{p.name === "auto" ? "The look that fits the topic is picked when the script is written." : `For ${p.description}.`}</span>
+              <span className="block font-semibold"><span className={f.style === p.name ? "marked" : ""}>{p.label}</span></span>
+              <span className="mt-1 block text-[0.85rem] text-graphite">{p.name === "auto" ? "The look that fits the topic is picked when the script is written." : `For ${p.description}.`}</span>
             </button>
           ))}
         </div>
       </Panel>
 
       <Panel title="Motion">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-3 text-sm">
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-center gap-3 text-[0.95rem]">
             <span>Scenes start as</span>
             <Segmented label="Motion" value={f.motion} onChange={(v) => set("motion", v)} options={[{ value: "auto", label: "Auto" }, { value: "clips", label: "All clips" }, { value: "stills", label: "All stills" }]} />
-            <span className="text-xs text-dim">You can change each scene on the draft before anything is generated.</span>
+            <span className="text-[0.85rem] text-graphite">You can change each scene on the draft before anything is generated.</span>
           </div>
-          <div className="flex flex-wrap items-center gap-3 text-sm">
+          <div className="flex flex-wrap items-center gap-3 text-[0.95rem]">
             <span>Moving clips in</span>
             <Segmented label="Clip quality" value={f.clips} onChange={(v) => set("clips", v)} options={[{ value: "480p", label: "Standard" }, { value: "720p", label: "HD (720p)" }]} />
-            <span className="text-xs text-dim">HD clips are sharper and cost about twice as much; the draft shows the price before anything is made.</span>
+            <span className="text-[0.85rem] text-graphite">HD clips are sharper and cost about twice as much; the draft shows the price before anything is made.</span>
           </div>
           {missing.length > 0 && <ErrorNote>{missing[0] === NOT_READY ? "The studio is not ready to make videos yet. Please try again later." : `Not set in .env: ${missing.join(", ")}. Add them in the repository's .env file.`}</ErrorNote>}
         </div>
       </Panel>
 
       <Panel title="Brand and sound">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Brand kit" hint="Logo, font, colours and characters. Create kits under Brand kits.">
             <select value={f.brandKit} onChange={(e) => set("brandKit", e.target.value)}>
               <option value="">None</option>
@@ -161,7 +161,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
               <option value="">None</option>
               {tracks.map((t) => <option key={t.id} value={t.id}>{t.name}{t.source === "upload" ? " (uploaded)" : ""}</option>)}
             </select>
-            <input type="file" accept=".mp3,audio/mpeg" aria-label="Upload an MP3" className="mt-2 text-xs" onChange={(e) => void uploadMusic(e.target.files?.[0])} />
+            <input type="file" accept=".mp3,audio/mpeg" aria-label="Upload an MP3" className="mt-2 text-[0.85rem]" onChange={(e) => void uploadMusic(e.target.files?.[0])} />
           </Field>
           {f.music && (
             <Field label={`Music level (${Math.round(f.musicGain * 100)}%)`}>
@@ -177,9 +177,9 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         </div>
       </Panel>
 
-      <details className="rounded-xl border border-line bg-panel p-4">
-        <summary className="cursor-pointer text-sm font-semibold tracking-wide text-dim uppercase">Advanced</summary>
-        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <details className="border-t-2 border-ink pt-4">
+        <summary className="display cursor-pointer text-[1.5rem] leading-none">More choices</summary>
+        <div className="mt-5 grid gap-5 sm:grid-cols-2">
           <Field label="Opening title">
             <select value={f.hookMode} onChange={(e) => set("hookMode", e.target.value)}>
               <option value="auto">Written for you</option>
@@ -214,9 +214,9 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
       <CreditNote balance={balance} needUsd={DRAFT_CAP_USD} />
       <div className="flex items-center gap-3">
         <Button type="submit" tone="primary" data-testid="create-draft" disabled={busy || offline || missing.length > 0 || !f.topic.trim() || tooLittle(balance, DRAFT_CAP_USD)}>
-          {busy ? "Writing the script…" : "Create draft — about $0.006"}
+          {busy ? "Writing the script…" : "Write the script, about $0.006"}
         </Button>
-        <span className="text-xs text-dim" data-testid="create-note">
+        <span className="text-[0.85rem] text-graphite" data-testid="create-note">
           {offline ? "The worker is offline: nothing can be started until it is back." : "Buys only the script. You preview and price the rest before generating."}
         </span>
       </div>

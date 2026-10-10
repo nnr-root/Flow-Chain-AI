@@ -44,7 +44,7 @@ export function Calculator({ items, engine, others, asOf }: { items: CatalogueIt
         <div className="lg:col-span-7">
           {q ? (
             <>
-              <p className="display text-[clamp(2.2rem,1.4rem+3vw,3.6rem)] leading-[1.02] tracking-[-0.02em]" data-testid="calc-answer">
+              <p className="display text-[clamp(2.2rem,1.4rem+3vw,3.6rem)] leading-[0.95]" data-testid="calc-answer">
                 {usd(q.monthUsd)} for the month, which is {usd(q.perVideoUsd)} a video.
               </p>
               <p className="mt-5 max-w-[36rem] text-[1.02rem] leading-[1.5]" data-testid="calc-buy">
@@ -63,7 +63,7 @@ export function Calculator({ items, engine, others, asOf }: { items: CatalogueIt
 
       {others.length > 0 && q && seconds > 0 && (
         <div className="mt-16" data-testid="calc-others">
-          <h3 className="display text-[1.9rem] leading-[1.05]">The same month elsewhere</h3>
+          <h3 className="display text-[1.9rem] leading-[0.98]">The same month elsewhere</h3>
           <p className="mt-3 max-w-[44rem] text-[1.02rem] leading-[1.5]">
             Other tools sell generated clips by the second. {videos} such videos hold about {Math.round(videos * seconds)} seconds of generated clips ({seconds} each), so that is what is priced below, at each plan’s price per credit. The script, the voice, the captions and the edit are not part of what they sell.
           </p>
@@ -79,7 +79,7 @@ export function Calculator({ items, engine, others, asOf }: { items: CatalogueIt
               </thead>
               <tbody className="figures text-[0.9rem]">
                 <tr className="border-b border-hairline" data-testid="calc-row-ours">
-                  <th scope="row" className="py-3 pr-4 font-medium">Flow Chain</th>
+                  <th scope="row" className="py-3 pr-4 font-semibold">Flow Chain</th>
                   <td className="py-3 pr-4">The finished video: script, voice, pictures, clips and the cut.</td>
                   <td className="py-3 pr-4 text-right">{usd(q.monthUsd)}</td>
                   <td className="py-3 text-right">{usd(q.perVideoUsd)}</td>

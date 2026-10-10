@@ -1,30 +1,6 @@
-import type { Metadata } from "next";
-import localFont from "next/font/local";
 import { Motion } from "@/components/site/Motion";
-import "./site.css";
 
-/*
- * The marketing side's root layout (Phase 4 spec §4). The studio has its own, in (studio)/: two root layouts,
- * so going from one side to the other loads a new page, and no style, font or script of one reaches the other.
- * The fonts are files in this folder (open licences beside them): nothing is fetched from anyone else.
- */
-const fraunces = localFont({ src: "./fonts/Fraunces.woff2", variable: "--font-fraunces", weight: "100 900", display: "swap" });
-const schibsted = localFont({ src: "./fonts/SchibstedGrotesk.woff2", variable: "--font-schibsted", weight: "400 900", display: "swap" });
-const plexMono = localFont({
-  src: [{ path: "./fonts/IBMPlexMono-Regular.woff2", weight: "400" }, { path: "./fonts/IBMPlexMono-Medium.woff2", weight: "500" }],
-  variable: "--font-plex-mono", display: "swap",
-});
-
-export const metadata: Metadata = {
-  icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/favicon.ico", sizes: "48x48" }], apple: "/apple-touch-icon.png" },
-  title: "Flow Chain — a finished short video from one sentence",
-  description: "Flow Chain writes the script, records the voice, generates the pictures and cuts a captioned short video to the words. You see the cost before anything is bought.",
-};
-
+/** The pages anyone may read. Their springs follow the visitor's own "reduce motion" setting. */
 export default function MarketingLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en" className={`${fraunces.variable} ${schibsted.variable} ${plexMono.variable}`}>
-      <body className="min-h-screen" data-surface="site"><Motion>{children}</Motion></body>
-    </html>
-  );
+  return <div data-surface="site"><Motion>{children}</Motion></div>;
 }

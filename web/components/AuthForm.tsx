@@ -10,7 +10,7 @@ const SUBMIT: Record<Mode, string> = { login: "Sign in", signup: "Create account
 const ENDPOINT: Record<Mode, string> = { login: "/api/auth/login", signup: "/api/auth/signup", reset: "/api/auth/reset", "new-password": "/api/auth/password" };
 
 /** The one form behind every sign-in page. `next` is where to go afterwards (a path on this site, checked by the server). */
-export function AuthForm({ mode, next = "/", error: initialError = "", info = "", google = false }: { mode: Mode; next?: string; error?: string; info?: string; google?: boolean }) {
+export function AuthForm({ mode, next = "/", error: initialError = "", info = "", google = false, aside }: { mode: Mode; next?: string; error?: string; info?: string; google?: boolean; aside?: React.ReactNode }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -37,11 +37,12 @@ export function AuthForm({ mode, next = "/", error: initialError = "", info = ""
   }
 
   return (
-    <div className="mx-auto mt-16 max-w-sm space-y-5 rounded-xl border border-line bg-panel p-6">
-      <h1 className="text-lg font-semibold">{TITLE[mode]}</h1>
-      {info && !notice && <p role="status" data-testid="auth-info" className="rounded-lg border border-good/40 bg-good/10 px-3 py-2 text-sm text-good">{info}</p>}
+    <div className="mt-4 flex items-start justify-between gap-16 lg:mt-10">
+    <div className="w-full max-w-[26rem] space-y-6">
+      <h1 className="display text-[clamp(2.6rem,1.6rem+4vw,4rem)] leading-[0.92]">{TITLE[mode]}</h1>
+      {info && !notice && <p role="status" data-testid="auth-info" className="border-l-4 border-good bg-good/5 px-4 py-2.5 text-[0.95rem] text-good">{info}</p>}
       {notice ? (
-        <p role="status" data-testid="auth-notice" className="rounded-lg border border-good/40 bg-good/10 px-3 py-2 text-sm text-good">{notice}</p>
+        <p role="status" data-testid="auth-notice" className="border-l-4 border-good bg-good/5 px-4 py-2.5 text-[0.95rem] text-good">{notice}</p>
       ) : (
         <form onSubmit={submit} className="space-y-4" data-testid={`auth-${mode}`}>
           {withEmail && (
@@ -55,19 +56,21 @@ export function AuthForm({ mode, next = "/", error: initialError = "", info = ""
             </Field>
           )}
           <ErrorNote>{error}</ErrorNote>
-          <Button type="submit" tone="primary" className="w-full" disabled={busy}>{busy ? "One moment…" : SUBMIT[mode]}</Button>
+          <Button type="submit" tone="primary" className="w-full !py-3 !text-[1.02rem]" disabled={busy}>{busy ? "One moment…" : SUBMIT[mode]}</Button>
         </form>
       )}
       {google && (mode === "login" || mode === "signup") && !notice && (
-        <a href={`/auth/google?next=${encodeURIComponent(next)}`} className="block rounded-lg border border-line px-3 py-1.5 text-center text-sm font-medium hover:border-dim" data-testid="auth-google">
+        <a href={`/auth/google?next=${encodeURIComponent(next)}`} className="block rounded-md border-[1.5px] border-ink/30 bg-sheet px-4 py-3 text-center font-semibold hover:border-ink" data-testid="auth-google">
           Continue with Google
         </a>
       )}
-      <p className="text-center text-xs text-dim">
-        {mode === "login" && <><Link href={next === "/" ? "/signup" : `/signup?next=${encodeURIComponent(next)}`} className="underline">Create an account</Link> · <Link href="/reset" className="underline">Forgot your password?</Link></>}
-        {mode === "signup" && <>Already have an account? <Link href={next === "/" ? "/login" : `/login?next=${encodeURIComponent(next)}`} className="underline">Sign in</Link></>}
-        {mode === "reset" && <Link href="/login" className="underline">Back to sign in</Link>}
+      <p className="text-[0.95rem] text-graphite">
+        {mode === "login" && <><Link href={next === "/" ? "/signup" : `/signup?next=${encodeURIComponent(next)}`} className="underline underline-offset-4">Create an account</Link>, or <Link href="/reset" className="underline underline-offset-4">reset your password</Link>.</>}
+        {mode === "signup" && <>Already have an account? <Link href={next === "/" ? "/login" : `/login?next=${encodeURIComponent(next)}`} className="underline underline-offset-4">Sign in</Link>.</>}
+        {mode === "reset" && <Link href="/login" className="underline underline-offset-4">Back to sign in</Link>}
       </p>
+    </div>
+    {aside}
     </div>
   );
 }

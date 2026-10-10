@@ -15,14 +15,14 @@ const at = (frame: number, fps: number): string => `${Math.floor(frame / fps / 6
 
 function Feature({ name, children }: { name: string; children: React.ReactNode }) {
   return (
-    <li className="border-t border-hairline py-7 first:border-t-0 first:pt-0">
-      <h3 className="display text-[1.9rem] leading-[1.05]">{name}</h3>
+    <li className="border-t-2 border-ink py-7 first:pt-5">
+      <h3 className="display text-[2.1rem] leading-[0.95]">{name}</h3>
       <div className="mt-3 max-w-[34rem] space-y-4 text-[1.02rem] leading-[1.5]">{children}</div>
     </li>
   );
 }
 
-const act = "rounded-md border border-ink/25 px-3.5 py-2 text-[0.95rem] hover:border-ink";
+const act = "rounded-md border-[1.5px] border-ink/30 bg-sheet px-4 py-2 text-[0.95rem] font-semibold hover:border-ink";
 
 /**
  * The features, each shown on a real video rather than described (Phase 4 spec §5, block 4): a video made with a
@@ -88,9 +88,9 @@ export function FeatureStage({ showcase }: { showcase: Showcase }) {
               <input
                 type="text" value={controls.hookText} onChange={(e) => setControls((c) => ({ ...c, hook: true, hookText: e.target.value.slice(0, 60) }))}
                 placeholder={looks.hook.text} aria-label="The opening title's words" data-testid="feature-hook"
-                className="min-w-0 flex-1 rounded-md border border-hairline bg-paper px-3 py-2 text-[0.95rem] placeholder:text-graphite/70"
+                className="min-w-0 flex-1 rounded-md border-[1.5px] border-hairline bg-sheet px-3 py-2 text-[0.95rem] placeholder:text-graphite/70"
               />
-              <button type="button" className={act} onClick={() => player.current?.playFrom(0)}>Play the opening</button>
+              <button type="button" className={act} onClick={(e) => player.current?.playFrom(0, e)}>Play the opening</button>
             </div>
           </Feature>
         )}
@@ -102,7 +102,7 @@ export function FeatureStage({ showcase }: { showcase: Showcase }) {
             </p>
           )}
           <div className="flex flex-wrap gap-3">
-            <button type="button" className={act} onClick={(e) => player.current?.playFrom(0, e)}>Play it with sound</button>
+            <button type="button" className={act} onClick={(e) => player.current?.playFrom(0, e)}>Play it from the start</button>
             <button type="button" className={act} data-testid="feature-sfx" onClick={() => set("sfx", !controls.sfx)}>
               {controls.sfx ? "Take the sounds out" : "Put the sounds back"}
             </button>

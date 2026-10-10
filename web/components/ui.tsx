@@ -1,39 +1,44 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
+/*
+ * A run's state, in the site's own terms: the highlighter is on what is happening now, a plain outline on what
+ * waits for the user, red on what went wrong, and what is finished is simply said.
+ */
 const STATES: Record<string, { label: string; cls: string }> = {
-  creating: { label: "Creating", cls: "bg-accent/15 text-accent" },
-  draft: { label: "Draft", cls: "bg-warn/15 text-warn" },
-  queued: { label: "Queued", cls: "bg-accent/15 text-accent" },
-  running: { label: "Working", cls: "bg-accent/15 text-accent" },
-  needs_approval: { label: "Needs approval", cls: "bg-warn/15 text-warn" },
-  failed: { label: "Failed", cls: "bg-bad/15 text-bad" },
-  interrupted: { label: "Interrupted", cls: "bg-bad/15 text-bad" },
-  incomplete: { label: "Unfinished", cls: "bg-warn/15 text-warn" },
-  done: { label: "Done", cls: "bg-good/15 text-good" },
-  stored: { label: "Archived", cls: "bg-line text-dim" },
+  creating: { label: "Creating", cls: "bg-marker" },
+  draft: { label: "Draft", cls: "border border-ink/40" },
+  queued: { label: "Queued", cls: "bg-marker" },
+  running: { label: "Working", cls: "bg-marker" },
+  needs_approval: { label: "Needs approval", cls: "border border-ink/40" },
+  failed: { label: "Failed", cls: "bg-bad text-sheet" },
+  interrupted: { label: "Interrupted", cls: "bg-bad text-sheet" },
+  incomplete: { label: "Unfinished", cls: "border border-ink/40" },
+  done: { label: "Done", cls: "bg-ink text-sheet" },
+  stored: { label: "Archived", cls: "bg-wash text-graphite" },
 };
 
 export function StateBadge({ state }: { state: string }) {
-  const s = STATES[state] ?? { label: state, cls: "bg-line text-dim" };
-  return <span data-state={state} className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${s.cls}`}>{s.label}</span>;
+  const s = STATES[state] ?? { label: state, cls: "bg-wash text-graphite" };
+  return <span data-state={state} className={`whitespace-nowrap rounded-[4px] px-2 py-0.5 text-[0.8rem] font-semibold ${s.cls}`}>{s.label}</span>;
 }
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { tone?: "primary" | "plain" | "danger" };
 
 export function Button({ tone = "plain", className = "", ...rest }: ButtonProps) {
   const tones = {
-    primary: "bg-accent text-ink hover:brightness-110",
-    plain: "border border-line bg-panel hover:border-dim",
-    danger: "border border-bad/50 text-bad hover:bg-bad/10",
+    primary: "bg-signal text-sheet hover:bg-ink",
+    plain: "border-[1.5px] border-ink/30 bg-sheet hover:border-ink",
+    danger: "border-[1.5px] border-bad/50 text-bad hover:bg-bad hover:text-sheet",
   };
-  return <button type="button" {...rest} className={`rounded-lg px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${tones[tone]} ${className}`} />;
+  return <button type="button" {...rest} className={`rounded-md px-4 py-2 text-[0.95rem] font-semibold disabled:cursor-not-allowed disabled:opacity-45 ${tones[tone]} ${className}`} />;
 }
 
+/** A part of a page: a heading over an ink rule, and what belongs to it. Not a box: the page is the sheet. */
 export function Panel({ title, children, aside }: { title: string; children: ReactNode; aside?: ReactNode }) {
   return (
-    <section className="rounded-xl border border-line bg-panel p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold tracking-wide text-dim uppercase">{title}</h2>
+    <section className="border-t-2 border-ink pt-4">
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h2 className="display text-[1.5rem] leading-none">{title}</h2>
         {aside}
       </div>
       {children}
@@ -43,25 +48,25 @@ export function Panel({ title, children, aside }: { title: string; children: Rea
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
-    <label className="block text-sm">
-      <span className="mb-1 block font-medium">{label}</span>
+    <label className="block text-[0.95rem]">
+      <span className="mb-1.5 block font-semibold">{label}</span>
       {children}
-      {hint && <span className="mt-1 block text-xs text-dim">{hint}</span>}
+      {hint && <span className="mt-1.5 block text-[0.85rem] text-graphite">{hint}</span>}
     </label>
   );
 }
 
 export function ErrorNote({ children }: { children: ReactNode }) {
   if (!children) return null;
-  return <p role="alert" className="rounded-lg border border-bad/40 bg-bad/10 px-3 py-2 text-sm text-bad">{children}</p>;
+  return <p role="alert" className="border-l-4 border-bad bg-bad/5 px-4 py-2.5 text-[0.95rem] text-bad">{children}</p>;
 }
 
-/** A row of mutually exclusive choices. */
+/** A row of mutually exclusive choices: the highlighter is on the one chosen. */
 export function Segmented<T extends string>({ value, options, onChange, disabled, label }: {
   value: T; options: Array<{ value: T; label: string }>; onChange: (v: T) => void; disabled?: boolean; label: string;
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex overflow-hidden rounded-lg border border-line text-xs">
+    <div role="radiogroup" aria-label={label} className="inline-flex gap-0.5 rounded-md border-[1.5px] border-ink/30 bg-sheet p-0.5 text-[0.85rem]">
       {options.map((o) => (
         <button
           key={o.value}
@@ -70,7 +75,7 @@ export function Segmented<T extends string>({ value, options, onChange, disabled
           aria-checked={o.value === value}
           disabled={disabled}
           onClick={() => onChange(o.value)}
-          className={`px-2.5 py-1 disabled:opacity-50 ${o.value === value ? "bg-accent text-ink" : "bg-panel text-dim hover:text-white"}`}
+          className={`rounded-[4px] px-2.5 py-1 font-semibold disabled:opacity-50 ${o.value === value ? "bg-marker" : "text-graphite hover:text-ink"}`}
         >
           {o.label}
         </button>

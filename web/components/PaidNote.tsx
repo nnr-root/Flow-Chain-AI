@@ -52,5 +52,5 @@ export function PaidNote({ since, confirmed }: { since: number; confirmed: boole
     confirmed: "Thank you. Your payment is confirmed and the credit is on your account.",
     late: "Thank you. The confirmation is taking longer than usual. Nothing more is needed from you: the credit is added as soon as Stripe confirms the payment.",
   }[state];
-  return <p role="status" data-testid="paid-note" data-state={state} className="rounded-lg border border-good/40 bg-good/10 px-3 py-2 text-sm text-good">{text}</p>;
+  return <p role="status" data-testid="paid-note" data-state={state} className="border-l-4 border-good bg-good/5 px-4 py-2.5 text-[0.95rem] text-good">{text}</p>;
 }

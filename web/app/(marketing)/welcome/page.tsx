@@ -1,5 +1,3 @@
-import { SiteFooter } from "@/components/site/SiteFooter";
-import { SiteNav } from "@/components/site/SiteNav";
 import { Calculator, type Engine } from "@/components/site/Calculator";
 import { Faq } from "@/components/site/Faq";
 import { FeatureStage } from "@/components/site/FeatureStage";
@@ -7,6 +5,7 @@ import { LiveStage } from "@/components/site/LiveStage";
 import { MakingStrip } from "@/components/site/MakingStrip";
 import { Plans } from "@/components/site/Plans";
 import { Shelf } from "@/components/site/Shelf";
+import { Spoken } from "@/components/site/Spoken";
 import { TopicStart } from "@/components/site/TopicStart";
 import comparison from "@/content/comparison.json";
 import { billingOn, type CatalogueItem } from "@/lib/billing";
@@ -21,7 +20,7 @@ import { accountsOnly, forUser, headerAccount } from "@/server/page";
 
 export const dynamic = "force-dynamic";
 
-const H2 = "display max-w-[50rem] text-[clamp(2rem,1.2rem+3.2vw,3.5rem)] leading-[1.02] tracking-[-0.025em]";
+const H2 = "display max-w-[46rem] text-[clamp(2.3rem,1.3rem+3.6vw,4rem)] leading-[0.92]";
 
 /**
  * What a video costs here, for the calculator: the mean of the videos on the page that were made the way the
@@ -64,11 +63,10 @@ export default async function Page() {
   const claim = engine !== null && clipsClaimHolds(engine.creditPerVideoUsd, engine.clipSeconds, items, others);
   return (
     <div data-testid="landing">
-      <SiteNav signedIn={signedIn} sells={sells} free={free} />
-      <main className="mx-auto max-w-[84rem] px-6 sm:px-10">
+      <main className="mx-auto max-w-[84rem] px-6 pb-4 sm:px-10">
         <LiveStage showcases={SHOWCASES}>
-          <h1 className="display text-display" data-claim={claim}>{claim ? "A finished short video for about what others charge for the clips." : "Type a topic. Get a finished short video."}</h1>
-          <p className="mt-8 max-w-[34rem] text-[1.2rem] leading-[1.45] text-graphite">
+          <h1 className="display text-display" data-claim={claim}><Spoken text={claim ? "A finished short video for about what others charge for the clips." : "Type a topic. Get a finished short video."} /></h1>
+          <p className="mt-7 max-w-[34rem] text-[1.2rem] leading-[1.45]">
             Flow Chain writes the script, records the voice, generates the pictures and cuts the video to the words.
             You see what it will cost, and approve it, before anything is bought.
           </p>
@@ -81,7 +79,7 @@ export default async function Page() {
         </LiveStage>
 
         <section className="mt-24" aria-labelledby="making-title">
-          <h2 id="making-title" className={H2}>From one sentence to a finished video, in five steps</h2>
+          <h2 id="making-title" className={H2}>From one sentence to a finished video, in five steps.</h2>
           <p className="mt-5 max-w-[40rem] text-[1.1rem] text-graphite">This is how “{hero.receipt.title}”, the first video in the player above, was made, and what each step cost.</p>
           <div className="mt-12"><MakingStrip showcase={hero} /></div>
         </section>
@@ -116,12 +114,11 @@ export default async function Page() {
           <div className="mt-10"><Faq usedCents={SHOWCASES.map((s) => Math.round(s.receipt.totalUsd * 100))} sells={sells} clipHeight={SHOWCASES.find((s) => s.receipt.madeOn === "own" && s.receipt.clipHeight)?.receipt.clipHeight} /></div>
         </section>
 
-        <section className="mt-28 border-t border-ink/30 pt-14" aria-labelledby="close-title">
-          <h2 id="close-title" className="display max-w-[46rem] text-[clamp(2.4rem,1.2rem+5vw,5rem)] leading-[0.98] tracking-[-0.03em]">Start with one sentence.</h2>
+        <section className="mt-28 border-t-2 border-ink pt-12" aria-labelledby="close-title">
+          <h2 id="close-title" className="display max-w-[46rem] text-[clamp(2.4rem,1.2rem+5vw,5rem)] leading-[0.92]">Start with one sentence.</h2>
           <TopicStart signedIn={signedIn} free={free} sells={sells} id="closing-topic" />
         </section>
       </main>
-      <SiteFooter sells={sells} />
     </div>
   );
 }

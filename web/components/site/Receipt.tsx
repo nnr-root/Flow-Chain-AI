@@ -9,8 +9,8 @@ const exact = (usd: number): string => `$${usd.toFixed(4)}`;
  */
 export function Receipt({ receipt }: { receipt: ShowcaseReceipt }) {
   return (
-    <div className="receipt figures w-full max-w-[19rem] px-5 pb-7 pt-5 text-[0.78rem] leading-[1.55] text-ink" data-testid="receipt">
-      <p className="font-medium">{receipt.title}</p>
+    <div className="receipt figures w-full max-w-[19rem] px-5 pb-7 pt-5 text-[0.88rem] leading-[1.55] text-ink" data-testid="receipt">
+      <p className="font-semibold leading-snug">{receipt.title}</p>
       <p className="text-graphite">{receipt.date}, {receipt.seconds.toFixed(1)} s, {receipt.scenes} scenes</p>
       <dl className="mt-3 border-t border-dashed border-ink/30 pt-3">
         {receipt.lines.map((line) => (
@@ -28,7 +28,7 @@ export function Receipt({ receipt }: { receipt: ShowcaseReceipt }) {
           <dd>free</dd>
         </div>
       </dl>
-      <p className="mt-3 flex items-baseline justify-between border-t border-dashed border-ink/30 pt-3 text-[0.9rem] font-medium">
+      <p className="mt-3 flex items-baseline justify-between border-t border-dashed border-ink/30 pt-3 text-[1rem] font-semibold">
         <span>Credit used</span>
         <span data-testid="receipt-total">{exact(receipt.totalUsd)}</span>
       </p>

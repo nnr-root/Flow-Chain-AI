@@ -250,3 +250,55 @@ are fixed or recorded below. Where this section and an earlier one disagree, thi
   silently and by design; nothing warns beforehand.
 
 **Verification** is recorded in the commit that closes the review.
+
+## 14. One site, one look (owner's ruling, 2026-10-10)
+
+The owner, on seeing the landing page and the studio side by side: they look like two different websites, and
+both look machine-made. §3 (the look) and the two-looks half of §4 are replaced by this section. §3.5's list of
+banned details stands and is extended below; §3.6's budget stands.
+
+**What was wrong.** The landing page was cream paper, a high-contrast serif and a vermilion accent; the studio
+was near-black with one bright accent and everything in identical rounded cards with small capitalised labels.
+Each is the look a generated page most often has (§3.5's own amendment had already said so of the first), and
+they shared nothing: no typeface, no colour, no header.
+
+**The idea.** A script, marked up. The product reads a script aloud and puts a highlight on each word as it is
+spoken; the site is drawn the same way.
+
+- **Colour** (`web/app/theme.css`): blue ink `#17227a` on white paper `#fafaf7`; a stronger blue `#2a3be6` for
+  what is pressed; highlighter yellow `#ffe03a`; black only for a video. Yellow is never a text colour and never
+  decoration: it is on the one thing that is "on" — the choice that is chosen, the job that is working, the
+  video that is selected. The only dark thing on any page is a video.
+- **Type:** one family, Archivo (a variable face with a width axis; one file, its licence beside it). Text at
+  its normal width; headings narrow and heavy, as a caption is set on a video. No serif, no monospace: figures
+  are the same face with tabular numerals.
+- **The one movement nobody asked for:** the landing headline is read out once, the highlighter on each word
+  in turn, and then put down (`Spoken`). Nothing else on a page moves by itself except a video.
+- **Structure instead of boxes:** a part of a page is a heading over an ink rule (`Panel`), not a card. The
+  steps of making a video are a timeline: one track for each step, drawn against the video's own length, so a
+  scene's words, its stretch of the voice and its picture stand under one another (`MakingStrip`).
+- **One layout** (`web/app/layout.tsx`): one header and one foot for every page. What the header offers
+  depends on who is looking, not on which page it is. The account forms stand beside a frame of a real video
+  with its cost. `(marketing)` and `(studio)` remain as folders; they no longer have looks of their own, and
+  going from one to the other is no longer a full page load.
+- **Banned, in addition to §3.5:** cream paper with a serif and a warm accent; near-black with one bright
+  accent; a card around every part; small capitalised labels; a monospace face for figures; a dash or a middle
+  dot joining fragments of a label ("Generate video, up to $0.31", not "Generate video — up to $0.31").
+
+**Sound** (same day): a video on the landing page has its sound on. A browser allows no sound before the
+visitor has touched the page, so until then it plays silently, and with their first click or key anywhere it
+is heard from where it had got to; there is no button for it. A video that leaves the window stops, so two
+are never heard at once. (This replaces the "Sound on" button of earlier the same day.)
+
+**Tests.** The accounts browser suite now holds the landing page, the account form and the studio to one
+background, one typeface for headings and text, and one wordmark, where it used to hold them apart. The phone
+budget test caught the new headings jumping when the face arrived (a layout shift of 0.21): headings have a
+stand-in face shrunk to the narrow width (0.001 after).
+
+**Rulings and parked**
+
+- The typeface file is fetched twice (once declared for text, once for headings with the narrow stand-in):
+  about 115 KB more on a first visit. Parked: one declaration with a hand-written stand-in for both.
+- Not looked at in Safari or Firefox; every check here was in Chromium. Parked with the owner's own look.
+- The run list shows a video's picture in a wide frame although most videos are upright. Parked.
+- `/terms` and `/privacy` still say that they are not written.

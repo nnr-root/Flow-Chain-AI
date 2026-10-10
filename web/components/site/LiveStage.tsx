@@ -21,13 +21,14 @@ function Choice<T extends string>({ label, options, value, onChange }: { label: 
   const group = useId();
   return (
     <fieldset>
-      <legend className="text-[0.8rem] text-graphite">{label}</legend>
-      <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+      <legend className="text-[0.9rem] font-semibold">{label}</legend>
+      <div className="mt-2 flex flex-wrap gap-x-1.5 gap-y-1.5">
         {options.map(([id, name]) => (
-          <label key={id} className="relative cursor-pointer pb-1.5 text-[0.95rem] has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-signal">
+          <label key={id} className="relative cursor-pointer rounded-[4px] px-2 py-0.5 text-[0.95rem] has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-signal">
             <input type="radio" name={group} value={id} checked={value === id} onChange={() => onChange(id)} className="sr-only" />
-            <span className={value === id ? "text-ink" : "text-graphite hover:text-ink"}>{name}</span>
-            {value === id && <motion.span layoutId={`${group}-mark`} transition={SNAP} className="absolute inset-x-0 bottom-0 h-[2px] bg-signal" />}
+            {/* the highlighter, which slides to the one chosen */}
+            {value === id && <motion.span layoutId={`${group}-mark`} transition={SNAP} className="absolute inset-0 rounded-[4px] bg-marker" />}
+            <span className={`relative ${value === id ? "font-semibold" : "text-graphite hover:text-ink"}`}>{name}</span>
           </label>
         ))}
       </div>
@@ -39,8 +40,8 @@ function Toggle({ label, checked, onChange }: { label: string; checked: boolean;
   return (
     <label className="flex cursor-pointer items-center gap-2.5 whitespace-nowrap text-[0.95rem]">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer sr-only" />
-      <span aria-hidden="true" className="relative h-[1.15rem] w-8 shrink-0 rounded-full bg-ink/15 transition-colors peer-checked:bg-ink peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-signal">
-        <motion.span animate={{ x: checked ? 14 : 0 }} transition={SNAP} className="absolute left-[3px] top-[3px] h-3 w-3 rounded-full bg-paper" />
+      <span aria-hidden="true" className="relative h-[1.15rem] w-8 shrink-0 rounded-full bg-ink/20 transition-colors peer-checked:bg-signal peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-signal">
+        <motion.span animate={{ x: checked ? 14 : 0 }} transition={SNAP} className="absolute left-[3px] top-[3px] h-3 w-3 rounded-full bg-sheet" />
       </span>
       {label}
     </label>
@@ -99,8 +100,8 @@ export function LiveStage({ showcases, children }: { showcases: Showcase[]; chil
   const changed = JSON.stringify(controls) !== JSON.stringify(madeControls(looks));
 
   return (
-    <section className="pb-10 pt-14 lg:pt-20" data-testid="live-stage">
-      <div className="grid items-center gap-x-10 gap-y-12 lg:grid-cols-12">
+    <section className="pb-6 pt-12 lg:pt-16" data-testid="live-stage">
+      <div className="grid items-start gap-x-10 gap-y-12 lg:grid-cols-12">
         <div className="lg:col-span-7">{children}</div>
         <div id="stage" className="w-full max-w-[21rem] scroll-mt-24 justify-self-center lg:col-span-5 lg:justify-self-end">
           <Stage caption={[`${receipt.seconds.toFixed(1)} s, ${receipt.scenes} scenes`, `${usd(receipt.totalUsd)} of credit`]}>
@@ -130,21 +131,21 @@ export function LiveStage({ showcases, children }: { showcases: Showcase[]; chil
       </div>
 
       {/* the desk under the monitor: what a free re-render can change, changed here at once */}
-      <form className="desk mt-12 rounded-[10px] border border-hairline p-5 sm:p-6" aria-label="Restyle this video" onSubmit={(e) => e.preventDefault()}>
+      <form className="mt-14 border-t-2 border-ink pt-5" aria-label="Restyle this video" onSubmit={(e) => e.preventDefault()}>
         <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
-          <p className="max-w-[46rem] text-[0.95rem] leading-snug">
-            This is the real renderer, running in your browser on a video Flow Chain made. Change how it is cut and captioned; nothing is bought.
+          <p className="max-w-[44rem] text-[1.02rem] leading-snug">
+            That is not a recording. It is the real renderer, running in your browser on a video Flow Chain made: change how it is captioned and cut, and nothing is bought.
           </p>
-          <button type="button" onClick={() => setControls(madeControls(looks))} disabled={!changed} data-testid="restyle-reset" className="text-[0.9rem] underline decoration-hairline decoration-2 underline-offset-4 hover:decoration-ink disabled:opacity-40 disabled:hover:decoration-hairline">
+          <button type="button" onClick={() => setControls(madeControls(looks))} disabled={!changed} data-testid="restyle-reset" className="text-[0.95rem] underline underline-offset-4 disabled:opacity-40">
             Back to how it was made
           </button>
         </div>
         <div className="mt-6 grid gap-x-10 gap-y-6 sm:grid-cols-2 lg:grid-cols-[auto_minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1.1fr)]">
           <fieldset>
-            <legend className="text-[0.8rem] text-graphite">Video</legend>
+            <legend className="text-[0.9rem] font-semibold">Video</legend>
             <div className="mt-2 flex gap-2.5">
               {showcases.map((s) => (
-                <label key={s.slug} title={s.receipt.title} className={`relative block w-12 shrink-0 cursor-pointer overflow-hidden rounded-[3px] outline-offset-2 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-signal ${s.slug === slug ? "ring-2 ring-ink ring-offset-2 ring-offset-paper" : "opacity-70 hover:opacity-100"}`}>
+                <label key={s.slug} title={s.receipt.title} className={`relative block w-12 shrink-0 cursor-pointer overflow-hidden rounded-[6px] outline-offset-2 has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-signal ${s.slug === slug ? "ring-[3px] ring-marker ring-offset-2 ring-offset-paper" : "opacity-70 hover:opacity-100"}`}>
                   <input type="radio" name="video" value={s.slug} checked={s.slug === slug} onChange={() => choose(s.slug)} className="sr-only" aria-label={s.receipt.title} />
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={`/showcase/${s.slug}/poster.jpg`} alt="" loading="lazy" className="aspect-[9/16] w-full object-cover" />
@@ -161,7 +162,7 @@ export function LiveStage({ showcases, children }: { showcases: Showcase[]; chil
                 <input
                   type="text" value={controls.hookText} onChange={(e) => set("hookText", e.target.value.slice(0, 60))} disabled={!controls.hook}
                   placeholder={looks.hook.text} aria-label="The opening title's words" data-testid="hook-text"
-                  className="mt-2 w-full rounded-md border border-hairline bg-paper/70 px-3 py-2 text-[0.95rem] placeholder:text-graphite/70 disabled:opacity-40"
+                  className="mt-2 w-full rounded-md border border-hairline bg-sheet px-3 py-2 text-[0.95rem] placeholder:text-graphite/70 disabled:opacity-40"
                 />
               </div>
             )}

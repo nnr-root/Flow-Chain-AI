@@ -1,0 +1,88 @@
+@import "tailwindcss";
+
+/*
+ * The look of the whole site: the pages a visitor reads and the studio a user works in are one place and load
+ * this one file (phase 4 spec §14, which replaces its §3 and the two looks of §4).
+ *
+ * The idea is the product's own: a script, marked up. Text is blue ink on white paper; the yellow of a
+ * highlighter marks the one thing that is "being spoken" — the word a caption is on, the choice that is on, the
+ * step a job has reached. Yellow is never a text colour and never decoration. The only dark thing on a page is
+ * a video.
+ */
+@theme {
+  --color-paper: #fafaf7;
+  --color-sheet: #ffffff;
+  --color-wash: #eef0f8;
+  --color-ink: #17227a;
+  --color-signal: #2a3be6;
+  --color-marker: #ffe03a;
+  --color-graphite: #5a6292;
+  --color-hairline: rgb(23 34 122 / 0.16);
+  --color-stage: #000000;
+  --color-good: #0b7a45;
+  --color-warn: #8a5a00;
+  --color-bad: #c22626;
+
+  --font-text: var(--font-archivo), "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-archivo-display), "Display Fallback", "Arial Narrow", Arial, sans-serif;
+
+  /* the display step follows the window; the rest is the classic scale in rem */
+  --text-display: clamp(2.8rem, 1.2rem + 5.6vw, 5.6rem);
+  --text-display--line-height: 0.9;
+  --text-display--letter-spacing: -0.012em;
+}
+
+/*
+ * What a heading is drawn in for the moment before the typeface arrives: the system's bold sans, shrunk to the
+ * width of the narrow face. Without it a headline breaks into more lines at first and everything under it jumps
+ * when the real face comes (measured on a slowed-down phone: a layout shift of 0.21 without, against a limit of 0.1).
+ */
+@font-face { font-family: "Display Fallback"; src: local("Arial Bold"), local("Arial-BoldMT"), local("Helvetica Neue Bold"), local("Arial"); font-weight: 100 900; size-adjust: 73%; }
+
+@layer base {
+  html { color-scheme: light; background: var(--color-paper); }
+  body { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-text); font-size: 1.0625rem; line-height: 1.5; font-variation-settings: "wdth" 100; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+  /* a form's own controls: white where something is typed, a full ink line when it is being typed in */
+  input:where([type="text"], [type="email"], [type="password"], [type="number"], [type="search"], :not([type])), select, textarea {
+    width: 100%; background: var(--color-sheet); color: var(--color-ink); border: 1.5px solid var(--color-hairline); border-radius: 6px; padding: 0.55rem 0.75rem; font: inherit;
+  }
+  input:where([type="text"], [type="email"], [type="password"], [type="number"], [type="search"], :not([type])):hover, select:hover, textarea:hover { border-color: rgb(23 34 122 / 0.4); }
+  input::placeholder, textarea::placeholder { color: rgb(90 98 146 / 0.7); }
+  input[type="checkbox"], input[type="radio"] { accent-color: var(--color-signal); width: 1.05rem; height: 1.05rem; }
+  input[type="file"] { font-size: 0.85rem; color: var(--color-graphite); }
+  input[type="file"]::file-selector-button { font: inherit; color: var(--color-ink); background: var(--color-sheet); border: 1.5px solid var(--color-hairline); border-radius: 6px; padding: 0.3rem 0.7rem; margin-right: 0.7rem; cursor: pointer; }
+
+  a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2.5px solid var(--color-signal); outline-offset: 2px; }
+  ::selection { background: var(--color-marker); color: var(--color-ink); }
+}
+
+/* Headings: the same face drawn narrow and heavy, as a caption is set on a video */
+.display { font-family: var(--font-display); font-variation-settings: "wdth" 68; font-weight: 800; letter-spacing: -0.012em; text-wrap: balance; }
+/* every number: the same width, so columns of prices and times line up */
+.figures { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+/* The highlighter: behind the thing that is on. A little wider than the word and not quite square to it, as a pen leaves it. */
+.marked { background: var(--color-marker); box-decoration-break: clone; -webkit-box-decoration-break: clone; padding: 0.04em 0.18em; margin: 0 -0.18em; border-radius: 0.12em 0.2em 0.14em 0.22em; }
+
+/*
+ * The headline is read out once, the way a caption is: the highlighter is on each word in turn while it would be
+ * spoken, and then it is put down. Each word carries its place in the line (--i) and the line its length (--n).
+ */
+.spoken > span { --step: 0.26s; border-radius: 0.1em 0.16em 0.12em 0.18em; padding: 0 0.07em; margin: 0 -0.07em; animation: spoken var(--step) linear calc(0.5s + var(--i) * var(--step)) 1 both; }
+@keyframes spoken { 0% { background: transparent; } 1%, 99% { background: var(--color-marker); } 100% { background: transparent; } }
+
+/* a till slip: brighter than the page, torn off along a zigzag at the foot */
+.receipt { background: var(--color-sheet); border: 1.5px solid var(--color-hairline); border-bottom: 0; --tooth: 7px;
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / var(--tooth) 51% repeat-x, linear-gradient(#000 0 0) top / 100% calc(100% - var(--tooth) / 2) no-repeat; }
+
+/* the slider: an ink line to travel along and an ink knob */
+.range { appearance: none; height: 1.5rem; background: linear-gradient(var(--color-ink), var(--color-ink)) center / 100% 2px no-repeat; cursor: pointer; }
+.range::-webkit-slider-thumb { appearance: none; width: 1.4rem; height: 1.4rem; border-radius: 50%; background: var(--color-marker); border: 2px solid var(--color-ink); }
+.range::-moz-range-thumb { width: 1.1rem; height: 1.1rem; border-radius: 50%; background: var(--color-marker); border: 2px solid var(--color-ink); }
+input[type="range"]:not(.range) { accent-color: var(--color-signal); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  .spoken > span { animation: none; }
+}

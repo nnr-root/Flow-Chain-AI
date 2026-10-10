@@ -34,9 +34,9 @@ export function TopicStart({ signedIn, free, sells = true, id = "hero-topic" }: 
         <input
           id={id} type="text" value={topic} onChange={(e) => setTopic(e.target.value)} maxLength={CARRIED_CHARS} data-testid={id}
           placeholder="Three mistakes that make product photos look cheap"
-          className="min-w-0 flex-1 basis-64 rounded-md border border-ink/25 bg-paper px-4 py-3.5 text-[1.05rem] placeholder:text-graphite/60 focus:border-ink"
+          className="min-w-0 flex-1 basis-64 rounded-md border-[1.5px] border-ink/30 bg-sheet px-4 py-3.5 text-[1.05rem] placeholder:text-graphite/60 focus:border-ink"
         />
-        <button type="submit" data-cta={`${id === "hero-topic" ? "hero" : "closing"}-${signedIn ? "new" : "signup"}`} className="rounded-md bg-ink px-6 py-3.5 text-[1.05rem] font-medium text-paper hover:bg-stage">
+        <button type="submit" data-cta={`${id === "hero-topic" ? "hero" : "closing"}-${signedIn ? "new" : "signup"}`} className="rounded-md bg-signal px-6 py-3.5 text-[1.05rem] font-semibold text-sheet hover:bg-ink">
           {signedIn ? "Make this video" : free ? "Make a free draft" : "Create an account"}
         </button>
       </div>

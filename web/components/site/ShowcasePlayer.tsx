@@ -10,63 +10,113 @@ import { flushSync } from "react-dom";
 const MAX_AUDIO_TAGS = 16;
 
 export type ShowcasePlayerHandle = {
-  /** Plays from a frame; with the click that asked for it, with sound (a browser lets sound start only from a visitor's own click). */
+  /** Plays from a frame; with the click that asked for it, so that it may be heard. */
   playFrom: (frame: number, click?: SyntheticEvent) => void;
 };
 
 /**
+ * Whether the visitor has touched the page yet. A browser lets a page make sound only after that, so it is the
+ * one thing that decides whether a video can be heard; it is the same for every player on the page.
+ */
+let touched = false;
+const waiting = new Set<(click: Event) => void>();
+function onFirstTouch(heard: (click: Event) => void): () => void {
+  if (waiting.size === 0 && !touched) {
+    const first = (e: Event) => {
+      touched = true;
+      window.removeEventListener("click", first, true);
+      window.removeEventListener("keydown", first, true);
+      for (const tell of [...waiting]) tell(e);
+      waiting.clear();
+    };
+    // (a click or a key, which every browser counts as the visitor's own act; a scroll or a hover is not one)
+    window.addEventListener("click", first, true);
+    window.addEventListener("keydown", first, true);
+  }
+  waiting.add(heard);
+  return () => void waiting.delete(heard);
+}
+
+/**
  * The paid render's own composition, playing in the visitor's browser: the same component the studio previews
- * with and the renderer films. It starts muted and looping (a browser lets nothing else start by itself).
+ * with and the renderer films.
  *
- * Sound is not the muted Player unmuted. A Player that starts muted has no audio output, and making one later
- * rebuilds its audio tags under the sounds already playing: the voice and the music lose theirs and stay silent
- * for good. So the visitor's click swaps in a Player that has sound from its first frame, at the frame the
- * silent one had reached, and starts it inside that same click, which is what a browser asks for.
+ * A video here has its sound on. A browser does not let a page be heard before the visitor has touched it, so
+ * until then it plays silently, and with the first click or key anywhere on the page it is heard, from where it
+ * had got to: there is nothing to find and press. After that the bar under the video has the volume.
+ *
+ * The silent video is not unmuted; another Player takes its place. A Player that starts muted has no audio
+ * output, and making one later rebuilds its audio tags under the sounds already playing: the voice and the
+ * music lose theirs and stay silent for good. The swap is done inside the visitor's click, where a browser
+ * allows sound to start.
  */
 export default function ShowcasePlayer({ props, resolve, autoPlay, handle }: { props: RenderProps; resolve: (publishedPath: string) => string; autoPlay: boolean; handle?: Ref<ShowcasePlayerHandle> }) {
   const player = useRef<PlayerRef>(null);
-  const [sound, setSound] = useState<{ from: number } | null>(null);
+  // a player that comes to the page after the visitor's first touch has its sound from the start
+  const [sound, setSound] = useState<{ from: number } | null>(() => (touched ? { from: 0 } : null));
+  const frame = useRef<HTMLDivElement>(null);
+  const inView = useRef(false);
+  /** Whether it should be playing when it can be seen: it started by itself, or the visitor started it, and has not stopped it. */
+  const wanted = useRef(autoPlay);
+  /** A pause of the page's own doing (the video left the window), which is not the visitor stopping it. */
+  const ours = useRef(false);
 
-  const withSound = useCallback((click: SyntheticEvent, frame?: number) => {
-    const from = frame ?? player.current?.getCurrentFrame() ?? 0;
+  const withSound = useCallback((click: Event | SyntheticEvent, frameAt?: number, play?: boolean) => {
+    const from = frameAt ?? player.current?.getCurrentFrame() ?? 0;
     // (at once, not after the click: the new Player must exist while the click still counts as the visitor's)
     flushSync(() => setSound({ from }));
     player.current?.seekTo(from);
-    player.current?.play(click);
+    if (play ?? (wanted.current && inView.current)) player.current?.play(click as SyntheticEvent);
   }, []);
 
+  useEffect(() => {
+    if (sound) return;
+    return onFirstTouch((click) => withSound(click));
+  }, [sound, withSound]);
+
   useImperativeHandle(handle, () => ({
-    playFrom: (frame, click) => {
-      if (click && !sound) return withSound(click, frame);
+    playFrom: (at, click) => {
+      wanted.current = true;
+      if (click && !sound) return withSound(click, at, true);
       const p = player.current;
       if (!p) return;
-      p.seekTo(frame);
-      if (click) {
-        p.unmute();
-        p.play(click);
-      } else p.play();
+      p.seekTo(at);
+      p.play(click);
     },
   }), [sound, withSound]);
 
+  // what the visitor does with the bar is remembered: a video they stopped is not started again behind their back
+  useEffect(() => {
+    const p = player.current;
+    if (!p) return;
+    const played = () => { wanted.current = true; };
+    const paused = () => {
+      if (ours.current) ours.current = false;
+      else wanted.current = false;
+    };
+    p.addEventListener("play", played);
+    p.addEventListener("pause", paused);
+    return () => {
+      p.removeEventListener("play", played);
+      p.removeEventListener("pause", paused);
+    };
+  }, [sound]);
+
   // A video nobody can see is not played: the composition is drawn again for every frame, and two of them
   // running under a visitor who has scrolled on is what makes the rest of the page stutter on a slow machine.
-  // One that was playing when it left carries on when it is back; one the visitor stopped stays stopped.
-  const frame = useRef<HTMLDivElement>(null);
+  // (It also means two videos are never heard at once.)
   useEffect(() => {
     const node = frame.current;
     if (!node) return;
-    let interrupted = false;
     const seen = new IntersectionObserver(([entry]) => {
+      inView.current = entry.isIntersecting;
       const p = player.current;
       if (!p) return;
       if (!entry.isIntersecting && p.isPlaying()) {
-        interrupted = true;
+        ours.current = true;
         p.pause();
-      } else if (entry.isIntersecting && interrupted) {
-        interrupted = false;
-        p.play();
-      }
-    });
+      } else if (entry.isIntersecting && wanted.current && !p.isPlaying()) p.play();
+    }, { threshold: 0.35 });
     seen.observe(node);
     return () => seen.disconnect();
   }, []);
@@ -81,7 +131,7 @@ export default function ShowcasePlayer({ props, resolve, autoPlay, handle }: { p
   );
   const style = useMemo(() => ({ width: "100%", height: "100%" }), []);
   return (
-    <div ref={frame} className="relative h-full w-full">
+    <div ref={frame} className="relative h-full w-full" data-sound={sound !== null}>
       <Player
         key={sound ? "sound" : "silent"}
         ref={player}
@@ -93,6 +143,7 @@ export default function ShowcasePlayer({ props, resolve, autoPlay, handle }: { p
         compositionHeight={props.height}
         style={style}
         numberOfSharedAudioTags={MAX_AUDIO_TAGS}
+        // the silent one starts by itself; the one with sound is started inside the click that brought it
         autoPlay={sound ? false : autoPlay}
         initialFrame={sound?.from ?? 0}
         initiallyMuted={!sound}
@@ -102,14 +153,6 @@ export default function ShowcasePlayer({ props, resolve, autoPlay, handle }: { p
         clickToPlay
         acknowledgeRemotionLicense
       />
-      {!sound && (
-        <button
-          type="button" onClick={(e) => withSound(e)} data-testid="sound-on"
-          className="absolute right-2.5 top-2.5 rounded-full bg-stage/75 px-3 py-1.5 text-[0.78rem] text-paper outline-offset-2 hover:bg-stage focus-visible:outline focus-visible:outline-2 focus-visible:outline-signal"
-        >
-          Sound on
-        </button>
-      )}
     </div>
   );
 }

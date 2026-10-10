@@ -59,7 +59,7 @@ test("a draft previews with placeholders, shows the new price after a scene is p
   await expect(page.locator("[data-state=draft]")).toBeVisible();
   await expect(page.getByTestId("draft-note")).toBeVisible();
   await expect(page.getByTestId("player").locator("img").first()).toHaveAttribute("src", /draft\/scene_0\d\.svg$/);
-  await expect(page.getByTestId("generate")).toHaveText("Generate video — up to $0.31");
+  await expect(page.getByTestId("generate")).toHaveText("Generate video, up to $0.31");
 
   // The stub CLI cannot price a pin itself, so the test stands in for "the plan is cheaper once scene 1 is a still":
   // it makes the stub answer every later `plan` with $0.12. This proves the page asks the server again after a pin,
@@ -72,7 +72,7 @@ test("a draft previews with placeholders, shows the new price after a scene is p
   // the button now shows the new price, and generating passes exactly that amount to the CLI, as the budget it need
   // not ask about and as the cap on what the job spends in total, without --yes
   const generate = page.getByTestId("generate");
-  await expect(generate).toHaveText("Generate video — up to $0.12");
+  await expect(generate).toHaveText("Generate video, up to $0.12");
   const started = page.waitForResponse((r) => r.url().endsWith(`/api/runs/${DRAFT_ID}/generate`));
   await generate.click();
   expect((await started).status()).toBe(202);
@@ -104,7 +104,7 @@ test("a studio without accounts has no landing page: the bare address is the stu
   await page.goto("/");
   await expect(page.getByTestId("landing")).toHaveCount(0);
   await expect(page.getByTestId("runs")).toBeVisible();
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(11, 13, 18)");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe("rgb(250, 250, 247)");
 });
 
 test("the server answers its loopback name only: a foreign Host is refused on pages, the API and static files", async ({ request }) => {

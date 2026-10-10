@@ -9,36 +9,40 @@ export default async function Page() {
   const runs = await forUser(listRuns);
   if (runs.length === 0) {
     return (
-      <div className="grid place-items-center gap-4 py-24 text-center">
-        <p className="text-lg">No videos yet.</p>
-        <Link href="/new" className="rounded-lg bg-accent px-4 py-2 font-medium text-ink">Create the first one</Link>
+      <div className="max-w-[40rem] py-10">
+        <h1 className="display text-[clamp(2.6rem,1.6rem+4vw,4.5rem)] leading-[0.92]">No videos yet.</h1>
+        <p className="mt-5 text-[1.1rem] text-graphite">A video starts from one sentence. The script is written first, and you see what the rest will cost before any of it is made.</p>
+        <Link href="/new" className="mt-7 inline-block rounded-md bg-signal px-5 py-3 font-semibold text-sheet hover:bg-ink">Make the first one</Link>
       </div>
     );
   }
   return (
-    <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="runs">
+    <>
+    <h1 className="display text-[clamp(2.4rem,1.6rem+3vw,3.4rem)] leading-[0.95]">Your videos</h1>
+    <ul className="mt-8 grid gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-4" data-testid="runs">
       {runs.map((r) => (
         <li key={r.runId}>
-          <Link href={`/runs/${r.runId}`} className="block overflow-hidden rounded-xl border border-line bg-panel hover:border-accent">
-            <div className="grid aspect-video place-items-center bg-black">
+          <Link href={`/runs/${r.runId}`} className="group block">
+            <div className="grid aspect-video place-items-center overflow-hidden rounded-[10px] bg-stage outline-offset-2 group-hover:outline group-hover:outline-[3px] group-hover:outline-marker">
               {r.thumbnail ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={`/api/runs/${r.runId}/files/${r.thumbnail}`} alt="" className="h-full w-full object-cover" />
               ) : (
-                <span className="text-xs text-dim">{r.state === "draft" ? "draft — no pictures yet" : "no picture"}</span>
+                <span className="text-[0.85rem] text-sheet/70">{r.state === "draft" ? "A draft: no pictures yet" : "No picture"}</span>
               )}
             </div>
-            <div className="space-y-1 p-3">
+            <div className="mt-3 space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <StateBadge state={r.state} />
-                {r.spendUsd !== undefined && <span className="text-xs text-dim">${r.spendUsd.toFixed(2)}</span>}
+                {r.spendUsd !== undefined && <span className="figures text-[0.85rem] text-graphite">${r.spendUsd.toFixed(2)}</span>}
               </div>
-              <p className="line-clamp-2 text-sm font-medium">{r.title ?? r.topic ?? r.runId}</p>
-              <p className="text-xs text-dim">{r.sceneCount ? `${r.sceneCount} scenes · ${r.aspect} · ` : ""}{r.runId}</p>
+              <p className="line-clamp-2 font-semibold leading-snug group-hover:underline group-hover:underline-offset-4">{r.title ?? r.topic ?? r.runId}</p>
+              {r.sceneCount ? <p className="text-[0.85rem] text-graphite">{r.sceneCount} scenes, {r.aspect}</p> : null}
             </div>
           </Link>
         </li>
       ))}
     </ul>
+    </>
   );
 }

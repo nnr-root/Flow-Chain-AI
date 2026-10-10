@@ -392,8 +392,8 @@ approved on its button.
 ## The landing page
 
 In a studio with accounts, a visitor without a session who opens the bare address sees the landing page; a
-signed-in user sees their videos there. `/pricing`, `/terms` and `/privacy` are on the same, light side. It has
-its own layout, typefaces (files in the repository) and styles: nothing of it reaches the studio's pages.
+signed-in user sees their videos there. The landing page, `/pricing`, `/terms`, `/privacy`, the account forms and
+the studio are one site with one look: one layout, one typeface (a file in the repository) and one stylesheet.
 
 - **The videos on it are real runs.** `npm run make:showcase -- <runId> --slug <name>` publishes a finished
   upright run into `web/public/showcase/<name>/`: the media made small, what the player needs, every look a

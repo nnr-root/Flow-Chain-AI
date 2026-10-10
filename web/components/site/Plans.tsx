@@ -3,7 +3,7 @@ import { useStripePage } from "@/components/Pricing";
 import { type CatalogueItem, LIVE, type PlanView } from "@/lib/billing";
 
 const usd = (n: number): string => `$${n.toFixed(2)}`;
-const button = "rounded-md bg-ink px-5 py-3 text-[1rem] font-medium text-paper hover:bg-stage disabled:opacity-50";
+const button = "rounded-md bg-signal px-5 py-3 text-[1rem] font-semibold text-sheet hover:bg-ink disabled:opacity-50";
 
 function Offer({ item, action }: { item: CatalogueItem; action: React.ReactNode }) {
   return (

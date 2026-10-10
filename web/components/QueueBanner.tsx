@@ -30,7 +30,7 @@ export function QueueBanner() {
   }, []);
   if (!problem) return null;
   return (
-    <p role="status" data-testid="queue-banner" className="border-b border-bad/40 bg-bad/10 px-6 py-2 text-center text-sm text-bad">
+    <p role="status" data-testid="queue-banner" className="border-b border-bad/40 bg-bad/10 px-6 py-2 text-center text-[0.95rem] text-bad">
       {problem} Nothing can be started until it is back; runs already bought are safe.
     </p>
   );

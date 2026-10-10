@@ -49,7 +49,7 @@ export function tooLittle(balance: number | null, needUsd: number | undefined): 
 export function CreditNote({ balance, needUsd }: { balance: number | null; needUsd: number | undefined }) {
   if (!tooLittle(balance, needUsd)) return null;
   return (
-    <p className="text-xs text-warn" data-testid="credit-note" role="status">
+    <p className="text-[0.85rem] text-warn" data-testid="credit-note" role="status">
       This needs up to {usd(needUsd!)}; you have {usd(Math.max(balance!, 0))}.{" "}
       {sells ? <a href="/pricing" className="underline" data-testid="add-credit">Add credit</a> : <a href="/account" className="underline">Your account</a>}
     </p>
