@@ -487,3 +487,11 @@ fulfilled. **Not checked:** a real yearly payment in Stripe's test mode; a real 
 **Parked.** A refund in part takes whole months off the end and a share of the current month; it does not
 reach back into months that have expired (nothing is left of them to take). Telling a customer by email that a
 month's credits have come.
+
+### 14.1 In Stripe's test mode (owner's click, 2026-10-10)
+
+The owner kept the prices and the minutes as they are (5, 15 and 45; doubling them was weighed and left) and
+had `npm run stripe:setup` run. The test account now sells the three plans by the month ($39, $99, $199) and
+by the year ($390, $990, $1,990, each with a month's credit on the price); the earlier prices and both top-ups
+are archived; a second run found nothing to change. Still not done there: buying a year at Checkout, and a
+month going by.
