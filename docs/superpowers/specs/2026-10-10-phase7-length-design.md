@@ -165,3 +165,34 @@ Neither was sent back. These two were not spoken, so their real lengths are work
 **Still unknown:** anything longer than two minutes; a long video of clips (hours); how a different voice or
 language moves the rate.
 
+## 11. Several clips at once: what the endpoint does (owner's click, 2026-10-10)
+
+A probe, not a change: the clip endpoint's `workersMax` was set from 1 to 3, four clip jobs (65 frames, 480p,
+the pictures of run `…447afb`) were sent at once, and the setting was put back to 1 (read back: nothing else on
+the endpoint moved either time).
+
+| Job | Waited | Ran | Worker |
+|---|---|---|---|
+| 3 | 7 s | 153 s | the one that was already up |
+| 2 | 155 s | 54 s | the same one, after job 3 |
+| 1 | 153 s | 166 s | a second, started for this |
+| 4 | 144 s | 179 s | a third, started for this |
+
+All four done 320 seconds after they were sent; 552 GPU seconds billed.
+
+- **It works**: RunPod started two more workers for the queue and each took a job.
+- **A worker that starts costs about two minutes of GPU before its first frame** (166 and 179 seconds for a
+  clip that takes 54 on a warm one), and its job waited two and a half minutes for it.
+- **So four clips gained nothing**: one worker would have made them in about 315 seconds (153, then 54 each)
+  for 315 GPU seconds. Three workers took as long and billed three quarters more.
+- **A warm worker made 65 frames in 54 seconds**, 0.83 a frame, where the price table says 1.5. One
+  observation; if it holds, clips cost the studio about half of what a run's ledger records, and ten minutes of
+  clips on one worker take about two and a quarter hours, not the four to six of §8.
+
+What follows for a design (not built): extra workers pay only when there are many clips, roughly a dozen or
+more for each extra worker. The endpoint would scale by the number of jobs waiting (so that a run sending one
+job at a time never starts a second worker, which is what phase 3.1 §16 met), and the pipeline would decide
+how many to send at once from how many clips a run has. The clips stage would then have several jobs in
+flight for one manifest, and every rule about recording a paid call before it can be lost has to hold for
+every order in which they can end.
+
