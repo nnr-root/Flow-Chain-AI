@@ -76,6 +76,10 @@ def secret_job():
     return {"id": "j1", "input": {**clip_job()["input"], "prompt": "a secret product launch"}}
 
 
+def by_class(graph, class_type):
+    return [n for n in graph.values() if n["class_type"] == class_type]
+
+
 def leftovers(h):
     return sorted(str(p.relative_to(h.root)) for folder in ("in", "out", "tmp") for p in (h.root / folder).rglob("*")
                   if p.is_file())
@@ -119,21 +123,26 @@ def test_fetch_models_takes_retired_weights_off_the_volume_once_the_listed_ones_
     assert out["removed"] == ["old-sdxl.safetensors"] and not (volume / "checkpoints" / "old-sdxl.safetensors").exists()
 
 
-def test_a_warm_up_reads_the_model_files_makes_nothing_and_needs_no_bucket(worker, monkeypatch, tmp_path):
+def test_a_warm_up_makes_the_smallest_clip_uploads_nothing_and_leaves_nothing(worker, monkeypatch):
     for name in R2_ENV:
         monkeypatch.delenv(name)
-    volume = tmp_path / "volume"
-    (volume / "diffusion_models").mkdir(parents=True)
-    (volume / "diffusion_models" / "expert.safetensors").write_bytes(b"x" * 1000)
-    in_image = tmp_path / "encoder.safetensors"
-    in_image.write_bytes(b"y" * 300)
-    monkeypatch.setattr(worker, "VOLUME_MODELS", str(volume))
-    monkeypatch.setattr(worker, "IMAGE_MODELS", (str(in_image), str(tmp_path / "not-there.safetensors")))
-    monkeypatch.setattr(worker.models, "load", lambda path: [{"name": "expert.safetensors", "dir": "diffusion_models"}])
+    graphs = []
+    monkeypatch.setattr(comfy, "queue", lambda graph: graphs.append(graph) or "p1")
+    monkeypatch.setattr(storage, "upload", lambda *a: pytest.fail("a warm-up uploads nothing"))
     out = worker.handler({"id": "j1", "input": {"task": "warm"}})
-    assert out["warmedBytes"] == 1300 and "url" not in out
-    # ComfyUI was waited for and given nothing to do; nothing was written anywhere
-    assert worker.calls == ["ready"] and leftovers(worker) == []
+    assert out["warmed"] is True and "url" not in out
+    # the real clip graph, so every model a clip needs is loaded; at the smallest size, from a picture made here
+    size = by_class(graphs[0], "WanImageToVideo")[0]["inputs"]
+    assert (size["width"], size["height"], size["length"]) == (256, 256, 5)
+    assert len(by_class(graphs[0], "UNETLoader")) == 2 and by_class(graphs[0], "RIFE VFI")
+    assert worker.calls == ["ready", "wait", "forget"] and leftovers(worker) == []
+
+
+def test_a_warm_up_that_fails_still_cleans_up_and_frees_the_gpu(worker):
+    worker.fail_wait = RuntimeError("ComfyUI failed: oom")
+    with pytest.raises(RuntimeError, match="oom"):
+        worker.handler({"id": "j1", "input": {"task": "warm"}})
+    assert worker.calls == ["ready", "wait", "interrupt", "forget"] and leftovers(worker) == []
 
 
 def test_a_picture_task_is_refused_before_any_gpu_work(worker):

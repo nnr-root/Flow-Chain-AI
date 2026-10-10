@@ -16,8 +16,9 @@ COMFY_TEMP = "/comfyui/temp"
 TMP_DIR = "/tmp"
 VOLUME_MODELS = "/runpod-volume/models"
 MODELS_JSON = "/flowchain/models.json"
-# what the image itself holds of the clip model (the Dockerfile puts them there)
-IMAGE_MODELS = ("/comfyui/models/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors", "/comfyui/models/vae/wan_2.1_vae.safetensors")
+# The warm-up's clip: the smallest the model takes. What it draws is thrown away; what matters is that ComfyUI
+# has loaded the text encoder, both experts, the VAE and RIFE by the time a real clip is asked for.
+WARM_CLIP = {"prompt": "a dark room", "width": 256, "height": 256, "frames": 5}
 TIMEOUT_S = 580
 
 
@@ -57,6 +58,25 @@ def _interrupt_quietly():
         pass
 
 
+def _warm(job_id, started):
+    """Asked for while a run's pictures are made, so the first clip finds a worker whose models are loaded
+    (phase 5 spec §9.16). Reading the files alone was not enough: the first clip still waited 80 s for ComfyUI to
+    load them. So a clip is made, of nothing, as small as the model allows, and forgotten like any other."""
+    comfy.wait_ready()
+    image = _write_input(job_id, "image", encode.blank_png(WARM_CLIP["width"], WARM_CLIP["height"]))
+    try:
+        prompt_id = comfy.queue(clip_graph(WARM_CLIP, seed=0, prefix=f"flowchain/{job_id}/out", image_file=image))
+        try:
+            comfy.wait(prompt_id, TIMEOUT_S)
+        except Exception:
+            _interrupt_quietly()
+            raise
+    finally:
+        _forget(job_id)
+        _remove(os.path.join(COMFY_INPUT, image))
+    return {"warmed": True, "executionMs": int((time.monotonic() - started) * 1000)}
+
+
 def handler(job):
     started = time.monotonic()
     try:
@@ -70,11 +90,7 @@ def handler(job):
         return {**done, "removed": models.purge(entries, VOLUME_MODELS)}
 
     if req["task"] == "warm":
-        # Asked for while a run's pictures are made: the worker is up and its files are read by the time the first
-        # clip comes (phase 5 spec §9.15). Nothing of anyone's is in this job, and it leaves nothing behind.
-        comfy.wait_ready()
-        files = [*IMAGE_MODELS, *(models.target(VOLUME_MODELS, e) for e in models.load(MODELS_JSON))]
-        return {"warmedBytes": models.read_through(files), "executionMs": int((time.monotonic() - started) * 1000)}
+        return _warm(job["id"], started)
 
     missing = storage.missing_env()
     if missing:

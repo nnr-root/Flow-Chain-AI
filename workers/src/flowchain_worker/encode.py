@@ -20,3 +20,15 @@ def frames_to_mp4(frames, fps, out):
     finally:
         os.remove(listing)
     return out
+
+
+def blank_png(width, height):
+    """A black PNG of that size, made here: the warm-up needs a picture to start from and has no one's to use."""
+    import struct
+    import zlib
+
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+    rows = (b"\x00" + b"\x00" * (3 * width)) * height
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")

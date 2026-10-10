@@ -109,23 +109,3 @@ def purge(entries, root):
                 removed.append(file)
     return removed
 
-
-def read_through(paths, chunk=16 * 1024 * 1024):
-    """Reads every file to its end and keeps nothing; returns the bytes read.
-
-    What a worker waits for when it starts is its model files coming off the network volume. Read once, they are
-    in the machine's memory, and ComfyUI's own load of them a moment later is quick. A file that is not there is
-    passed over: the job that needs it says so better.
-    """
-    total = 0
-    for path in paths:
-        try:
-            with open(path, "rb") as f:
-                while True:
-                    block = f.read(chunk)
-                    if not block:
-                        break
-                    total += len(block)
-        except FileNotFoundError:
-            continue
-    return total
