@@ -393,3 +393,27 @@ are rows with the scene's own picture; the look chosen for a new video has a yel
 - A title handed from the server to the hero and set directly among its other children made React warn about
   a list without keys; it is rendered in an element of its own.
 - The typeface file is still fetched twice (text, and titles with their wider stand-in). Parked, as in §14.
+
+## 17. The page as an even run of parts (owner's direction, 2026-10-10)
+
+The owner pointed at another product's landing page (facelessreels.com) for its structure: centred, one part
+after another, each set the same way. The look of §16 stands; §5's order of blocks is replaced by this one.
+Nothing of that page's content is taken: it shows testimonials, user counts and view counts, and this page
+still shows no proof it cannot back (§1, and the project guide's "no invented proof").
+
+| # | Part | Theirs it stands where | What is ours in it |
+|---|---|---|---|
+| 1 | Opening: title, one paragraph, the bar to type a topic in | headline and one button | the topic goes with the visitor through sign-up |
+| 2 | The videos, one in front and playing, with its scenes and the controls that restyle it | a row of example videos | they are real runs, with sound, in the real renderer; a scene plays from a click |
+| 3 | How it works: three steps, a picture beside each | the same | each picture is what a real run had at that step |
+| 4 | See one being made: the timeline of tracks with costs | a demo video | the run's own script, voice, pictures and ledger |
+| 5 | The parts an editor would do by hand | a comparison with hiring an editor | each shown on a real video with a control |
+| 6 | The videos and what each one cost | testimonials and view counts | receipts, in their place |
+| 7 | What a month would cost; what is on sale | (pricing is behind sign-up there) | computed from receipts and the live catalogue, with dated prices of others |
+| 8 | Questions | the same | |
+| 9 | Closing: the bar again | | |
+
+Every part is a centred title with one line under it and the same distance from the one before (`Part` in the
+page). The header gives a visitor the way round the page (How it works, Pricing, FAQ); the foot has columns
+(Product, Account, Legal). Left out on purpose: a "trusted by" line, testimonials, counters, platform logos, a
+comparison with what an editor charges (a figure nobody here has a source for).

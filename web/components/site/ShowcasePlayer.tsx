@@ -109,14 +109,18 @@ export default function ShowcasePlayer({ props, resolve, autoPlay, handle }: { p
     const node = frame.current;
     if (!node) return;
     const seen = new IntersectionObserver(([entry]) => {
-      inView.current = entry.isIntersecting;
+      // A sixth of it showing is enough to be watched: on a short screen the video under the page's opening words
+      // shows no more than that at first, and one that stood still there would look broken. (The share is read
+      // from the entry itself: browsers do not agree on what "intersecting" means below the first threshold.)
+      const showing = entry.intersectionRatio >= 0.15;
+      inView.current = showing;
       const p = player.current;
       if (!p) return;
-      if (!entry.isIntersecting && p.isPlaying()) {
+      if (!showing && p.isPlaying()) {
         ours.current = true;
         p.pause();
-      } else if (entry.isIntersecting && wanted.current && !p.isPlaying()) p.play();
-    }, { threshold: 0.35 });
+      } else if (showing && wanted.current && !p.isPlaying()) p.play();
+    }, { threshold: [0, 0.15] });
     seen.observe(node);
     return () => seen.disconnect();
   }, []);

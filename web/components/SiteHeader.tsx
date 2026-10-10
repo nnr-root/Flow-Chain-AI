@@ -23,7 +23,10 @@ export function SiteHeader({ studio, account, sells, free = false }: { studio: b
             <Link href="/brand-kits" className={`hidden sm:inline ${link}`}>Brand kits</Link>
           </>
         )}
+        {/* a visitor is shown the way round the page they landed on (the bare address is that page for them) */}
+        {!studio && <a href="/#how" className={`hidden md:inline ${link}`}>How it works</a>}
         {sells && <Link href="/pricing" className={`hidden sm:inline ${link}`}>Pricing</Link>}
+        {!studio && <a href="/#faq" className={`hidden md:inline ${link}`}>FAQ</a>}
         {account && (
           <Link href="/account" className={link} data-testid="account-link" title={account.email}>
             <span data-testid="header-balance" className="figures font-bold">{usd(account.balanceUsd)}</span>

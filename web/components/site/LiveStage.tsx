@@ -54,7 +54,7 @@ function Side({ showcase, onPick }: { showcase: Showcase; onPick: (slug: string)
   return (
     <button
       type="button" onClick={() => onPick(showcase.slug)} data-testid={`wall-${showcase.slug}`} aria-label={`Play “${showcase.receipt.title}”`}
-      className="relative hidden aspect-[9/16] w-[11.5rem] shrink overflow-hidden rounded-[22px] opacity-45 ring-1 ring-hairline transition-[opacity,transform] duration-300 hover:scale-[1.03] hover:opacity-90 xl:block"
+      className="relative hidden aspect-[9/16] w-[11.5rem] shrink overflow-hidden rounded-[22px] opacity-45 ring-1 ring-hairline transition-[opacity,transform] duration-300 hover:scale-[1.03] hover:opacity-90 md:block"
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={`/showcase/${showcase.slug}/poster.jpg`} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
@@ -116,17 +116,20 @@ export function LiveStage({ showcases, title, children }: { showcases: Showcase[
   const changed = JSON.stringify(controls) !== JSON.stringify(madeControls(looks));
 
   return (
-    <section className="pb-6 pt-8 lg:pt-12" data-testid="live-stage">
+    <section className="pb-6 pt-8 lg:pt-10" data-testid="live-stage">
       {/*
         The wall: the page's words beside the videos as a feed shows them, one in front and playing, the others
         waiting at its sides. A click on one at the side brings it to the front.
       */}
-      {/* The title has the width of the page: set as a caption is, it needs it. (In an element of its own: handed
-          over from the server and set straight among this section's other children, React takes it for one of a list.) */}
-      <div>{title}</div>
-      <div className="mt-10 grid items-center gap-x-12 gap-y-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-        <div className="min-w-0">{children}</div>
-        <div className="flex items-center justify-center gap-5 lg:justify-end">
+      {/* The page opens the way its parts go on: centred, the words first, then what they are about. (The title is
+          in an element of its own: handed over from the server and set straight among this section's other
+          children, React takes it for one of a list.) */}
+      <div className="mx-auto max-w-[62rem] text-center">
+        <div>{title}</div>
+        {children}
+      </div>
+      <div className="mt-10">
+        <div className="flex items-center justify-center gap-4 sm:gap-6">
           {others[0] && <Side showcase={others[0]} onPick={choose} />}
           <div id="stage" className="w-full max-w-[19.5rem] shrink-0 scroll-mt-24">
             <Stage caption={[`${receipt.seconds.toFixed(1)} s, ${receipt.scenes} scenes`, `${usd(receipt.totalUsd)} of credit`]}>

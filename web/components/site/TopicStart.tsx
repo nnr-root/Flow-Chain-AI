@@ -23,19 +23,19 @@ export function TopicStart({ signedIn, free, sells = true, id = "hero-topic" }: 
   const [topic, setTopic] = useState("");
   return (
     <form
-      className="mt-7 max-w-[36rem]" data-testid={id === "hero-topic" ? "topic-start" : `topic-start-${id}`}
+      className="mx-auto mt-6 max-w-[38rem]" data-testid={id === "hero-topic" ? "topic-start" : `topic-start-${id}`}
       onSubmit={(e) => {
         e.preventDefault();
         window.location.assign(startAddress(topic, signedIn));
       }}
     >
-      <label htmlFor={id} className="block text-[0.95rem] font-bold">What is your video about?</label>
+      <label htmlFor={id} className="sr-only">What is your video about?</label>
       {/* the bar a feed has under a video, where a comment is typed: here it is where a video starts */}
-      <div className="mt-2.5 flex flex-wrap gap-2 rounded-[30px] bg-sheet p-2 ring-1 ring-hairline focus-within:ring-2 focus-within:ring-signal">
+      <div className="flex flex-wrap gap-2 rounded-[30px] bg-sheet p-2 ring-1 ring-hairline focus-within:ring-2 focus-within:ring-signal">
         <input
           id={id} type="text" value={topic} onChange={(e) => setTopic(e.target.value)} maxLength={CARRIED_CHARS} data-testid={id}
-          placeholder="Three mistakes that make product photos look cheap"
-          className="min-w-0 flex-1 basis-56 !rounded-full !border-0 !bg-transparent px-4 py-3 text-[1.02rem] !outline-none"
+          placeholder="What is your video about?"
+          className="min-w-0 flex-1 basis-56 !rounded-full !border-0 !bg-transparent px-4 py-3 text-left text-[1.02rem] !outline-none"
         />
         <button type="submit" data-cta={`${id === "hero-topic" ? "hero" : "closing"}-${signedIn ? "new" : "signup"}`} className="rounded-full bg-signal px-6 py-3 text-[1.02rem] font-bold text-paper hover:bg-ink">
           {signedIn ? "Make this video" : free ? "Make a free draft" : "Create an account"}

@@ -1,6 +1,7 @@
 import { Calculator, type Engine } from "@/components/site/Calculator";
 import { Faq } from "@/components/site/Faq";
 import { FeatureStage } from "@/components/site/FeatureStage";
+import { HowItWorks } from "@/components/site/HowItWorks";
 import { LiveStage } from "@/components/site/LiveStage";
 import { MakingStrip } from "@/components/site/MakingStrip";
 import { Plans } from "@/components/site/Plans";
@@ -20,7 +21,22 @@ import { accountsOnly, forUser, headerAccount } from "@/server/page";
 
 export const dynamic = "force-dynamic";
 
-const H2 = "display max-w-[46rem] text-[clamp(2.3rem,1.3rem+3.6vw,4rem)] leading-[0.92]";
+/**
+ * A part of the page: its title and one line under it, centred, then what belongs to it. Every part is set the
+ * same way and stands the same distance from the one before, so the page reads as one even run of them
+ * (Phase 4 spec §17).
+ */
+function Part({ id, title, sub, children, narrow }: { id: string; title: string; sub?: React.ReactNode; children: React.ReactNode; narrow?: boolean }) {
+  return (
+    <section id={id} className="mt-28 scroll-mt-10 lg:mt-36" aria-labelledby={`${id}-title`}>
+      <div className="mx-auto max-w-[46rem] text-center">
+        <h2 id={`${id}-title`} className="display text-[clamp(1.8rem,1.2rem+2.4vw,3rem)] leading-[1]">{title}</h2>
+        {sub && <p className="mx-auto mt-4 max-w-[38rem] text-[1.1rem] leading-[1.5] text-graphite">{sub}</p>}
+      </div>
+      <div className={`mt-12 ${narrow ? "mx-auto max-w-[52rem]" : ""}`}>{children}</div>
+    </section>
+  );
+}
 
 /**
  * What a video costs here, for the calculator: the mean of the videos on the page that were made the way the
@@ -64,57 +80,48 @@ export default async function Page() {
   return (
     <div data-testid="landing">
       <main className="mx-auto max-w-[84rem] px-6 pb-4 sm:px-10">
-        <LiveStage showcases={SHOWCASES} title={<h1 className="display max-w-[70rem] text-display" data-claim={claim}><Spoken rest="finished" text={claim ? "A finished short video for about what others charge for the clips." : "Type a topic. Get a finished short video."} /></h1>}>
-          <p className="max-w-[34rem] text-[1.15rem] leading-[1.5] text-graphite">
+        <LiveStage showcases={SHOWCASES} title={<h1 className="display mx-auto max-w-[62rem] text-display" data-claim={claim}><Spoken rest="finished" text={claim ? "A finished short video for about what others charge for the clips." : "Type a topic. Get a finished short video."} /></h1>}>
+          <p className="mx-auto mt-5 max-w-[38rem] text-[1.12rem] leading-[1.5] text-graphite">
             Flow Chain writes the script, records the voice, generates the pictures and cuts the video to the words.
             You see what it will cost, and approve it, before anything is bought.
           </p>
           <TopicStart signedIn={signedIn} free={free} sells={sells} />
-          {sells && (
-            <p className="mt-6">
-              <a href="/pricing" data-cta="hero-pricing" className="underline decoration-hairline decoration-2 underline-offset-[6px] hover:decoration-ink">See pricing</a>
-            </p>
-          )}
         </LiveStage>
 
-        <section className="mt-24" aria-labelledby="making-title">
-          <h2 id="making-title" className={H2}>From one sentence to a finished video, in five steps.</h2>
-          <p className="mt-5 max-w-[40rem] text-[1.1rem] text-graphite">This is how “{hero.receipt.title}”, the first video in the player above, was made, and what each step cost.</p>
-          <div className="mt-12"><MakingStrip showcase={hero} /></div>
-        </section>
+        <Part id="how" title="How it works" sub="A video in three steps. Beside each one is what a real video on this page had at that point.">
+          <HowItWorks showcase={hero} />
+        </Part>
 
-        <section className="mt-28" aria-labelledby="features-title">
-          <h2 id="features-title" className={H2}>The parts an editor would do by hand</h2>
-          <div className="mt-12"><FeatureStage showcase={branded} /></div>
-        </section>
+        <Part id="making" title="See one being made" sub={<>How “{hero.receipt.title}” came together, step by step, against its own {hero.receipt.seconds.toFixed(1)} seconds, and what each step cost.</>}>
+          <MakingStrip showcase={hero} />
+        </Part>
 
-        <section className="mt-28" aria-labelledby="shelf-title">
-          <h2 id="shelf-title" className={H2}>{inWords(SHOWCASES.length).replace(/^./, (c) => c.toUpperCase())} videos, and what each one cost</h2>
-          <p className="mt-5 max-w-[40rem] text-[1.1rem] text-graphite">Nobody has reviewed Flow Chain yet, so here is the work itself, with the receipts.</p>
-          <div className="mt-12"><Shelf showcases={SHOWCASES} /></div>
-        </section>
+        <Part id="features" title="The parts an editor would do by hand" sub="Each one shown on a real video rather than described: press the buttons.">
+          <FeatureStage showcase={branded} />
+        </Part>
+
+        <Part id="shelf" title={`${inWords(SHOWCASES.length).replace(/^./, (c) => c.toUpperCase())} videos, and what each one cost`} sub="Nobody has reviewed Flow Chain yet, so here is the work itself, with the receipts.">
+          <Shelf showcases={SHOWCASES} />
+        </Part>
 
         {items.length > 0 && engine && (
-          <section className="mt-28" aria-labelledby="calculator-title">
-            <h2 id="calculator-title" className={H2}>What your month would cost</h2>
-            <div className="mt-12"><Calculator items={items} engine={engine} others={others} asOf={asOf} /></div>
-          </section>
+          <Part id="calculator" title="What your month would cost" sub="Worked out from what is on sale and from what the videos above really used.">
+            <Calculator items={items} engine={engine} others={others} asOf={asOf} />
+          </Part>
         )}
 
         {items.length > 0 && (
-          <section className="mt-28" aria-labelledby="sale-title">
-            <h2 id="sale-title" className={H2}>What is on sale</h2>
-            <div className="mt-12"><Plans items={items} signedIn={signedIn} plan={plan} /></div>
-          </section>
+          <Part id="sale" title="What is on sale">
+            <Plans items={items} signedIn={signedIn} plan={plan} />
+          </Part>
         )}
 
-        <section className="mt-28" aria-labelledby="faq-title">
-          <h2 id="faq-title" className={H2}>Before you ask</h2>
-          <div className="mt-10"><Faq usedCents={SHOWCASES.map((s) => Math.round(s.receipt.totalUsd * 100))} sells={sells} clipHeight={SHOWCASES.find((s) => s.receipt.madeOn === "own" && s.receipt.clipHeight)?.receipt.clipHeight} /></div>
-        </section>
+        <Part id="faq" title="Before you ask" narrow>
+          <Faq usedCents={SHOWCASES.map((s) => Math.round(s.receipt.totalUsd * 100))} sells={sells} clipHeight={SHOWCASES.find((s) => s.receipt.madeOn === "own" && s.receipt.clipHeight)?.receipt.clipHeight} />
+        </Part>
 
-        <section className="mt-28 ruled" aria-labelledby="close-title">
-          <h2 id="close-title" className="display max-w-[46rem] text-[clamp(2.4rem,1.2rem+5vw,5rem)] leading-[0.92]">Start with one sentence.</h2>
+        <section className="mt-28 rounded-[32px] bg-sheet px-6 py-14 text-center sm:px-10 lg:mt-36 lg:py-20" aria-labelledby="close-title">
+          <h2 id="close-title" className="display mx-auto max-w-[40rem] text-[clamp(2rem,1.2rem+3.4vw,3.8rem)] leading-[0.98]">Start with one sentence.</h2>
           <TopicStart signedIn={signedIn} free={free} sells={sells} id="closing-topic" />
         </section>
       </main>
