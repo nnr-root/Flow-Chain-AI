@@ -1,7 +1,7 @@
 # Phase 7: a video asked for by its length
 
 Date: 2026-10-10. Owner's direction; built the same day against the fake providers and the stand-in CLI.
-**Nothing here has met a real engine yet** (§9).
+Two videos were then made on the real engines the same day (§10), which changed two numbers and fixed two faults.
 
 ## 1. What was asked
 
@@ -25,9 +25,8 @@ leaves the form. This is for every side of the product, not the form alone.
   can slow a clip by a quarter: that slack is what covers a scene whose voice ran long.
 - **Audio still drives timing.** A length is a target for the writing. The script is asked for so many words,
   the voice speaks them, and the video is as long as the voice was. Every page says "about".
-- **The voice speaks 2.7 words a second** (`WORDS_PER_SECOND`): the mean of seven videos the studio's own voice
-  narrated on 2026-10-09 and -10, pauses trimmed (2.39 to 3.06). It is the one number that turns seconds into
-  words, and the first thing to measure again if videos come out long or short.
+- **The voice speaks 2.4 words a second** (`WORDS_PER_SECOND`; first set at 2.7, see §10). It is the one number
+  that turns seconds into words, and the first thing to measure again if videos come out long or short.
 - **`--scenes` stays in the CLI** for the owner (1 to 12, as before) and every earlier run loads and continues
   unchanged. The studio no longer sends it, and the worker refuses a draft that carries it.
 
@@ -133,3 +132,36 @@ first to run is a 30-second one, then a two-minute one (the shortest that is wri
 
 **Parked:** making several clips at once (what would bring ten minutes of clips from hours to less); saying on
 the draft how far the script's own estimate is from the length asked for; an email when a long video is done.
+
+## 10. The first two real videos (owner's click, 2026-10-10)
+
+Made with the CLI on the studio's own engines, each as a draft and then continued under a cap of one dollar.
+
+| Asked for | Made of | Scenes | Came out | Cost | Run |
+|---|---|---|---|---|---|
+| 30 seconds, scenes of 3 to 5 | pictures and clips (5 clips, 2 pictures) | 7 | **34.4 s** | $0.174 | `20261010-184702-447afb` |
+| 2 minutes, scenes of 3 to 5, written in two parts | pictures only | 28 | **148.5 s** | $0.127 | `20261010-185123-a2ab78` |
+
+Both finished without a failure. The two-minute script read as one piece across its parts: the second part
+carried on from the first's last lines and ended the video.
+
+**Found and fixed:**
+
+- **The model's service refuses a schema whose list of scenes may be long.** A limit of 12 or 16 entries is
+  taken; 24, 54 and 360 are answered "invalid argument"; no limit is taken. A short list now says its limit as
+  before, and a longer one says none (the number of scenes is checked when the answer is back). Refused
+  requests were not billed.
+- **A run of pictures only was priced as clips before its script existed**, and stopped at its cap having
+  spent nothing. A pinned scene now starts in the mode it is pinned to.
+- **Both videos ran long**, by 15% and 24%. Two causes, both measured: the voice spoke 2.42 words a second over
+  these 35 scenes, not the 2.7 that seven earlier four-scene videos had given; and the model wrote every scene
+  at the top of its range (12 or 13 words, 21 of 28 scenes over five seconds, the longest 6.2). The rate is now
+  2.4, and the prompt says what a scene is on average and not to write every one at the longest length.
+
+**After the fix, scripts only** (two more drafts, three cents): 30 seconds came back as 76 words in 7 scenes of
+10 to 11, about 31 seconds at the measured rate; two minutes as 282 words in 28 scenes of 8 to 12, about 117.
+Neither was sent back. These two were not spoken, so their real lengths are worked out and not measured.
+
+**Still unknown:** anything longer than two minutes; a long video of clips (hours); how a different voice or
+language moves the rate.
+

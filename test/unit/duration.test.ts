@@ -3,7 +3,7 @@ import { Prices } from "../../src/config.js";
 import { scriptCost } from "../../src/cost.js";
 import {
   DEFAULT_SCENE_SECONDS, DEFAULT_VIDEO_SECONDS, expectedScenes, lengthInWords, parseDuration, parseSceneSeconds, SCENE_SECONDS, sceneBounds,
-  sceneWords, scriptAnswerCost, scriptAnswers, scriptParts, timedScriptCost, totalWords, VIDEO_SECONDS, wordsTolerance,
+  sceneWords, typicalSceneWords, scriptAnswerCost, scriptAnswers, scriptParts, timedScriptCost, totalWords, VIDEO_SECONDS, wordsTolerance,
 } from "../../src/duration.js";
 import { MAX_NARRATION_WORDS, MAX_SCENES } from "../../src/manifest/schema.js";
 import { VIDEO_PROFILES } from "../../src/video-profiles.js";
@@ -46,11 +46,12 @@ describe("a video asked for by its length", () => {
   });
 
   it("turns seconds into the words a script is asked for, by how fast the voice speaks", () => {
-    expect(totalWords(30)).toBe(81);
-    expect(sceneWords({ min: 3, max: 5 })).toEqual({ min: 8, max: 14 });
+    expect(totalWords(30)).toBe(72);
+    expect(typicalSceneWords({ min: 3, max: 5 })).toBe(10);
+    expect(sceneWords({ min: 3, max: 5 })).toEqual({ min: 7, max: 12 });
     // one exact length is given a word either way
-    expect(sceneWords({ min: 5, max: 5 })).toEqual({ min: 12, max: 15 });
-    expect(sceneWords({ min: 2, max: 2 })).toEqual({ min: 4, max: 7 });
+    expect(sceneWords({ min: 5, max: 5 })).toEqual({ min: 11, max: 13 });
+    expect(sceneWords({ min: 2, max: 2 })).toEqual({ min: 3, max: 6 });
     for (let min = SCENE_SECONDS.min; min <= SCENE_SECONDS.max; min++) {
       for (let max = min; max <= SCENE_SECONDS.max; max++) expect(sceneWords({ min, max }).max).toBeLessThanOrEqual(MAX_NARRATION_WORDS);
     }

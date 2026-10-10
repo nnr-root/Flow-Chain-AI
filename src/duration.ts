@@ -22,10 +22,13 @@ export const SCENE_SECONDS = { min: 2, max: 5 } as const;
 export const DEFAULT_SCENE_SECONDS: SceneSeconds = { min: 3, max: 5 };
 
 /**
- * Words the studio's own voice speaks in a second, pauses trimmed: the mean of seven videos it narrated
- * (2.39 to 3.06; 2026-10-09 and -10). It is what turns seconds into the words a script is asked for.
+ * Words the studio's own voice speaks in a second, pauses trimmed. Measured on the first two videos made by
+ * their length on the real engines (2026-10-10): 443 words in 182.9 seconds over 35 scenes, 2.42. (Seven earlier
+ * videos of four scenes each had averaged 2.7, and with that both new ones came out long: 34 seconds for 30,
+ * 149 for 120.) It is what turns seconds into the words a script is asked for; measure it again if videos
+ * drift from their length.
  */
-export const WORDS_PER_SECOND = 2.7;
+export const WORDS_PER_SECOND = 2.4;
 
 /** The most words one scene's narration may ever have (the script's own limit; about six seconds of speech). */
 const MAX_SCENE_WORDS = 16;
@@ -56,6 +59,11 @@ export function sceneWords(sceneSec: SceneSeconds): Range {
   const slack = sceneSec.min === sceneSec.max ? 1 : 0;
   const min = Math.max(2, Math.floor(sceneSec.min * WORDS_PER_SECOND) - slack);
   return { min, max: Math.max(min, Math.min(MAX_SCENE_WORDS, Math.ceil(sceneSec.max * WORDS_PER_SECOND) + slack)) };
+}
+
+/** The words a scene has on average when a script uses its range and not only the top of it. */
+export function typicalSceneWords(sceneSec: SceneSeconds): number {
+  return Math.round(((sceneSec.min + sceneSec.max) / 2) * WORDS_PER_SECOND);
 }
 
 /** The words of everything said in `seconds`. */

@@ -22,7 +22,7 @@ const TWO_MINUTES = { targetSec: 120, sceneSec: { min: 3, max: 5 } };
 const spent = (m: { ledger: Array<{ stage: string; usd: number }> }) => m.ledger.filter((e) => e.stage === "script").map((e) => e.usd);
 
 /** A fake model for a video written in parts: an outline of as many parts as asked, and fifteen scenes of eleven words a part. */
-const inParts = (req: ScriptRequest, scenesOf: (index: number) => number[] = () => Array(15).fill(11)): unknown => {
+const inParts = (req: ScriptRequest, scenesOf: (index: number) => number[] = () => Array(15).fill(10)): unknown => {
   if (req.ask?.kind === "outline") {
     const { scenes: _none, ...head } = fakeScript(1);
     return { ...head, parts: req.ask.partSec.map((_, i) => ({ summary: `part ${i + 1} tells the next thing` })) };
@@ -38,39 +38,39 @@ const inParts = (req: ScriptRequest, scenesOf: (index: number) => number[] = () 
 
 describe("the words and scenes a length comes to", () => {
   it("accepts a script that is about as long as asked, in scenes of about the length asked", () => {
-    expect(timingProblems(timedScript(Array(7).fill(12)).scenes, 30, { min: 3, max: 5 })).toEqual([]);
-    // wider than what the model is told: a scene two words over, a total a tenth off
-    expect(timingProblems(timedScript([16, 14, 12, 10, 8, 8, 6]).scenes, 30, { min: 3, max: 5 })).toEqual([]);
-    expect(validateScript(timedScript(Array(7).fill(12)), 8, HALF_MINUTE).ok).toBe(true);
+    expect(timingProblems(timedScript(Array(7).fill(10)).scenes, 30, { min: 3, max: 5 })).toEqual([]);
+    // wider than what the model is told: a scene two words over or under
+    expect(timingProblems(timedScript([14, 13, 12, 10, 8, 8, 6]).scenes, 30, { min: 3, max: 5 })).toEqual([]);
+    expect(validateScript(timedScript(Array(7).fill(10)), 8, HALF_MINUTE).ok).toBe(true);
   });
 
   it("says what is wrong with one that is not, in words the model can act on", () => {
     expect(timingProblems(timedScript(Array(3).fill(12)).scenes, 30, { min: 3, max: 5 })).toEqual([
       "the script has 3 scenes; it must have between 6 and 10",
-      "the narrations of the script have 36 words in all; 30 seconds of speech are about 81 (between 68 and 94)",
+      "the narrations of the script have 36 words in all; 30 seconds of speech are about 72 (between 61 and 83)",
     ]);
     // a scene or two outside what was asked is let through: the words are what the length is checked by
     expect(timingProblems(timedScript([14, 14, 14, 14, 14]).scenes, 30, { min: 3, max: 5 })).toEqual([]);
-    expect(timingProblems(timedScript([12, 12, 12, 12, 12, 12, 3, 17]).scenes, 30, { min: 3, max: 5 })).toEqual([
-      "scene 7 narration has 3 words; a scene of 3-5 seconds has 8 to 14",
+    expect(timingProblems(timedScript([10, 10, 10, 10, 10, 10, 3, 17]).scenes, 30, { min: 3, max: 5 })).toEqual([
+      "scene 7 narration has 3 words; a scene of 3-5 seconds has 7 to 12",
       "scene 8 narration has 17 words (max 16)",
     ]);
     // one length for every scene
     expect(timingProblems(timedScript(Array(6).fill(8)).scenes, 30, { min: 5, max: 5 })).toEqual([
-      "scene 1 narration has 8 words; a scene of 5 seconds has 12 to 15", "scene 2 narration has 8 words; a scene of 5 seconds has 12 to 15",
-      "scene 3 narration has 8 words; a scene of 5 seconds has 12 to 15", "scene 4 narration has 8 words; a scene of 5 seconds has 12 to 15",
-      "scene 5 narration has 8 words; a scene of 5 seconds has 12 to 15", "scene 6 narration has 8 words; a scene of 5 seconds has 12 to 15",
-      "the narrations of the script have 48 words in all; 30 seconds of speech are about 81 (between 68 and 94)",
+      "scene 1 narration has 8 words; a scene of 5 seconds has 11 to 13", "scene 2 narration has 8 words; a scene of 5 seconds has 11 to 13",
+      "scene 3 narration has 8 words; a scene of 5 seconds has 11 to 13", "scene 4 narration has 8 words; a scene of 5 seconds has 11 to 13",
+      "scene 5 narration has 8 words; a scene of 5 seconds has 11 to 13", "scene 6 narration has 8 words; a scene of 5 seconds has 11 to 13",
+      "the narrations of the script have 48 words in all; 30 seconds of speech are about 72 (between 61 and 83)",
     ]);
     // a run asked for by a number of scenes is checked as it always was
-    expect(validateScript(timedScript(Array(7).fill(12)), 8).ok).toBe(false);
+    expect(validateScript(timedScript(Array(7).fill(10)), 8).ok).toBe(false);
     expect(validateScript(timedScript(Array(8).fill(3)), 8).ok).toBe(true);
   });
 });
 
 describe("the script of a run asked for by its length", () => {
   it("tells the model the length as words and lets it decide the scenes; the run then has as many scenes as the script", async () => {
-    const { ctx, fakes } = await makeTestContext({ modes: "auto", timing: HALF_MINUTE, script: () => timedScript(Array(7).fill(12)) });
+    const { ctx, fakes } = await makeTestContext({ modes: "auto", timing: HALF_MINUTE, script: () => timedScript(Array(7).fill(10)) });
     // laid out for what was assumed until the script says
     expect(ctx.manifest.scenes).toHaveLength(8);
     await runPipeline(ctx, [scriptStage], auto);
@@ -78,8 +78,10 @@ describe("the script of a run asked for by its length", () => {
     expect(fakes.llm.calls[0]).toMatchObject({ timing: HALF_MINUTE });
     const prompt = buildScriptPrompt(fakes.llm.calls[0]);
     expect(prompt).toContain("the video runs about 30 seconds when spoken");
-    expect(prompt).toContain("about 81 words");
-    expect(prompt).toContain("Each scene stays on screen for 3 to 5 seconds, so each scene's narration is 8 to 14 words.");
+    expect(prompt).toContain("about 72 words");
+    // the whole range, not only its top: what the first real scripts did without being told
+    expect(prompt).toContain("on average a scene is about 10 words");
+    expect(prompt).toContain("Each scene stays on screen for 3 to 5 seconds, so each scene's narration is 7 to 12 words.");
     expect(prompt).toContain("Return between 6 and 10 scenes.");
     expect(prompt).not.toContain("Return exactly");
     expect(ctx.manifest.request.sceneCount).toBe(7);
@@ -91,7 +93,7 @@ describe("the script of a run asked for by its length", () => {
   });
 
   it("is keyed on the length and not on the number of scenes, which is the script's own answer", async () => {
-    const { ctx, fakes } = await makeTestContext({ modes: "auto", timing: HALF_MINUTE, script: () => timedScript(Array(7).fill(12)) });
+    const { ctx, fakes } = await makeTestContext({ modes: "auto", timing: HALF_MINUTE, script: () => timedScript(Array(7).fill(10)) });
     const before = await scriptStage.inputsFor(ctx);
     await runPipeline(ctx, [scriptStage], auto);
     // seven scenes where eight were assumed: nothing the script was written from has changed
@@ -103,7 +105,7 @@ describe("the script of a run asked for by its length", () => {
   });
 
   it("sends a script far from its length back once, with what was wrong, and pays for both answers", async () => {
-    const { ctx, fakes, logs } = await makeTestContext({ modes: "auto", timing: HALF_MINUTE, script: (n) => timedScript(Array(n === 1 ? 3 : 7).fill(12)) });
+    const { ctx, fakes, logs } = await makeTestContext({ modes: "auto", timing: HALF_MINUTE, script: (n) => timedScript(Array(n === 1 ? 3 : 7).fill(10)) });
     await runPipeline(ctx, [scriptStage], auto);
     expect(fakes.llm.calls).toHaveLength(2);
     expect(fakes.llm.calls[1].feedback).toContain("the script has 3 scenes; it must have between 6 and 10");
@@ -132,7 +134,7 @@ describe("the script of a run asked for by its length", () => {
     await runPipeline(clips.ctx, [scriptStage], auto);
     expect(clips.ctx.manifest.request.modes).toEqual(Array(6).fill(1));
     // the first scene has nothing before it to carry on from, whatever the model said
-    const carried = await makeTestContext({ modes: "auto", timing: HALF_MINUTE, script: () => timedScript(Array(7).fill(12), { shots: Array(7).fill("continue") }) });
+    const carried = await makeTestContext({ modes: "auto", timing: HALF_MINUTE, script: () => timedScript(Array(7).fill(10), { shots: Array(7).fill("continue") }) });
     await runPipeline(carried.ctx, [scriptStage], auto);
     expect(carried.ctx.manifest.script!.scenes.map((s) => s.shot)).toEqual(["cut", ...Array(6).fill("continue")]);
   });
@@ -153,8 +155,8 @@ describe("a long video's script, written in parts", () => {
     expect(buildScriptPrompt(first)).toContain("this part runs about 60 seconds when spoken");
     expect(buildScriptPrompt(first)).toContain("1. part 1 tells the next thing");
     // the second part is given the first's last two lines, and is the one that ends the video
-    expect(second.ask).toMatchObject({ kind: "part", index: 1, previous: [words(11, "p0s13"), words(11, "p0s14")] });
-    expect(buildScriptPrompt(second)).toContain(`whose last lines were: "${words(11, "p0s13")}" "${words(11, "p0s14")}"`);
+    expect(second.ask).toMatchObject({ kind: "part", index: 1, previous: [words(10, "p0s13"), words(10, "p0s14")] });
+    expect(buildScriptPrompt(second)).toContain(`whose last lines were: "${words(10, "p0s13")}" "${words(10, "p0s14")}"`);
     expect(buildScriptPrompt(second)).toContain("This is the end of the video");
 
     const script = ctx.manifest.script!;
@@ -180,7 +182,7 @@ describe("a long video's script, written in parts", () => {
       script: (_n, req) => {
         if (req.ask?.kind === "outline" && outlines++ === 0) return { ...(inParts(req) as { parts: unknown[] }), parts: [{ summary: "all of it" }] };
         // the second part comes back half as long as asked, the first time
-        if (req.ask?.kind === "part" && req.ask.index === 1 && !req.feedback) return inParts(req, () => Array(7).fill(11));
+        if (req.ask?.kind === "part" && req.ask.index === 1 && !req.feedback) return inParts(req, () => Array(7).fill(10));
         return inParts(req);
       },
     });
@@ -218,7 +220,7 @@ describe("a long video's script, written in parts", () => {
     await runPipeline({ ...ctx, manifest: stopped }, [scriptStage], auto);
     expect(fakes.llm.calls.slice(asked).map((c) => (c.ask?.kind === "part" ? c.ask.index : c.ask?.kind))).toEqual([1, 2]);
     // the part that carries on is told the last lines of the part that was kept
-    expect(fakes.llm.calls[asked].ask).toMatchObject({ previous: [words(11, "p0s13"), words(11, "p0s14")] });
+    expect(fakes.llm.calls[asked].ask).toMatchObject({ previous: [words(10, "p0s13"), words(10, "p0s14")] });
     const done = await loadManifest(ctx.dir);
     expect(done.script!.scenes).toHaveLength(45);
     expect(spent(done)).toHaveLength(4);
@@ -227,7 +229,7 @@ describe("a long video's script, written in parts", () => {
 
   it("does not use answers kept for other inputs", async () => {
     const { ctx, fakes } = await makeTestContext({ modes: "auto", timing: TWO_MINUTES, script: (_n, req) => inParts(req) });
-    ctx.manifest.scriptParts = { inputHash: "of another topic", outline: undefined, parts: [timedScript(Array(15).fill(11)).scenes as never] };
+    ctx.manifest.scriptParts = { inputHash: "of another topic", outline: undefined, parts: [timedScript(Array(15).fill(10)).scenes as never] };
     await runPipeline(ctx, [scriptStage], auto);
     expect(fakes.llm.calls.map((c) => c.ask?.kind)).toEqual(["outline", "part", "part"]);
   });

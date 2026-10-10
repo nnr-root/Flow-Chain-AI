@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
-import { lengthInWords, sceneBounds, sceneWords, totalWords, WORDS_PER_SECOND } from "../duration.js";
+import { lengthInWords, sceneBounds, sceneWords, totalWords, typicalSceneWords, WORDS_PER_SECOND } from "../duration.js";
 import { LlmOutline, LlmPart, LlmScript, MAX_COUNTED_SCENES, MAX_NARRATION_WORDS } from "../manifest/schema.js";
 import { PRESETS } from "../presets.js";
 import type { LlmProvider, ScriptRequest } from "./types.js";
@@ -36,6 +36,8 @@ function lengthRules(what: string, sec: number, sceneSec: { min: number; max: nu
   return [
     `Length: ${what} runs about ${Math.round(sec)} seconds when spoken. The voice speaks about ${WORDS_PER_SECOND} words a second, so all its narrations together are about ${totalWords(sec)} words. Count them: far fewer and the video is too short, far more and it is too long.`,
     `Each scene stays on screen for ${seconds(sceneSec)} seconds, so each scene's narration is ${words.min} to ${words.max} words.`,
+    // (asked for on 2026-10-10 without this, the model wrote every scene at the top of its range, and the video ran a fifth long)
+    ...(sceneSec.min === sceneSec.max ? [] : [`Use the whole range: on average a scene is about ${typicalSceneWords(sceneSec)} words. Do not write every scene at the longest length; the total number of words is what decides how long the video runs, and it must not be exceeded.`]),
     scenes.min === scenes.max
       ? `Return exactly ${scenes.min} ${scenes.min === 1 ? "scene" : "scenes"}.`
       : `Return between ${scenes.min} and ${scenes.max} scenes. You decide how many and how long each one is, within those limits: a quick beat gets a short scene, a thought that needs room a longer one.`,

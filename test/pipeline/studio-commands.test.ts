@@ -50,7 +50,7 @@ describe("runDraft", () => {
 
   it("prices and pins a draft asked for by its length by the scenes its script has", async () => {
     const timing = { targetSec: 30, sceneSec: { min: 3, max: 5 } };
-    const { ctx } = await makeTestContext({ modes: "auto", timing, script: () => timedScript(Array(7).fill(12), { actionLevels: ["high", "low", "high", "low", "medium", "low", "high"] }) });
+    const { ctx } = await makeTestContext({ modes: "auto", timing, script: () => timedScript(Array(7).fill(10), { actionLevels: ["high", "low", "high", "low", "medium", "low", "high"] }) });
     // eight scenes were assumed; "pictures only" pinned each of them
     ctx.manifest.request.modeOverrides = Array(8).fill(2);
     await runDraft(ctx, opts);
