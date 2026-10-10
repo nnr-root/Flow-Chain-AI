@@ -43,9 +43,9 @@ read the one for the area you are changing before changing it (table at the end)
 | `web/app/layout.tsx`, `theme.css`, `typeface.ts`, `fonts/` | the one layout, look and typeface of the whole site |
 | `web/components/site/`, `web/lib/site/`, `web/public/showcase/`, `web/content/` | the landing page's parts, its arithmetic, the published videos, other companies' dated prices |
 | `web/server/` | everything the routes do: `http.ts` (`route()`), `tenant.ts`, `session.ts`, `runs.ts`, `jobs/`, `store/`, `billing/` |
-| `web/worker/` | `worker.ts` (the queue), `tenant.ts` (credit), `billing.ts` (Stripe fulfilment), `series.ts` (series on a schedule) |
+| `web/worker/` | `worker.ts` (the queue), `tenant.ts` (credit), `billing.ts` (Stripe fulfilment), `series.ts` (series on a schedule), `publish.ts` and `vault.ts` (users' channels) |
 | `web/lib/` | code shared by server and browser; no secrets, few imports |
-| `db/migrations/` | the database: plain SQL, six files (accounts, tenancy, billing, three for series) |
+| `db/migrations/` | the database: plain SQL, seven files (accounts, tenancy, billing, three for series, publishing) |
 | `src/db/client.ts`, `src/auth/` | the one client for the studio's Postgres (`Db`), and password hashing |
 | `workers/` | the clip worker (Python, a ComfyUI graph for Wan 2.2 at 480p and 720p; text encoder and VAE in its image, the rest on the volume) |
 | `worker-picture/` | the picture worker (Python, FLUX.2 klein 4B through diffusers; weights on the network volume) |
@@ -209,8 +209,15 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
   studio with real keys share one database, and a row is visible to every worker on it. Do not remove that
   check, and do not add another kind of work that a worker picks up from the database without it.
 - A series' video that fails is never retried; the series stops with a reason and waits for its owner.
-- **Not built: publishing.** A channel's token is to be kept so that only the worker can open it (spec §6).
-  Do not say on any page that the studio posts for you until it does.
+- **Publishing is to the user's own channel, by their consent** (spec §10). The web app holds the platform
+  client's public id only and never sees a token: a consent's code goes to the worker unexchanged; the worker
+  alone has the client's secret and `CHANNEL_KEY`, seals the token (`web/worker/vault.ts`) and opens it to post
+  (`web/worker/publish.ts`). The web role cannot read `channels` at all. Do not move any of that to the web app.
+- A post is a row before the worker is told, is sent once, and what is there is never changed. A series posts
+  by itself only when its owner turned "Show me each video first" off.
+- **Verified only against a stand-in** (`web/test/youtube.ts`, through `GOOGLE_TOKEN_URL` and
+  `YOUTUBE_API_BASE`). Until the owner's Google project is audited, YouTube keeps what it uploads private. No
+  page says "we post for you" until a real video has reached a real channel.
 
 ## Database workflow
 
@@ -291,7 +298,7 @@ graphify god-nodes --top 20       # the hubs
 | Payments | `2026-10-08-phase3.4-stripe-billing-design.md` (§13–§15 win) |
 | The landing page, showcases, welcome credit, the look of the whole site | `2026-10-08-phase4-landing-page-design.md` (the latest of §13–§17 wins) |
 | Own database and sign-in, own voice, one GPU provider, unnamed engines | `2026-10-09-phase5-independence-design.md` |
-| Series, the schedule and its budget, publishing to a channel | `2026-10-10-phase6-series-autopublish-design.md` (tasks 1–2 of 4 are built) |
+| Series, the schedule and its budget, publishing to a channel | `2026-10-10-phase6-series-autopublish-design.md` (built against stand-ins) |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.
 

@@ -18,6 +18,7 @@ import { objectStore } from "../server/store/s3";
 import { cleanCache, isStored, keys, restoreFolder, storeFolder } from "../server/store/sync";
 import { inScope, UUID } from "../server/tenant";
 import { billing } from "./billing";
+import { PublishRefused, publisher } from "./publish";
 import { autopilot } from "./series";
 import { type Reservation, spendOf, tenantDb, workerDb } from "./tenant";
 
@@ -282,6 +283,8 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
 
   // With billing: the one place a Stripe payment becomes credit.
   const pay = db ? billing(log) : null;
+  // With accounts, a client at the platform and a key to keep tokens with: publishing to users' own channels.
+  const publish = db ? publisher(workerDb(), (userId, work) => asUser(userId, work), log) : null;
   /** Webhooks can be missed (the web was down for longer than Stripe retries): ask Stripe what happened lately. */
   let catchingUp = false;
   const catchUp = async (): Promise<void> => {
@@ -410,6 +413,17 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       const done = held && held.status === "open" && held.run_id === runId && held.user_id === job.data.userId ? await settleIdle(held) : false;
       return { stdout: done ? "released" : "" };
     }
+    if (job.name === "channel-connect" || job.name === "publish") {
+      if (!publish) throw new Error("this worker publishes nothing (YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET or CHANNEL_KEY is not set)");
+      if (job.name === "publish") return { stdout: await publish.post(String(job.data.postId ?? "")) };
+      try {
+        return { stdout: JSON.stringify({ title: await publish.connect(String(job.data.userId ?? ""), String(job.data.code ?? ""), String(job.data.verifier ?? ""), String(job.data.redirect ?? "")) }) };
+      } catch (err) {
+        // a refusal the user can be told is an answer, not a failure of the job
+        if (err instanceof PublishRefused) return { stdout: JSON.stringify({ refused: err.message }) };
+        throw err;
+      }
+    }
     if (job.name === "stripe-event" || job.name === "stripe-customer") {
       if (!pay) throw new Error("this worker takes no payments (STRIPE_SECRET_KEY is not set)");
       // The web passes on only an id. What the event says is asked of Stripe; whose customer it is, is asked of
@@ -498,9 +512,12 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   void catchUp();
   const catcher = pay ? setInterval(() => void catchUp(), opts.catchUpMs ?? 3600_000) : undefined;
   // Series with a schedule (phase 6): begun and carried on by this worker, inside what their owners approved.
-  const pilot = db ? autopilot({ db: workerDb(), line, asUser: (userId, work) => asUser(userId, work), here: (userId) => UUID.test(userId) && existsSync(join(baseRoots().runs, userId)), busy: (runId) => active.has(runId) || starting.has(runId), log }) : null;
+  const pilot = db ? autopilot({ db: workerDb(), line, asUser: (userId, work) => asUser(userId, work), here: (userId) => UUID.test(userId) && existsSync(join(baseRoots().runs, userId)), post: publish ? (postId) => publish.post(postId) : undefined, busy: (runId) => active.has(runId) || starting.has(runId), log }) : null;
   const pilotTimer = pilot ? setInterval(() => void pilot.tick(), opts.seriesMs ?? 120_000) : undefined;
   if (pilot) void pilot.tick();
+  // posts whose job never arrived are carried out here, a minute after they were asked for
+  const mine = (userId: string): boolean => UUID.test(userId) && existsSync(join(baseRoots().runs, userId));
+  const postTimer = publish ? setInterval(() => void publish.sweep(60_000, mine).catch((err: unknown) => log(`worker: could not look for waiting posts: ${err instanceof Error ? err.message : String(err)}`)), opts.seriesMs ?? 120_000) : undefined;
   log(`worker ${id}: ready (runs ×${opts.concurrency ?? 2}, quick ×4${db ? ", with accounts" : ""})`);
 
   let closing: Promise<void> | undefined;
@@ -532,6 +549,7 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       clearInterval(renewal);
       clearInterval(reconciler);
       clearInterval(pilotTimer);
+      clearInterval(postTimer);
       clearInterval(cleaner);
       clearInterval(catcher);
       await line.close().catch(() => {});

@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PRESETS } from "@src/presets";
+import { SeriesPublishing } from "@/components/Publishing";
 import { SeriesActions } from "@/components/SeriesActions";
 import { SeriesSchedule } from "@/components/SeriesSchedule";
 import { Panel, StateBadge } from "@/components/ui";
+import { publishingOn } from "@/lib/publishing";
+import { listChannels } from "@/server/channels";
 import { ApiError } from "@/server/http";
 import { accountsOnly, forUser } from "@/server/page";
 import { getSeries } from "@/server/series";
@@ -15,13 +18,15 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
   accountsOnly();
   const { id } = await params;
   // something that is not this user's does not exist
-  const series = await forUser(() =>
-    getSeries(id).catch((err: unknown) => {
+  const found = await forUser(async () => {
+    const series = await getSeries(id).catch((err: unknown) => {
       if (err instanceof ApiError && err.code === "not_found") return null;
       throw err;
-    }),
-  );
-  if (!series) notFound();
+    });
+    return series && { series, channels: await listChannels() };
+  });
+  if (!found) notFound();
+  const { series, channels } = found;
   const look = series.style === "auto" ? "Chosen by the topic" : (PRESETS[series.style as keyof typeof PRESETS]?.label ?? series.style);
   return (
     <div className="max-w-[56rem] space-y-12">
@@ -33,6 +38,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       </div>
       <SeriesActions id={series.id} name={series.name} episodes={series.episodes.length} />
       <SeriesSchedule series={series} />
+      {publishingOn() && <SeriesPublishing series={series} channels={channels} />}
       <Panel title="Its videos">
         {series.episodes.length === 0 ? (
           <p className="text-graphite">None yet. The first one is written from the sentence above; each one after it is told what the series has already made, so it is about something else.</p>

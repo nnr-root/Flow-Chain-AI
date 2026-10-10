@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { Studio } from "@/components/Studio";
+import { publishingOn } from "@/lib/publishing";
 import { ApiError } from "@/server/http";
 import { shownLog } from "@/server/jobs";
 import { listKits } from "@/server/library";
@@ -19,5 +20,5 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
     return run && { run, log: await shownLog(id), kits: await listKits() };
   });
   if (!data) notFound();
-  return <Studio initial={data.run} initialLog={data.log} kits={data.kits} />;
+  return <Studio initial={data.run} initialLog={data.log} kits={data.kits} publishing={publishingOn()} />;
 }

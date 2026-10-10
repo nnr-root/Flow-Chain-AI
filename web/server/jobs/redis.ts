@@ -33,7 +33,11 @@ export type RunJobResult = { exitCode: number | null; stopped?: boolean };
 /** Job names on the quick queue: `cli` runs a free command, `health` reports which keys the worker has. */
 /** `restore` (a studio with accounts) brings `runId`'s folder back from the bucket. */
 /** `stripe-event` carries the id of a Stripe event to fulfil; `stripe-customer` asks for the user's Stripe customer. */
-export type QuickJobData = { args: string[]; userId?: string; runId?: string; reservationId?: string; eventId?: string };
+/** `channel-connect` carries a consent's code to exchange (the worker alone sees what comes back); `publish` the id of a post to carry out. */
+export type QuickJobData = {
+  args: string[]; userId?: string; runId?: string; reservationId?: string; eventId?: string;
+  code?: string; verifier?: string; redirect?: string; postId?: string;
+};
 export type QuickJobResult = { stdout: string };
 
 const AMOUNT = /^\d+(\.\d+)?$/;

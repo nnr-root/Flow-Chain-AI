@@ -65,4 +65,11 @@ export interface JobRunner {
   stripeEvent(eventId: string): Promise<string>;
   /** Billing: the signed-in user's Stripe customer, created by the worker when there is none. */
   stripeCustomer(): Promise<string>;
+  /**
+   * Publishing: has the worker finish connecting a channel for the signed-in user. Only the consent's code
+   * travels; what it is exchanged for never reaches the web app. Answers the channel's name, or why not.
+   */
+  connectChannel(code: string, verifier: string, redirect: string): Promise<{ title: string } | { refused: string }>;
+  /** Publishing: hands the worker a post to carry out. It is not waited for: the post's own row says what became of it. */
+  publish(postId: string): Promise<void>;
 }

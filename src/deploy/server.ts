@@ -130,6 +130,16 @@ export function serverConfig(serverEnv: Record<string, string>, localEnv: Record
     }
   }
   for (const name of WEB_ONLY_KEYS) delete worker[name];
+  // Publishing to users' own channels (phase 6 §6). The worker alone exchanges a consent, keeps the token and
+  // opens it: the client's secret and the key tokens are sealed with never reach the web app, which needs only
+  // the client's public id to send a user to the consent page.
+  const publishing = ["YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET", "CHANNEL_KEY"].filter((name) => worker[name]);
+  if (publishing.length > 0) {
+    if (publishing.length < 3) throw new Error("YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET and CHANNEL_KEY go together: set all three to publish to users' channels, or none");
+    if (!accounts) throw new Error("YOUTUBE_CLIENT_ID is set but STUDIO_ACCOUNTS is not on: publishing needs a studio with accounts");
+    if (Buffer.from(worker.CHANNEL_KEY, "base64").length !== 32) throw new Error("CHANNEL_KEY must be 32 random bytes in base64 (openssl rand -base64 32). Keep it: tokens sealed with it cannot be opened with another");
+    web.YOUTUBE_CLIENT_ID = worker.YOUTUBE_CLIENT_ID;
+  }
   // Payments (3.4). Both processes talk to Stripe: the web app opens checkouts, the worker reads what was paid.
   // The webhook's signing secret is the web app's alone — the worker never sees a webhook, only an event's id.
   const billing = !!worker.STRIPE_SECRET_KEY;

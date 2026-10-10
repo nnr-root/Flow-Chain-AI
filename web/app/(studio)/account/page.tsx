@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { PaidNote } from "@/components/PaidNote";
+import { Channels } from "@/components/Publishing";
 import { ManageBilling } from "@/components/Pricing";
 import { SignOut } from "@/components/SignOut";
 import { Panel } from "@/components/ui";
 import { usd } from "@/lib/api";
 import { arrivedSince, billingOn, LIVE, purchaseTime } from "@/lib/billing";
+import { CHANNEL_NOTES, publishingOn } from "@/lib/publishing";
 import { account, ledger } from "@/server/auth";
 import { billingView } from "@/server/billing/actions";
+import { listChannels } from "@/server/channels";
 import { accountsOnly, forUser } from "@/server/page";
 
 export const dynamic = "force-dynamic";
@@ -21,14 +24,17 @@ const STATUS: Record<string, string> = { active: "Active", trialing: "Trial", pa
 const day = (iso: string) => new Date(iso).toISOString().slice(0, 10);
 const minute = (iso: string) => new Date(iso).toISOString().slice(0, 16).replace("T", " ");
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ paid?: string }> }) {
+export default async function Page({ searchParams }: { searchParams: Promise<{ paid?: string; channel?: string }> }) {
   accountsOnly();
   const sells = billingOn();
   // the account itself must open whatever becomes of the billing panels (a database that is behind, say): signing
   // out and the balance are here
-  const { me, rows, billing } = await forUser(async () => ({ me: await account(), rows: await ledger(), billing: sells ? await billingView().catch(() => null) : null }));
+  const { me, rows, billing, channels } = await forUser(async () => ({ me: await account(), rows: await ledger(), billing: sells ? await billingView().catch(() => null) : null , channels: await listChannels().catch(() => []) }));
   // came back from Stripe: which purchase the note is about (nothing for an old address or a made-up one)
   const since = sells ? purchaseTime((await searchParams).paid) : null;
+  // back from the consent page: which of the studio's own sentences to show (never text taken from the address)
+  const came = (await searchParams).channel;
+  const channelNote = came && Object.hasOwn(CHANNEL_NOTES, came) ? CHANNEL_NOTES[came as keyof typeof CHANNEL_NOTES] : undefined;
   const plan = billing?.plan && !["canceled", "incomplete_expired"].includes(billing.plan.status) ? billing.plan : null;
   const planCredit = Math.max(Math.min(billing?.planCreditUsd ?? 0, me.balanceUsd), 0);
   return (
@@ -79,6 +85,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
           )}
         </Panel>
       )}
+      {publishingOn() && <Channels channels={channels} note={channelNote} />}
       <Panel title="History">
         {rows.length === 0 ? (
           <p className="text-[0.95rem] text-graphite">Nothing yet.</p>

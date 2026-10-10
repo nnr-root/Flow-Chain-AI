@@ -98,6 +98,13 @@ export const localRunner: JobRunner = {
   async stripeCustomer() {
     throw new ApiError("billing_unavailable", "this studio takes no payments");
   },
+  // publishing needs accounts and the worker: it alone keeps and opens a channel's token
+  async connectChannel() {
+    throw new ApiError("not_found", "this studio publishes nothing");
+  },
+  async publish() {
+    throw new ApiError("not_found", "this studio publishes nothing");
+  },
 
   async staleLock(runId, job) {
     return hasStaleLock(runFolder(runId), job);

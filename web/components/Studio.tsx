@@ -13,6 +13,7 @@ import { encodeLookToken } from "@/lib/look-token";
 import type { KitSummary } from "@/server/library";
 import type { JobView } from "@/server/jobs";
 import type { RunView } from "@/server/runs";
+import { RunPublish } from "./Publishing";
 import { StudioPlayer, type StudioPlayerHandle } from "./StudioPlayer";
 import { Button, ErrorNote, Field, Panel, Segmented, StateBadge } from "./ui";
 
@@ -31,7 +32,7 @@ const REROLLS: Array<{ stage: string; label: string }> = [
   { stage: "clips", label: "clip" },
 ];
 
-export function Studio({ initial, initialLog, kits }: { initial: RunView; initialLog: string[]; kits: KitSummary[] }) {
+export function Studio({ initial, initialLog, kits, publishing = false }: { initial: RunView; initialLog: string[]; kits: KitSummary[]; publishing?: boolean }) {
   const id = initial.runId;
   const [view, setView] = useState(initial);
   const [log, setLog] = useState(initialLog);
@@ -266,6 +267,9 @@ export function Studio({ initial, initialLog, kits }: { initial: RunView; initia
           {state === "done" && <p className="text-[0.95rem] text-graphite">Finished. Change the look below and re-render for free, or regenerate a single scene.</p>}
           <p className="mt-3 text-[0.85rem] text-graphite">Amounts shown before a job are estimates. The amount on a button is the limit that job is held to.</p>
         </Panel>
+
+        {/* a finished video, in a studio that publishes: to one of its owner's own channels */}
+        {publishing && state === "done" && <RunPublish runId={id} />}
 
         {status && scripted && (
           <Panel title="Scenes">

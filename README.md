@@ -326,8 +326,25 @@ why when a video would cost more than the first amount, when the month's budget 
 when a video is not finished (nothing is retried). You can stop it at any time. The worker looks at series every
 two minutes (`WORKER_SERIES_MS`, in milliseconds).
 
-Nothing is published for you yet: connecting a YouTube channel and posting to it are designed
-(`docs/superpowers/specs/2026-10-10-phase6-series-autopublish-design.md`) and not built.
+**Publishing to a user's own YouTube channel** (optional). With `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET` and
+`CHANNEL_KEY` set, a user connects their channel on the account page (on Google's own consent page; the studio
+never asks for a password) and a finished video has a Publish button. A series can be given a channel; with
+"Show me each video first" off, its videos are published as they are finished.
+
+Once, to turn it on: in a Google Cloud project switch on the YouTube Data API v3 and make an OAuth client with
+the redirect address `https://<STUDIO_HOST>/auth/youtube/callback` (locally `http://127.0.0.1:3131/auth/youtube/callback`);
+put its id and secret in `.env`, and `CHANNEL_KEY` as 32 random bytes in base64 (`openssl rand -base64 32`).
+Keep that key: channel tokens are sealed with it, and with another every user must connect again.
+
+What to know:
+
+- **Until Google has audited the project, YouTube keeps every video it uploads private.** The user sees it on
+  their channel; nobody else does. The audit and the verification of the upload permission are asked for in
+  the Google Cloud console.
+- A new project may upload about a hundred videos a day.
+- Only the worker holds the client's secret, the key, and (sealed, in the database) the users' tokens. The web
+  app holds none of them.
+- This has been run only against a stand-in for Google. The first real consent and upload are yours to try.
 
 ## Payments
 

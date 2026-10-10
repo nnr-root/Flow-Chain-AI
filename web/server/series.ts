@@ -3,6 +3,7 @@ import { z } from "zod";
 import { multiTenant } from "@/lib/accounts";
 import { type Cadence, CADENCES, episodeTopic, type SeriesView } from "@/lib/series";
 import { createDraft } from "./actions";
+import { setSeriesPublishing } from "./channels";
 import { ApiError } from "./http";
 import type { JobView } from "./jobs";
 import { listRuns } from "./runs";
@@ -29,7 +30,11 @@ export const Schedule = z.discriminatedUnion("cadence", [
   z.object({ cadence: z.enum(["weekly3", "daily", "daily2"]), perVideoCapUsd: z.number().positive().max(100), monthlyBudgetUsd: z.number().positive().max(10_000) }),
 ]);
 export type Schedule = z.infer<typeof Schedule>;
-export const SeriesChange = z.union([z.object({ schedule: Schedule }), z.object({ active: z.boolean() })]);
+export const SeriesChange = z.union([
+  z.object({ schedule: Schedule }),
+  z.object({ active: z.boolean() }),
+  z.object({ publishing: z.object({ channelId: z.string().nullable(), reviewFirst: z.boolean() }) }),
+]);
 
 const REFUSALS: Record<string, () => ApiError> = {
   invalid_schedule: () => new ApiError("validation", "the month's budget must be at least the most one video may cost"),
@@ -47,8 +52,9 @@ function accounts(): void {
 type Row = {
   id: string; name: string; premise: string; recipe: unknown; created_at: string;
   cadence: string; per_video_cap_usd: string | number | null; monthly_budget_usd: string | number | null; status: string; paused_reason: string | null; next_due_at: string | null;
+  channel_id: string | null; review_first: boolean;
 };
-const FIELDS = "id,name,premise,recipe,created_at,cadence,per_video_cap_usd,monthly_budget_usd,status,paused_reason,next_due_at";
+const FIELDS = "id,name,premise,recipe,created_at,cadence,per_video_cap_usd,monthly_budget_usd,status,paused_reason,next_due_at,channel_id,review_first";
 
 /** A row as the pages show it. A recipe saved by an older form is read with today's defaults; one that no longer parses shows as what the form starts with. */
 function view(row: Row, episodes: SeriesView["episodes"], monthUsd: number): SeriesView {
@@ -59,6 +65,7 @@ function view(row: Row, episodes: SeriesView["episodes"], monthUsd: number): Ser
     cadence: (Object.hasOwn(CADENCES, row.cadence) ? row.cadence : "manual") as Cadence,
     perVideoCapUsd: amount(row.per_video_cap_usd), monthlyBudgetUsd: amount(row.monthly_budget_usd),
     active: row.status === "active", pausedReason: row.paused_reason, nextDueAt: row.next_due_at,
+    channelId: row.channel_id, reviewFirst: row.review_first,
     style: recipe.success ? recipe.data.style : "auto", aspect: recipe.success ? recipe.data.aspect : "9:16", scenes: recipe.success ? recipe.data.scenes : 4,
   };
 }
@@ -118,6 +125,7 @@ export async function removeSeries(id: string): Promise<void> {
 export async function changeSeries(id: string, change: z.infer<typeof SeriesChange>): Promise<void> {
   accounts();
   if (!UUID.test(id)) throw REFUSALS.not_found();
+  if ("publishing" in change) return setSeriesPublishing(id, change.publishing.channelId, change.publishing.reviewFirst);
   if ("schedule" in change) {
     const sch = change.schedule;
     const { error } = await userDb().rpc("set_series_schedule", {

@@ -40,12 +40,14 @@ export type AutopilotDeps = {
    * provider keys) must not make each other's videos. The web app makes the folder when a schedule is approved.
    */
   here: (userId: string) => boolean;
+  /** Carries out a post (this worker publishes); absent where it does not. */
+  post?: (postId: string) => Promise<unknown>;
   /** Whether this worker has that run's CLI running or starting right now. */
   busy: (runId: string) => boolean;
   log: (message: string) => void;
 };
 
-export function autopilot({ db, line, asUser, here, busy, log }: AutopilotDeps): { tick: () => Promise<void> } {
+export function autopilot({ db, line, asUser, here, post, busy, log }: AutopilotDeps): { tick: () => Promise<void> } {
   const ask = async (name: string, args: Record<string, unknown>): Promise<{ data?: unknown; refused?: string }> => {
     const { data, error } = await db.rpc(name, args);
     return error ? { refused: error.message } : { data };
@@ -83,7 +85,17 @@ export function autopilot({ db, line, asUser, here, busy, log }: AutopilotDeps):
     if (open.error) throw new Error(`reading a run's reservation: ${open.error.message}`);
     if (open.data) return;
     const { made, script } = await asUser(s.user_id, async () => ({ made: existsSync(join(runFolder(runId), "final.mp4")), script: scriptOf(runId) }));
-    if (made) return finish(s, runId, null, `${runId} is made`);
+    if (made) {
+      await finish(s, runId, null, `${runId} is made`);
+      // A series whose owner does not ask to see each video first has it posted now; one that does leaves it
+      // with a Publish button on its page. (The database decides which, and whether there is a channel at all.)
+      if (post) {
+        const asked = await ask("post_for_series", { p_series_id: s.id, p_run_id: runId });
+        if (asked.refused) throw new Error(`post_for_series: ${asked.refused}`);
+        if (asked.data) await post(String(asked.data));
+      }
+      return;
+    }
     // The job is over and there is no video. Nothing is retried on its own: the series stops and its owner is
     // shown the run, with what went wrong in it.
     if (s.current_step === "generate") return finish(s, runId, "failed", `${runId} was not finished`);

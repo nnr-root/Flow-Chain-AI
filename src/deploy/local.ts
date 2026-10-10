@@ -54,6 +54,8 @@ export function localEnvs(input: LocalInputs): { web: Record<string, string>; wo
       DATABASE_URL: input.database.web,
       ...(googleId && googleSecret ? { GOOGLE_CLIENT_ID: googleId, GOOGLE_CLIENT_SECRET: googleSecret } : {}),
       ...(own.STUDIO_USER_JOBS ? { STUDIO_USER_JOBS: own.STUDIO_USER_JOBS } : {}),
+      // publishing: the web app has the client's public id only; its secret and the key for tokens stay with the worker
+      ...(own.YOUTUBE_CLIENT_ID?.trim() && own.YOUTUBE_CLIENT_SECRET?.trim() && own.CHANNEL_KEY?.trim() ? { YOUTUBE_CLIENT_ID: own.YOUTUBE_CLIENT_ID.trim() } : {}),
       ...(billing ? { STRIPE_WEBHOOK_SECRET: input.stripeListenSecret! } : {}),
     },
     worker: {

@@ -54,6 +54,9 @@ export type SeriesView = {
   active: boolean;
   pausedReason: string | null;
   nextDueAt: string | null;
+  /** Where its videos go (one of the owner's connected channels), and whether each is shown to the owner first. */
+  channelId: string | null;
+  reviewFirst: boolean;
   /** What its videos made this calendar month have used so far, with what is held for one being made. */
   monthUsd: number;
   /** Its videos, oldest first: the run's id, and its title once the script is written. */

@@ -354,6 +354,26 @@ export function queueRunner(url: string): JobRunner {
       }
     },
 
+    async connectChannel(code, verifier, redirect) {
+      const userId = currentUser()?.id;
+      if (!userId) throw new ApiError("unauthenticated", "sign in first");
+      const e = await ends(url);
+      if (!(await workerAlive(e.redis))) throw new ApiError("worker_offline", "the worker is offline", "try again in a moment");
+      try {
+        return JSON.parse((await ask(e, "channel-connect", { args: [], userId, code, verifier, redirect }, 30_000)).stdout) as { title: string } | { refused: string };
+      } catch (err) {
+        // why is the worker's to log; nothing of the platform's answer is passed on
+        console.error("publishing:", err instanceof Error ? err.message : String(err));
+        return { refused: "The channel could not be connected. Try again in a moment." };
+      }
+    },
+
+    async publish(postId) {
+      const e = await ends(url);
+      if (!(await workerAlive(e.redis))) throw new ApiError("worker_offline", "the worker is offline", "the video is not published yet; try again in a moment");
+      await e.quick.add("publish", { args: [], postId }, JOB_OPTIONS);
+    },
+
     restore: (runId) =>
       reach(async () => {
         runFolder(runId);

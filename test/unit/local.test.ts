@@ -28,6 +28,17 @@ describe("a studio on this machine", () => {
     expect(worker).not.toHaveProperty("STRIPE_WEBHOOK_SECRET");
   });
 
+  it("gives the web app the publishing client's public id only: its secret and the key for tokens are the worker's", () => {
+    const publishing = { YOUTUBE_CLIENT_ID: "yt-id", YOUTUBE_CLIENT_SECRET: "yt-secret", CHANNEL_KEY: Buffer.alloc(32, 7).toString("base64") };
+    const { web, worker } = localEnvs({ ...input, env: { ...env, ...publishing } });
+    expect(web.YOUTUBE_CLIENT_ID).toBe("yt-id");
+    expect(web).not.toHaveProperty("YOUTUBE_CLIENT_SECRET");
+    expect(web).not.toHaveProperty("CHANNEL_KEY");
+    expect(worker).toMatchObject(publishing);
+    // half of it set: the web app offers nothing it could not finish
+    expect(localEnvs({ ...input, env: { ...env, YOUTUBE_CLIENT_ID: "yt-id" } }).web).not.toHaveProperty("YOUTUBE_CLIENT_ID");
+  });
+
   it("never points at anything hosted: not the project in .env, not the real bucket, not the public name", () => {
     const { web, worker } = localEnvs(input);
     for (const process of [web, worker]) {

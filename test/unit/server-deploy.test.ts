@@ -227,6 +227,26 @@ describe("a studio with accounts", () => {
     for (const name of Object.keys(google)) expect(cfg.worker).not.toHaveProperty(name);
     expect(() => serverConfig(base, { ...accounts, GOOGLE_CLIENT_ID: "id" })).toThrow("go together");
   });
+
+  it("takes publishing whole or not at all: the web app gets the client's public id, and neither its secret nor the key tokens are sealed with", () => {
+    const key = Buffer.alloc(32, 7).toString("base64");
+    const publishing = { YOUTUBE_CLIENT_ID: "yt.apps.googleusercontent.com", YOUTUBE_CLIENT_SECRET: "yt-secret", CHANNEL_KEY: key };
+    const cfg = serverConfig(base, { ...accounts, ...publishing });
+    expect(cfg.worker).toMatchObject(publishing);
+    expect(cfg.web.YOUTUBE_CLIENT_ID).toBe("yt.apps.googleusercontent.com");
+    expect(cfg.web).not.toHaveProperty("YOUTUBE_CLIENT_SECRET");
+    expect(cfg.web).not.toHaveProperty("CHANNEL_KEY");
+    expect(JSON.stringify(cfg.web)).not.toContain(key);
+    // half of it is a mistake, said before anything is deployed
+    for (const missing of Object.keys(publishing)) {
+      const { [missing]: _left, ...rest } = publishing as Record<string, string>;
+      expect(() => serverConfig(base, { ...accounts, ...rest }), missing).toThrow("go together");
+    }
+    expect(() => serverConfig(base, { ...accounts, ...publishing, CHANNEL_KEY: "too-short" })).toThrow("32 random bytes");
+    expect(() => serverConfig(base, { ...publishing })).toThrow("needs a studio with accounts");
+    // without it nothing of it is there
+    expect(serverConfig(base, accounts).web).not.toHaveProperty("YOUTUBE_CLIENT_ID");
+  });
 });
 
 describe("the files written on the server", () => {

@@ -1,6 +1,6 @@
 # Phase 6: series and publishing by themselves
 
-Date: 2026-10-10. Status: decisions taken, tasks 1 and 2 built, tasks 3 and 4 designed and not built.
+Date: 2026-10-10. Status: decisions taken, all four tasks built against stand-ins; nothing has reached a real channel.
 
 ## 1. Goal
 
@@ -173,3 +173,63 @@ go on. `PATCH /api/series/<id>`.
 - Not built: mail when a series stops. Its owner sees it on the page only.
 - The landing page still says nothing of series (task 1's rule): it will once publishing exists, so that
   "runs by itself" is said together with where the videos go.
+
+## 10. Tasks 3 and 4 as built (2026-10-10): a user's own channel, and publishing to it
+
+The owner, before these were begun: it is the user who connects their account, and the studio publishes to
+that account in their name, as the products it is compared with do. That is what §6 says and what was built:
+the studio has one client at the platform (as each of those products has), and every user gives their own
+consent on the platform's page. The studio never has a channel of its own and never a user's password.
+
+**Who holds what**
+
+| | Web app | Worker |
+|---|---|---|
+| The client's public id (`YOUTUBE_CLIENT_ID`) | yes: it builds the address of the consent page | yes |
+| The client's secret (`YOUTUBE_CLIENT_SECRET`) | no | yes |
+| The key tokens are sealed with (`CHANNEL_KEY`) | no | yes |
+| A user's token | never: the consent's code goes to the worker unexchanged | sealed in the database, opened only to post |
+
+- `db/migrations/20261010000004_publishing.sql`: `channels` (the web role has no access to the table at all; it
+  learns a channel's name through `my_channels()`), `posts` (a video on a channel once; a user reads their own),
+  a series' `channel_id` and `review_first`. For a user: `unlink_channel`, `request_post`,
+  `set_series_publishing` (only to a channel of their own). For the worker: `link_channel`, `post_for_series`,
+  `record_post`.
+- `web/worker/vault.ts`: AES-256-GCM; the user's id is part of what is checked, so a sealed token moved to
+  another user's row does not open. `web/worker/publish.ts`: exchanges a code, reads which channel it is, seals
+  and keeps the token; for a post, checks that the post's run and channel are both its user's own, opens the
+  token, asks for an access token, uploads `final.mp4` in a resumable session, records where it is or why not.
+- `web/server/channels.ts`, `/auth/youtube`, `/auth/youtube/callback`, `/api/channels`, `/api/runs/<id>/publish`:
+  consent with `state` and PKCE in the browser's cookie, bound to the user who began it; the answer's code goes to
+  the worker through the quick queue; the account page says how it went in one of four fixed sentences.
+- **D3.** A finished video's page has Publish for each connected channel. A series has "Where its videos go":
+  a channel, and "Show me each video first" (on by default). Off, the worker posts a finished episode itself.
+- **A post is never lost and never doubled.** It is a row before the worker is told; a post whose job never
+  arrived is found by the worker a minute later (only for users whose files are on its disk, as with series);
+  the worker sends one post once at a time; what is there is not changed again.
+- What a user is told when it goes wrong is one of the studio's own sentences; the platform's answer stays in
+  the worker's log.
+- Modes by environment: without `YOUTUBE_CLIENT_ID` (web) none of it exists (404, no panels); a worker without
+  all three settings publishes nothing. The deploy planner takes the three together or not at all.
+
+**The platform's rules, read again on 2026-10-10** (from secondary sources; to be read at Google's own pages
+before a real client is made): the upload scope is a restricted one; a project that has not passed YouTube's
+API audit has every upload **forced to private**; uploads are counted in a bucket of their own, about a hundred
+a day for a new project (a change of late 2025; older guides say 1,600 units of 10,000). So until the owner's
+project is audited, a "published" video is on the user's channel and only they can see it.
+
+**Rulings and parked**
+
+- **Not verified against Google.** Everything here ran against `web/test/youtube.ts`. The first real consent
+  and upload need the owner's Google Cloud project, and are the owner's click.
+- The upload says the video is not made for kids and that it contains synthetic media. Parked: letting the
+  user choose the title, description and visibility; the title is the run's own.
+- A video is uploaded in one request (they are a few megabytes); the resumable session is not resumed after a
+  break. Parked.
+- Uploads share the worker's four quick slots with prices and health questions. Parked: a queue of their own
+  when there are many.
+- Disconnecting a channel deletes its token here; it does not withdraw the consent at Google. Parked: calling
+  Google's revoke address, and saying so on the page.
+- TikTok and Instagram: not begun (D1).
+- The landing page still says nothing of series or publishing. It may once a real video has reached a real
+  channel through a real audited client; until then the claim would be about a stand-in.
