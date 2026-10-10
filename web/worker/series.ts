@@ -15,19 +15,19 @@ import { draftArgs, Recipe } from "../server/schemas";
  * paid work, so it is the worker that looks, every so often, at each series with a schedule and takes its next
  * step: begin a video that is due, or go on with the one being made once its script is written and priced.
  *
- * It decides nothing about money. Whether a step may be taken, and for how much, is the database's answer
- * (`start_series_episode`, `reserve_for_series`): the series is its owner's standing approval, and those
- * functions hold credit only inside it. What this file adds is the order of the steps, and saying why a series
- * stopped. The jobs it queues are the same two a user's clicks queue, and are checked the same way before they run.
+ * It decides nothing about money. Whether a step may be taken is the database's answer (`start_series_episode`,
+ * `reserve_for_series`): a schedule is its owner's standing approval, and those functions hold credit only for
+ * a series that has one, out of the credit its owner has. What this file adds is the order of the steps, and
+ * saying why a series stopped (phase 6 spec §15: there is no limit for a video or a month any more). The jobs it queues are the same two a user's clicks queue, and are checked the same way before they run.
  */
 
 type SeriesRow = {
   id: string; user_id: string; premise: string; recipe: unknown; cadence: string;
-  per_video_cap_usd: string | number | null; next_due_at: string | null; current_run: string | null; current_step: string | null;
+  next_due_at: string | null; current_run: string | null; current_step: string | null;
 };
 
 /** Why a series is stopped, by what the database refused with. Anything not here is tried again at the next look. */
-const PAUSES: Record<string, "credit" | "budget" | "cap"> = { insufficient_credit: "credit", over_budget: "budget", over_cap: "cap" };
+const PAUSES: Record<string, "credit"> = { insufficient_credit: "credit" };
 
 export type AutopilotDeps = {
   db: Db;
@@ -52,7 +52,7 @@ export function autopilot({ db, line, asUser, here, post, busy, log }: Autopilot
     const { data, error } = await db.rpc(name, args);
     return error ? { refused: error.message } : { data };
   };
-  const finish = async (s: SeriesRow, runId: string, pause: "credit" | "budget" | "cap" | "failed" | null, why: string): Promise<void> => {
+  const finish = async (s: SeriesRow, runId: string, pause: "credit" | "failed" | null, why: string): Promise<void> => {
     const { refused } = await ask("finish_series_episode", { p_series_id: s.id, p_run_id: runId, p_pause: pause });
     if (refused) throw new Error(`finish_series_episode: ${refused}`);
     log(`worker: series ${s.id}: ${why}${pause ? `; paused (${pause})` : ""}`);
@@ -100,10 +100,9 @@ export function autopilot({ db, line, asUser, here, post, busy, log }: Autopilot
     // shown the run, with what went wrong in it.
     if (s.current_step === "generate") return finish(s, runId, "failed", `${runId} was not finished`);
     if (!script) return finish(s, runId, "failed", `the script of ${runId} was not written`);
-    // the script is there: what the rest would cost, and whether the approval covers it
+    // the script is there: what the rest would cost, and whether its owner's credit covers it
     const price = await asUser(s.user_id, async () => round4((JSON.parse(await runShort(["plan", runId, "--json"])) as { totalUsd: number }).totalUsd));
     if (!Number.isFinite(price) || price < 0) throw new Error(`the plan of ${runId} gave no price`);
-    if (price > Number(s.per_video_cap_usd)) return finish(s, runId, "cap", `${runId} would cost up to $${price}, above the series' limit for one video`);
     const held = await ask("reserve_for_series", { p_series_id: s.id, p_run_id: runId, p_cap_usd: price });
     if (held.refused) {
       const pause = PAUSES[held.refused];
@@ -147,7 +146,7 @@ export function autopilot({ db, line, asUser, here, post, busy, log }: Autopilot
       if (looking) return;
       looking = true;
       try {
-        const { data, error } = await db.from("series").select("id,user_id,premise,recipe,cadence,per_video_cap_usd,next_due_at,current_run,current_step").eq("status", "active");
+        const { data, error } = await db.from("series").select("id,user_id,premise,recipe,cadence,next_due_at,current_run,current_step").eq("status", "active");
         if (error) throw new Error(`listing series: ${error.message}`);
         for (const s of (data ?? []) as SeriesRow[]) {
           if (s.cadence === "manual" || !here(s.user_id)) continue;

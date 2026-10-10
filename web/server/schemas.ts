@@ -30,8 +30,6 @@ export const NewVideo = z.object({
   motion: z.enum(["auto", "clips", "stills"]).default("auto"),
   /** The size moving clips are generated at; 720p costs about twice as much. */
   clips: z.enum(["480p", "720p"]).default("480p"),
-  /** Frozen with the run: the auto mode rules keep the estimate under it. */
-  budgetUsd: z.number().positive().max(100),
   brandKit: Slug.nullable().default(null),
   music: MusicId.nullable().default(null),
   musicGain: Gain.default(0.35),
@@ -62,11 +60,18 @@ export function musicPath(id: string): string {
 
 export const kitDir = (slug: string): string => join(roots().brandKits, slug);
 
+/**
+ * What the auto mode rules are told to keep a video's estimate under: the most a video may ever be approved for,
+ * which is to say nothing. The studio asks for no budget: a video is priced once its script is written, its owner
+ * is shown that and approves it, and what limits it is the credit they have (phase 6 spec §15).
+ */
+export const NO_BUDGET_USD = 100;
+
 /** The `run --draft` command line for a form. */
 export function draftArgs(input: NewVideo, runId: string): string[] {
   const args = [
     "run", "--draft", "--yes", "--run-id", runId, "--topic", input.topic, "--aspect", input.aspect,
-    "--scenes", String(input.scenes), "--mode", "auto", "--clips", input.clips, "--budget", String(input.budgetUsd),
+    "--scenes", String(input.scenes), "--mode", "auto", "--clips", input.clips, "--budget", String(NO_BUDGET_USD),
     "--caption-style", input.captionStyle, "--transition", input.transition,
     "--bgm-gain", String(input.musicGain), "--sfx-gain", String(input.sfxGain),
   ];

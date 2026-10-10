@@ -25,7 +25,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
   const [tracks, setTracks] = useState(initialTracks);
   const [f, setF] = useState({
     topic, aspect: "9:16", scenes: 4, style: "auto", motion: "auto", clips: "480p",
-    budgetUsd: health.defaults.budgetUsd, brandKit: "", music: "", musicGain: 0.35, hookMode: "auto", hookText: "",
+    brandKit: "", music: "", musicGain: 0.35, hookMode: "auto", hookText: "",
     sfx: true, sfxGain: 0.6, characters: "", seed: "", voiceId: "", captionStyle: "preset", transition: "auto",
     name: "", premise: "",
   });
@@ -37,7 +37,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
   const missing = health.missing;
   const offline = health.queue.mode === "queue" && !(health.queue.redis && health.queue.worker);
 
-  // A page loaded while the worker was away knows neither its keys nor its defaults: ask again until it is
+  // A page loaded while the worker was away does not know which of its keys are set: ask again until it is
   // back, so the form opens up by itself instead of staying shut until a reload.
   useEffect(() => {
     if (!offline) return;
@@ -46,11 +46,6 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         (now) => {
           if (now.queue.mode === "queue" && !(now.queue.redis && now.queue.worker)) return;
           setHealth(now);
-          // the worker's defaults replace the stand-ins the page loaded with, unless the user chose meanwhile
-          setF((old) => ({
-            ...old,
-            budgetUsd: old.budgetUsd === initialHealth.defaults.budgetUsd ? now.defaults.budgetUsd : old.budgetUsd,
-          }));
         },
         () => {},
       );
@@ -65,7 +60,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
     setError("");
     try {
       const choices = {
-        aspect: f.aspect, scenes: f.scenes, style: f.style, motion: f.motion, clips: f.clips, budgetUsd: f.budgetUsd,
+        aspect: f.aspect, scenes: f.scenes, style: f.style, motion: f.motion, clips: f.clips,
         brandKit: f.brandKit || null, music: f.music || null, musicGain: f.musicGain,
         hook: f.hookMode === "custom" ? { mode: "custom", text: f.hookText } : { mode: f.hookMode },
         sfx: f.sfx, sfxGain: f.sfxGain, captionStyle: f.captionStyle, transition: f.transition,
@@ -128,16 +123,6 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
             <Field label="Scenes">
               <input type="number" min={1} max={12} value={f.scenes} onChange={(e) => set("scenes", Number(e.target.value))} />
             </Field>
-            {/* (the most the video may cost, which the auto motion keeps the estimate under: typed in the unit the user is shown) */}
-            {showsCredits() ? (
-              <Field label="Budget (credits)" hint="Auto motion keeps the estimate under it">
-                <input type="number" min={200} max={200000} step={100} value={credits(f.budgetUsd)} onChange={(e) => set("budgetUsd", usdOfCredits(Number(e.target.value)))} />
-              </Field>
-            ) : (
-              <Field label="Budget ($)" hint="Auto motion keeps the estimate under it">
-                <input type="number" min={0.1} max={100} step={0.1} value={f.budgetUsd} onChange={(e) => set("budgetUsd", Number(e.target.value))} />
-              </Field>
-            )}
           </div>
         </div>
       </Panel>

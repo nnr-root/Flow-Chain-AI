@@ -34,7 +34,6 @@ describe("reads", () => {
     const text = await res.text();
     expect(JSON.parse(text)).toEqual({
       missing: ["RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"],
-      defaults: { budgetUsd: 5 },
       queue: { mode: "local" },
     });
     expect(text).not.toContain("secret");
@@ -127,7 +126,7 @@ describe("the look token", () => {
 
 describe("creating a draft", () => {
   it("refuses, naming the variables, while keys are missing — before any run exists", async () => {
-    const res = await createDraft(request("/api/drafts", { json: { topic: "foxes", budgetUsd: 3 } }), undefined);
+    const res = await createDraft(request("/api/drafts", { json: { topic: "foxes" } }), undefined);
     expect(res.status).toBe(400);
     expect(await error(res)).toMatchObject({ code: "missing_keys", message: "not set in .env: GEMINI_API_KEY, RUNPOD_API_KEY, RUNPOD_KEYFRAME_ENDPOINT, RUNPOD_CLIP_ENDPOINT, RUNPOD_VOICE_ENDPOINT, R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY" });
     expect(await calls(studio)).toEqual([]);
@@ -136,7 +135,7 @@ describe("creating a draft", () => {
   it("starts `run --draft` with a new run id and the form's options; the run then shows as a draft", async () => {
     withKeys();
     await stub(studio, "_draft-manifest.json", draftManifest("placeholder"));
-    const res = await createDraft(request("/api/drafts", { json: { topic: "foxes at night", budgetUsd: 2, scenes: 3, motion: "stills" } }), undefined);
+    const res = await createDraft(request("/api/drafts", { json: { topic: "foxes at night", scenes: 3, motion: "stills" } }), undefined);
     expect(res.status).toBe(202);
     const { runId, job } = await res.json();
     expect(RUN_ID.test(runId)).toBe(true);
@@ -144,22 +143,22 @@ describe("creating a draft", () => {
     await jobDone(runId);
     const [args] = await calls(studio);
     expect(args.slice(0, 5)).toEqual(["run", "--draft", "--yes", "--run-id", runId]);
-    expect(args).toEqual(expect.arrayContaining(["--topic", "foxes at night", "--scenes", "3", "--budget", "2", "--pin-modes", "2"]));
+    expect(args).toEqual(expect.arrayContaining(["--topic", "foxes at night", "--scenes", "3", "--budget", "100", "--pin-modes", "2"]));
     expect((await (await run(request(`/api/runs/${runId}`), params({ id: runId }))).json()).state).toBe("draft");
   });
 
   it("validates the form and unknown kits or tracks", async () => {
     withKeys();
     const post = (json: unknown) => createDraft(request("/api/drafts", { json }), undefined);
-    expect((await post({ budgetUsd: 3 })).status).toBe(400);
-    expect(await error(await post({ topic: "x", budgetUsd: 3, brandKit: "ghost" }))).toMatchObject({ code: "validation", message: 'brandKit: no kit "ghost"' });
-    expect(await error(await post({ topic: "x", budgetUsd: 3, music: "upload:ghost.mp3" }))).toMatchObject({ code: "validation" });
+    expect((await post({})).status).toBe(400);
+    expect(await error(await post({ topic: "x", brandKit: "ghost" }))).toMatchObject({ code: "validation", message: 'brandKit: no kit "ghost"' });
+    expect(await error(await post({ topic: "x", music: "upload:ghost.mp3" }))).toMatchObject({ code: "validation" });
     expect(await calls(studio)).toEqual([]);
   });
 
   it("cannot be triggered from another site, or without JSON", async () => {
     withKeys();
-    const cross = await createDraft(request("/api/drafts", { json: { topic: "x", budgetUsd: 3 }, headers: { "sec-fetch-site": "cross-site", origin: "https://evil.example" } }), undefined);
+    const cross = await createDraft(request("/api/drafts", { json: { topic: "x" }, headers: { "sec-fetch-site": "cross-site", origin: "https://evil.example" } }), undefined);
     expect(cross.status).toBe(403);
     const form = await createDraft(request("/api/drafts", { body: "topic=x", headers: { "content-type": "application/x-www-form-urlencoded" } }), undefined);
     expect(form.status).toBe(400);

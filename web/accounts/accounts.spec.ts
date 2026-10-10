@@ -534,27 +534,26 @@ test("a user sets up a series and has its first video started from it; another u
   expect(await balance(A.email)).toBe(before);
   await namesNothing(page);
 
-  // By itself: nothing until its owner approves two amounts, which the button names; a budget smaller than one
-  // video's limit is refused; and it can be stopped and taken off its schedule again. (This suite's worker
+  // By itself: nothing until its owner approves a schedule, which the button names; it can be stopped and taken
+  // off its schedule again. (This suite's worker
   // looks at series once an hour, so nothing is begun here.)
   await expect(page.getByTestId("series-status")).toHaveCount(0);
   await page.getByTestId("series-cadence").selectOption("daily");
-  await page.getByTestId("series-cap").fill("800");
-  await page.getByTestId("series-budget").fill("400");
-  await expect(page.getByTestId("save-schedule")).toBeDisabled();
-  await page.getByTestId("series-budget").fill("6000");
-  await expect(page.getByTestId("save-schedule")).toHaveText("Approve: up to 800 credits a video, 6,000 credits a month");
+  // a schedule is all there is to approve: no amount is asked for, and none is kept
+  await expect(page.getByTestId("series-cap")).toHaveCount(0);
+  await expect(page.getByTestId("series-budget")).toHaveCount(0);
+  await expect(page.getByTestId("save-schedule")).toHaveText("Approve: one a day, from my credits");
   await page.getByTestId("save-schedule").click();
   await expect(page.getByTestId("series-status")).toHaveText("Running");
-  await expect(page.getByTestId("series-month")).toContainText("0 credits of 6,000 credits");
-  expect((await service.from("series").select("cadence,per_video_cap_usd,monthly_budget_usd,status").eq("id", id).single()).data).toEqual({ cadence: "daily", per_video_cap_usd: 0.4, monthly_budget_usd: 3, status: "active" });
+  await expect(page.getByTestId("series-month")).toContainText("Used this month: 0 credits.");
+  expect((await service.from("series").select("cadence,status").eq("id", id).single()).data).toEqual({ cadence: "daily", status: "active" });
   await page.getByTestId("series-toggle").click();
   await expect(page.getByTestId("series-status")).toHaveText("Stopped");
   await expect(page.getByTestId("series-paused")).toHaveText("You stopped it.");
   await page.getByTestId("series-cadence").selectOption("manual");
   await page.getByTestId("save-schedule").click();
   await expect(page.getByTestId("series-status")).toHaveCount(0);
-  expect((await service.from("series").select("cadence,per_video_cap_usd,monthly_budget_usd").eq("id", id).single()).data).toEqual({ cadence: "manual", per_video_cap_usd: null, monthly_budget_usd: null });
+  expect((await service.from("series").select("cadence").eq("id", id).single()).data).toEqual({ cadence: "manual" });
   expect(await balance(A.email)).toBe(before);
 
   // its first video is an ordinary draft, written from the premise and tied to the series

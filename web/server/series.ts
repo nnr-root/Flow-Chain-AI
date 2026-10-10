@@ -24,11 +24,8 @@ export const NewSeries = z.object({
 });
 export type NewSeries = z.infer<typeof NewSeries>;
 
-/** A series' schedule: how often, and the approval that lets it spend by itself (both amounts, or none for "only when I ask"). */
-export const Schedule = z.discriminatedUnion("cadence", [
-  z.object({ cadence: z.literal("manual") }),
-  z.object({ cadence: z.enum(["weekly3", "daily", "daily2"]), perVideoCapUsd: z.number().positive().max(100), monthlyBudgetUsd: z.number().positive().max(10_000) }),
-]);
+/** A series' schedule: how often. Setting one is its owner's approval for it to make videos by itself, from the credit they have. */
+export const Schedule = z.object({ cadence: z.enum(["manual", "weekly3", "daily", "daily2"]) }).strict();
 export type Schedule = z.infer<typeof Schedule>;
 export const SeriesChange = z.union([
   z.object({ schedule: Schedule }),
@@ -37,7 +34,7 @@ export const SeriesChange = z.union([
 ]);
 
 const REFUSALS: Record<string, () => ApiError> = {
-  invalid_schedule: () => new ApiError("validation", "the month's budget must be at least the most one video may cost"),
+  invalid_schedule: () => new ApiError("validation", "that is not a schedule a series can have"),
   not_found: () => new ApiError("not_found", "no such series"),
   too_many_series: () => new ApiError("validation", "an account can have twenty series", "remove one you no longer use"),
   invalid_series: () => new ApiError("validation", "the series could not be saved as it was given"),
@@ -51,19 +48,17 @@ function accounts(): void {
 
 type Row = {
   id: string; name: string; premise: string; recipe: unknown; created_at: string;
-  cadence: string; per_video_cap_usd: string | number | null; monthly_budget_usd: string | number | null; status: string; paused_reason: string | null; next_due_at: string | null;
+  cadence: string; status: string; paused_reason: string | null; next_due_at: string | null;
   channel_id: string | null; review_first: boolean;
 };
-const FIELDS = "id,name,premise,recipe,created_at,cadence,per_video_cap_usd,monthly_budget_usd,status,paused_reason,next_due_at,channel_id,review_first";
+const FIELDS = "id,name,premise,recipe,created_at,cadence,status,paused_reason,next_due_at,channel_id,review_first";
 
 /** A row as the pages show it. A recipe saved by an older form is read with today's defaults; one that no longer parses shows as what the form starts with. */
 function view(row: Row, episodes: SeriesView["episodes"], monthUsd: number): SeriesView {
   const recipe = Recipe.safeParse(row.recipe);
-  const amount = (v: string | number | null): number | null => (v === null ? null : Number(v));
   return {
     id: row.id, name: row.name, premise: row.premise, createdAt: row.created_at, episodes, monthUsd,
     cadence: (Object.hasOwn(CADENCES, row.cadence) ? row.cadence : "manual") as Cadence,
-    perVideoCapUsd: amount(row.per_video_cap_usd), monthlyBudgetUsd: amount(row.monthly_budget_usd),
     active: row.status === "active", pausedReason: row.paused_reason, nextDueAt: row.next_due_at,
     channelId: row.channel_id, reviewFirst: row.review_first,
     style: recipe.success ? recipe.data.style : "auto", aspect: recipe.success ? recipe.data.aspect : "9:16", scenes: recipe.success ? recipe.data.scenes : 4,
@@ -85,7 +80,7 @@ export async function listSeries(): Promise<SeriesView[]> {
   if (held.error) throw new Error(`reading what is held: ${held.error.message}`);
   const known = new Map(runs.map((r) => [r.runId, r]));
   const holding = new Map(((held.data ?? []) as Array<{ run_id: string; cap_usd: string | number }>).map((h) => [h.run_id, Number(h.cap_usd)]));
-  // the month as the database counts it for the budget: its own clock's calendar month (UTC)
+  // the calendar month (UTC)
   const now = new Date();
   const monthStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1);
   return ((series.data ?? []) as Row[]).map((row) => {
@@ -128,10 +123,7 @@ export async function changeSeries(id: string, change: z.infer<typeof SeriesChan
   if ("publishing" in change) return setSeriesPublishing(id, change.publishing.channelId, change.publishing.reviewFirst);
   if ("schedule" in change) {
     const sch = change.schedule;
-    const { error } = await userDb().rpc("set_series_schedule", {
-      p_id: id, p_cadence: sch.cadence,
-      p_per_video_cap_usd: sch.cadence === "manual" ? null : sch.perVideoCapUsd, p_monthly_budget_usd: sch.cadence === "manual" ? null : sch.monthlyBudgetUsd,
-    });
+    const { error } = await userDb().rpc("set_series_schedule", { p_id: id, p_cadence: sch.cadence });
     if (error) throw refused("set_series_schedule", error.message);
     // The worker drives a series only when its owner's folder is on its disk (the studio that holds the user's
     // files is the one that makes their videos): a user who has made nothing yet has none until now.

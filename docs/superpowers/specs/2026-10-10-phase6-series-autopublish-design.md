@@ -495,3 +495,40 @@ had `npm run stripe:setup` run. The test account now sells the three plans by th
 by the year ($390, $990, $1,990, each with a month's credit on the price); the earlier prices and both top-ups
 are archived; a second run found nothing to change. Still not done there: buying a year at Checkout, and a
 month going by.
+
+## 15. No budgets (owner's direction, 2026-10-10)
+
+The owner: remove the parts that limit by a budget; a user is told when their credit does not cover something,
+and that is enough. Asked which, the owner chose both: the new-video form's budget, and a series' limit for one
+video and budget for the month. **This replaces §4 and D2 ("a series' budget"), and the parts of §9 that
+describe the two amounts.**
+
+**The new-video form** no longer has a budget, in credits or in dollars. The field never limited what a video
+could spend (that is the amount its owner approves once the script is priced, and the cap the job runs under);
+it told the auto mode rules what to keep the estimate under, turning moving scenes into stills to fit.
+`draftArgs` now passes `NO_BUDGET_USD` (100, the most a video can be approved for), so the rules never demote a
+scene for cost. The request no longer has `budgetUsd`, and the health answer no longer carries a default one.
+The CLI is unchanged: `--budget` and `FLOWCHAIN_BUDGET_USD` are still the owner's own.
+
+**A series** (migration `20261010000006`): `set_series_schedule(id, cadence)` takes no amounts; the two columns,
+their constraint and `series_month_usd` are gone; `hold_for_series` no longer refuses with `over_cap` or
+`over_budget`; a worker can stop a series for `credit` or `failed` only. Series that a limit had stopped stay
+stopped, shown as stopped by their owner, until the owner lets them go on: removing a limit is not a reason to
+begin spending without them. Everything else in §9 stands: only the worker begins a series' video or holds
+credit for one, under a lock on the series' row, for a series that is active and has a schedule, through
+`reserve_credit` in the owner's name. The page still shows what the series has used this month, as information.
+
+**What this means, said plainly.** A series set to two a day now makes videos until its owner's credit does
+not cover the next one. With a plan, that is the month's credits and whatever else the account holds; nothing
+smaller stands in between. It stops then, and its page says "Your credit did not cover its next video." A video
+whose price turns out higher than usual is made if the credit is there.
+
+**The owner's premise that a user is told "in the UI or by email" is half true today.** The page says why a
+series stopped. No email is sent: that was listed as not built in §10 and is still not. Parked, and now worth
+more than before: an email when a series stops, and one when credits are nearly used up.
+
+**Checked.** Database: a schedule with no amount, the old function and columns gone, a video of any price the
+credit covers, refusal and nothing held when it does not, the two reasons a worker may give, races on holds and
+starts; twice. The worker against the stand-in CLI: a video dearer than any earlier limit is made; one the
+credit does not cover stops the series with only its script bought. Browser: no amount fields, the button
+"Approve: one a day, from my credits". Not checked: a real series on real engines.

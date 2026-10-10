@@ -71,16 +71,11 @@ const NEEDS = [
 export type Health = {
   /** Names of the settings a new run needs that are not set. */
   missing: string[];
-  defaults: { budgetUsd: number };
 };
 
 /** Whether a new run could be made, checked without any network call. */
 export function health(): Health {
   const env = pipelineEnv();
   const unset = (names: readonly string[]) => names.filter((n) => !env[n]?.trim());
-  const budget = Number(env.FLOWCHAIN_BUDGET_USD);
-  return {
-    missing: unset(NEEDS),
-    defaults: { budgetUsd: Number.isFinite(budget) && budget > 0 ? budget : 3 },
-  };
+  return { missing: unset(NEEDS) };
 }

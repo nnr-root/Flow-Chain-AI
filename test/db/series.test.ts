@@ -91,13 +91,12 @@ describe.skipIf(!supa)("series in the database", () => {
       if (error) throw new Error(error.message);
     };
     const balance = async (u: TestUser) => Number((await worker().from("users").select("balance_usd").eq("id", u.id).single()).data!.balance_usd);
-    const schedule = (u: TestUser, id: string, cadence = "daily", cap: number | null = 0.5, budget: number | null = 2) =>
-      u.client.rpc("set_series_schedule", { p_id: id, p_cadence: cadence, p_per_video_cap_usd: cap, p_monthly_budget_usd: budget });
+    const schedule = (u: TestUser, id: string, cadence: string | null = "daily") => u.client.rpc("set_series_schedule", { p_id: id, p_cadence: cadence });
     const start = (id: string, run = freshRunId(), draft = 0.02) => worker().rpc("start_series_episode", { p_series_id: id, p_run_id: run, p_topic: "t", p_draft_cap_usd: draft }).then((r) => ({ ...r, run }));
     const hold = (id: string, run: string, cap: number) => worker().rpc("reserve_for_series", { p_series_id: id, p_run_id: run, p_cap_usd: cap });
     const settle = (reservation: unknown, total: number) => worker().rpc("settle", { p_reservation_id: reservation, p_run_total_usd: total });
     const finish = (id: string, run: string, pause: string | null = null) => worker().rpc("finish_series_episode", { p_series_id: id, p_run_id: run, p_pause: pause });
-    const row = async (id: string) => (await worker().from("series").select("cadence,status,paused_reason,current_run,current_step,per_video_cap_usd,monthly_budget_usd,next_due_at").eq("id", id).single()).data!;
+    const row = async (id: string) => (await worker().from("series").select("cadence,status,paused_reason,current_run,current_step,next_due_at").eq("id", id).single()).data!;
     /** One whole video: the script held and settled, the rest held and settled, the series free again. */
     const video = async (id: string, cap: number, spent: number) => {
       const began = await start(id);
@@ -111,18 +110,20 @@ describe.skipIf(!supa)("series in the database", () => {
     };
     const due = (id: string) => worker().query("update public.series set next_due_at = now() - interval '1 minute' where id = $1", [id]);
 
-    it("takes a schedule only with a budget that makes sense, and only from the series' owner", async () => {
+    it("takes a schedule that is one of the four, without any amount, and only from the series' owner", async () => {
       const id = await made(a);
-      for (const [cadence, cap, budget] of [["hourly", 1, 5], ["daily", null, 5], ["daily", 1, null], ["daily", 0, 5], ["daily", 1, 0], ["daily", 101, 500], ["daily", 2, 1], ["daily", Number.NaN, 5]] as const) {
-        expect((await schedule(a, id, cadence, cap as number | null, budget as number | null)).error?.message, JSON.stringify([cadence, cap, budget])).toBe("invalid_schedule");
-      }
+      for (const cadence of ["hourly", "", null]) expect((await schedule(a, id, cadence)).error?.message, String(cadence)).toBe("invalid_schedule");
       expect((await schedule(b, id)).error?.message).toBe("not_found");
       expect((await row(id)).cadence).toBe("manual");
       expect((await schedule(a, id)).error).toBeFalsy();
-      expect(await row(id)).toMatchObject({ cadence: "daily", status: "active", paused_reason: null, per_video_cap_usd: 0.5, monthly_budget_usd: 2 });
+      expect(await row(id)).toMatchObject({ cadence: "daily", status: "active", paused_reason: null });
+      expect(new Date(String((await row(id)).next_due_at)).getTime()).toBeLessThanOrEqual(Date.now() + 1000);
+      // there is no limit for a video or a month to give or to keep: the columns and the old function are gone
+      expect((await a.client.rpc("set_series_schedule", { p_id: id, p_cadence: "daily", p_per_video_cap_usd: 0.5, p_monthly_budget_usd: 2 })).error).toBeTruthy();
+      expect((await worker().query<{ column_name: string }>("select column_name from information_schema.columns where table_schema = 'public' and table_name = 'series' and column_name in ('per_video_cap_usd', 'monthly_budget_usd')"))).toEqual([]);
       // taking the schedule away takes the approval with it
-      expect((await schedule(a, id, "manual", null, null)).error).toBeFalsy();
-      expect(await row(id)).toMatchObject({ cadence: "manual", per_video_cap_usd: null, monthly_budget_usd: null, next_due_at: null });
+      expect((await schedule(a, id, "manual")).error).toBeFalsy();
+      expect(await row(id)).toMatchObject({ cadence: "manual", next_due_at: null });
     });
 
     it("keeps the functions that spend for the worker: a user can start no episode and hold nothing in a series' name", async () => {
@@ -133,7 +134,6 @@ describe.skipIf(!supa)("series in the database", () => {
         ["start_series_episode", { p_series_id: id, p_run_id: freshRunId(), p_topic: "t", p_draft_cap_usd: 0.02 }],
         ["reserve_for_series", { p_series_id: id, p_run_id: freshRunId(), p_cap_usd: 0.1 }],
         ["finish_series_episode", { p_series_id: id, p_run_id: freshRunId(), p_pause: null }],
-        ["series_month_usd", { p_series_id: id }],
       ] as const) {
         for (const who of [a.client, b.client, visitorDb(s)]) expect((await who.rpc(name, args)).error?.message, name).toMatch(/permission denied/);
       }
@@ -141,9 +141,9 @@ describe.skipIf(!supa)("series in the database", () => {
       expect((await row(id)).current_run).toBeNull();
     });
 
-    it("makes a video inside the approval: the script's cost and then the rest are held from the owner's credit, and what is not spent comes back", async () => {
+    it("makes a video for a series with a schedule: the script's cost and then the rest are held from the owner's credit, and what is not spent comes back", async () => {
       const id = await made(a);
-      await schedule(a, id, "daily", 0.5, 2);
+      await schedule(a, id, "daily");
       await grant(a, 5);
       const began = await start(id);
       expect(began.error).toBeFalsy();
@@ -156,9 +156,10 @@ describe.skipIf(!supa)("series in the database", () => {
       expect((await start(id)).error?.message).toBe("busy");
       await settle(began.data, 0.006);
       expect(await balance(a)).toBe(4.994);
-      // the rest: only for the video it is making, only once, and never above the cap for one video
+      // the rest: only for the video it is making, only once, and never more than its owner has
       expect((await hold(id, freshRunId(), 0.3)).error?.message).toBe("not_current");
-      expect((await hold(id, began.run, 0.51)).error?.message).toBe("over_cap");
+      expect((await hold(id, began.run, 5)).error?.message).toBe("insufficient_credit");
+      expect(await row(id)).toMatchObject({ current_step: "draft" });
       const held = await hold(id, began.run, 0.3);
       expect(held.error).toBeFalsy();
       expect(await balance(a)).toBe(4.694);
@@ -188,34 +189,36 @@ describe.skipIf(!supa)("series in the database", () => {
       expect(await balance(a)).toBe(4.98);
     });
 
-    it("stops at the month's budget: what was spent and what is still held count together", async () => {
+    it("goes on making videos for as long as its owner's credit covers them, with no limit of its own, and holds nothing once it does not", async () => {
       const id = await made(a);
-      await schedule(a, id, "daily2", 0.5, 1);
-      await grant(a, 10);
-      // two videos at 0.4 each (their scripts included) leave 0.20 of the month's 1.00
+      await schedule(a, id, "daily2");
+      await grant(a, 1);
+      // two videos at 0.40 each (their scripts included) leave 0.20
       for (let i = 0; i < 2; i++) {
         await due(id);
         expect(await video(id, 0.5, 0.4)).toBe("made");
       }
+      expect(await balance(a)).toBeCloseTo(0.2, 4);
       await due(id);
       const third = await start(id);
       expect(third.error).toBeFalsy();
       await settle(third.data, 0.01);
-      // 0.81 spent with the third's script: 0.2 more would pass the budget, 0.18 fits under it
-      expect((await hold(id, third.run, 0.2)).error?.message).toBe("over_budget");
-      expect((await hold(id, third.run, 0.18)).error).toBeFalsy();
-      // and with that held, not even a script fits
-      await finish(id, third.run);
+      // 0.19 is left: 0.2 is not there to hold, and what is refused holds nothing and moves nothing
+      expect((await hold(id, third.run, 0.2)).error?.message).toBe("insufficient_credit");
+      expect(await balance(a)).toBeCloseTo(0.19, 4);
+      expect(await row(id)).toMatchObject({ current_run: third.run, current_step: "draft", status: "active" });
+      // the worker stops the series for that reason, and no other reason of the old limits is one it can give
+      for (const gone of ["budget", "cap"]) expect((await finish(id, third.run, gone)).error?.message).toBe("invalid_reason");
+      expect((await finish(id, third.run, "credit")).error).toBeFalsy();
+      expect(await row(id)).toMatchObject({ current_run: null, status: "paused", paused_reason: "credit" });
       await due(id);
-      expect((await start(id)).error?.message).toBe("over_budget");
-      // a refusal leaves nothing behind: no run, nothing held, the series as it was
+      expect((await start(id)).error?.message).toBe("not_active");
       expect((await worker().from("runs").select("id").eq("series_id", id)).data).toHaveLength(3);
-      expect(await balance(a)).toBeCloseTo(10 - 0.81 - 0.18, 4);
     });
 
     it("refuses what the owner's credit does not cover, and leaves no run behind", async () => {
       const id = await made(a);
-      await schedule(a, id, "daily", 5, 50);
+      await schedule(a, id, "daily");
       await grant(a, 0.01);
       const began = await start(id);
       expect(began.error?.message).toBe("insufficient_credit");
@@ -229,11 +232,9 @@ describe.skipIf(!supa)("series in the database", () => {
       expect((await finish(id, run, "because")).error?.message).toBe("invalid_reason");
     });
 
-    it("cannot be raced past its budget: of many asked for at once only what fits is held", async () => {
-      // twelve series of one user would each fit alone; the user's credit covers all of them, the per-user limit on
-      // jobs does not (two), and one series' own budget covers exactly one
+    it("cannot be raced: of many holds or starts asked for at once, one is made", async () => {
       const id = await made(a);
-      await schedule(a, id, "daily", 0.6, 0.62);
+      await schedule(a, id, "daily");
       await grant(a, 20);
       const began = await start(id);
       await settle(began.data, 0.01);
@@ -243,7 +244,7 @@ describe.skipIf(!supa)("series in the database", () => {
       expect(await balance(a)).toBeCloseTo(20 - 0.01 - 0.6, 4);
       // and starting: asked for many times at once, one episode begins
       const other = await made(a, "Second");
-      await schedule(a, other, "daily", 0.5, 5);
+      await schedule(a, other, "daily");
       const starts = await Promise.all(Array.from({ length: 8 }, () => start(other)));
       expect(starts.filter((r) => !r.error)).toHaveLength(1);
       expect(new Set(starts.filter((r) => r.error).map((r) => r.error!.message))).toEqual(new Set(["busy"]));

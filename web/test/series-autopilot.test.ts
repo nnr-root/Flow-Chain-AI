@@ -68,7 +68,7 @@ describe.skipIf(!supa || !hasRedisServer())("a series on a schedule", () => {
   const open = async () => (await db().from("reservations").select("id").eq("status", "open").eq("user_id", a.id)).data!.length;
   /** A series made and given a schedule through the studio's own routes, as its owner. */
   const series = async (schedule: Record<string, unknown>) => {
-    const made = await createSeries(as(cookie, "/api/series", { json: { name: "Foxes", premise: "Foxes at night, one story at a time", recipe: { budgetUsd: 3 } } }), undefined);
+    const made = await createSeries(as(cookie, "/api/series", { json: { name: "Foxes", premise: "Foxes at night, one story at a time", recipe: {} } }), undefined);
     expect(made.status).toBe(201);
     const { id } = (await made.json()) as { id: string };
     const set = await changeSeries(as(cookie, `/api/series/${id}`, { json: { schedule }, method: "PATCH" }), params({ id }));
@@ -101,7 +101,7 @@ describe.skipIf(!supa || !hasRedisServer())("a series on a schedule", () => {
   it("begins the video that is due, prices it, generates it inside the approval and settles what it cost; then waits for the next one", async () => {
     await grant(5);
     await stage(0.31, { spendUsd: 0.2, makesVideo: true });
-    const id = await series({ cadence: "daily", perVideoCapUsd: 0.5, monthlyBudgetUsd: 2 });
+    const id = await series({ cadence: "daily" });
     await worker();
     await until(async () => (await runsOf(id)).length === 1 && (await row(id)).current_run === null && (await open()) === 0, 30_000);
     const [run] = await runsOf(id);
@@ -129,24 +129,37 @@ describe.skipIf(!supa || !hasRedisServer())("a series on a schedule", () => {
     expect(listed.series.find((x) => x.id === id)).toMatchObject({ monthUsd: spent, active: true, episodes: [expect.objectContaining({ runId: run.id })] });
   });
 
-  it("does not make a video that would cost more than the owner allowed for one: it stops and says why, with only the script bought", async () => {
-    await grant(5);
+  it("does not make a video whose price, once its script is written, is more than its owner has: it stops and says why, with only the script bought", async () => {
+    // (there is no limit of the series' own: the same video is made for an owner who has the credit, below)
+    await grant(0.5);
     await stage(0.9, { spendUsd: 0.7, makesVideo: true });
-    const id = await series({ cadence: "daily", perVideoCapUsd: 0.5, monthlyBudgetUsd: 2 });
+    const id = await series({ cadence: "daily" });
     await worker();
     await until(async () => (await row(id)).status === "paused", 30_000);
-    expect(await row(id)).toMatchObject({ status: "paused", paused_reason: "cap", current_run: null });
+    expect(await row(id)).toMatchObject({ status: "paused", paused_reason: "credit", current_run: null });
     expect((await calls()).filter((c) => c[0] === "resume")).toEqual([]);
     await until(async () => (await open()) === 0);
-    expect(await balance()).toBeGreaterThan(5 - 0.021);
+    expect(await balance()).toBeGreaterThan(0.5 - 0.021);
     // stopped is stopped: nothing is begun until the owner lets it go on
     await new Promise((r) => setTimeout(r, 1200));
     expect(await runsOf(id)).toHaveLength(1);
   });
 
+  it("makes a video of any price its owner's credit covers: nothing of the series' own stands in the way", async () => {
+    await grant(5);
+    await stage(0.9, { spendUsd: 0.7, makesVideo: true });
+    const id = await series({ cadence: "daily" });
+    await worker();
+    await until(async () => (await runsOf(id)).length === 1 && (await row(id)).current_run === null && (await open()) === 0, 30_000);
+    const [run] = await runsOf(id);
+    expect((await calls()).filter((c) => c[0] === "resume")).toEqual([["resume", run.id, "--budget", "0.9", "--cap", "0.9"]]);
+    expect(await row(id)).toMatchObject({ status: "active", paused_reason: null });
+    expect(await balance()).toBeLessThan(5 - 0.7 + 0.0001);
+  });
+
   it("stops when the owner's credit does not cover the next video, and begins nothing", async () => {
     await stage(0.31, { spendUsd: 0.2, makesVideo: true });
-    const id = await series({ cadence: "daily", perVideoCapUsd: 0.5, monthlyBudgetUsd: 2 });
+    const id = await series({ cadence: "daily" });
     await worker();
     await until(async () => (await row(id)).status === "paused", 30_000);
     expect(await row(id)).toMatchObject({ status: "paused", paused_reason: "credit", current_run: null });
@@ -158,7 +171,7 @@ describe.skipIf(!supa || !hasRedisServer())("a series on a schedule", () => {
   it("stops, and retries nothing, when a video is not finished", async () => {
     await grant(5);
     await stage(0.31, { spendUsd: 0.1, exitCode: 1 });
-    const id = await series({ cadence: "daily2", perVideoCapUsd: 0.5, monthlyBudgetUsd: 2 });
+    const id = await series({ cadence: "daily2" });
     await worker();
     await until(async () => (await row(id)).status === "paused", 30_000);
     expect(await row(id)).toMatchObject({ status: "paused", paused_reason: "failed", current_run: null });
@@ -174,7 +187,7 @@ describe.skipIf(!supa || !hasRedisServer())("a series on a schedule", () => {
   it("leaves a series alone whose owner's files are on another studio's disk", async () => {
     await grant(5);
     await stage(0.31, { spendUsd: 0.2, makesVideo: true });
-    const id = await series({ cadence: "daily", perVideoCapUsd: 0.5, monthlyBudgetUsd: 2 });
+    const id = await series({ cadence: "daily" });
     // this worker's disk is another studio's: the same database, none of this user's files
     const elsewhere = join(studio.root, "another-studio-runs");
     await mkdir(elsewhere, { recursive: true });

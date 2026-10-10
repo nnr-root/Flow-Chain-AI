@@ -225,10 +225,10 @@ describe.skipIf(!supa || !hasRedisServer())("publishing to a user's own channel"
     await writeFile(join(folder(a), "_plan.json"), JSON.stringify({ items: [], totalUsd: 0.2 }));
     await writeFile(join(folder(a), "_behave.json"), JSON.stringify({ spendUsd: 0.1, makesVideo: true }));
     const series = async (reviewFirst: boolean) => {
-      const made = await createSeries(as(aCookie, "/api/series", { json: { name: reviewFirst ? "Shown first" : "By itself", premise: "Foxes", recipe: { budgetUsd: 3 } } }), undefined);
+      const made = await createSeries(as(aCookie, "/api/series", { json: { name: reviewFirst ? "Shown first" : "By itself", premise: "Foxes", recipe: {} } }), undefined);
       const { id } = (await made.json()) as { id: string };
       expect((await changeSeries(as(aCookie, `/api/series/${id}`, { json: { publishing: { channelId: channel.id, reviewFirst } }, method: "PATCH" }), params({ id }))).status).toBe(200);
-      expect((await changeSeries(as(aCookie, `/api/series/${id}`, { json: { schedule: { cadence: "daily", perVideoCapUsd: 0.5, monthlyBudgetUsd: 2 } }, method: "PATCH" }), params({ id }))).status).toBe(200);
+      expect((await changeSeries(as(aCookie, `/api/series/${id}`, { json: { schedule: { cadence: "daily" } }, method: "PATCH" }), params({ id }))).status).toBe(200);
       return id;
     };
     const [auto, shown] = [await series(false), await series(true)];

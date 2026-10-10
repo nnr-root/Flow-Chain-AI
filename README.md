@@ -170,8 +170,7 @@ CLI makes (everything in `runs/` shows up, and anything made in the studio can b
 
 The studio has no login. It listens on `127.0.0.1` only, answers only requests addressed to `127.0.0.1` or
 `localhost`, and refuses any write that does not come from its own pages. API keys stay in `.env`, and only
-the CLI uses their values: the studio reads `.env` only to see which names are set and what the default
-provider and budget are, and the browser never receives a value. Jobs are the CLI itself, started detached, so
+the CLI uses their values: the studio reads `.env` only to see which names are set, and the browser never receives a value. Jobs are the CLI itself, started detached, so
 a job keeps running if the web server restarts; at most two run at once. The preview is not frame-exact (the
 rendered MP4 is), and draft timings are estimates.
 
@@ -319,11 +318,10 @@ are about, and the new-video form's choices. **Make the next video** on a series
 (the script, held from credit as ever) whose topic is built from that sentence and the titles the series has
 already made, so each is about something else. Removing a series leaves its videos in the list.
 
-**By itself.** On a series' page you can give it a schedule (three a week, one or two a day) by approving two
-amounts: the most one video may cost and the most a month's videos may. From then on the worker makes its
-videos without asking again, each held from credit as usual and never outside those amounts. It stops and says
-why when a video would cost more than the first amount, when the month's budget or your credit is used up, or
-when a video is not finished (nothing is retried). You can stop it at any time. The worker looks at series every
+**By itself.** On a series' page you can give it a schedule (three a week, one or two a day). Approving it is
+all there is: no amount is asked for. From then on the worker makes its videos without asking again, each held
+from credit as usual, for as long as the credit covers them. It stops and says why on its page when your credit
+does not cover the next video, or when a video is not finished (nothing is retried). It sends no email. You can stop it at any time. The worker looks at series every
 two minutes (`WORKER_SERIES_MS`, in milliseconds).
 
 **Publishing to a user's own YouTube channel** (optional). With `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET` and

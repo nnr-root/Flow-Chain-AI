@@ -33,8 +33,6 @@ export type Cadence = keyof typeof CADENCES;
 export const PAUSED: Record<string, string> = {
   user: "You stopped it.",
   credit: "Your credit did not cover its next video.",
-  budget: "It reached its budget for this month.",
-  cap: "Its next video would cost more than the most you allowed for one.",
   failed: "Its last video was not finished. Have a look at it before letting the series go on.",
 };
 
@@ -47,10 +45,8 @@ export type SeriesView = {
   aspect: string;
   scenes: number;
   createdAt: string;
-  /** Its schedule and the approval that goes with it (phase 6 spec §4): absent amounts on a manual series. */
+  /** Its schedule, which is its owner's approval to make videos by itself (phase 6 spec §15). */
   cadence: Cadence;
-  perVideoCapUsd: number | null;
-  monthlyBudgetUsd: number | null;
   active: boolean;
   pausedReason: string | null;
   nextDueAt: string | null;
