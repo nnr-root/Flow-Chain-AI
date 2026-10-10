@@ -7,6 +7,7 @@ import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
 import { videoProfileOf } from "../video-profiles.js";
 import { runProviderJob } from "./job.js";
+import { settleWarmup } from "./warmup.js";
 import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireAudio, requireClip, requireScript } from "./require.js";
@@ -86,6 +87,8 @@ export const clipsStage: Stage = {
 
     const profile = videoProfileOf(m.request.videoProfile);
     const seconds = profile.clipSec(requireAudio(state).duration);
+    // the worker's early start (asked for while the pictures were made) is paid for with the first clip after it
+    await settleWarmup(ctx);
     const result = await runProviderJob(ctx, i, "clips", {
       label: `clip scene ${i + 1}`,
       costUsd: profile.costUsd(ctx.prices, seconds),

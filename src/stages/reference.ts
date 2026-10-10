@@ -7,7 +7,8 @@ import { effectivePreset } from "./look.js";
 import { outPath, paths } from "./paths.js";
 import { requireScript } from "./require.js";
 import type { Stage, StageContext } from "./types.js";
-import { showsCharacter } from "./visual.js";
+import { needsKeyframe, showsCharacter } from "./visual.js";
+import { warmClipsEarly } from "./warmup.js";
 
 /** The portrait is square: a face and shoulders need no more, and it is quick to make. */
 const REFERENCE_SIZE = { width: 1024, height: 1024 };
@@ -88,6 +89,9 @@ export const referenceStage: Stage = {
   async run(ctx) {
     const req = inputs(ctx);
     const image = ctx.providers.image;
+    // the portrait counts for half a picture; with every keyframe still to make after it
+    const m = ctx.manifest;
+    await warmClipsEarly(ctx, 0.5 + m.scenes.filter((s) => needsKeyframe(m, s.idx)).length, true);
     const result = await runProviderJob(ctx, 0, "reference", {
       label: "character reference",
       costUsd: imageProfileOf(ctx.manifest.request.imageProfile).referenceUsd(ctx.prices, REFERENCE_SIZE),

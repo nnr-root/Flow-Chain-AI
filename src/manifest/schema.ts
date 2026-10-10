@@ -241,5 +241,10 @@ export const Manifest = z.object({
   inFlight: z.record(z.string(), z.number()).optional(),
   /** What such calls cost that were found left over and made again: billed by the provider, in no ledger entry. */
   abandonedUsd: z.number().optional(),
+  /**
+   * The clip worker's early start, asked for while the pictures are made (phase 5 spec §9.15): its request, until
+   * the first clip has settled what it cost. Its expected cost is in `inFlight` for as long as this is here.
+   */
+  warmup: z.object({ requestId: z.string(), submittedAt: z.string() }).optional(),
 });
 export type Manifest = z.infer<typeof Manifest>;

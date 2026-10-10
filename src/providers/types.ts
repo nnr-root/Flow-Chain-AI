@@ -71,6 +71,14 @@ export type ImageProvider = QueuedProvider<ImageRequest, ImageOutput>;
 /** `height`: the short side clips are generated at (480 or 720), where the run chooses; absent = the provider's own. */
 export type VideoRequest = { imagePath: string; prompt: string; durationSec: number; height?: number };
 export type VideoOutput = { url: string; costUsd?: number; remove?: () => Promise<void> };
-export type VideoProvider = QueuedProvider<VideoRequest, VideoOutput>;
+export type VideoProvider = QueuedProvider<VideoRequest, VideoOutput> & {
+  /**
+   * Starts the provider's worker ahead of the first clip and returns the request's id without waiting. It buys
+   * GPU seconds (the ones the first clip would otherwise wait and pay for), so its caller records it first.
+   */
+  warm?(opts: SubmitOptions): Promise<string>;
+  /** What that start cost, once it is over. Read-only and safe to repeat; throws when it cannot be known. */
+  warmCost?(requestId: string, opts: WaitOptions): Promise<number>;
+};
 
 export type Providers = { llm: LlmProvider; tts: TtsProvider; image: ImageProvider; video: VideoProvider };

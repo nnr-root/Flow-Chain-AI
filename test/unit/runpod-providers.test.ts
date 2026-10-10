@@ -274,3 +274,30 @@ describe("the size a clip is made at", () => {
   });
 });
 
+
+describe("the clip worker's early start (RunPod)", () => {
+  const clipTarget = { endpointId: "ep-c", workflow: "clip-wan22-480p", version: 1 };
+  const signal = () => new AbortController().signal;
+
+  it("asks the clip endpoint for a job that carries nothing of the run, and reads its cost from the measured time", async () => {
+    const api = new FakeRunpodApi(() => [{ status: "IN_QUEUE" }, { status: "IN_PROGRESS" }, { status: "COMPLETED", output: { warmedBytes: 1 }, executionTime: 100_000 }]);
+    const video = new RunpodVideo(deps(api), clipTarget);
+    const id = await video.warm({ signal: signal() });
+    expect(api.runs).toEqual([expect.objectContaining({ endpointId: "ep-c", input: { task: "warm" }, policy: { executionTimeout: 300_000, ttl: 900_000 } })]);
+    expect(await video.warmCost(id, { timeoutMs: 60_000 })).toBe(0.0306); // 100 s × $0.000306
+    expect(api.runs).toHaveLength(1); // asking what it cost buys nothing
+  });
+
+  it("costs nothing when it never reached a GPU, what it ran when it failed, and says so when it cannot be known", async () => {
+    const never = new RunpodVideo(deps(new FakeRunpodApi(() => [{ status: "CANCELLED" }])), clipTarget);
+    expect(await never.warmCost(await never.warm({ signal: signal() }), { timeoutMs: 60_000 })).toBe(0);
+    const failed = new RunpodVideo(deps(new FakeRunpodApi(() => [{ status: "FAILED", error: "oom", executionTime: 20_000 }])), clipTarget);
+    expect(await failed.warmCost(await failed.warm({ signal: signal() }), { timeoutMs: 60_000 })).toBe(0.0061);
+    const api = new FakeRunpodApi(() => [{ status: "IN_QUEUE" }]);
+    const gone = new RunpodVideo(deps(api), clipTarget);
+    const id = await gone.warm({ signal: signal() });
+    await expect(gone.warmCost(id, { timeoutMs: 5000 })).rejects.toThrow(/still IN_QUEUE/);
+    api.expire(id);
+    await expect(gone.warmCost(id, { timeoutMs: 5000 })).rejects.toThrow(/no longer knows/);
+  });
+});

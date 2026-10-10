@@ -17,6 +17,7 @@ def test_accepts_a_clip_and_fetch_models():
     assert validate(clip())["frames"] == 81
     assert validate(clip(seed=7))["seed"] == 7
     assert validate({"task": "fetch-models", "only": "clip"}) == {"task": "fetch-models", "only": "clip"}
+    assert validate({"task": "warm"}) == {"task": "warm"}
 
 
 @pytest.mark.parametrize(
@@ -27,7 +28,8 @@ def test_accepts_a_clip_and_fetch_models():
         (clip(extra=1), "unknown field(s): extra"),
         (clip(image="not base64!"), "image is not valid base64"),
         # pictures are another worker's: the task this one had is refused like any unknown one
-        ({"task": "keyframe", "workflow": "keyframe-sdxl@1", "prompt": "a fox", "width": 1088, "height": 1920}, "task must be 'clip' or 'fetch-models'"),
+        ({"task": "keyframe", "workflow": "keyframe-sdxl@1", "prompt": "a fox", "width": 1088, "height": 1920}, "task must be 'clip', 'warm' or 'fetch-models'"),
+        ({"task": "warm", "prompt": "anything"}, "unknown field(s): prompt"),
         ({"task": "fetch-models", "only": "keyframe"}, "only must be"),
         (clip(frames=80), "frames must be 4k+1"),
         (clip(frames=85), "frames must be an integer between 33 and 81"),

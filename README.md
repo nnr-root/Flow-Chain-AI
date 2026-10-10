@@ -102,12 +102,18 @@ One-time setup (accounts and keys only):
    package public (GitHub → Packages → flowchain-worker → Package settings → Change visibility).
 4. `npm run runpod:deploy` creates the network volume, template and two endpoints, downloads the model weights
    onto the volume and writes `RUNPOD_KEYFRAME_ENDPOINT` / `RUNPOD_CLIP_ENDPOINT` into `.env`. It shows what it
-   will create, the monthly volume cost (≈ $7.70 for 110 GB) and the one-time model download it runs on the
+   will create, the monthly volume cost (≈ $3.50 for 50 GB, which the two models fill almost to the brim) and the one-time model download it runs on the
    endpoints' GPUs (≈ $1–2), and asks first; re-running it updates in place. It uses the image tag built from the
    current `workers/` folder and stops if that image is not public on GHCR. `RUNPOD_WORKER_IMAGE` deploys another
    image instead, `RUNPOD_DATACENTER` picks another data centre (default `EU-RO-1`), and `--yes` skips the question.
 
 Then `npm run flowchain -- doctor`. `npm run smoke:runpod` makes a real 4-scene video and is a paid run.
+
+While a run's pictures are made, the clip worker is asked to start (a job that makes nothing and reads its model
+files), so the first clip does not wait for it; what that start costs is charged with the first clip.
+
+`npm run runpod:deploy -- --remove-old-volume` deletes the larger volume used before (`flowchain-models`), once a
+run on the new one has worked. It refuses while any endpoint still reads from it. A deleted volume is gone for good.
 
 Re-running `runpod:deploy` also takes off the volume any weight the clip worker no longer lists (the earlier
 picture models; the text encoder and VAE, which are inside the clip image now).

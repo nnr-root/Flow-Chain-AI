@@ -79,7 +79,7 @@ abstract class RunpodQueued<Req, Out extends { url: string; costUsd?: number; re
     return this.deps.client.run(this.target.endpointId, job.input, this.policy, opts.signal);
   }
 
-  private cost(job: RunpodJob): number | undefined {
+  protected cost(job: RunpodJob): number | undefined {
     if (typeof job.executionTime !== "number") return undefined;
     return Math.round((job.executionTime / 1000) * this.usdPerSec() * 10_000) / 10_000;
   }
@@ -203,5 +203,34 @@ export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> impleme
 
   protected output(_jobId: string, out: { url: string }, costUsd: number | undefined): VideoOutput {
     return { url: out.url, ...(costUsd === undefined ? {} : { costUsd }) };
+  }
+
+  /**
+   * Asks the worker to start and read its model files, while the run is still making pictures: the first clip
+   * then finds a worker that is up instead of waiting for one (phase 5 spec §9.15). The job makes nothing and
+   * uploads nothing; it is billed for the seconds the start takes, as the first clip was before.
+   */
+  async warm(opts: SubmitOptions): Promise<string> {
+    return this.deps.client.run(this.target.endpointId, { task: "warm" }, { executionTimeout: 300_000, ttl: 900_000 }, opts.signal);
+  }
+
+  async warmCost(jobId: string, opts: WaitOptions): Promise<number> {
+    const { pollMs = 3000, sleep = realSleep, now = Date.now } = this.deps.poll ?? {};
+    const deadline = now() + opts.timeoutMs;
+    for (;;) {
+      const job = await this.deps.client.status(this.target.endpointId, jobId);
+      if (job === null) throw new NonRetryableError(`RunPod no longer knows warm-up ${jobId}`);
+      if (job.status === "COMPLETED") {
+        const cost = this.cost(job);
+        if (cost === undefined) throw new NonRetryableError(`RunPod warm-up ${jobId} reports no execution time`);
+        return cost;
+      }
+      // one that never reached a GPU cost nothing; one that ran and then failed cost what it ran
+      if (job.status === "FAILED" || job.status === "TIMED_OUT" || job.status === "CANCELLED") {
+        return typeof job.executionTime === "number" && job.executionTime > 0 ? (this.cost(job) ?? 0) : 0;
+      }
+      if (now() >= deadline) throw new NonRetryableError(`RunPod warm-up ${jobId} is still ${job.status}`);
+      await sleep(pollMs);
+    }
   }
 }

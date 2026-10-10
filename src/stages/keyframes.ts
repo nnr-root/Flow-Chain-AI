@@ -4,7 +4,8 @@ import { TIMEOUTS } from "../providers/retry.js";
 import { runProviderJob } from "./job.js";
 import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
-import { referenceFor } from "./reference.js";
+import { referenceFor, referenceImageOf } from "./reference.js";
+import { warmClipsEarly } from "./warmup.js";
 import { fileSha256 } from "../manifest/hash.js";
 import { requireScript } from "./require.js";
 import { MAX_SEED, type Manifest } from "../manifest/schema.js";
@@ -53,6 +54,10 @@ export const keyframesStage: Stage = {
   async run(ctx, scene) {
     const i = scene!;
     const prompt = imagePrompt(requireScript(ctx.manifest), i, effectivePreset(ctx.manifest));
+    const m = ctx.manifest;
+    const left = m.scenes.filter((s) => s.idx >= i && needsKeyframe(m, s.idx)).length;
+    const first = m.scenes.findIndex((s) => needsKeyframe(m, s.idx)) === i && referenceImageOf(m) !== paths.reference;
+    await warmClipsEarly(ctx, left, first);
     const result = await runProviderJob(ctx, i, "keyframes", {
       label: `keyframe scene ${i + 1}`,
       costUsd: imageProfileOf(ctx.manifest.request.imageProfile).keyframeUsd(ctx.prices, ctx.keyframeSize),

@@ -3,13 +3,17 @@ import { HttpError } from "../providers/retry.js";
 import type { RunpodClient } from "../providers/runpod.js";
 
 export const NAMES = {
-  volume: "flowchain-models",
+  // A volume cannot shrink, so the smaller one is a new one under a new name (phase 5 spec §9.15).
+  volume: "flowchain-weights",
   template: "flowchain-worker",
   /** the picture worker's own template (phase 5 spec §6.2): another image, the same volume and secrets */
   pictureTemplate: "flowchain-picture",
   keyframe: "flowchain-keyframe",
   clip: "flowchain-clip",
 } as const;
+
+/** Volumes this studio used before, by name: `removeRetiredVolumes` deletes them once nothing reads from them. */
+export const RETIRED_VOLUMES = ["flowchain-models"];
 
 /** Secrets hold the R2 keys; the template env refers to them, so they never sit in plain text on RunPod. */
 export const SECRET_NAMES = { accessKeyId: "flowchain_r2_access_key_id", secretAccessKey: "flowchain_r2_secret_access_key" };
@@ -27,9 +31,9 @@ export type DeployConfig = {
 
 export const DEFAULTS = {
   dataCenterId: "EU-RO-1",
-  // Holds 31 GB of clip weights and 16 GB for the picture model. It was grown for weights that are gone now
-  // (phase 5 spec §9.13), and a volume can never shrink: a smaller one means a new volume and a new download.
-  volumeGb: 110,
+  // Holds 31 GB of clip weights and 16 GB for the picture model: 47 GB. There is room for nothing else; a
+  // model added later means growing it first (a volume can grow, never shrink).
+  volumeGb: 50,
   keyframeGpus: ["NVIDIA GeForce RTX 4090"],
   // 24 GB: Wan 2.2 fp8 loads one expert at a time; no 48 GB card was in stock in the volume's data centre (spec §16)
   clipGpus: ["NVIDIA GeForce RTX 4090"],
@@ -38,7 +42,7 @@ export const DEFAULTS = {
 };
 
 type Kind = "networkvolumes" | "templates" | "endpoints";
-type Resource = { id: string; name: string; size?: number; dataCenterId?: string };
+type Resource = { id: string; name: string; size?: number; dataCenterId?: string; networkVolumeId?: string };
 
 /** RunPod's REST API v1 (https://rest.runpod.io/v1) plus the v2 secrets endpoint. */
 export class RunpodRest {
@@ -74,6 +78,11 @@ export class RunpodRest {
 
   async update(kind: Kind, id: string, body: Record<string, unknown>): Promise<Resource> {
     return RunpodRest.json(`update ${kind} ${id}`, await this.call("PATCH", `${this.base}/${kind}/${id}`, body));
+  }
+
+  async remove(kind: Kind, id: string): Promise<void> {
+    const res = await this.call("DELETE", `${this.base}/${kind}/${id}`);
+    if (!res.ok) throw new HttpError(`RunPod delete ${kind} ${id} failed: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`, res.status);
   }
 
   /** Creates a secret; false when one with that name already exists (values cannot be changed through the API). */
@@ -210,6 +219,28 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
   const keyframeEndpoint = await upsert(rest, "endpoints", existing.keyframe, NAMES.keyframe, keyframe, keyframe);
   const clipEndpoint = await upsert(rest, "endpoints", existing.clip, NAMES.clip, clip, clip);
   return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id };
+}
+
+/**
+ * Deletes the volumes this studio used before. Only when the volume in use exists, and only a volume that no
+ * endpoint of this account reads from: a deleted volume takes its files with it, and they cannot be brought back.
+ * Everything is looked up before anything is deleted. Returns the names removed.
+ */
+export async function removeRetiredVolumes(rest: RunpodRest): Promise<string[]> {
+  const [volumes, endpoints] = await Promise.all([rest.list("networkvolumes"), rest.list("endpoints")]);
+  const retired = volumes.filter((v) => RETIRED_VOLUMES.includes(v.name));
+  if (retired.length === 0) return [];
+  if (!findByName(volumes, "networkvolumes", NAMES.volume)) {
+    throw new Error(`volume ${NAMES.volume} does not exist yet; run the deploy first, so the old volume is not the only one`);
+  }
+  for (const volume of retired) {
+    const readers = endpoints.filter((e) => e.networkVolumeId === volume.id).map((e) => e.name);
+    if (readers.length > 0) {
+      throw new Error(`volume ${volume.name} is still read by ${readers.join(", ")}; run the deploy first, so they read from ${NAMES.volume}`);
+    }
+  }
+  for (const volume of retired) await rest.remove("networkvolumes", volume.id);
+  return retired.map((v) => v.name);
 }
 
 /**

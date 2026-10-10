@@ -56,8 +56,11 @@ def validate(inp):
         if only is not None and only not in WORKFLOWS:
             raise ContractError("only must be 'clip'")
         return {"task": task, "only": only}
+    if task == "warm":
+        _only(inp, ("task",))
+        return {"task": task}
     if task not in WORKFLOWS:
-        raise ContractError("task must be 'clip' or 'fetch-models'")
+        raise ContractError("task must be 'clip', 'warm' or 'fetch-models'")
     if inp.get("workflow") != WORKFLOWS[task]:
         raise ContractError(f"this worker runs workflow {WORKFLOWS[task]} for task {task}")
     seed = inp.get("seed")

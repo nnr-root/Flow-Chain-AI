@@ -650,3 +650,41 @@ about 3.7 to about 3.1 cents (roughly 120 s to 100 s): the two 14 GB experts sti
 default of 90 s for that start stands. Part of the lower clip total is shorter lines in this script.
 
 Spent: $0.15 for the video; the deploy's `fetch-models` jobs ran seconds.
+
+### 9.15 An early start for the clip worker, and a volume the size of what is on it (2026-10-10, before its live check)
+
+The owner's decisions: stay on the RTX 4090 (no A100, no H100: §9.9 measured an H100 at about twice the cost
+of a clip, and an A100 costs more a second than a 4090 without being faster at this work); no change to modes
+(the hybrid rules of 2.2 already turn quiet scenes into stills; the test videos ask for the dearest case on
+purpose); a 50 GB volume in place of the 110 GB one, not models inside the images.
+
+**Early start.** A run's clips waited about 100 s for their worker, after the pictures were done. Now, before
+a picture is bought, the pipeline asks whether the pictures still to make will take no longer than the clip
+worker's start (pictures left × 6 s, plus 60 s if the picture worker may have to start too, against 90 s). When
+they will, it sends the clip endpoint one `warm` job: the worker waits for ComfyUI and reads its model files to
+their end (the two in the image, the four on the volume), makes nothing, uploads nothing, and answers.
+
+- **Why that rule and not "at the first picture":** a worker stops 30 s after its last job and is billed until
+  then. Started too early in a long run it would stop before its first clip, and the start would be paid twice.
+  The rule errs the other way: a warm-up that ends after the pictures only makes the first clip wait behind it
+  on the same worker, which is what it did before.
+- **Money:** its expected cost (90 s of the clip card, $0.0275) is written to the manifest's `inFlight` before it
+  is asked for, and its request id beside it (`warmup`). Before the first clip is bought its measured cost is
+  charged (a ledger entry of that clip) and both are removed in the same save. A warm-up whose cost cannot be
+  learnt stays at what was expected, in `abandonedUsd`. One that could not be asked for records nothing and
+  stops nothing. The first clip's estimate still carries the run's one start, so the plan's total is unchanged.
+- **Not known until measured:** how much of a start is reading files (which this moves) and how much is ComfyUI
+  loading them onto the card (which still happens in the first clip); whether a picture stage that runs much
+  longer than estimated (a host fetching the picture image) lets the warmed worker stop first. That case costs
+  about 3 cents and a slow first clip, as before.
+- On a resume the warm-up of the earlier process is settled and no new one is sent.
+
+**Volume.** `flowchain-weights`, 50 GB, in place of `flowchain-models`, 110 GB: $3.50 a month in place of
+$7.70. The two models are 47 GB; there is room for nothing else, and a model added later means growing it
+first. A deploy makes the new volume, points both endpoints at it and downloads the models again; it does not
+touch the old one. `runpod:deploy -- --remove-old-volume` deletes the old one, and refuses unless the new one
+exists and no endpoint reads from the old (`removeRetiredVolumes`). It is run after a video has been made on
+the new volume, with the owner's click.
+
+**Unverified until the live check:** that an endpoint can be moved to another volume by an update; the two
+downloads fitting in 50 GB; the `warm` job on a real worker; the seconds it saves.

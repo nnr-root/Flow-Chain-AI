@@ -1,11 +1,12 @@
 /**
  * npm run runpod:deploy [-- --yes]: creates or updates the RunPod volume, template and endpoints, seeds the model
  * weights and writes the endpoint ids into .env (2.4 spec §4.3). Asks before creating billable resources.
+ * With `--remove-old-volume` it does one other thing instead: deletes the volume used before this one.
  */
 import { createInterface } from "node:readline/promises";
 import { execa } from "execa";
 import {
-  applyDeploy, assertImageInGhcr, DEFAULTS, fetchModels, pictureImageTag, planDeploy, RunpodRest, workerImageTag, writeEnvValues,
+  applyDeploy, assertImageInGhcr, DEFAULTS, fetchModels, NAMES, pictureImageTag, planDeploy, removeRetiredVolumes, RETIRED_VOLUMES, RunpodRest, workerImageTag, writeEnvValues,
 } from "../src/deploy/runpod.js";
 import { R2 } from "../src/providers/r2.js";
 import { RunpodClient } from "../src/providers/runpod.js";
@@ -34,6 +35,12 @@ async function main(): Promise<void> {
     // rely on the real environment
   }
   const apiKey = need("RUNPOD_API_KEY");
+  // `-- --remove-old-volume`: after a deploy onto the new volume was checked with a real run. Deletes for good.
+  if (process.argv.includes("--remove-old-volume")) {
+    const removed = await removeRetiredVolumes(new RunpodRest(apiKey));
+    console.log(removed.length ? `Deleted volume ${removed.join(", ")}; ${NAMES.volume} is the only one now.` : `No volume named ${RETIRED_VOLUMES.join(" or ")} exists; nothing was deleted.`);
+    return;
+  }
   const cfg = {
     image: process.env.RUNPOD_WORKER_IMAGE ?? (await defaultImage("clip")),
     pictureImage: process.env.RUNPOD_PICTURE_IMAGE ?? (await defaultImage("picture")),
@@ -89,6 +96,7 @@ async function main(): Promise<void> {
     if (done.removed?.length) console.log(`  removed from the volume: ${done.removed.join(", ")}`);
   }
   console.log("Next: npm run flowchain -- doctor, then npm run smoke:runpod (paid).");
+  console.log(`An earlier volume (${RETIRED_VOLUMES.join(", ")}), if there is one, is still there and still billed: once a run has worked, npm run runpod:deploy -- --remove-old-volume deletes it.`);
 }
 
 main().catch((err: unknown) => {

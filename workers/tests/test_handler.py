@@ -119,9 +119,26 @@ def test_fetch_models_takes_retired_weights_off_the_volume_once_the_listed_ones_
     assert out["removed"] == ["old-sdxl.safetensors"] and not (volume / "checkpoints" / "old-sdxl.safetensors").exists()
 
 
+def test_a_warm_up_reads_the_model_files_makes_nothing_and_needs_no_bucket(worker, monkeypatch, tmp_path):
+    for name in R2_ENV:
+        monkeypatch.delenv(name)
+    volume = tmp_path / "volume"
+    (volume / "diffusion_models").mkdir(parents=True)
+    (volume / "diffusion_models" / "expert.safetensors").write_bytes(b"x" * 1000)
+    in_image = tmp_path / "encoder.safetensors"
+    in_image.write_bytes(b"y" * 300)
+    monkeypatch.setattr(worker, "VOLUME_MODELS", str(volume))
+    monkeypatch.setattr(worker, "IMAGE_MODELS", (str(in_image), str(tmp_path / "not-there.safetensors")))
+    monkeypatch.setattr(worker.models, "load", lambda path: [{"name": "expert.safetensors", "dir": "diffusion_models"}])
+    out = worker.handler({"id": "j1", "input": {"task": "warm"}})
+    assert out["warmedBytes"] == 1300 and "url" not in out
+    # ComfyUI was waited for and given nothing to do; nothing was written anywhere
+    assert worker.calls == ["ready"] and leftovers(worker) == []
+
+
 def test_a_picture_task_is_refused_before_any_gpu_work(worker):
     out = worker.handler({"id": "j1", "input": {"task": "keyframe", "workflow": "keyframe-sdxl@1", "prompt": "a fox", "width": 1024, "height": 1024}})
-    assert "task must be 'clip' or 'fetch-models'" in out["error"] and worker.calls == []
+    assert "task must be 'clip', 'warm' or 'fetch-models'" in out["error"] and worker.calls == []
 
 
 def test_a_finished_clip_leaves_no_input_output_or_mp4_behind(worker):

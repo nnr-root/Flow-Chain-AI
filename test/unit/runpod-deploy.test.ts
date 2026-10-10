@@ -2,7 +2,7 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  applyDeploy, applyVoiceDeploy, assertImageInGhcr, DEFAULTS, fetchModels, NAMES, planDeploy, planVoiceDeploy, RunpodRest, VOICE_DEFAULTS, voiceImageTag,
+  applyDeploy, applyVoiceDeploy, assertImageInGhcr, DEFAULTS, fetchModels, NAMES, planDeploy, planVoiceDeploy, removeRetiredVolumes, RunpodRest, VOICE_DEFAULTS, voiceImageTag,
   workerImageTag, writeEnvValues,
 } from "../../src/deploy/runpod.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
@@ -43,6 +43,10 @@ function fakeRest() {
       store[kind].push(r);
       return json(200, r);
     }
+    if (init.method === "DELETE") {
+      store[kind] = store[kind].filter((x) => x.id !== id);
+      return new Response(null, { status: 204 });
+    }
     const r = store[kind].find((x) => x.id === id)!;
     Object.assign(r, body);
     return json(200, r);
@@ -64,7 +68,7 @@ describe("runpod deploy", () => {
   it("creates the volume, a template for each worker and both endpoints, with R2 keys as secrets", async () => {
     const { rest, store, secrets } = fakeRest();
     expect((await planDeploy(rest)).map((s) => `${s.action} ${s.name}`)).toEqual([
-      "create flowchain-models",
+      "create flowchain-weights",
       "create flowchain-worker",
       "create flowchain-picture",
       "create flowchain-keyframe",
@@ -116,8 +120,8 @@ describe("runpod deploy", () => {
   it("refuses to pick between two resources with the same name, before creating anything", async () => {
     const { rest, store, calls } = fakeRest();
     store.networkvolumes.push({ id: "v1", name: NAMES.volume }, { id: "v2", name: NAMES.volume });
-    await expect(planDeploy(rest)).rejects.toThrow(/networkvolumes.*flowchain-models/);
-    await expect(applyDeploy(rest, cfg, () => {})).rejects.toThrow(/networkvolumes.*flowchain-models/);
+    await expect(planDeploy(rest)).rejects.toThrow(/networkvolumes.*flowchain-weights/);
+    await expect(applyDeploy(rest, cfg, () => {})).rejects.toThrow(/networkvolumes.*flowchain-weights/);
     expect([store.templates.length, store.endpoints.length]).toEqual([0, 0]);
     expect(calls.filter((c) => c.startsWith("POST") && !c.endsWith("/account/secrets"))).toEqual([]);
   });
@@ -284,3 +288,38 @@ describe("the voice endpoint's deploy", () => {
   });
 });
 
+describe("the volume used before", () => {
+  const old = { id: "v-old", name: "flowchain-models", size: 110, dataCenterId: "EU-RO-1" };
+
+  it("is left alone by a deploy, which makes the smaller one beside it and points both endpoints there", async () => {
+    const { rest, store } = fakeRest();
+    store.networkvolumes.push({ ...old });
+    store.endpoints.push({ id: "e-k", name: NAMES.keyframe, networkVolumeId: "v-old" }, { id: "e-c", name: NAMES.clip, networkVolumeId: "v-old" });
+    const ids = await applyDeploy(rest, { ...cfg, volumeGb: DEFAULTS.volumeGb }, () => {});
+    expect(store.networkvolumes.map((v) => [v.name, v.size])).toEqual([["flowchain-models", 110], ["flowchain-weights", 50]]);
+    expect(store.endpoints.map((e) => e.networkVolumeId)).toEqual([ids.volumeId, ids.volumeId]);
+    expect(ids.volumeId).not.toBe("v-old");
+  });
+
+  it("is deleted only when the new one exists and no endpoint reads from the old one", async () => {
+    const alone = fakeRest();
+    alone.store.networkvolumes.push({ ...old });
+    await expect(removeRetiredVolumes(alone.rest)).rejects.toThrow(/flowchain-weights does not exist yet/);
+
+    const inUse = fakeRest();
+    inUse.store.networkvolumes.push({ ...old }, { id: "v-new", name: NAMES.volume, size: 50 });
+    inUse.store.endpoints.push({ id: "e-c", name: NAMES.clip, networkVolumeId: "v-old" });
+    await expect(removeRetiredVolumes(inUse.rest)).rejects.toThrow(/still read by flowchain-clip/);
+    expect(inUse.store.networkvolumes).toHaveLength(2);
+    expect(inUse.calls.filter((c) => c.startsWith("DELETE"))).toEqual([]);
+
+    const moved = fakeRest();
+    moved.store.networkvolumes.push({ ...old }, { id: "v-new", name: NAMES.volume, size: 50 }, { id: "v-x", name: "someone-elses", size: 10 });
+    moved.store.endpoints.push({ id: "e-c", name: NAMES.clip, networkVolumeId: "v-new" });
+    expect(await removeRetiredVolumes(moved.rest)).toEqual(["flowchain-models"]);
+    expect(moved.store.networkvolumes.map((v) => v.name)).toEqual([NAMES.volume, "someone-elses"]);
+    // said again, there is nothing to do, and nothing is touched
+    expect(await removeRetiredVolumes(moved.rest)).toEqual([]);
+    expect(moved.calls.filter((c) => c.startsWith("DELETE"))).toEqual(["DELETE /v1/networkvolumes/v-old"]);
+  });
+});
