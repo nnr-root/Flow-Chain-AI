@@ -88,6 +88,22 @@ async function main(): Promise<void> {
     () => console.log("Note: this R2 key may not set the bucket's rules, so no expiry rule was set. Uploads are still removed as soon as each is fetched; to also catch leftovers, add a rule in Cloudflare (R2 > the bucket > Settings > Object lifecycle: delete flowchain/ after 1 day)."),
   );
   const client = new RunpodClient(apiKey);
+  // An endpoint moved to another volume may answer its next job from a worker that still has the old one: the
+  // first move answered "already present 4" from the old volume and left the new one empty (phase 5 spec §9.16).
+  // So the models are asked for twice after a move, a minute apart; the second pass finds what the first missed.
+  const passes = deployed.movedVolume ? 2 : 1;
+  for (let pass = 1; pass <= passes; pass++) {
+    if (pass === 2) {
+      console.log("The endpoints moved to another volume: waiting a minute and asking for the models once more…");
+      await new Promise((done) => setTimeout(done, 60_000));
+    }
+    await fetchAll(client, deployed);
+  }
+  console.log("Next: npm run flowchain -- doctor, then npm run smoke:runpod (paid).");
+  console.log(`An earlier volume (${RETIRED_VOLUMES.join(", ")}), if there is one, is still there and still billed: once a run has worked, npm run runpod:deploy -- --remove-old-volume deletes it.`);
+}
+
+async function fetchAll(client: RunpodClient, deployed: { keyframeEndpointId: string; clipEndpointId: string }): Promise<void> {
   for (const [kind, id] of [["keyframe", deployed.keyframeEndpointId], ["clip", deployed.clipEndpointId]] as const) {
     console.log(`Fetching ${kind} model weights onto the volume (the first time takes a while)…`);
     const done = await fetchModels(client, id, kind);
@@ -95,8 +111,6 @@ async function main(): Promise<void> {
     // weights the worker no longer lists (retired, or now inside its image) are taken off the volume
     if (done.removed?.length) console.log(`  removed from the volume: ${done.removed.join(", ")}`);
   }
-  console.log("Next: npm run flowchain -- doctor, then npm run smoke:runpod (paid).");
-  console.log(`An earlier volume (${RETIRED_VOLUMES.join(", ")}), if there is one, is still there and still billed: once a run has worked, npm run runpod:deploy -- --remove-old-volume deletes it.`);
 }
 
 main().catch((err: unknown) => {

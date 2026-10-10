@@ -294,11 +294,16 @@ describe("the volume used before", () => {
   it("is left alone by a deploy, which makes the smaller one beside it and points both endpoints there", async () => {
     const { rest, store } = fakeRest();
     store.networkvolumes.push({ ...old });
-    store.endpoints.push({ id: "e-k", name: NAMES.keyframe, networkVolumeId: "v-old" }, { id: "e-c", name: NAMES.clip, networkVolumeId: "v-old" });
+    store.endpoints.push({ id: "e-k", name: NAMES.keyframe, networkVolumeId: "v-old", networkVolumeIds: ["v-old"] }, { id: "e-c", name: NAMES.clip, networkVolumeId: "v-old", networkVolumeIds: ["v-old"] });
     const ids = await applyDeploy(rest, { ...cfg, volumeGb: DEFAULTS.volumeGb }, () => {});
     expect(store.networkvolumes.map((v) => [v.name, v.size])).toEqual([["flowchain-models", 110], ["flowchain-weights", 50]]);
     expect(store.endpoints.map((e) => e.networkVolumeId)).toEqual([ids.volumeId, ids.volumeId]);
+    // the list RunPod keeps beside the single id is moved with it: left alone it went on naming the old volume
+    expect(store.endpoints.map((e) => e.networkVolumeIds)).toEqual([[ids.volumeId], [ids.volumeId]]);
     expect(ids.volumeId).not.toBe("v-old");
+    // said, so the models are asked for twice: a worker may still answer from the old volume just after the move
+    expect(ids.movedVolume).toBe(true);
+    expect((await applyDeploy(rest, { ...cfg, volumeGb: DEFAULTS.volumeGb }, () => {})).movedVolume).toBe(false);
   });
 
   it("is deleted only when the new one exists and no endpoint reads from the old one", async () => {
@@ -311,6 +316,12 @@ describe("the volume used before", () => {
     inUse.store.endpoints.push({ id: "e-c", name: NAMES.clip, networkVolumeId: "v-old" });
     await expect(removeRetiredVolumes(inUse.rest)).rejects.toThrow(/still read by flowchain-clip/);
     expect(inUse.store.networkvolumes).toHaveLength(2);
+    // as it was after the first move: the single id says the new volume, the list still says the old one
+    const listed = fakeRest();
+    listed.store.networkvolumes.push({ ...old }, { id: "v-new", name: NAMES.volume, size: 50 });
+    listed.store.endpoints.push({ id: "e-k", name: NAMES.keyframe, networkVolumeId: "v-new", networkVolumeIds: ["v-old"] });
+    await expect(removeRetiredVolumes(listed.rest)).rejects.toThrow(/still read by flowchain-keyframe/);
+    expect((await applyDeploy(listed.rest, { ...cfg, volumeGb: DEFAULTS.volumeGb }, () => {})).movedVolume).toBe(true);
     expect(inUse.calls.filter((c) => c.startsWith("DELETE"))).toEqual([]);
 
     const moved = fakeRest();

@@ -206,7 +206,7 @@ export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> impleme
   }
 
   /**
-   * Asks the worker to start and read its model files, while the run is still making pictures: the first clip
+   * Asks the worker to start and load its models, while the run is still making pictures: the first clip
    * then finds a worker that is up instead of waiting for one (phase 5 spec §9.15). The job makes nothing and
    * uploads nothing; it is billed for the seconds the start takes, as the first clip was before.
    */

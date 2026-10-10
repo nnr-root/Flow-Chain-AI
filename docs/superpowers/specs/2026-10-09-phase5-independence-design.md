@@ -688,3 +688,37 @@ the new volume, with the owner's click.
 
 **Unverified until the live check:** that an endpoint can be moved to another volume by an update; the two
 downloads fitting in 50 GB; the `warm` job on a real worker; the seconds it saves.
+
+### 9.16 Live check of §9.15 (2026-10-10)
+
+**Volume.** RunPod first refused to create it: an account needs $5 of credit to create a volume. With credit
+added, `flowchain-weights` (50 GB) was made, both models are on it (47 GB fit), and `flowchain-models` (110 GB)
+is deleted. Two things about moving an endpoint between volumes were learnt on the way, and are in the code:
+
+- **RunPod keeps a list (`networkVolumeIds`) beside the single id, and an update of the id does not change
+  it.** After the first deploy the id named the new volume and the list the old one. The clip worker's
+  `fetch-models` then ran on a worker with the old volume and answered "already present 4", leaving the new
+  volume without the clip model; and RunPod refused to delete the old volume. The deploy now sends both, and
+  after a move asks for the models twice, a minute apart. `removeRetiredVolumes` reads the list as well as the id.
+- The refusal to delete was RunPod's own, before this code's check had learnt of the list: nothing was lost.
+
+**Early start.** Two runs, same request (480p, four scenes):
+
+| | Reading the files (first try) | A smallest clip (as built now) |
+|---|---|---|
+| Warm-up | $0.0126 (41 s) | $0.0350 (114 s) |
+| First clip | $0.0428 (it still loaded the models: about 80 s) | $0.0150 (as cheap as the later ones) |
+| First clip done, after the last picture | 2 min 35 s | 1 min 20 s |
+| Video | $0.133 (three clips) | $0.141 (four clips) |
+
+Reading the model files into memory was not what a start waits for: ComfyUI's own load of them is. The `warm`
+job therefore makes one clip of nothing at the smallest size the model takes (256×256, five frames, from a black
+picture made in the worker), which loads the text encoder, both experts, the VAE and RIFE, and is forgotten
+like any other job. Against §9.14's run (first clip done 2 min 58 s after the last picture) that is about 100 s
+less waiting for the same money: the start is paid once, as before, and now overlaps the pictures.
+
+- The start measured 114 s against the 90 s the rule and the estimate use. Left: the rule errs towards a
+  warm-up that ends late, which costs nothing.
+- The whole run, start to last clip: 7 min 42 s (9 min 22 s in §9.14).
+
+Spent on this check: two videos ($0.13 + $0.14) and the models' download (about four minutes of GPU).

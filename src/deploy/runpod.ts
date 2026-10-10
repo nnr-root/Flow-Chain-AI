@@ -42,7 +42,7 @@ export const DEFAULTS = {
 };
 
 type Kind = "networkvolumes" | "templates" | "endpoints";
-type Resource = { id: string; name: string; size?: number; dataCenterId?: string; networkVolumeId?: string };
+type Resource = { id: string; name: string; size?: number; dataCenterId?: string; networkVolumeId?: string; networkVolumeIds?: string[] };
 
 /** RunPod's REST API v1 (https://rest.runpod.io/v1) plus the v2 secrets endpoint. */
 export class RunpodRest {
@@ -140,7 +140,8 @@ export async function planDeploy(rest: RunpodRest): Promise<Step[]> {
   ];
 }
 
-export type Deployed = { volumeId: string; templateId: string; keyframeEndpointId: string; clipEndpointId: string };
+/** `movedVolume`: an endpoint that existed was reading from another volume until now. */
+export type Deployed = { volumeId: string; templateId: string; keyframeEndpointId: string; clipEndpointId: string; movedVolume: boolean };
 
 async function upsert(
   rest: RunpodRest,
@@ -210,6 +211,9 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     // (phase 5 spec §8). The price is a slower start of a worker that was stopped.
     flashboot: false,
     networkVolumeId: volume.id,
+    // RunPod keeps a list beside the single id and does not change it with it: after the first move the list
+    // still named the old volume, a worker came up with it, and the old volume could not be deleted (spec §9.16)
+    networkVolumeIds: [volume.id],
     dataCenterIds: [cfg.dataCenterId],
     ...more,
   });
@@ -218,7 +222,10 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
   const clip = endpoint(template.id, cfg.clipGpus, 600_000);
   const keyframeEndpoint = await upsert(rest, "endpoints", existing.keyframe, NAMES.keyframe, keyframe, keyframe);
   const clipEndpoint = await upsert(rest, "endpoints", existing.clip, NAMES.clip, clip, clip);
-  return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id };
+  const movedVolume = [existing.keyframe, existing.clip].some(
+    (e) => (e?.networkVolumeId !== undefined && e.networkVolumeId !== volume.id) || e?.networkVolumeIds?.some((id) => id !== volume.id),
+  );
+  return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id, movedVolume };
 }
 
 /**
@@ -234,7 +241,7 @@ export async function removeRetiredVolumes(rest: RunpodRest): Promise<string[]> 
     throw new Error(`volume ${NAMES.volume} does not exist yet; run the deploy first, so the old volume is not the only one`);
   }
   for (const volume of retired) {
-    const readers = endpoints.filter((e) => e.networkVolumeId === volume.id).map((e) => e.name);
+    const readers = endpoints.filter((e) => e.networkVolumeId === volume.id || e.networkVolumeIds?.includes(volume.id)).map((e) => e.name);
     if (readers.length > 0) {
       throw new Error(`volume ${volume.name} is still read by ${readers.join(", ")}; run the deploy first, so they read from ${NAMES.volume}`);
     }

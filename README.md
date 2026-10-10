@@ -109,8 +109,8 @@ One-time setup (accounts and keys only):
 
 Then `npm run flowchain -- doctor`. `npm run smoke:runpod` makes a real 4-scene video and is a paid run.
 
-While a run's pictures are made, the clip worker is asked to start (a job that makes nothing and reads its model
-files), so the first clip does not wait for it; what that start costs is charged with the first clip.
+While a run's pictures are made, the clip worker is asked to start (a job that makes one tiny throwaway clip, so its models are loaded;
+nothing is uploaded), so the first clip does not wait for it; what that start costs is charged with the first clip.
 
 `npm run runpod:deploy -- --remove-old-volume` deletes the larger volume used before (`flowchain-models`), once a
 run on the new one has worked. It refuses while any endpoint still reads from it. A deleted volume is gone for good.
