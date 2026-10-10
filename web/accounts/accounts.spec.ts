@@ -155,7 +155,9 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   // every receipt, the making of a video, the calculator and the questions are open on this page by now
   for (const answer of await page.getByTestId("faq").locator("details").all()) await answer.evaluate((d) => ((d as HTMLDetailsElement).open = true));
   await namesNothing(page);
-  await expect(page.getByTestId("receipt").first()).toContainText("FlowChain Motion");
+  // a receipt says what each part cost, and gives none of them a name (phase 5 spec §9.17)
+  await expect(page.getByTestId("receipt").first()).not.toContainText(/FlowChain (Voice|Picture|Motion)/);
+  await expect(page.getByTestId("landing")).not.toContainText(/our (own )?engine|models we/i);
   // a video on the shelf is played in the Stage at the top
   await page.getByTestId("shelf-play-robot-painter").click();
   await expect(player).toHaveAttribute("data-slug", "robot-painter");
@@ -254,6 +256,8 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   // and A, signing in again with the password, has everything back
   await page.goto("/account");
   await page.getByTestId("sign-out").click();
+  // (signing out goes to the login page by itself: going anywhere before it has would be cut off by it)
+  await expect(page).toHaveURL(/\/login$/);
   await page.goto(`/login?next=${encodeURIComponent(`/runs/${runId}`)}`);
   await page.getByLabel("Email").fill(A.email);
   await page.getByLabel("Password").fill("not-the-password");
@@ -332,6 +336,8 @@ test("a user buys a top-up and a plan at Stripe and has the credit when they com
   // A bought nothing and sees nothing of it
   await page.goto("/account");
   await page.getByTestId("sign-out").click();
+  // (signing out goes to the login page by itself: going anywhere before it has would be cut off by it)
+  await expect(page).toHaveURL(/\/login$/);
   await signIn(page, A);
   await page.goto("/account");
   await expect(page.getByTestId("balance")).toHaveText("$0.79");
@@ -392,6 +398,8 @@ test("a visitor types a topic on the landing page, creates an account, and finds
     expect(await has()).toBe(0.05);
     // once: nothing more for signing in again
     await page.getByTestId("sign-out").click();
+    // (signing out goes to the login page by itself: going anywhere before it has would be cut off by it)
+    await expect(page).toHaveURL(/\/login$/);
     await signIn(page, C);
     expect(await balance(C.email)).toBeLessThan(0.05);
   } finally {
@@ -441,4 +449,30 @@ test("the pages anyone may read are there, say what is not written yet, and the 
   expect(seen.lcp).toBeGreaterThan(0);
   expect(seen.lcp).toBeLessThan(2500);
   expect(seen.cls).toBeLessThan(0.1);
+});
+
+test("a video on the landing page is heard once the visitor turns its sound on, from where it had got to", async ({ page }) => {
+  await page.goto("/");
+  const player = page.getByTestId("showcase-player");
+  await expect(player).toHaveAttribute("data-live", "true", { timeout: 20_000 });
+  const voice = player.locator('audio[src$="narration.mp3"]');
+  const time = () => voice.evaluate((a: HTMLAudioElement) => a.currentTime);
+  // it starts by itself, so it starts silent: a browser allows nothing else
+  await expect(voice).toHaveJSProperty("muted", true);
+  await expect.poll(time, { timeout: 20_000 }).toBeGreaterThan(1);
+  await player.getByTestId("sound-on").click();
+  // The voice and the music are still playing, and are no longer muted. (Unmuting the silent player loses them:
+  // its audio elements are made again under the sounds that were playing, and those are left without one.)
+  for (const sound of [voice, player.locator('audio[src$="bgm.mp3"]')]) {
+    await expect(sound).toHaveCount(1);
+    await expect(sound).toHaveJSProperty("muted", false);
+    await expect(sound).toHaveJSProperty("paused", false);
+  }
+  const then = await time();
+  expect(then).toBeGreaterThan(1);
+  await expect.poll(time).toBeGreaterThan(then);
+  // the player's own bar has the volume from here on; the page's button has done its work
+  await expect(player.getByTestId("sound-on")).toHaveCount(0);
+  await player.hover();
+  await expect(player.getByRole("button", { name: "Mute sound" })).toBeVisible();
 });

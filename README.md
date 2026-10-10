@@ -47,7 +47,8 @@ Mode 1 while the run fits the budget (`--budget`, frozen with the run), otherwis
 `--mode 1|2` or `--modes` fix the modes by hand. `status` shows each scene's mode and why.
 
 Style presets (`--style`, default: Gemini picks one for the topic): `cinematic_history`, `anime`, `cyberpunk`,
-`dark_fantasy`, `photorealistic_8k`, `3d_render`. A preset wraps every image and motion prompt and brings its own
+`dark_fantasy`, `photorealistic_8k`, `3d_render`, `cartoon`, `comic_book`, `watercolor`, `pixel_art`, `film_noir`,
+`flat_illustration`, `epic_fantasy`, `claymation`. A preset wraps every image and motion prompt and brings its own
 caption look.
 
 Caption styles: `preset` (default: the style preset's look), `hormozi`, `mrbeast`, `minimalist`. Transitions at
@@ -379,6 +380,9 @@ What to know:
 and the web app with accounts, and Stripe's test mode when `.env` has a test key and the Stripe CLI is
 installed and logged in. It opens the studio in the browser; Ctrl+C stops all of it.
 `npm run studio:local -- grant <email> 5` gives an account credit in the local database.
+`npm run studio:local -- --built` builds the web app first and serves it as a server would: a minute longer to
+start, and a change to the code shows only after the next start, but the pages run at their real speed. Without it
+they run in development mode, which shows every change at once and makes the browser do several times the work.
 
 It never uses a database other than the local one, a mail server or the real bucket, whatever `.env` says, and
 never a live Stripe key. It sends no email: an account works as soon as it is created.

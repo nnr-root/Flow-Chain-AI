@@ -67,5 +67,12 @@ export const linkError = (code: string | null | undefined): string => (code && O
  */
 export const PUBLIC_PAGES = /^\/(welcome|showcase|terms|privacy|login|signup|reset|pricing|auth\/callback|auth\/google)(\/|$)/;
 
+/**
+ * The site's own icon, by the names a browser asks for unprompted (Safari asks for the last two whatever the
+ * page says). They are the same picture for everyone; sent to the login page instead, each visit asked for
+ * that page three more times.
+ */
+export const PUBLIC_FILES = /^\/(favicon\.ico|icon\.svg|apple-touch-icon(-precomposed)?\.png)$/;
+
 /** The landing page: what a visitor without a session is shown at `/`. */
 export const LANDING_PAGE = "/welcome";

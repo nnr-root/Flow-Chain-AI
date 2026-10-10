@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { hostName, isAllowedHost } from "./lib/hosts";
-import { LANDING_PAGE, LOGIN_MISSING, loginMissing, multiTenant, PUBLIC_PAGES, SESSION_COOKIE } from "./lib/accounts";
+import { LANDING_PAGE, LOGIN_MISSING, loginMissing, multiTenant, PUBLIC_FILES, PUBLIC_PAGES, SESSION_COOKIE } from "./lib/accounts";
 
 /**
  * Runs before every request Next answers — pages, their RSC payloads, the API and static files — and refuses
@@ -26,7 +26,7 @@ export function proxy(request: NextRequest): Response | undefined {
   if (!multiTenant()) return undefined;
 
   const { pathname, search } = request.nextUrl;
-  if (request.cookies.get(SESSION_COOKIE)?.value || pathname.startsWith("/api/") || pathname.startsWith("/_next/") || PUBLIC_PAGES.test(pathname)) return undefined;
+  if (request.cookies.get(SESSION_COOKIE)?.value || pathname.startsWith("/api/") || pathname.startsWith("/_next/") || PUBLIC_PAGES.test(pathname) || PUBLIC_FILES.test(pathname)) return undefined;
   // The bare address is what people share: without a session it shows the landing page, at that same address.
   if (pathname === "/") {
     const landing = request.nextUrl.clone();

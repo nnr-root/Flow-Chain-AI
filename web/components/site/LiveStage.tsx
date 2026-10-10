@@ -130,7 +130,7 @@ export function LiveStage({ showcases, children }: { showcases: Showcase[]; chil
       </div>
 
       {/* the desk under the monitor: what a free re-render can change, changed here at once */}
-      <form className="glass mt-12 rounded-[10px] border border-hairline p-5 sm:p-6" aria-label="Restyle this video" onSubmit={(e) => e.preventDefault()}>
+      <form className="desk mt-12 rounded-[10px] border border-hairline p-5 sm:p-6" aria-label="Restyle this video" onSubmit={(e) => e.preventDefault()}>
         <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
           <p className="max-w-[46rem] text-[0.95rem] leading-snug">
             This is the real renderer, running in your browser on a video Flow Chain made. Change how it is cut and captioned; nothing is bought.

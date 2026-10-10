@@ -1,7 +1,12 @@
 /**
- * npm run studio:local [-- --no-stripe] [-- --no-open]: the whole studio on this machine with one command — the
- * local database (started if it is not running), a queue, the worker and the web app, and Stripe's test mode
- * when a test key is in .env and the Stripe CLI is installed. Ctrl+C stops all of it.
+ * npm run studio:local [-- --built] [-- --no-stripe] [-- --no-open]: the whole studio on this machine with one
+ * command — the local database (started if it is not running), a queue, the worker and the web app, and
+ * Stripe's test mode when a test key is in .env and the Stripe CLI is installed. Ctrl+C stops all of it.
+ *
+ * --built: the web app is built first and served as a server would serve it. That takes a minute at the start
+ * and a change to the code is not picked up until the next start; in return the pages run at their real speed.
+ * Without it they run in development mode, where every change shows at once and the browser does several
+ * times the work (measured on the landing page: about four times the script time for the same film).
  *
  * npm run studio:local -- grant <email> <usd>: adds credit to an account in the LOCAL database.
  *
@@ -90,9 +95,9 @@ async function grant(args: string[]): Promise<void> {
 async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   if (argv[0] === "grant") return grant(argv.slice(1));
-  const unknown = argv.filter((a) => !["--no-stripe", "--no-open"].includes(a));
+  const unknown = argv.filter((a) => !["--built", "--no-stripe", "--no-open"].includes(a));
   if (unknown.length > 0) {
-    console.error(`unknown option ${unknown.join(" ")}\nusage: npm run studio:local [-- --no-stripe] [-- --no-open] | npm run studio:local -- grant <email> <usd>`);
+    console.error(`unknown option ${unknown.join(" ")}\nusage: npm run studio:local [-- --built] [-- --no-stripe] [-- --no-open] | npm run studio:local -- grant <email> <usd>`);
     process.exit(2);
   }
   const env = readEnv();
@@ -117,7 +122,14 @@ async function main(): Promise<void> {
   start("queue", "redis-server", ["--port", String(REDIS_PORT), "--bind", "127.0.0.1", "--dir", redisDir, "--save", ""], { env: {}, quiet: true });
   if (billing) start("stripe", "stripe", ["listen", "--events", EVENT_TYPES.join(","), "--forward-to", `${URL}/api/stripe/webhook`], { env: {} });
   start("worker", "node", ["--import", "tsx", "worker/main.ts"], { cwd: "web", env: worker });
-  start("web", "npx", ["next", "dev", "--webpack", "-H", "127.0.0.1", "-p", String(PORT)], { cwd: "web", env: web });
+  const built = argv.includes("--built");
+  if (built) {
+    console.log("Building the studio (about a minute)…");
+    await execa("npx", ["next", "build", "--webpack"], { cwd: "web", env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", ...web }, extendEnv: false, stdio: ["ignore", "ignore", "inherit"] }).catch(() => {
+      throw new Error("the studio could not be built; see the lines above");
+    });
+  }
+  start("web", "npx", built ? ["next", "start", "-H", "127.0.0.1", "-p", String(PORT)] : ["next", "dev", "--webpack", "-H", "127.0.0.1", "-p", String(PORT)], { cwd: "web", env: web });
 
   const deadline = Date.now() + 120_000;
   for (;;) {
@@ -138,6 +150,8 @@ async function main(): Promise<void> {
   Payments:               ${billing ? "Stripe test mode. Card 4242 4242 4242 4242, any future date, any CVC." : "off"}
   Videos:                 REAL. A draft costs about a cent; a video about $0.30, from your
                           provider keys, never more than the amount you approve on its button.
+
+  ${built ? "Built: this is the speed a server gives. A change to the code shows after the next start." : "Development mode: changes show at once, and pages run several times slower than on a\n  server. For their real speed:  npm run studio:local -- --built"}
 
   Ctrl+C stops everything.
 ────────────────────────────────────────────────────────────────────────

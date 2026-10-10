@@ -110,6 +110,10 @@ describe.skipIf(!supa || !hasRedisServer())("a studio with accounts", () => {
     expect([deep.status, to.pathname + to.search]).toEqual([307, "/login?next=%2Fruns%2F20261006-120000-e2e001"]);
     // the landing page under its own name, and the pages anyone may open, pass as they are
     for (const open of ["/welcome", "/login", "/pricing", "/api/runs", "/_next/static/x.js"]) expect(await ask(open), open).toBeUndefined();
+    // so does the site's icon, by every name a browser asks for unprompted; nothing else that merely looks like a file
+    for (const icon of ["/favicon.ico", "/icon.svg", "/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"]) expect(await ask(icon), icon).toBeUndefined();
+    expect((await ask("/favicon.ico/runs"))!.status).toBe(307);
+    expect((await ask("/runs.png"))!.status).toBe(307);
     // with a session cookie the bare address is the studio: nothing is rewritten here. (Whether the session is
     // real is decided where the data is read; a cookie someone made up gets this far and no further, below.)
     expect(await ask("/", aCookie)).toBeUndefined();

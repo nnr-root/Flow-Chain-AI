@@ -16,6 +16,7 @@ const plexMono = localFont({
 });
 
 export const metadata: Metadata = {
+  icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/favicon.ico", sizes: "48x48" }], apple: "/apple-touch-icon.png" },
   title: "Flow Chain — a finished short video from one sentence",
   description: "Flow Chain writes the script, records the voice, generates the pictures and cuts a captioned short video to the words. You see the cost before anything is bought.",
 };

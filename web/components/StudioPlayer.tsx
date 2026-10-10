@@ -47,6 +47,7 @@ export const StudioPlayer = forwardRef<StudioPlayerHandle, Props>(function Studi
         controls
         clickToPlay
         spaceKeyToPlayOrPause
+        acknowledgeRemotionLicense
       />
     </div>
   );

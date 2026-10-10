@@ -102,7 +102,7 @@ export function FeatureStage({ showcase }: { showcase: Showcase }) {
             </p>
           )}
           <div className="flex flex-wrap gap-3">
-            <button type="button" className={act} onClick={() => player.current?.playFrom(0, true)}>Play it with sound</button>
+            <button type="button" className={act} onClick={(e) => player.current?.playFrom(0, e)}>Play it with sound</button>
             <button type="button" className={act} data-testid="feature-sfx" onClick={() => set("sfx", !controls.sfx)}>
               {controls.sfx ? "Take the sounds out" : "Put the sounds back"}
             </button>

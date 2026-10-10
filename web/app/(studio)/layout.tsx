@@ -7,7 +7,10 @@ import { multiTenant } from "@/lib/accounts";
 import { headerAccount } from "@/server/page";
 import "./globals.css";
 
-export const metadata: Metadata = { title: "Flow-Chain Studio", description: "Create, preview and render videos" };
+export const metadata: Metadata = {
+  title: "Flow-Chain Studio", description: "Create, preview and render videos",
+  icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/favicon.ico", sizes: "48x48" }], apple: "/apple-touch-icon.png" },
+};
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // with accounts, the studio's own links are for someone who is signed in
