@@ -33,7 +33,7 @@ def validate(inp, voices):
         raise ContractError("task must be 'speak' or 'design'")
     if inp.get("workflow") != WORKFLOW:
         raise ContractError(f"this worker runs workflow {WORKFLOW}")
-    allowed = {"task", "workflow", "text", "voice", "language", "seed", "reference"} if task == "speak" else {"task", "workflow", "text", "description", "seed"}
+    allowed = {"task", "workflow", "text", "voice", "language", "seed", "reference"} if task == "speak" else {"task", "workflow", "text", "description", "language", "seed"}
     unknown = sorted(set(inp) - allowed)
     if unknown:
         raise ContractError(f"unknown field(s): {', '.join(unknown)}")
@@ -99,7 +99,11 @@ def _design(inp, text):
     # the model reads the description between one pair of parentheses: one inside it would end it early
     if "(" in description or ")" in description:
         raise ContractError("description must not contain parentheses")
-    return _seeded(inp, {"task": "design", "text": text, "description": description.strip()})
+    # the language the line is in: the voice is made speaking it, and what it said is listened for in it
+    language = inp.get("language")
+    if language is not None and (not isinstance(language, str) or not LANGUAGE.match(language)):
+        raise ContractError("language must be a two-letter code")
+    return _seeded(inp, {"task": "design", "text": text, "description": description.strip(), "language": language or "en"})
 
 
 def reference(voices, voice, language):

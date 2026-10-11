@@ -93,24 +93,31 @@ export const VOICES = {
 } as const;
 export type VoiceId = keyof typeof VOICES;
 
-/** The voices the voice worker's image has. Every other voice is a designed one, whose clip goes with each line. */
+/** The voices the voice worker's image has clips of (English and Turkish). Every other clip goes with each line. */
 export const BUILT_IN_VOICES: readonly VoiceId[] = ["narrator-m", "narrator-f"];
 
 /**
- * How each designed voice was asked for: who speaks, the colour of the voice, the mood and the pace (the voice
- * model takes gender, age, tone, emotion and pace). Read by `npm run make:voices -- --design`.
+ * How each voice is asked for (phase 7 spec §16): its sex, and in words who speaks, the colour of the voice, the
+ * mood and the pace. Every voice is made in every language from this, speaking that language natively: a voice
+ * made in English and made to speak Turkish speaks it with an English accent ("hör" for "her"). The narrators'
+ * English and Turkish clips are the worker's own; their other languages are made the same way.
+ *
+ * The descriptions differ in what makes voices different, not only in mood: sex, age, pitch, and the grain of
+ * the voice. Ten voices described by mood alone came out as three or four voices in different moods (§15.1).
  */
-export const VOICE_DESIGNS: Partial<Record<VoiceId, string>> = {
-  storyteller: "An older man in his sixties, warm, deep and slightly gravelly voice, kind and calm, slow unhurried pace, like a grandfather telling a story by the fire",
-  documentary: "A middle-aged man, deep, rich and authoritative voice, serious and composed, measured steady pace, like a nature documentary narrator",
-  trailer: "A man with a very low, dark and intense voice, dramatic and gripping, slow heavy pace, like a movie trailer voice-over",
-  host: "A young man in his twenties, bright, energetic and excited voice, smiling and enthusiastic, fast lively pace, like an online video host",
-  explainer: "A man in his thirties, friendly, clear and conversational voice, relaxed and approachable, medium pace, like a teacher explaining something simply",
-  anchor: "A woman in her thirties, clear, crisp and confident voice, poised and professional, brisk even pace, like a television news anchor",
-  upbeat: "A young woman in her twenties, cheerful, bright and playful voice, smiling and bubbly, quick upbeat pace",
-  calm: "A woman with a soft, soothing and gentle voice, peaceful and tender, slow relaxed pace, like a guided meditation",
-  mystery: "A woman with a low, hushed and mysterious voice, secretive and suspenseful, slow deliberate pace, almost a whisper",
-  storybook: "A young woman with a bright, animated and expressive voice, warm and full of wonder, lively pace, like someone reading a picture book to children",
+export const VOICE_DESIGNS: Record<VoiceId, { sex: "m" | "f"; description: string }> = {
+  "narrator-m": { sex: "m", description: "A man in his forties with a clear, pleasant mid-range voice, neutral and even, calm, medium pace" },
+  "narrator-f": { sex: "f", description: "A woman in her thirties with a clear, pleasant mid-range voice, neutral and even, calm, medium pace" },
+  storyteller: { sex: "m", description: "An old man in his seventies with a raspy, gravelly, weathered voice, kind and warm, slow and unhurried, like a grandfather by the fire" },
+  documentary: { sex: "m", description: "A man in his fifties with a deep, smooth and resonant baritone voice, rich and polished, serious and measured, steady pace" },
+  trailer: { sex: "m", description: "A man with an extremely deep, booming bass voice, dark, powerful and dramatic, slow heavy pace, like a movie trailer" },
+  host: { sex: "m", description: "A young man of about twenty with a light, bright tenor voice, excited and energetic, grinning, very fast lively pace" },
+  mystery: { sex: "m", description: "A man in his thirties with a husky, breathy, hushed voice, close to a whisper, secretive and suspenseful, slow pace" },
+  explainer: { sex: "f", description: "A woman in her thirties with a warm, rounded low alto voice, friendly and patient, conversational, medium pace" },
+  anchor: { sex: "f", description: "A woman in her late forties with a firm, crisp and slightly low voice, authoritative and poised, brisk precise pace" },
+  upbeat: { sex: "f", description: "A teenage girl of about seventeen with a high, bright and bubbly voice, giggly and cheerful, quick pace" },
+  calm: { sex: "f", description: "A woman in her fifties with a soft, low, breathy and velvety voice, soothing and tender, very slow pace" },
+  storybook: { sex: "f", description: "A young woman with a very high, sing-song, cartoon-like voice, wide-eyed and theatrical, playful, lively pace" },
 };
 
 /** How fast a voice speaks against the narrators (1 for the narrators and any voice not on the list). */

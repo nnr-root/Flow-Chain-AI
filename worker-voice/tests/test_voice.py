@@ -71,7 +71,9 @@ def test_a_voice_that_brings_its_clip_needs_no_clip_here():
 
 
 def test_a_voice_is_designed_from_a_description_and_a_line():
-    assert contract.validate(DESIGN, VOICES) == {"task": "design", "text": "Good evening, and welcome.", "description": "An older man, warm and slow", "seed": 3}
+    assert contract.validate(DESIGN, VOICES) == {"task": "design", "text": "Good evening, and welcome.", "description": "An older man, warm and slow", "language": "en", "seed": 3}
+    # a voice is made in the language of its line, natively, not from a voice made in another
+    assert contract.validate({**DESIGN, "language": "tr", "text": "İyi akşamlar."}, VOICES)["language"] == "tr"
 
 
 @pytest.mark.parametrize(
@@ -86,7 +88,7 @@ def test_a_voice_is_designed_from_a_description_and_a_line():
         ({"text": ""}, "text must be"),
         # a design takes nothing of a spoken line's
         ({"voice": "narrator-m"}, "unknown field(s): voice"),
-        ({"language": "tr"}, "unknown field(s): language"),
+        ({"language": "turkish"}, "two-letter"),
         ({"reference": {"audio": CLIP, "text": "Hi."}}, "unknown field(s): reference"),
         ({"seed": -1}, "seed must be"),
     ],
@@ -199,6 +201,9 @@ def test_designs_a_voice_and_answers_with_its_reference_clip(worker):
     assert out["seconds"] == 9.5
     # the description and the line go to the model apart; what was said is listened to, to know it said the line
     assert worker.calls == [("design", "An older man, warm and slow", "Good evening, and welcome.", 3), ("words", "en")]
+    worker.calls.clear()
+    worker.handler({"id": "job9b", "input": {**DESIGN, "language": "tr", "text": "İyi akşamlar."}})
+    assert worker.calls[1] == ("words", "tr")
     assert list(worker.tmp.iterdir()) == []
 
 

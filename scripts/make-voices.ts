@@ -1,8 +1,7 @@
 /*
- * npm run make:voices -- --design [<voice> …]: designs the voices that have a description and no clip yet
- * (`VOICE_DESIGNS`), on the studio's voice engine, and keeps each one's clip in assets/voices/. **It buys
- * speech** (one line a voice). The engine must be one that designs (deployed from worker-voice/ as of phase 7
- * spec §15). A voice is kept only when what it said was heard as the line it was given.
+ * npm run make:voices -- --design [<language> …]: makes every voice in every language natively (see `design`),
+ * on the studio's voice engine, and keeps the clips in assets/voices/ and their samples on the form. **It buys
+ * speech** (a few takes a voice and language) and sets the endpoint to four workers while it runs.
  *
  * npm run make:voices [-- <language> …]: makes the sample a person hears for each voice in each language on the
  * new-video form, on the studio's own voice engine. **It buys speech** (one line a voice and language, a
@@ -15,7 +14,9 @@
  * reads which there are, and the length is what the words a second of each language were worked out from.
  */
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
+import { execa } from "execa";
+import { RunpodRest } from "../src/deploy/runpod.js";
 import { join } from "node:path";
 import { type Env, loadEnv, loadPrices } from "../src/config.js";
 import { ffmpeg, probeDuration } from "../src/media/ffmpeg.js";
@@ -24,7 +25,8 @@ import { newRunProviders, newRunVoice } from "../src/providers/new-run.js";
 import { runpodRates } from "../src/config.js";
 import { RunpodClient } from "../src/providers/runpod.js";
 import { heardShare } from "../src/voice/align.js";
-import { BUILT_IN_VOICES, SPEECH_LANGUAGES, type SpeechLanguage, VOICE_DESIGNS, type VoiceId } from "../src/voice/language.js";
+import { pitchFits, TOO_ALIKE, voiceDistance, type VoiceFeatures, voiceFeatures } from "../src/voice/features.js";
+import { BUILT_IN_VOICES, SPEECH_LANGUAGES, type SpeechLanguage, VOICE_DESIGNS, type VoiceId, VOICES } from "../src/voice/language.js";
 import { designedDir, designedVoices } from "../src/voice/library.js";
 
 /** The same two sentences in every language: an opening, as a narrator would say one. */
@@ -58,49 +60,122 @@ const LIST = "web/content/voice-samples.json";
 /** The voices there is something to hear of: the worker's own and the designed ones that have a clip. */
 const readyVoices = (): VoiceId[] => [...BUILT_IN_VOICES, ...(designedVoices() as VoiceId[])];
 
-/** Designs each asked-for voice that has a description and no clip yet; keeps a clip only when its line was heard. */
+/** A clip's sound as 16 kHz mono samples, for measuring it. */
+async function samplesOf(file: string): Promise<Float32Array> {
+  const { stdout } = await execa("ffmpeg", ["-v", "error", "-i", file, "-ac", "1", "-ar", "16000", "-f", "f32le", "-"], { encoding: "buffer", stripFinalNewline: false });
+  const buf = Buffer.from(stdout);
+  return new Float32Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 4));
+}
+
+type Take = { file: string; features: VoiceFeatures; heard: number; seconds: number };
+
+/**
+ * Makes every voice in every language natively (phase 7 spec §16): for each voice and language without a clip,
+ * a few takes from its description with different seeds, of which one is kept.
+ * - In English, the take kept is the one furthest from every voice kept before it, of the voice's own sex: so
+ *   that no two voices on the list are one voice in two moods.
+ * - In another language, the take kept is the one nearest the voice's English clip that is not too near another
+ *   voice in that language: the same voice as far as the model allows, speaking the language as its own.
+ * A take whose line was not heard as written is never kept. The worker's own clips (the narrators' English and
+ * Turkish) are measured and kept as they are. Several takes are made at once on several workers, which pays here
+ * (hundreds of jobs; phase 7 spec §11), and the endpoint is put back to one worker afterwards.
+ */
 async function design(env: Env, asked: string[]): Promise<void> {
-  const names = (asked.length > 0 ? asked : Object.keys(VOICE_DESIGNS)) as VoiceId[];
-  const bad = names.filter((n) => !VOICE_DESIGNS[n]);
-  if (bad.length > 0) throw new Error(`no description for: ${bad.join(", ")}`);
+  const languages = (asked.length > 0 ? asked : Object.keys(SPEECH_LANGUAGES)) as SpeechLanguage[];
   const endpoint = env.RUNPOD_VOICE_ENDPOINT;
   if (!endpoint || !env.RUNPOD_API_KEY) throw new Error("RUNPOD_VOICE_ENDPOINT and RUNPOD_API_KEY must be set");
   const client = new RunpodClient(env.RUNPOD_API_KEY);
   const rate = runpodRates(loadPrices()).voiceUsdPerSec;
-  const line = SAMPLE_LINES.en;
-  const listFile = join(designedDir(), "voices.json");
+  const dir = designedDir();
+  const listFile = join(dir, "voices.json");
   const list = JSON.parse(readFileSync(listFile, "utf8")) as Record<string, Record<string, string>>;
+  const tmp = join(dir, "_takes");
+  await mkdir(tmp, { recursive: true });
   let usd = 0;
-  for (const name of names) {
-    if (designedVoices().includes(name)) {
-      console.log(`${name}: has a clip already (delete it from assets/voices/ to design it again)`);
-      continue;
+
+  const take = async (voice: VoiceId, language: SpeechLanguage, seed: number): Promise<Take | null> => {
+    const line = SAMPLE_LINES[language];
+    const id = await client.run(endpoint, { task: "design", workflow: "voice-voxcpm2@1", description: VOICE_DESIGNS[voice].description, text: line, language, seed }, { executionTimeout: 300_000, ttl: 3_600_000 }, new AbortController().signal);
+    let job = await client.status(endpoint, id);
+    while (job && !["COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"].includes(job.status)) {
+      await new Promise((r) => setTimeout(r, 2000));
+      job = await client.status(endpoint, id);
     }
-    let kept = false;
-    for (const seed of [20261011, 7]) {
-      const id = await client.run(endpoint, { task: "design", workflow: "voice-voxcpm2@1", description: VOICE_DESIGNS[name], text: line, seed }, { executionTimeout: 300_000, ttl: 3_600_000 }, new AbortController().signal);
-      let job = await client.status(endpoint, id);
-      while (job && !["COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"].includes(job.status)) {
-        await new Promise((r) => setTimeout(r, 3000));
-        job = await client.status(endpoint, id);
+    usd += job?.executionTime ? (job.executionTime / 1000) * rate : 0;
+    const out = job?.output as { audio?: string; words?: Array<{ text: string; start: number; end: number }>; seconds?: number } | undefined;
+    if (job?.status !== "COMPLETED" || !out?.audio) return null;
+    const file = join(tmp, `${voice}.${language}.${seed}.flac`);
+    await writeFile(file, Buffer.from(out.audio, "base64"));
+    return { file, features: voiceFeatures(await samplesOf(file)), heard: heardShare(line, out.words ?? []), seconds: out.seconds ?? 0 };
+  };
+  /** Runs jobs four at a time. */
+  const pool = async <T>(jobs: Array<() => Promise<T>>): Promise<T[]> => {
+    const out: T[] = new Array(jobs.length);
+    let next = 0;
+    await Promise.all(Array.from({ length: 4 }, async () => {
+      while (next < jobs.length) {
+        const i = next++;
+        out[i] = await jobs[i]();
       }
-      usd += job?.executionTime ? (job.executionTime / 1000) * rate : 0;
-      const out = job?.output as { audio?: string; words?: Array<{ text: string; start: number; end: number }>; error?: string } | undefined;
-      if (job?.status !== "COMPLETED" || !out?.audio) throw new Error(`${name}: the engine did not design it (${job?.status ?? "gone"}${out?.error ? `: ${out.error}` : ""}); is the deployed voice worker one that designs?`);
-      const share = heardShare(line, out.words ?? []);
-      if (share < 0.8) {
-        console.log(`${name}: what it said was not the line (${Math.round(share * 100)}% heard); designed again`);
-        continue;
-      }
-      await writeFile(join(designedDir(), `${name}.en.flac`), Buffer.from(out.audio, "base64"));
-      list[name] = { en: line };
-      await writeFile(listFile, `${JSON.stringify(list, null, 2)}
-`);
-      console.log(`${name}: designed (${Math.round(share * 100)}% of its line heard)`);
-      kept = true;
-      break;
+    }));
+    return out;
+  };
+  const keep = async (voice: VoiceId, language: SpeechLanguage, chosen: Take) => {
+    await rename(chosen.file, join(dir, `${voice}.${language}.flac`));
+    (list[voice] ??= {})[language] = SAMPLE_LINES[language];
+    await writeFile(listFile, `${JSON.stringify(list, null, 2)}\n`);
+    // its sample on the form is the clip itself
+    await mkdir("web/public/voices", { recursive: true });
+    await ffmpeg(["-i", join(dir, `${voice}.${language}.flac`), "-ac", "1", "-b:a", "64k", join("web/public/voices", `${voice}.${language}.mp3`)]);
+    const samples = existsSync(LIST) ? (JSON.parse(readFileSync(LIST, "utf8")) as Listed) : { madeOn: null, samples: {} };
+    (samples.samples[voice] ??= {})[language] = { seconds: Math.round(chosen.seconds * 100) / 100, words: SAMPLE_LINES[language].split(/\s+/).filter(Boolean).length };
+    samples.madeOn = new Date().toISOString().slice(0, 10);
+    await writeFile(LIST, `${JSON.stringify(samples, null, 2)}\n`);
+  };
+  /** What each voice sounds like in a language, as far as it has been kept. */
+  const keptIn = async (language: SpeechLanguage): Promise<Map<VoiceId, VoiceFeatures>> => {
+    const kept = new Map<VoiceId, VoiceFeatures>();
+    for (const voice of Object.keys(VOICES) as VoiceId[]) {
+      const own = BUILT_IN_VOICES.includes(voice) && ["en", "tr"].includes(language) ? join("worker-voice/voices", `${voice}.${language}.flac`) : join(dir, `${voice}.${language}.flac`);
+      if (existsSync(own)) kept.set(voice, voiceFeatures(await samplesOf(own)));
     }
-    if (!kept) console.log(`${name}: NOT KEPT: twice it did not say its line`);
+    return kept;
+  };
+
+  const rest = new RunpodRest(env.RUNPOD_API_KEY);
+  const before = (await rest.list("endpoints")).find((e) => e.id === endpoint) as { workersMax?: number } | undefined;
+  await rest.update("endpoints", endpoint, { workersMax: 4 });
+  try {
+    for (const language of (["en", ...languages.filter((l) => l !== "en")] as SpeechLanguage[]).filter((l) => languages.includes(l))) {
+      const kept = await keptIn(language);
+      const english = language === "en" ? null : await keptIn("en");
+      const wanted = (Object.keys(VOICES) as VoiceId[]).filter((v) => !kept.has(v));
+      if (wanted.length === 0) continue;
+      const seeds = language === "en" ? [11, 23, 37, 53] : [11, 29];
+      const takes = await pool(wanted.flatMap((voice) => seeds.map((seed) => async () => ({ voice, take: await take(voice, language, seed + language.charCodeAt(0) * 1000 + language.charCodeAt(1)) }))));
+      for (const voice of wanted) {
+        const usable = takes.filter((t) => t.voice === voice && t.take && t.take.heard >= 0.8).map((t) => t.take!);
+        if (usable.length === 0) {
+          console.log(`${language} ${voice}: NOT KEPT (no take said its line)`);
+          continue;
+        }
+        const nearestOther = (t: Take) => Math.min(Infinity, ...[...kept.values()].map((f) => voiceDistance(t.features, f)));
+        const sexFits = (t: Take) => (pitchFits(t.features, VOICE_DESIGNS[voice].sex) ? 0 : 2);
+        const target = english?.get(voice);
+        const score = (t: Take) =>
+          target
+            ? voiceDistance(t.features, target) + sexFits(t) + (nearestOther(t) < TOO_ALIKE ? 3 : 0)
+            : -nearestOther(t) + sexFits(t);
+        const chosen = usable.sort((x, y) => score(x) - score(y))[0];
+        await keep(voice, language, chosen);
+        kept.set(voice, chosen.features);
+        const apart = nearestOther(chosen);
+        console.log(`${language} ${voice}: kept (${Math.round(chosen.features.f0)} Hz${target ? `, ${voiceDistance(chosen.features, target).toFixed(2)} from its English voice` : ""}${Number.isFinite(apart) && apart < TOO_ALIKE ? `; CLOSE to another voice (${apart.toFixed(2)})` : ""})`);
+      }
+    }
+  } finally {
+    await rest.update("endpoints", endpoint, { workersMax: before?.workersMax ?? 1 });
+    await rm(tmp, { recursive: true, force: true });
   }
   console.log(`designing cost about $${usd.toFixed(4)}`);
 }

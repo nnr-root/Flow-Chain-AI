@@ -54,7 +54,7 @@ def handler(job):
         if req["task"] == "design":
             # a new voice: what goes back is its reference clip, in the form the voices' clips are kept in
             rate, seconds = engine.design(req["description"], req["text"], req.get("seed"), wav)
-            heard = engine.words(wav, "en")
+            heard = engine.words(wav, req["language"])
             engine.to_flac(wav, out)
         else:
             if "reference" in req:

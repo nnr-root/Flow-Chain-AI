@@ -20,21 +20,28 @@ function library(dir = designedDir()): Library {
   return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Library) : {};
 }
 
-/** The designed voices that have a clip, by id. */
+/** The voices with a clip of their own here in English: the designed ones that are ready. */
 export function designedVoices(dir = designedDir()): string[] {
   return Object.entries(library(dir)).filter(([id, by]) => by.en && existsSync(join(dir, `${id}.en.flac`))).map(([id]) => id);
 }
 
+/** The languages a voice has a clip of here. */
+export function clipLanguages(id: string, dir = designedDir()): string[] {
+  return Object.keys(library(dir)[id] ?? {}).filter((lang) => existsSync(join(dir, `${id}.${lang}.flac`)));
+}
+
 /**
- * A designed voice's clip for a language: its own where it has one, its English one otherwise (as the voice
- * worker does with its own voices). Null for a voice that is not a designed one.
+ * The clip a voice speaks a line from, when it is kept here: its clip in the line's language. A voice made here
+ * that has none in that language speaks from its English one; a voice of the worker's own that has none here is
+ * spoken from the worker's own clip (null). So every voice speaks each language from a clip made in it, where
+ * there is one, and no voice is ever spoken from a clip of another language when one in its own exists.
  */
 export function designedClip(id: string, language?: string, dir = designedDir()): { audio: Buffer; text: string; sha256: string } | null {
   const by = library(dir)[id];
   if (!by) return null;
-  const lang = language && by[language] && existsSync(join(dir, `${id}.${language}.flac`)) ? language : "en";
-  const file = join(dir, `${id}.${lang}.flac`);
-  if (!by[lang] || !existsSync(file)) return null;
-  const audio = readFileSync(file);
+  const has = (lang: string) => !!by[lang] && existsSync(join(dir, `${id}.${lang}.flac`));
+  const lang = language && has(language) ? language : has("en") ? "en" : null;
+  if (!lang) return null;
+  const audio = readFileSync(join(dir, `${id}.${lang}.flac`));
   return { audio, text: by[lang], sha256: createHash("sha256").update(audio).digest("hex") };
 }

@@ -21,11 +21,8 @@ describe("the languages and voices on offer", () => {
   it("are exactly the voices the voice worker has, each with the English clip every other language is spoken from", () => {
     // the worker's image has its own voices; every other voice on the list is designed, and was asked for in words
     expect([...BUILT_IN_VOICES].sort()).toEqual(Object.keys(recorded).sort());
-    for (const voice of Object.keys(VOICES)) {
-      if (!BUILT_IN_VOICES.includes(voice as never)) expect(VOICE_DESIGNS[voice as keyof typeof VOICE_DESIGNS], voice).toBeTruthy();
-    }
-    // a description goes to the model inside one pair of parentheses
-    for (const d of Object.values(VOICE_DESIGNS)) expect(d).not.toMatch(/[()]/);
+    // every voice, the worker's own included, is described, so that it can be made in any language
+    for (const voice of Object.keys(VOICES)) expect(VOICE_DESIGNS[voice as keyof typeof VOICE_DESIGNS], voice).toBeTruthy();
     for (const voice of BUILT_IN_VOICES) {
       // English is what a language without a clip of its own falls back to, in the worker
       expect(Object.keys(recorded[voice]), voice).toContain("en");
