@@ -6,7 +6,7 @@ import { buildScriptPrompt } from "../../src/providers/gemini.js";
 import { timingProblems } from "../../src/stages/script.js";
 import { PRESETS } from "../../src/presets.js";
 import { captionStyleFor } from "../../src/stages/look.js";
-import { BUILT_IN_VOICES, fontCovers, LANGUAGE_IN_ENGLISH, SPEECH_LANGUAGES, VOICE_DESIGNS, VOICES } from "../../src/voice/language.js";
+import { BUILT_IN_VOICES, fontCovers, voicePace, LANGUAGE_IN_ENGLISH, SPEECH_LANGUAGES, VOICE_DESIGNS, VOICES } from "../../src/voice/language.js";
 import { designedVoices } from "../../src/voice/library.js";
 import { SAMPLE_LINES } from "../../scripts/make-voices.js";
 import { timedScript } from "../fakes/providers.js";
@@ -101,6 +101,25 @@ describe("the languages and voices on offer", () => {
     expect(RunRequest.parse(run).language).toBeUndefined();
     for (const language of Object.keys(SPEECH_LANGUAGES)) expect(RunRequest.parse({ ...run, language }).language).toBe(language);
     for (const other of ["ar", "zh", "ja", "hi", "english", ""]) expect(RunRequest.safeParse({ ...run, language: other }).success, other).toBe(false);
+  });
+});
+
+describe("a voice that speaks slower or faster than the narrators", () => {
+  it("is asked for fewer or more words, by its pace measured in all twenty languages", () => {
+    const listed = JSON.parse(readFileSync("web/content/voice-samples.json", "utf8")) as { samples: Record<string, Record<string, { seconds: number; words: number }>> };
+    const rate = (v: string, l: string) => listed.samples[v][l].words / listed.samples[v][l].seconds;
+    for (const voice of [...BUILT_IN_VOICES, ...designedVoices()]) {
+      const langs = Object.keys(SPEECH_LANGUAGES);
+      const measured = langs.reduce((sum, l) => sum + rate(voice, l) / ((rate("narrator-m", l) + rate("narrator-f", l)) / 2), 0) / langs.length;
+      // the pace on the list is within a twentieth of what the samples say
+      expect(Math.abs(voicePace(voice) - measured), voice).toBeLessThan(0.05);
+    }
+    expect(voicePace(undefined)).toBe(1);
+    expect(voicePace("someone")).toBe(1);
+    expect(wordsPerSecond("en", "calm")).toBe(1.63);
+    expect(buildScriptPrompt({ ...base, timing, voiceId: "calm" })).toContain("about 49 words");
+    expect(buildScriptPrompt({ ...base, timing, voiceId: "host" })).toContain("about 83 words");
+    expect(buildScriptPrompt({ ...base, timing, voiceId: "narrator-m" })).toContain("about 72 words");
   });
 });
 

@@ -145,7 +145,8 @@ test("a new video is asked for by its length, how long each scene stays and what
   await expect(page.getByTestId("language").locator("option")).toHaveCount(20);
   await expect(page.getByTestId("language").locator("option")).toContainText(["English", "Türkçe", "Español", "Deutsch", "Русский", "Tiếng Việt"]);
   await expect(page.getByTestId("language")).toHaveValue("en");
-  await expect(page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio")).toHaveCount(2);
+  await expect(page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio")).toHaveCount(12);
+  await expect(page.getByTestId("voice-mystery")).toContainText("Unsolved cases");
   await page.getByTestId("language").selectOption("es");
   const sample = page.waitForRequest((r) => r.url().endsWith("/voices/narrator-f.es.mp3"));
   await page.getByTestId("listen-narrator-f").click();
@@ -157,7 +158,7 @@ test("a new video is asked for by its length, how long each scene stays and what
   await page.getByTestId("voice-narrator-f").click();
   // every sample the form can ask for is there
   for (const code of await page.getByTestId("language").locator("option").evaluateAll((options) => options.map((o) => (o as HTMLOptionElement).value))) {
-    for (const voice of ["narrator-m", "narrator-f"]) expect((await page.request.get(`/voices/${voice}.${code}.mp3`)).status(), `${voice}.${code}`).toBe(200);
+    for (const voice of ["narrator-m", "narrator-f", "storyteller", "calm", "trailer"]) expect((await page.request.get(`/voices/${voice}.${code}.mp3`)).status(), `${voice}.${code}`).toBe(200);
   }
 
   // pictures only, both, or clips only

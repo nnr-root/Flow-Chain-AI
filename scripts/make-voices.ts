@@ -123,6 +123,8 @@ async function main(): Promise<void> {
   for (const language of languages) {
     for (const voice of readyVoices()) {
       const text = SAMPLE_LINES[language];
+      // a sample that is there is not bought again (delete it from the list to make it again)
+      if (listed.samples[voice]?.[language] && existsSync(join(outDir, `${voice}.${language}.mp3`))) continue;
       try {
         const said = await tts.speak({ text, voiceId: voice, language });
         const raw = join(outDir, `_${voice}.${language}.raw`);

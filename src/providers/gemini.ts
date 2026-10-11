@@ -31,8 +31,8 @@ export function mostEntries(req: ScriptRequest): number {
 const seconds = (r: { min: number; max: number }): string => (r.min === r.max ? `about ${r.min}` : `${r.min} to ${r.max}`);
 
 /** What a stretch of a video asked for by its length must come to: its words, and the scenes it may be told in. */
-function lengthRules(what: string, sec: number, sceneSec: { min: number; max: number }, language?: string): string[] {
-  const rate = wordsPerSecond(language);
+function lengthRules(what: string, sec: number, sceneSec: { min: number; max: number }, language?: string, voice?: string): string[] {
+  const rate = wordsPerSecond(language, voice);
   const words = sceneWords(sceneSec, rate);
   const scenes = sceneBounds(sec, sceneSec);
   return [
@@ -92,7 +92,7 @@ function sceneRules(req: ScriptRequest): string[] {
 
 const narrationRule = (req: ScriptRequest): string =>
   req.timing
-    ? `- narration: the spoken voiceover for the scene, ${sceneWords(req.timing.sceneSec, wordsPerSecond(req.language)).min} to ${sceneWords(req.timing.sceneSec, wordsPerSecond(req.language)).max} words and never more than ${MAX_NARRATION_WORDS}, plain text, no stage directions, emojis or hashtags.`
+    ? `- narration: the spoken voiceover for the scene, ${sceneWords(req.timing.sceneSec, wordsPerSecond(req.language, req.voiceId)).min} to ${sceneWords(req.timing.sceneSec, wordsPerSecond(req.language, req.voiceId)).max} words and never more than ${MAX_NARRATION_WORDS}, plain text, no stage directions, emojis or hashtags.`
     : `- narration: the spoken voiceover for the scene, at most ${MAX_NARRATION_WORDS} words (ideally 12-15), plain text, no stage directions, emojis or hashtags.`;
 
 /**
@@ -110,7 +110,7 @@ const feedbackLines = (req: ScriptRequest): string[] => (req.feedback ? ["", "Yo
 function wholePrompt(req: ScriptRequest): string {
   return [
     `You are writing a faceless short-form video about: "${req.topic}".`,
-    ...(req.timing ? lengthRules("the video", req.timing.targetSec, req.timing.sceneSec, req.language) : [`Return exactly ${req.sceneCount} scenes.`]),
+    ...(req.timing ? lengthRules("the video", req.timing.targetSec, req.timing.sceneSec, req.language, req.voiceId) : [`Return exactly ${req.sceneCount} scenes.`]),
     "",
     ...presetRules(req),
     "",
@@ -158,7 +158,7 @@ function partPrompt(req: ScriptRequest, ask: Extract<NonNullable<ScriptRequest["
     ...outline.parts.map((p, i) => `${i + 1}. ${p.summary}`),
     "",
     `Write only part ${index + 1}: its scenes, in order.`,
-    ...lengthRules("this part", partSec[index], sceneSec, req.language),
+    ...lengthRules("this part", partSec[index], sceneSec, req.language, req.voiceId),
     first
       ? "- This is the opening: scene 1 is a strong hook."
       : `- This part carries straight on from the end of part ${index}, whose last lines were: ${previous.map((n) => `"${n}"`).join(" ")} Do not greet, do not introduce the topic again, and do not repeat what an earlier part has told.`,

@@ -13,6 +13,8 @@ export type ScriptRequest = {
   style?: PresetName;
   /** Fixed character bible; absent = the LLM describes the characters. */
   characters?: string;
+  /** The voice that will say it, where it speaks slower or faster than the narrators (fewer or more words). */
+  voiceId?: string;
   /** The language to write what is said and shown as words in; absent = the model's own choice. */
   language?: SpeechLanguage;
   feedback?: string;

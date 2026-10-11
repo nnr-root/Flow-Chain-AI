@@ -1,4 +1,5 @@
 import { type LlmRates, round4, scriptCost } from "./cost.js";
+import { voicePace } from "./voice/language.js";
 
 /*
  * A video asked for by its length (phase 7 spec): how long the whole of it runs and how long each scene stays,
@@ -41,7 +42,8 @@ export const WORDS_PER_SECOND = 2.4;
 const WORDS_PER_SECOND_IN: Record<string, number> = {
   en: WORDS_PER_SECOND, tr: 1.9, es: 1.8, fr: 2.0, de: 1.9, it: 1.9, pt: 1.9, nl: 2.2, pl: 2.1, ru: 1.8, sv: 2.0, da: 2.0, no: 1.9, fi: 1.4, el: 2.2, id: 1.5, ms: 1.6, tl: 1.6, sw: 1.6, vi: 3.2,
 };
-export const wordsPerSecond = (language?: string): number => WORDS_PER_SECOND_IN[language ?? "en"] ?? WORDS_PER_SECOND;
+export const wordsPerSecond = (language?: string, voice?: string): number =>
+  Math.round((WORDS_PER_SECOND_IN[language ?? "en"] ?? WORDS_PER_SECOND) * voicePace(voice) * 100) / 100;
 
 /** The most words one scene's narration may ever have (the script's own limit; about six seconds of speech). */
 const MAX_SCENE_WORDS = 16;

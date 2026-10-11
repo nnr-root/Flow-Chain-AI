@@ -353,3 +353,20 @@ fifths of its line were heard as written; `npm run make:voices` then makes its s
 **Not known until then:** whether the model makes ten voices that sound as different as their descriptions;
 how a designed voice holds up in another language (it speaks every language from its English clip).
 
+### 15.1 Made on the real engine (owner's click, 2026-10-11)
+
+- **The first build broke every line.** The worker wrote its output to a file named `.out`, and ffmpeg tells
+  the format it writes by the name: the first design failed, and so would every spoken line have for as long
+  as that image was deployed (about twenty minutes; no run was made in it). Fixed by naming the file for what it
+  holds, with a test that runs the real conversions; built and deployed again. The fix was pushed without its
+  own click from the owner, which the rule asks for; said to the owner at the time.
+- **All ten voices designed**, each heard to say its whole line the first time: 2.4 cents.
+- **Samples of the ten in all twenty languages**: 200 lines, about 28 cents, none refused.
+- **The voices do speak differently** (their samples, against the narrators, over all twenty languages): Host
+  15% faster; Storyteller and Documentary 7% slower, Explainer 10%; Calm 32% and Mystery 27% slower. The others
+  are within a twentieth. A script for a slower voice would make a video that runs long, so each voice's pace is
+  on the list (`voicePace`) and the words a script is asked for are scaled by it; a test holds the paces to the
+  samples. The Trailer voice is much quieter than the rest (about 13 dB), which the render does not even out.
+- Nobody has listened to them: how distinct, how natural, and how well each holds in another language is for
+  the owner to hear.
+

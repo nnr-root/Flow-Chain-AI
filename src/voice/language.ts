@@ -70,7 +70,9 @@ export const fontCovers = (file: string, language: SpeechLanguage): boolean => !
 
 /**
  * The studio's own voices, by the id the voice worker knows them by (a test holds this list to the worker's own
- * files). `label`: what a person is shown. `suits`: the videos the voice was made for. The two narrators are
+ * files). `label`: what a person is shown. `suits`: the videos the voice was made for. `pace`: how fast it speaks
+ * against the narrators, from its samples in all twenty languages (absent: within a twentieth of them); a script
+ * for a slower voice is asked for fewer words, or its video would run long (phase 7 spec §15). The two narrators are
  * plain, even voices for anything; the others were each designed from a description of who speaks and how
  * (`scripts/design-voices.py`), and what is said of them here is what was asked for: how one sounds is for the
  * person to hear in its sample.
@@ -78,15 +80,15 @@ export const fontCovers = (file: string, language: SpeechLanguage): boolean => !
 export const VOICES = {
   "narrator-m": { label: "Narrator (male)", suits: "A plain, even voice for any video" },
   "narrator-f": { label: "Narrator (female)", suits: "A plain, even voice for any video" },
-  storyteller: { label: "Storyteller", suits: "Fables, history, legends and stories told slowly" },
-  documentary: { label: "Documentary", suits: "Nature, science and history that want some weight" },
+  storyteller: { label: "Storyteller", suits: "Fables, history, legends and stories told slowly", pace: 0.93 },
+  documentary: { label: "Documentary", suits: "Nature, science and history that want some weight", pace: 0.93 },
   trailer: { label: "Trailer", suits: "True crime, horror, epics and anything dramatic" },
-  host: { label: "Host", suits: "Fast facts, countdowns, tech and anything with energy" },
-  explainer: { label: "Explainer", suits: "How-to, money, business and step-by-step guides" },
+  host: { label: "Host", suits: "Fast facts, countdowns, tech and anything with energy", pace: 1.15 },
+  explainer: { label: "Explainer", suits: "How-to, money, business and step-by-step guides", pace: 0.9 },
   anchor: { label: "Anchor", suits: "News, reports and facts told straight" },
   upbeat: { label: "Upbeat", suits: "Fun facts, food, lifestyle and light-hearted videos" },
-  calm: { label: "Calm", suits: "Wellness, sleep, nature and gentle stories" },
-  mystery: { label: "Mystery", suits: "Unsolved cases, secrets and the strange" },
+  calm: { label: "Calm", suits: "Wellness, sleep, nature and gentle stories", pace: 0.68 },
+  mystery: { label: "Mystery", suits: "Unsolved cases, secrets and the strange", pace: 0.73 },
   storybook: { label: "Storybook", suits: "Children's stories, fables and cartoons" },
 } as const;
 export type VoiceId = keyof typeof VOICES;
@@ -110,4 +112,10 @@ export const VOICE_DESIGNS: Partial<Record<VoiceId, string>> = {
   mystery: "A woman with a low, hushed and mysterious voice, secretive and suspenseful, slow deliberate pace, almost a whisper",
   storybook: "A young woman with a bright, animated and expressive voice, warm and full of wonder, lively pace, like someone reading a picture book to children",
 };
+
+/** How fast a voice speaks against the narrators (1 for the narrators and any voice not on the list). */
+export function voicePace(voice?: string): number {
+  const v = voice ? (VOICES as Record<string, { pace?: number }>)[voice] : undefined;
+  return v?.pace ?? 1;
+}
 
