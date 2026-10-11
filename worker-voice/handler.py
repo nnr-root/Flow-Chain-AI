@@ -47,7 +47,8 @@ def handler(job):
         return {"error": f"invalid request: {err}"}
     job_id = job["id"]
     wav = os.path.join(TMP_DIR, f"{job_id}.wav")
-    out = os.path.join(TMP_DIR, f"{job_id}.out")
+    # (named for what it holds: ffmpeg tells the format it writes by the file's name)
+    out = os.path.join(TMP_DIR, f"{job_id}.{'flac' if req['task'] == 'design' else 'mp3'}")
     given = os.path.join(TMP_DIR, f"{job_id}.ref.flac")
     try:
         if req["task"] == "design":

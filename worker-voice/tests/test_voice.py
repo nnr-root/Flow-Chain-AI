@@ -236,3 +236,27 @@ def test_the_shipped_voices_are_whole():
     voices = h.load_voices(folder)
     assert sorted(voices) == ["narrator-f", "narrator-m"]
     assert all(sorted(v) == ["en", "tr"] for v in voices.values())
+
+
+@pytest.mark.skipif(__import__("shutil").which("ffmpeg") is None, reason="needs ffmpeg")
+def test_the_speech_is_written_as_the_files_the_handler_names(tmp_path):
+    # the real conversions, on a second of silence, to the names the handler gives them: a name ffmpeg cannot
+    # tell a format from fails every line (the first build of phase 7 §15 met that on the live endpoint)
+    import subprocess
+    wav = tmp_path / "x.wav"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", "1", str(wav)], check=True)
+    engine.to_mp3(str(wav), str(tmp_path / "job.mp3"))
+    engine.to_flac(str(wav), str(tmp_path / "job.flac"))
+    assert (tmp_path / "job.mp3").read_bytes()[:3] in (b"ID3", b"\xff\xfb", b"\xff\xf3")
+    assert (tmp_path / "job.flac").read_bytes()[:4] == b"fLaC"
+
+
+def test_names_its_scratch_files_for_what_they_hold(worker, monkeypatch):
+    names = []
+    real_mp3, real_flac = engine.to_mp3, engine.to_flac
+    monkeypatch.setattr(engine, "to_mp3", lambda w, o: (names.append(os.path.basename(o)), real_mp3(w, o)))
+    monkeypatch.setattr(engine, "to_flac", lambda w, o: (names.append(os.path.basename(o)), real_flac(w, o)))
+    worker.handler({"id": "jobA", "input": GOOD})
+    worker.handler({"id": "jobB", "input": DESIGN})
+    assert names == ["jobA.mp3", "jobB.flac"]
+
