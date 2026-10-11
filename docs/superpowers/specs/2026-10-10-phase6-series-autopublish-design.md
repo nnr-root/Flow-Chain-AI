@@ -532,3 +532,22 @@ credit covers, refusal and nothing held when it does not, the two reasons a work
 starts; twice. The worker against the stand-in CLI: a video dearer than any earlier limit is made; one the
 credit does not cover stops the series with only its script bought. Browser: no amount fields, the button
 "Approve: one a day, from my credits". Not checked: a real series on real engines.
+
+## 16. Plans that still cover their minutes with the hosted voice (owner's direction, 2026-10-11)
+
+New runs are spoken by the hosted voice again (phase 5 spec §11), which costs about $0.26 more a minute of video
+at its dearest price ($0.226 for the measured four scenes against $0.141). The owner: keep 5, 15 and 45 minutes.
+What a voice costs is part of what a video costs, as it always was: it is not a separate charge, and it is not
+free (a free voice would make the videos of stills, which are mostly voice, cost the studio far more than their
+credits). So the plans grant more credit:
+
+| | A month | Credits a month | Minutes built around | Covers (worked out) | Cost if all are used | Left of the price |
+|---|---|---|---|---|---|---|
+| Starter | $39 | 8,000 (was 5,000) | 5 | 5 | $4 | $35 (90%) |
+| Creator | $99 | 24,000 (was 15,000) | 15 | 17 | $12 | $87 (88%) |
+| Pro | $199 | 70,000 (was 45,000) | 45 | 51 | $35 | $164 (82%) |
+
+By the year (ten months' price for twelve months' credits): $342 of $390, $846 of $990, $1,570 of $1,990 (88%,
+85%, 79%). Each plan is still cheaper per credit than the one before. Before Stripe's fee, the server and the
+hosted voice's monthly subscription. The prices reach Stripe when the owner runs `npm run stripe:setup` (it
+archives the old prices and makes these); until then the old ones are on sale.

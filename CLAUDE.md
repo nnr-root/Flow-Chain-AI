@@ -3,8 +3,8 @@
 Turns a topic into a captioned short video, and sells that as a studio with accounts and credit.
 Three parts share one repository:
 
-- **The pipeline** (`src/`, a CLI): topic → script (Gemini) → voiceover, keyframes and clips
-  (all three on the studio's own RunPod endpoints) → a video rendered with Remotion.
+- **The pipeline** (`src/`, a CLI): topic → script (Gemini) → voiceover (ElevenLabs, or the studio's own voice
+  without its key), keyframes and clips (on the studio's own RunPod endpoints) → a video rendered with Remotion.
 - **The studio** (`web/`, Next.js): create, preview, approve and render videos in a browser; accounts,
   credit and payments.
 - **The worker** (`web/worker/`): takes jobs from a Redis queue, runs the CLI for each, settles credit,
@@ -49,7 +49,8 @@ read the one for the area you are changing before changing it (table at the end)
 | `src/db/client.ts`, `src/auth/` | the one client for the studio's Postgres (`Db`), and password hashing |
 | `workers/` | the clip worker (Python, a ComfyUI graph for Wan 2.2 at 480p and 720p; text encoder and VAE in its image, the rest on the volume) |
 | `worker-picture/` | the picture worker (Python, FLUX.2 klein 4B through diffusers; weights on the network volume) |
-| `worker-voice/`, `src/voice/`, `src/providers/runpod-voice.ts` | the voice worker (Python: VoxCPM2 + Whisper), laying a script's words over what was heard, the provider |
+| `src/providers/elevenlabs.ts`, `src/voice/hosted.ts`, `assets/voices/elevenlabs.json` | the hosted voice, and which of its voices plays each of the studio's voices in each language |
+| `worker-voice/`, `src/voice/`, `src/providers/runpod-voice.ts` | the studio's own voice worker (Python: VoxCPM2 + Whisper; the fallback), laying a script's words over what was heard, the provider |
 | `deploy/` | Compose file, Dockerfiles, Caddy files for the server |
 | `test/` | pipeline tests: `unit`, `stages`, `media`, `pipeline`, `db` |
 | `web/test/`, `web/e2e/`, `web/accounts/`, `web/stack/` | studio tests: vitest, and three Playwright suites |
@@ -115,6 +116,11 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
   the words a length comes to depend on the language (`wordsPerSecond`: English measured in videos, the others
   worked out from the samples). Twenty languages (§14): one is added only when the voice model speaks it, its
   words are set apart by spaces, and a shipped caption typeface has its letters (`fontCovers`).
+- **New runs are spoken by the hosted voice while `ELEVENLABS_API_KEY` is set** (phase 5 spec §11; the studio's own
+  voice is the fallback, and a run stays on the voice it was made with). The studio's voices are roles: the hosted
+  voice that plays each, per language, is in `assets/voices/elevenlabs.json`, and the one resolved is part of a
+  line's cache key. Its key is the worker's alone. Never clone another service's voices: a reference clip needs a
+  recorded consent.
 - **A style's name is not sent to the picture worker**: it uses it for nothing and refuses one it was not built
   knowing. Do not put it back.
 - **A script of more than 90 seconds is written in parts** (an outline, then each part), each answer checked

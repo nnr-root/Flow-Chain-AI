@@ -64,9 +64,11 @@ function pipelineEnv(): Record<string, string | undefined> {
 }
 
 const NEEDS = [
-  "GEMINI_API_KEY", "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT", "RUNPOD_VOICE_ENDPOINT",
+  "GEMINI_API_KEY", "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT",
   "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
 ] as const;
+/** A voice: the hosted one's key, or the studio's own endpoint (phase 5 spec §11). Either will do. */
+const VOICE_NEEDS = ["ELEVENLABS_API_KEY", "RUNPOD_VOICE_ENDPOINT"] as const;
 
 export type Health = {
   /** Names of the settings a new run needs that are not set. */
@@ -77,5 +79,5 @@ export type Health = {
 export function health(): Health {
   const env = pipelineEnv();
   const unset = (names: readonly string[]) => names.filter((n) => !env[n]?.trim());
-  return { missing: unset(NEEDS) };
+  return { missing: [...unset(NEEDS), ...(unset(VOICE_NEEDS).length === VOICE_NEEDS.length ? [`${VOICE_NEEDS[0]} (or ${VOICE_NEEDS[1]})`] : [])] };
 }

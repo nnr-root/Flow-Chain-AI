@@ -746,3 +746,86 @@ In the studio, on the same day: names the pipeline uses for itself are no longer
 styles read "Punchy", "Playful", "Quiet" and "Matched to the look" (the landing page's words; two of the names
 are living people's); cuts, stages, job kinds and looks have labels (`web/lib/labels.ts`, `StylePreset.label`).
 The values the API and the CLI take are unchanged.
+
+## 11. The hosted voice again (owner's direction, 2026-10-11)
+
+The owner listened to the studio's own voice after phase 7 §16 had made its ten voices again, natively, in
+English and Turkish, and turned it down on two counts: several voices were "one voice a little deeper or
+thinner", and in Turkish "her" was still said "hör". D1 kept the hosted voice selectable "until a listening test
+of the owner's own scripts in Turkish and English passes"; that test has now failed, and new runs are spoken by
+the hosted voice again. **Where this section and §5.2, §6.1 or §9.7 differ, this one wins.**
+
+### 11.1 What was found first (all of it free or a few cents)
+
+- **"Hör" is the model's, not the clip's.** Every Turkish sample starts with "Her büyük hikâye…". The first vowel
+  of each measured against the same voice's English "Every" had a lower second formant in eleven voices of twelve,
+  the narrators included, whose Turkish clips are the worker's own: rounding. The model is told no language; it
+  works one out from the text, and a line opening with "Her" reads as English "her" (/hɜːr/), which a Turkish ear
+  hears as "hör". §16's premise (a voice made in English carries its accent) was not the cause. (The formant
+  measure is rough: it did not tell the later takes apart, and the owner's ear decided.)
+- **The measure §16 chose voices by was the wrong one.** A speaker-recognition model (ECAPA, VoxCeleb) put
+  Upbeat~Storybook at 0.72, Storyteller~Trailer 0.61, and in Turkish Storyteller~Documentary 0.77, Trailer~Host
+  0.63 (the same person is usually above 0.5): the pairs the owner heard as one voice. §16's pitch and spectrum
+  measure had called every pair distinct.
+- **A real Turkish speaker fixes "her".** The same model cloning four real Turkish speakers (FLEURS, CC BY 4.0)
+  said "her" right (the owner's ear), each clone 0.81–0.86 like its speaker. But open Turkish recordings are
+  phone and laptop microphones at 16 kHz, and the clones sounded like it; the owner: "not studio quality". The
+  open sets with studio recordings are English (VCTK, Hi-Fi TTS); Turkish has none with many speakers.
+- **Chatterbox Multilingual** (the fallback D1 named, MIT, told the language) on its public demo: the owner found
+  it robotic, without feeling.
+- **Taking the hosted service's own voices to clone elsewhere was refused**: they are real voice actors' voices,
+  lent to that service alone, and §6's rule for a reference clip is a recorded consent.
+
+### 11.2 What is built
+
+- `src/providers/elevenlabs.ts` is back (the adapter §5.2 removed), charging a line by its characters at
+  `ttsPer1kChars` and telling the models that take one the line's language (`language_code`; the default model
+  works it out from the text and refuses one).
+- **The studio's voices are roles; the catalogue says who plays each, language by language**
+  (`assets/voices/elevenlabs.json`, `src/voice/hosted.ts`). A role is spoken in the hosted voice chosen for the
+  run's language, else in its English one; the resolved voice id is part of what a line is bought from, so a voice
+  chosen again is another voice. One of the studio's voices with no hosted voice is refused before anything is
+  bought. A run made before the catalogue named the service's own voice id, which is sent as it is.
+- **Which engine:** with `ELEVENLABS_API_KEY` set, every new run is spoken by the hosted voice (`ELEVENLABS_MODEL`,
+  `eleven_multilingual_v2` by default); without it, by the studio's own, which stays deployed as the fallback.
+  A run stays on the voice it was made with. The key is the worker's alone; the web app, which holds no provider
+  key, offers the catalogue's voices once any is chosen (`web/server/voices.ts`), and a language where no voice is
+  native is offered the narrators with the note, as before.
+- `make:voices` gains `--hosted-candidates <language>` (the library's voices native to it, most used first, with
+  their previews downloaded to `.superpowers/voices/`; reads only) and `--hosted-add <role> <language> <voiceId>
+  [<publicOwnerId>]` (adds a library voice to the account and writes the catalogue). Samples are made as before,
+  `--again` to make again the ones the own voice made. All three are the owner's click.
+- `doctor` checks the hosted voice's key and that a voice is chosen; the studio's health asks for the hosted key
+  or the own endpoint, either.
+
+### 11.3 What it costs, and the plans (owner: keep 5, 15 and 45 minutes)
+
+The video `web/content/measured.json` holds ($0.141, four scenes) spent $0.0164 of it on its voice, for 339
+characters (run `20261010-095524-bf1f9b`). The three runs the hosted voice spoke in October were charged $0.30
+a thousand characters, the dearest it is sold at (the smallest plan's characters beyond what it includes). The
+same video spoken by it is $0.141 − $0.0164 + 0.339 × $0.30 = **$0.226**, about $0.68 a minute against $0.42.
+`measured.json` now carries the voice's cost and characters and the hosted price (dated and sourced); the page
+works the minutes out from them (`measuredVideoUsd`), and says nothing when either is stale or the measurement
+does not say what its own voice cost.
+
+The plans keep 5, 15 and 45 minutes; their credit was raised so that even at the dearest price they cover them
+with the spare §12 kept (phase 6 spec §16 has the table): $4, $12 and $35 a month (8,000, 24,000 and 70,000
+credits), which leaves 90%, 88% and 82% of the price before Stripe's fee. A larger ElevenLabs plan costs less by
+the character and puts the margin back; `ttsPer1kChars` and `measured.json`'s price are then lowered together.
+The ElevenLabs subscription is a fixed monthly cost the plans' figures do not carry, like the server's.
+
+### 11.4 Not done yet, and parked
+
+- **No hosted voice is chosen yet.** The owner makes an ElevenLabs account and sets the key; then
+  `--hosted-candidates en` and `tr`, a choice by ear and by the speaker-recognition measure (each role unlike the
+  others), `--hosted-add`, and the samples. Until then a new run with the key set refuses its voice, and the form
+  offers the own voices.
+- The paces (`VOICES[].pace`) and words a second (`WORDS_PER_SECOND_IN`) were measured on the own voice. They are
+  measured again from the hosted voices' samples when those are made.
+- The own voice's ten designed voices (phase 7 §16) stay, for runs made with them and for a studio without the
+  hosted key.
+- A live check of the cost of a video spoken by the hosted voice, to replace the worked-out $0.226 with a measured
+  one (a paid run: the owner's click).
+- Library voices may be taken down by whoever shared them, after the notice they set; a role whose voice goes is
+  given another with `--hosted-add` (a voice chosen again is another voice, so a run in progress refuses its next
+  line rather than change voice in the middle).

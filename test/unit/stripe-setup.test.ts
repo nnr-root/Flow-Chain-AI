@@ -14,8 +14,8 @@ describe("billing/plans.json", () => {
     ]);
     const shipped = parsePlans(readFileSync("billing/plans.json", "utf8"));
     expect(shipped.map((w) => [w.key, w.priceUsd, w.creditUsd, w.minutes])).toEqual([
-      ["starter", 39, 2.5, 5], ["creator", 99, 7.5, 15], ["pro", 199, 22.5, 45],
-      ["starter-yearly", 390, 2.5, 5], ["creator-yearly", 990, 7.5, 15], ["pro-yearly", 1990, 22.5, 45],
+      ["starter", 39, 4, 5], ["creator", 99, 12, 15], ["pro", 199, 35, 45],
+      ["starter-yearly", 390, 4, 5], ["creator-yearly", 990, 12, 15], ["pro-yearly", 1990, 35, 45],
     ]);
     // nothing is sold once: only plans
     expect(shipped.every((w) => w.kind === "plan")).toBe(true);

@@ -1,8 +1,8 @@
 {
   "plans": [
-    { "key": "starter", "name": "Starter", "monthlyUsd": 39, "creditUsd": 2.5, "minutes": 5 },
-    { "key": "creator", "name": "Creator", "monthlyUsd": 99, "creditUsd": 7.5, "minutes": 15 },
-    { "key": "pro", "name": "Pro", "monthlyUsd": 199, "creditUsd": 22.5, "minutes": 45 }
+    { "key": "starter", "name": "Starter", "monthlyUsd": 39, "creditUsd": 4, "minutes": 5 },
+    { "key": "creator", "name": "Creator", "monthlyUsd": 99, "creditUsd": 12, "minutes": 15 },
+    { "key": "pro", "name": "Pro", "monthlyUsd": 199, "creditUsd": 35, "minutes": 45 }
   ],
   "topups": [],
   "yearlyMonths": 10

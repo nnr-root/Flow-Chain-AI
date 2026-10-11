@@ -9,7 +9,9 @@ import type { Models } from "./manifest/schema.js";
 import { CAPTION_STYLES } from "./media/remotion/styles.js";
 import { sfxFiles } from "./media/sfx.js";
 import { PRESETS } from "./presets.js";
+import { ElevenLabsTts } from "./providers/elevenlabs.js";
 import { parseModelId } from "./providers/model-id.js";
+import { hostedRoles, hostedVoice } from "./voice/hosted.js";
 import { R2 } from "./providers/r2.js";
 import { RunpodClient } from "./providers/runpod.js";
 import { GeminiLlm } from "./providers/gemini.js";
@@ -105,7 +107,10 @@ function runpodEndpointIds(env: Env, models?: Models): string[] {
 export async function runDoctor(env: Env, fontsDir: string, models?: Models): Promise<Check[]> {
   const llmModel = models?.llm ?? env.GEMINI_MODEL;
   // the studio's own voice: the endpoint of the run's frozen model, else the one new runs would use
-  const ownVoice = models ? (models.tts.startsWith("runpod:") ? (parseModelId(models.tts) as { endpointId: string }).endpointId : undefined) : env.RUNPOD_VOICE_ENDPOINT;
+  const voiceModel = models?.tts ?? (env.ELEVENLABS_API_KEY ? env.ELEVENLABS_MODEL : env.RUNPOD_VOICE_ENDPOINT ? "runpod:" : undefined);
+  const ownVoice = voiceModel?.startsWith("runpod:") ? (models ? (parseModelId(models.tts) as { endpointId: string }).endpointId : env.RUNPOD_VOICE_ENDPOINT) : undefined;
+  // (a run made with the hosted voice before it came back, and checked without its key, is still checked: it says the key is missing)
+  const hosted = voiceModel && !voiceModel.startsWith("runpod:") ? voiceModel : undefined;
   const fonts = captionFontFiles(fontsDir);
   const missingFonts = fonts.filter((f) => !existsSync(f));
   const missingSfx = sfxFiles(SFX_DIR).filter((f) => !existsSync(f));
@@ -144,7 +149,8 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models): Pr
           }),
         ]
       : []),
-    // a run spoken by a hosted voice the studio no longer uses has no voice to check: its speech is on disk
+    // The voice: the run's own (its frozen model), else the one a new run would get. A run spoken by the hosted
+    // voice needs its key only to speak a line again: without it, its speech is on disk and it re-renders.
     ...(ownVoice
       ? [
           await attempt("voice endpoint", async () => {
@@ -152,9 +158,18 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models): Pr
             return checkRunpodEndpoints(new RunpodClient(env.RUNPOD_API_KEY), [ownVoice]);
           }),
         ]
-      : models
-        ? []
-        : [{ name: "voice endpoint", ok: false, detail: "RUNPOD_VOICE_ENDPOINT is not set (npm run voice:deploy)" }]),
+      : hosted
+        ? [
+            await attempt(`hosted voice ${hosted}`, async () => {
+              if (!env.ELEVENLABS_API_KEY) throw new Error("ELEVENLABS_API_KEY is not set");
+              const roles = hostedRoles();
+              if (roles.length === 0) throw new Error("no voice is chosen for any of the studio's voices (npm run make:voices -- --hosted)");
+              // one call says the key works; the voices themselves are checked when their samples are made
+              await new ElevenLabsTts(env.ELEVENLABS_API_KEY, hosted, 0).checkVoice(hostedVoice(roles[0])!);
+              return `${roles.length} voice(s) chosen`;
+            }),
+          ]
+        : [{ name: "voice", ok: false, detail: "no voice is set up: set ELEVENLABS_API_KEY, or run npm run voice:deploy" }]),
   ];
 }
 

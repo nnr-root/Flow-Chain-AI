@@ -35,9 +35,14 @@ export function frozenModePrices(prices: Prices): Prices {
   };
 }
 
-/** The voice a new run is frozen with: the studio's own (phase 5 spec §6.1). */
+/**
+ * The voice a new run is frozen with: the hosted voice while its key is set (phase 5 spec §11), else the studio's
+ * own (§6.1). The run's voice is one of the studio's voices (`FLOWCHAIN_VOICE`, or the one the studio asks for); the
+ * hosted service's voice for it is chosen line by line from the catalogue, by the run's language.
+ */
 export function newRunVoice(env: Env): { model: string; voiceId: string } {
-  if (!env.RUNPOD_VOICE_ENDPOINT) throw new Error("RUNPOD_VOICE_ENDPOINT not set; run npm run voice:deploy first");
+  if (env.ELEVENLABS_API_KEY) return { model: env.ELEVENLABS_MODEL, voiceId: env.FLOWCHAIN_VOICE };
+  if (!env.RUNPOD_VOICE_ENDPOINT) throw new Error("no voice is set up: set ELEVENLABS_API_KEY (the hosted voice), or run npm run voice:deploy (the studio's own)");
   const { voice } = RUNPOD_WORKFLOWS;
   return { model: runpodModelId(env.RUNPOD_VOICE_ENDPOINT, voice.workflow, voice.version), voiceId: env.FLOWCHAIN_VOICE };
 }

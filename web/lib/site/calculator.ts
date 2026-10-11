@@ -128,9 +128,31 @@ export const mean = (amounts: number[]): number => (amounts.length === 0 ? 0 : M
 
 /** What one fully generated video was measured to cost: a dated entry of `web/content/measured.json`, with where it was read. */
 export const Measured = z.object({
-  fullyGenerated: z.object({ what: z.string().min(1), scenes: z.number().int().positive(), usd: z.number().positive(), measuredOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), source: z.string().min(1) }),
+  fullyGenerated: z.object({
+    what: z.string().min(1), scenes: z.number().int().positive(), usd: z.number().positive(), measuredOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), source: z.string().min(1),
+    /** What that video's voice cost, and the characters it said: so its voice can be priced as another voice would say them. */
+    voiceUsd: z.number().nonnegative().optional(),
+    narrationChars: z.number().int().positive().optional(),
+  }),
+  /**
+   * The voice videos are spoken with now, when it is not the one the video was measured with (phase 5 spec §11):
+   * its price by the character, dated and sourced like another company's price.
+   */
+  voice: z.object({ usdPer1kChars: z.number().positive(), checkedOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), source: z.string().min(1) }).optional(),
 });
 export type Measured = z.infer<typeof Measured>;
+
+/**
+ * What the measured video costs as it would be made now: as measured, with its voice priced as the voice in use
+ * says the same characters. Null when the voice in use is priced but the measurement does not say what its own
+ * voice cost: the figure would be a guess.
+ */
+export function measuredVideoUsd(m: Measured): number | null {
+  const f = m.fullyGenerated;
+  if (!m.voice) return f.usd;
+  if (f.voiceUsd === undefined || f.narrationChars === undefined) return null;
+  return f.usd - f.voiceUsd + (f.narrationChars / 1000) * m.voice.usdPer1kChars;
+}
 
 /**
  * How many minutes of video in which every scene moves an amount of credit covers, or null when that cannot be
@@ -143,9 +165,15 @@ export function fullyGeneratedMinutes(creditUsd: number, measured: unknown, seco
   const parsed = Measured.safeParse(measured);
   if (!parsed.success || !(secondsPerScene > 0) || !(creditUsd > 0)) return null;
   const m = parsed.data.fullyGenerated;
-  const days = Math.floor(today.getTime() / 86_400_000) - Math.floor(Date.parse(`${m.measuredOn}T00:00:00Z`) / 86_400_000);
-  if (!(days >= -1 && days <= FRESH_DAYS)) return null;
-  const videos = creditUsd / m.usd;
+  const fresh = (on: string) => {
+    const days = Math.floor(today.getTime() / 86_400_000) - Math.floor(Date.parse(`${on}T00:00:00Z`) / 86_400_000);
+    return days >= -1 && days <= FRESH_DAYS;
+  };
+  // the voice's price is a dated entry too: an old one says nothing, as an old measurement does
+  if (!fresh(m.measuredOn) || (parsed.data.voice && !fresh(parsed.data.voice.checkedOn))) return null;
+  const usd = measuredVideoUsd(parsed.data);
+  if (usd === null || !(usd > 0)) return null;
+  const videos = creditUsd / usd;
   const minutes = Math.floor((videos * m.scenes * secondsPerScene) / 60);
   return minutes >= 1 ? minutes : null;
 }

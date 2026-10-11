@@ -23,8 +23,11 @@ describe("loadEnv", () => {
 
   it("names every missing required variable", () => {
     expect(() => loadEnv({ RUNS_DIR: "./r" })).toThrowError(/GEMINI_API_KEY/);
-    // a key of the hosted voice the studio stopped using is not read at all, wherever it is still written
-    expect(loadEnv({ GEMINI_API_KEY: "g", ELEVENLABS_API_KEY: "old" })).not.toHaveProperty("ELEVENLABS_API_KEY");
+    // the hosted voice's key is optional: without it new runs are spoken by the studio's own voice
+    expect(loadEnv({ GEMINI_API_KEY: "g" }).ELEVENLABS_API_KEY).toBeUndefined();
+    expect(loadEnv({ GEMINI_API_KEY: "g" }).ELEVENLABS_MODEL).toBe("eleven_multilingual_v2");
+    // the one voice id it was once given is not read at all: its voices are chosen per role and language now
+    expect(loadEnv({ GEMINI_API_KEY: "g", ELEVENLABS_VOICE_ID: "old" })).not.toHaveProperty("ELEVENLABS_VOICE_ID");
   });
 
   it("rejects empty keys", () => {

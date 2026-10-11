@@ -44,8 +44,12 @@ describe("serverConfig", () => {
   });
 
   it("never passes on the settings of the hosted models the studio stopped using, wherever they are still written", () => {
-    const cfg = serverConfig({ ...base, FAL_KEY: "server", PROVIDER_MODE: "fal", ELEVENLABS_API_KEY: "server" }, { FAL_KEY: "local", FAL_IMAGE_MODEL: "m", FAL_VIDEO_MODEL: "v", ELEVENLABS_VOICE_ID: "v", ELEVENLABS_MODEL: "m", GEMINI_API_KEY: "g" });
+    const cfg = serverConfig({ ...base, FAL_KEY: "server", PROVIDER_MODE: "fal", ELEVENLABS_API_BASE: "http://127.0.0.1:1" }, { FAL_KEY: "local", FAL_IMAGE_MODEL: "m", FAL_VIDEO_MODEL: "v", ELEVENLABS_VOICE_ID: "v", GEMINI_API_KEY: "g" });
     expect(cfg.worker).toEqual({ GEMINI_API_KEY: "g" });
+    // the hosted voice is back (phase 5 spec §11): its key and model go to the worker, and to nothing else
+    const voiced = serverConfig({ ...base, STUDIO_ACCOUNTS: "1" }, { ELEVENLABS_API_KEY: "e", ELEVENLABS_MODEL: "eleven_flash_v2_5", GEMINI_API_KEY: "g", SMTP_URL: "smtps://u@smtp.example.com", MAIL_FROM: "x@example.com" });
+    expect(voiced.worker).toMatchObject({ ELEVENLABS_API_KEY: "e", ELEVENLABS_MODEL: "eleven_flash_v2_5" });
+    expect(voiced.web).not.toHaveProperty("ELEVENLABS_API_KEY");
   });
 
   it("never passes on a local path or queue address: the Compose file owns those on the server", () => {

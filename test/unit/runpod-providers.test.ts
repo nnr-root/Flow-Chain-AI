@@ -222,6 +222,7 @@ describe("createProviders", () => {
   const env = {
     GEMINI_API_KEY: "g",
     GEMINI_MODEL: "m",
+    ELEVENLABS_MODEL: "eleven_multilingual_v2",
     FLOWCHAIN_BUDGET_USD: 3,
     FLOWCHAIN_VOICE: "narrator-m",
     RUNS_DIR: "./runs",

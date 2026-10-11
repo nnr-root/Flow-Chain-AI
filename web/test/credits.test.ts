@@ -8,7 +8,7 @@ import { credits, CREDITS_PER_USD, DRAFT_CAP_USD, draftCapOfArgs, draftCapUsd, i
 import { draftArgs, NewVideo } from "@/server/schemas";
 import { Prices } from "@src/config";
 import { SCENE_SECONDS, timedScriptCost, VIDEO_SECONDS } from "@src/duration";
-import { fullyGeneratedMinutes, minutesOnSale, pricePerCreditDollar } from "@/lib/site/calculator";
+import { fullyGeneratedMinutes, measuredVideoUsd, minutesOnSale, pricePerCreditDollar } from "@/lib/site/calculator";
 import { SHOWCASES } from "@/lib/site/showcases";
 import { parsePlans } from "@src/deploy/stripe-setup";
 
@@ -92,7 +92,7 @@ describe("what is on sale", () => {
 
   it("is three plans whose credits are round numbers, each cheaper per credit than the one before, and nothing that is bought once", () => {
     const sold = plans.filter((p) => p.interval !== "year");
-    expect(sold.map((p) => [p.key, p.priceUsd, credits(p.creditUsd)])).toEqual([["starter", 39, 5000], ["creator", 99, 15000], ["pro", 199, 45000]]);
+    expect(sold.map((p) => [p.key, p.priceUsd, credits(p.creditUsd)])).toEqual([["starter", 39, 8000], ["creator", 99, 24000], ["pro", 199, 70000]]);
     const perCredit = (p: { priceUsd: number; creditUsd: number }) => p.priceUsd / credits(p.creditUsd);
     expect(perCredit(sold[1])).toBeLessThan(perCredit(sold[0]));
     expect(perCredit(sold[2])).toBeLessThan(perCredit(sold[1]));
@@ -120,7 +120,7 @@ describe("what is on sale", () => {
     const dearer = { fullyGenerated: { ...measured.fullyGenerated, usd: measured.fullyGenerated.usd * 2 } };
     const then = minutesOnSale(items, dearer, SHOWCASES.map((s) => s.receipt), today);
     expect(then.price_starter).toBeLessThan(5);
-    expect(then.price_starter).toBe(fullyGeneratedMinutes(2.5, dearer, perScene, today));
+    expect(then.price_starter).toBe(fullyGeneratedMinutes(4, dearer, perScene, today));
   });
 
   it("covers at least the minutes each plan is built around, by the measured cost of a fully generated video", () => {
@@ -130,6 +130,20 @@ describe("what is on sale", () => {
     expect(minutes[1]).toBeGreaterThanOrEqual(15);
     expect(minutes[2]).toBeGreaterThanOrEqual(45);
     expect(minutes[0]).toBeLessThan(8);
+  });
+
+  it("prices the measured video's voice as the voice in use says the same characters, and says nothing when it cannot", () => {
+    // the video as measured, its own voice taken out and the hosted voice's price for its characters put in
+    expect(measuredVideoUsd(measured)).toBeCloseTo(0.141 - 0.0164 + 0.339 * 0.3, 6);
+    expect(measuredVideoUsd({ fullyGenerated: measured.fullyGenerated })).toBe(0.141);
+    // a voice that is priced, against a measurement that does not say what its own voice cost: no figure, not a guess
+    const { voiceUsd: _v, narrationChars: _c, ...bare } = measured.fullyGenerated;
+    expect(fullyGeneratedMinutes(4, { ...measured, fullyGenerated: bare }, perScene, today)).toBeNull();
+    // the voice's price is dated like the measurement: an old one says nothing
+    expect(fullyGeneratedMinutes(4, { ...measured, voice: { ...measured.voice, checkedOn: "2026-01-01" } }, perScene, today)).toBeNull();
+    // a dearer voice is fewer minutes for the same credits
+    const dearer = fullyGeneratedMinutes(35, { ...measured, voice: { ...measured.voice, usdPer1kChars: 0.6 } }, perScene, today)!;
+    expect(dearer).toBeLessThan(fullyGeneratedMinutes(35, measured, perScene, today)!);
   });
 
   it("says nothing about minutes when the measurement is old, missing or malformed, or the amount covers less than one", () => {

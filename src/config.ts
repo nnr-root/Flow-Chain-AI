@@ -24,7 +24,13 @@ const Env = z.object({
   RUNPOD_API_KEY: z.string().min(1).optional(),
   RUNPOD_KEYFRAME_ENDPOINT: z.string().min(1).optional(),
   RUNPOD_CLIP_ENDPOINT: z.string().min(1).optional(),
-  /** The studio's own voice (phase 5 spec §6.1): where every new run is spoken. */
+  /**
+   * The hosted voice (phase 5 spec §11): with its key set, every new run is spoken there, and the studio's own
+   * voice below is the one used without it. Its model is the one new runs are frozen with.
+   */
+  ELEVENLABS_API_KEY: z.string().min(1).optional(),
+  ELEVENLABS_MODEL: z.string().regex(/^[a-z0-9_]{1,60}$/).default("eleven_multilingual_v2"),
+  /** The studio's own voice (phase 5 spec §6.1): where new runs are spoken without the hosted voice's key. */
   RUNPOD_VOICE_ENDPOINT: z.string().min(1).optional(),
   /** Which of the voice worker's voices new runs use. */
   FLOWCHAIN_VOICE: z.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/).default("narrator-m"),
@@ -51,7 +57,9 @@ export const Prices = z.strictObject({
   fluxPerMegapixel: z.number().default(0.025),
   klingBase5s: z.number().default(0.25),
   klingPerExtraSec: z.number().default(0.05),
-  // (the hosted voice the studio no longer buys from: kept, like the three above, for the runs made with it)
+  // The hosted voice (phase 5 spec §11), by the character. 0.30 is the dearest it is sold at (the smallest plan's
+  // characters beyond what it includes): what a line is expected to cost, and what it is charged, is never less
+  // than it was. Lower it when the plan bought says so.
   ttsPer1kChars: z.number().default(0.3),
   llmPerMInputTokens: z.number().default(0.3),
   llmPerMOutputTokens: z.number().default(2.5),

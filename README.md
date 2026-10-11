@@ -126,13 +126,30 @@ character is in is conditioned on it; `reroll <runId> --stage reference --scene 
 redone from it). Clips are 480p (upscaled to the output size) with frame interpolation to 32 fps. GPU time is
 charged per job from RunPod's measured execution time; cold starts and idle time are not attributed per job.
 
+### The voice
+
+New runs are spoken by the hosted voice (ElevenLabs) while `ELEVENLABS_API_KEY` is set, and by the studio's own
+voice below without it (phase 5 spec §11: the owner's listening test of the own voice failed in Turkish and in
+telling its voices apart). The studio's voices (Storyteller, Host, the narrators…) are roles: which hosted voice
+plays each, in each language, is in `assets/voices/elevenlabs.json`. To fill it:
+
+1. `npm run make:voices -- --hosted-candidates en` (and `tr`, …): the library's voices native to that language,
+   most used first, with their previews in `.superpowers/voices/` to listen to. Reads only; buys nothing.
+2. `npm run make:voices -- --hosted-add <role> <language> <voiceId> [<publicOwnerId>]`: gives a role that voice
+   (a library voice is added to the account first: it needs the `publicOwnerId` from step 1).
+3. `npm run make:voices -- --again en tr`: the samples on the form, made again in the hosted voices (a few cents).
+
+A line costs its characters at `ttsPer1kChars` in `prices.json` (0.30 a thousand by default, the dearest it is
+sold at: lower it to your plan's rate). A role with no voice in a language speaks it in its English voice, and the
+form says so; a role with no voice at all is refused before anything is bought. Runs made with the studio's own
+voice stay on it.
+
 ### The studio's own voice
 
 `npm run voice:deploy` creates one more endpoint, for the voiceover (VoxCPM2, with a Whisper model that says
-when each word was spoken, which the captions need), and writes `RUNPOD_VOICE_ENDPOINT` into `.env`. Every new
-run is spoken there: about a cent for the first line of a run (the worker loads its models) and about a tenth
-of a cent for each line after it. Runs made earlier with ElevenLabs still load and re-render; a line of theirs
-cannot be spoken again. It needs no volume and uploads nothing: a line goes in, its speech comes back in the
+when each word was spoken, which the captions need), and writes `RUNPOD_VOICE_ENDPOINT` into `.env`. Without the
+hosted voice's key, every new run is spoken there: about a cent for the first line of a run (the worker loads its models) and about a tenth
+of a cent for each line after it. It needs no volume and uploads nothing: a line goes in, its speech comes back in the
 answer. The first line on a host that has never run it waits about four minutes while the image is fetched. Its image is built by the same GitHub Action from `worker-voice/`; make the
 `flowchain-voice` package public once, like the other.
 
@@ -353,13 +370,15 @@ nothing below exists and credit is granted by hand as before.
 - **What is sold.** `billing/plans.json` lists the plans, each with its monthly price, the cost it covers
   (`creditUsd`, in dollars of what videos cost you) and the minutes of fully generated video it is built around.
   A customer is never shown those dollars: they see **credits**, 2,000 to a dollar of cost (`CREDITS_PER_USD` in
-  `web/lib/credit.ts`). The defaults are Starter $39 for 5,000 credits, Creator $99 for 15,000 and Pro $199 for
-  45,000 a month: 5, 15 and 45 minutes of video in which every scene moves (measured at $0.141 for four scenes),
-  and about three times that in stills. `yearlyMonths: 10` sells each plan by the year as well, for the price of
+  `web/lib/credit.ts`). The defaults are Starter $39 for 8,000 credits, Creator $99 for 24,000 and Pro $199 for
+  70,000 a month: 5, 15 and 45 minutes of video in which every scene moves (measured at $0.141 for four scenes
+  with the studio's own voice; $0.226 with the hosted voice at its dearest, which is what the plans are sized for:
+  phase 6 spec §16). `yearlyMonths: 10` sells each plan by the year as well, for the price of
   ten months; its credits still come every month (the worker grants each month's on its day), and what is left
   of a month does not carry over. Nothing is sold once: `topups` is empty (the
-  studio can still sell top-ups if you list some). What is left of a plan's price after its cost is yours: 94%,
-  92% and 89% before Stripe's fee and the server (phase 6 spec §13 has the market these prices were set against).
+  studio can still sell top-ups if you list some). What is left of a plan's price after its cost is yours: 90%,
+  88% and 82% before Stripe's fee, the server and the hosted voice's subscription (phase 6 spec §13 has the market
+  these prices were set against, §16 the credits).
   In your own studio without accounts, amounts stay in dollars: that is your bill.
 - **Two kinds of credit.** A plan's credit is for its month, however the plan is paid: what is left when the
   next month begins expires, and so does what is left when the plan ends. Credit you grant (and a

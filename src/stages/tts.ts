@@ -2,9 +2,10 @@ import { writeFile } from "node:fs/promises";
 import { runpodRates } from "../config.js";
 import { FALLBACK_NARRATION_CHARS, round4, ttsCost } from "../cost.js";
 import type { Manifest } from "../manifest/schema.js";
-import { TIMEOUTS, UnusableResultError, withRetry } from "../providers/retry.js";
+import { NonRetryableError, TIMEOUTS, UnusableResultError, withRetry } from "../providers/retry.js";
 import { VOICE_WAIT_MS } from "../providers/runpod-voice.js";
-import { speechLanguage } from "../voice/language.js";
+import { speechLanguage, VOICES } from "../voice/language.js";
+import { hostedVoice } from "../voice/hosted.js";
 import { designedClip } from "../voice/library.js";
 
 import { outPath, paths } from "./paths.js";
@@ -17,16 +18,31 @@ const ownVoice = (m: Manifest): boolean => m.models.tts.startsWith("runpod:");
 
 function speech(m: Manifest, i: number) {
   const scenes = requireScript(m).scenes;
+  const language = m.request.language ?? speechLanguage(scenes.map((s) => s.narration).join(" "));
   return {
     text: scenes[i].narration,
     previousText: scenes[i - 1]?.narration,
     nextText: scenes[i + 1]?.narration,
-    voiceId: m.request.voiceId,
+    voiceId: ownVoice(m) ? m.request.voiceId : hostedVoiceOf(m.request.voiceId, m.request.language),
     // The studio's own voice is told the script's language: the one the run was asked for in, or else worked out
-    // from the whole script (so every line of a run is spoken from the same reference clip). Not part of an
-    // earlier run's request: its cache keys stay.
-    ...(ownVoice(m) ? { language: m.request.language ?? speechLanguage(scenes.map((s) => s.narration).join(" ")) } : {}),
+    // from the whole script (so every line of a run is spoken from the same reference clip). The hosted voice is
+    // told the language a run was asked for in. Neither is part of an earlier run's request: its cache keys stay.
+    ...(ownVoice(m) ? { language } : m.request.language ? { language: m.request.language } : {}),
   };
+}
+
+/**
+ * The hosted service's voice for one of the studio's voices in a language (phase 5 spec §11). A run made before
+ * the catalogue named the service's own voice id, which is sent as it is. One of the studio's voices with no
+ * hosted voice chosen is refused before anything is bought: sent as it is, the service would not know it.
+ */
+function hostedVoiceOf(voiceId: string, language?: string): string {
+  const hosted = hostedVoice(voiceId, language);
+  if (hosted) return hosted;
+  if (Object.hasOwn(VOICES, voiceId)) {
+    throw new NonRetryableError(`the voice "${voiceId}" has no hosted voice chosen for it yet (npm run make:voices -- --hosted)`);
+  }
+  return voiceId;
 }
 
 /**
@@ -39,7 +55,7 @@ function lineInputs(m: Manifest, i: number) {
   return { model: m.models.tts, ...req, ...(clip ? { voiceClip: clip.sha256 } : {}) };
 }
 
-/** What a line is expected to cost: per character on the hosted voice, by GPU seconds on the studio's own. */
+/** What a line is expected to cost: per character on the hosted voice (`ttsPer1kChars`), by GPU seconds on the studio's own. */
 function lineCost(ctx: Pick<StageContext, "manifest" | "prices">, scene: number, chars: number): number {
   if (!ownVoice(ctx.manifest)) return ttsCost(ctx.prices, chars);
   const r = runpodRates(ctx.prices);

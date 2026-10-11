@@ -1,4 +1,13 @@
 /*
+ * npm run make:voices -- --hosted-candidates <language>: looks for the hosted service's voices native to a
+ * language (its library, and the account's own voices), writes what it found to .superpowers/voices/<language>.json and
+ * downloads each one's preview beside it, for choosing by ear and by measure (phase 5 spec §11). Reads only; it
+ * buys nothing, but it is the owner's account: the owner's click.
+ *
+ * npm run make:voices -- --hosted-add <role> <language> <voiceId> [<publicOwnerId>]: gives one of the studio's
+ * voices that hosted voice in that language (adding a library voice to the account first) and writes it to
+ * assets/voices/elevenlabs.json. Buys nothing; changes the account: the owner's click.
+ *
  * npm run make:voices -- --design [<language> …]: makes every voice in every language natively (see `design`),
  * on the studio's voice engine, and keeps the clips in assets/voices/ and their samples on the form. **It buys
  * speech** (a few takes a voice and language) and sets the endpoint to four workers while it runs.
@@ -27,6 +36,7 @@ import { RunpodClient } from "../src/providers/runpod.js";
 import { heardShare } from "../src/voice/align.js";
 import { pitchFits, TOO_ALIKE, voiceDistance, type VoiceFeatures, voiceFeatures } from "../src/voice/features.js";
 import { BUILT_IN_VOICES, SPEECH_LANGUAGES, type SpeechLanguage, VOICE_DESIGNS, type VoiceId, VOICES } from "../src/voice/language.js";
+import { HOSTED_FILE, hostedCatalogue, hostedLanguages, hostedRoles, hostedVoice } from "../src/voice/hosted.js";
 import { designedDir, designedVoices } from "../src/voice/library.js";
 
 /** The same two sentences in every language: an opening, as a narrator would say one. */
@@ -57,8 +67,9 @@ type Sample = { seconds: number; words: number };
 type Listed = { madeOn: string | null; samples: Partial<Record<VoiceId, Partial<Record<SpeechLanguage, Sample>>>> };
 const LIST = "web/content/voice-samples.json";
 
-/** The voices there is something to hear of: the worker's own and the designed ones that have a clip. */
-const readyVoices = (): VoiceId[] => [...BUILT_IN_VOICES, ...(designedVoices() as VoiceId[])];
+/** The voices there is something to hear of: the hosted ones chosen, else the worker's own and the designed ones. */
+const readyVoices = (hosted: boolean): VoiceId[] =>
+  hosted ? (hostedRoles().filter((v) => Object.hasOwn(VOICES, v)) as VoiceId[]) : [...BUILT_IN_VOICES, ...(designedVoices() as VoiceId[])];
 
 /** A clip's sound as 16 kHz mono samples, for measuring it. */
 async function samplesOf(file: string): Promise<Float32Array> {
@@ -202,28 +213,132 @@ async function design(env: Env, asked: string[]): Promise<void> {
   console.log(`designing cost about $${usd.toFixed(4)}`);
 }
 
+const HOSTED_API = (): string => process.env.ELEVENLABS_API_BASE ?? "https://api.elevenlabs.io";
+
+async function hosted<T>(env: Env, path: string, init: RequestInit = {}): Promise<T> {
+  if (!env.ELEVENLABS_API_KEY) throw new Error("ELEVENLABS_API_KEY must be set");
+  const res = await fetch(`${HOSTED_API()}${path}`, { ...init, headers: { "xi-api-key": env.ELEVENLABS_API_KEY, "content-type": "application/json", ...init.headers } });
+  if (!res.ok) throw new Error(`${path}: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`);
+  return (await res.json()) as T;
+}
+
+type Candidate = {
+  voiceId: string;
+  publicOwnerId?: string;
+  name: string;
+  gender?: string;
+  age?: string;
+  accent?: string;
+  description?: string;
+  useCase?: string;
+  /** How much it has been used across the service in a year: a voice many use is one that has held up. */
+  usage?: number;
+  preview?: string;
+  source: "account" | "library";
+};
+
+/**
+ * The hosted voices native to a language, with what is said of each and its preview: the library's (by use, most
+ * used first) and the account's own. Nothing is bought; the previews are the service's own files.
+ */
+async function hostedCandidates(env: Env, language: string | undefined): Promise<void> {
+  if (!language || !Object.hasOwn(SPEECH_LANGUAGES, language)) throw new Error(`say a language: one of ${Object.keys(SPEECH_LANGUAGES).join(", ")}`);
+  const found: Candidate[] = [];
+  for (let page = 0; page < 3; page++) {
+    const got = await hosted<{ voices: Array<Record<string, unknown>>; has_more: boolean }>(
+      env,
+      `/v1/shared-voices?page_size=100&page=${page}&language=${language}&sort=usage_character_count_1y`,
+    );
+    for (const v of got.voices) {
+      found.push({
+        voiceId: String(v.voice_id), publicOwnerId: String(v.public_owner_id), name: String(v.name),
+        gender: v.gender as string | undefined, age: v.age as string | undefined, accent: v.accent as string | undefined,
+        description: v.description as string | undefined, useCase: v.use_case as string | undefined,
+        usage: v.usage_character_count_1y as number | undefined, preview: v.preview_url as string | undefined, source: "library",
+      });
+    }
+    if (!got.has_more) break;
+  }
+  if (language === "en") {
+    const own = await hosted<{ voices: Array<{ voice_id: string; name: string; category?: string; labels?: Record<string, string>; preview_url?: string; description?: string }> }>(env, "/v1/voices");
+    for (const v of own.voices) {
+      found.push({
+        voiceId: v.voice_id, name: v.name, gender: v.labels?.gender, age: v.labels?.age, accent: v.labels?.accent,
+        description: v.labels?.description ?? v.description, useCase: v.labels?.use_case, preview: v.preview_url, source: "account",
+      });
+    }
+  }
+  const dir = join(".superpowers/voices", language);
+  await mkdir(dir, { recursive: true });
+  let previews = 0;
+  for (const c of found) {
+    if (!c.preview || existsSync(join(dir, `${c.voiceId}.mp3`))) continue;
+    const res = await fetch(c.preview);
+    if (!res.ok) continue;
+    await writeFile(join(dir, `${c.voiceId}.mp3`), Buffer.from(await res.arrayBuffer()));
+    previews++;
+  }
+  await writeFile(join(".superpowers/voices", `${language}.json`), `${JSON.stringify(found, null, 2)}\n`);
+  console.log(`${found.length} candidate(s) for ${language}, ${previews} preview(s) downloaded, in .superpowers/voices/`);
+}
+
+/** Gives one of the studio's voices a hosted voice in a language, adding a library voice to the account first. */
+async function hostedAdd(env: Env, args: string[]): Promise<void> {
+  const [role, language, voiceId, publicOwnerId] = args;
+  if (!role || !Object.hasOwn(VOICES, role)) throw new Error(`say which voice: one of ${Object.keys(VOICES).join(", ")}`);
+  if (!language || !Object.hasOwn(SPEECH_LANGUAGES, language)) throw new Error(`say a language: one of ${Object.keys(SPEECH_LANGUAGES).join(", ")}`);
+  if (!voiceId || !/^[A-Za-z0-9]{8,40}$/.test(voiceId)) throw new Error("say the hosted voice's id");
+  let id = voiceId;
+  let name = `${role} (${language})`;
+  if (publicOwnerId) {
+    // a library voice is used through the account: added once, under a name that says what it is for here
+    const added = await hosted<{ voice_id: string }>(env, `/v1/voices/add/${encodeURIComponent(publicOwnerId)}/${encodeURIComponent(voiceId)}`, {
+      method: "POST",
+      body: JSON.stringify({ new_name: `flowchain ${role} ${language}` }),
+    });
+    id = added.voice_id;
+  }
+  const voice = await hosted<{ name: string }>(env, `/v1/voices/${encodeURIComponent(id)}`);
+  name = voice.name;
+  const catalogue = hostedCatalogue();
+  (catalogue.voices[role] ??= {})[language] = { id, name };
+  await writeFile(join(designedDir(), HOSTED_FILE), `${JSON.stringify(catalogue, null, 2)}\n`);
+  console.log(`${role} in ${language}: ${name} (${id})`);
+}
+
 async function main(): Promise<void> {
   process.loadEnvFile(".env");
   const env = loadEnv();
   if (process.argv[2] === "--design") return design(env, process.argv.slice(3));
-  const asked = process.argv.slice(2);
+  if (process.argv[2] === "--hosted-candidates") return hostedCandidates(env, process.argv[3]);
+  if (process.argv[2] === "--hosted-add") return hostedAdd(env, process.argv.slice(3));
+  // --again: make the samples that are there again (they were made by another voice)
+  const again = process.argv.includes("--again");
+  const asked = process.argv.slice(2).filter((a) => a !== "--again");
   const unknown = asked.filter((l) => !Object.hasOwn(SPEECH_LANGUAGES, l));
   if (unknown.length > 0) throw new Error(`no such language: ${unknown.join(", ")} (the languages are ${Object.keys(SPEECH_LANGUAGES).join(", ")})`);
   const languages = (asked.length > 0 ? asked : Object.keys(SPEECH_LANGUAGES)) as SpeechLanguage[];
   const chosen = newRunProviders(env, "480p");
-  const { tts } = createProviders(env, { llm: env.GEMINI_MODEL, tts: newRunVoice(env).model, image: chosen.image, video: chosen.video }, loadPrices());
+  const voiceModel = newRunVoice(env).model;
+  const hosted = !voiceModel.startsWith("runpod:");
+  const { tts } = createProviders(env, { llm: env.GEMINI_MODEL, tts: voiceModel, image: chosen.image, video: chosen.video }, loadPrices());
   const outDir = "web/public/voices";
   await mkdir(outDir, { recursive: true });
   const listed: Listed = existsSync(LIST) ? (JSON.parse(readFileSync(LIST, "utf8")) as Listed) : { madeOn: null, samples: {} };
   let usd = 0;
   const failed: string[] = [];
+  let asked_ = 0;
   for (const language of languages) {
-    for (const voice of readyVoices()) {
+    for (const voice of readyVoices(hosted)) {
+      // A hosted voice is heard in the languages it has a voice chosen in, and the narrators in every language
+      // (the form offers them where no voice is native, in their English voice).
+      if (hosted && !hostedLanguages(voice).includes(language) && !BUILT_IN_VOICES.includes(voice)) continue;
+      asked_++;
       const text = SAMPLE_LINES[language];
-      // a sample that is there is not bought again (delete it from the list to make it again)
-      if (listed.samples[voice]?.[language] && existsSync(join(outDir, `${voice}.${language}.mp3`))) continue;
+      // a sample that is there is not bought again (delete it from the list, or say --again, to make it again)
+      if (!again && listed.samples[voice]?.[language] && existsSync(join(outDir, `${voice}.${language}.mp3`))) continue;
       try {
-        const said = await tts.speak({ text, voiceId: voice, language });
+        const said = await tts.speak({ text, voiceId: hosted ? hostedVoice(voice, language)! : voice, language });
         const raw = join(outDir, `_${voice}.${language}.raw`);
         await writeFile(raw, said.audio);
         const file = join(outDir, `${voice}.${language}.mp3`);
@@ -243,7 +358,7 @@ async function main(): Promise<void> {
       await writeFile(LIST, `${JSON.stringify(listed, null, 2)}\n`);
     }
   }
-  console.log(`${languages.length * readyVoices().length - failed.length} sample(s) made for about $${usd.toFixed(4)}${failed.length > 0 ? `; not made: ${failed.join(", ")}` : ""}.`);
+  console.log(`${asked_ - failed.length} sample(s) made for about $${usd.toFixed(4)}${failed.length > 0 ? `; not made: ${failed.join(", ")}` : ""}.`);
 }
 
 // (imported by a test for the lines alone: only run as a command does it buy anything)

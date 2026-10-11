@@ -128,7 +128,7 @@ describe("creating a draft", () => {
   it("refuses, naming the variables, while keys are missing — before any run exists", async () => {
     const res = await createDraft(request("/api/drafts", { json: { topic: "foxes" } }), undefined);
     expect(res.status).toBe(400);
-    expect(await error(res)).toMatchObject({ code: "missing_keys", message: "not set in .env: GEMINI_API_KEY, RUNPOD_API_KEY, RUNPOD_KEYFRAME_ENDPOINT, RUNPOD_CLIP_ENDPOINT, RUNPOD_VOICE_ENDPOINT, R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY" });
+    expect(await error(res)).toMatchObject({ code: "missing_keys", message: "not set in .env: GEMINI_API_KEY, RUNPOD_API_KEY, RUNPOD_KEYFRAME_ENDPOINT, RUNPOD_CLIP_ENDPOINT, R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, ELEVENLABS_API_KEY (or RUNPOD_VOICE_ENDPOINT)" });
     expect(await calls(studio)).toEqual([]);
   });
 
