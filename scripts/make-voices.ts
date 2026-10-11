@@ -25,7 +25,7 @@ import { runpodRates } from "../src/config.js";
 import { RunpodClient } from "../src/providers/runpod.js";
 import { heardShare } from "../src/voice/align.js";
 import { BUILT_IN_VOICES, SPEECH_LANGUAGES, type SpeechLanguage, VOICE_DESIGNS, type VoiceId } from "../src/voice/language.js";
-import { DESIGNED_DIR, designedVoices } from "../src/voice/library.js";
+import { designedDir, designedVoices } from "../src/voice/library.js";
 
 /** The same two sentences in every language: an opening, as a narrator would say one. */
 export const SAMPLE_LINES: Record<SpeechLanguage, string> = {
@@ -68,7 +68,7 @@ async function design(env: Env, asked: string[]): Promise<void> {
   const client = new RunpodClient(env.RUNPOD_API_KEY);
   const rate = runpodRates(loadPrices()).voiceUsdPerSec;
   const line = SAMPLE_LINES.en;
-  const listFile = join(DESIGNED_DIR, "voices.json");
+  const listFile = join(designedDir(), "voices.json");
   const list = JSON.parse(readFileSync(listFile, "utf8")) as Record<string, Record<string, string>>;
   let usd = 0;
   for (const name of names) {
@@ -92,7 +92,7 @@ async function design(env: Env, asked: string[]): Promise<void> {
         console.log(`${name}: what it said was not the line (${Math.round(share * 100)}% heard); designed again`);
         continue;
       }
-      await writeFile(join(DESIGNED_DIR, `${name}.en.flac`), Buffer.from(out.audio, "base64"));
+      await writeFile(join(designedDir(), `${name}.en.flac`), Buffer.from(out.audio, "base64"));
       list[name] = { en: line };
       await writeFile(listFile, `${JSON.stringify(list, null, 2)}
 `);

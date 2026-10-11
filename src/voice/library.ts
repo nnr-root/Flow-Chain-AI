@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { ASSETS_DIR } from "../assets.js";
+import { join, resolve } from "node:path";
 
 /*
  * The voices that were designed (phase 7 spec §15): each one's reference clip, made once by the voice worker
@@ -9,19 +8,20 @@ import { ASSETS_DIR } from "../assets.js";
  * that voice says. The voice worker's image holds only the two narrators; a voice kept here is spoken by any
  * deployed worker that takes a clip with a request, without building the image again.
  *
- * Node only: the browser learns which voices are ready from the server.
+ * Node only: the browser learns which voices are ready from the server. The folder is found from this file
+ * where it can be (the CLI); the web app, whose bundler gives a module no folder of its own, passes its own.
  */
-export const DESIGNED_DIR = join(ASSETS_DIR, "voices");
+export const designedDir = (): string => resolve(import.meta.dirname, "../../assets/voices");
 
 type Library = Record<string, Record<string, string>>;
 
-function library(dir = DESIGNED_DIR): Library {
+function library(dir = designedDir()): Library {
   const file = join(dir, "voices.json");
   return existsSync(file) ? (JSON.parse(readFileSync(file, "utf8")) as Library) : {};
 }
 
 /** The designed voices that have a clip, by id. */
-export function designedVoices(dir = DESIGNED_DIR): string[] {
+export function designedVoices(dir = designedDir()): string[] {
   return Object.entries(library(dir)).filter(([id, by]) => by.en && existsSync(join(dir, `${id}.en.flac`))).map(([id]) => id);
 }
 
@@ -29,7 +29,7 @@ export function designedVoices(dir = DESIGNED_DIR): string[] {
  * A designed voice's clip for a language: its own where it has one, its English one otherwise (as the voice
  * worker does with its own voices). Null for a voice that is not a designed one.
  */
-export function designedClip(id: string, language?: string, dir = DESIGNED_DIR): { audio: Buffer; text: string; sha256: string } | null {
+export function designedClip(id: string, language?: string, dir = designedDir()): { audio: Buffer; text: string; sha256: string } | null {
   const by = library(dir)[id];
   if (!by) return null;
   const lang = language && by[language] && existsSync(join(dir, `${id}.${language}.flac`)) ? language : "en";
