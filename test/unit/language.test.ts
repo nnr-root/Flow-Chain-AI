@@ -6,7 +6,8 @@ import { buildScriptPrompt } from "../../src/providers/gemini.js";
 import { timingProblems } from "../../src/stages/script.js";
 import { PRESETS } from "../../src/presets.js";
 import { captionStyleFor } from "../../src/stages/look.js";
-import { BUILT_IN_VOICES, fontCovers, voicePace, LANGUAGE_IN_ENGLISH, SPEECH_LANGUAGES, VOICE_DESIGNS, VOICES } from "../../src/voice/language.js";
+import { BUILT_IN_VOICES, fontCovers, voicePace, LANGUAGE_IN_ENGLISH, OWN_VOICE_IDS, SPEECH_LANGUAGES, VOICE_DESIGNS, VOICES } from "../../src/voice/language.js";
+import { hostedLanguages, hostedRoles } from "../../src/voice/hosted.js";
 import { clipLanguages, designedVoices } from "../../src/voice/library.js";
 import { SAMPLE_LINES } from "../../scripts/make-voices.js";
 import { timedScript } from "../fakes/providers.js";
@@ -22,7 +23,7 @@ describe("the languages and voices on offer", () => {
     // the worker's image has its own voices; every other voice on the list is designed, and was asked for in words
     expect([...BUILT_IN_VOICES].sort()).toEqual(Object.keys(recorded).sort());
     // every voice, the worker's own included, is described, so that it can be made in any language
-    for (const voice of Object.keys(VOICES)) expect(VOICE_DESIGNS[voice as keyof typeof VOICE_DESIGNS], voice).toBeTruthy();
+    for (const voice of OWN_VOICE_IDS) expect(VOICE_DESIGNS[voice], voice).toBeTruthy();
     for (const voice of BUILT_IN_VOICES) {
       // English is what a language without a clip of its own falls back to, in the worker
       expect(Object.keys(recorded[voice]), voice).toContain("en");
@@ -59,6 +60,13 @@ describe("the languages and voices on offer", () => {
 
   it("have a sample to listen to for every voice in every language, said by the engine and heard as its line", () => {
     const listed = JSON.parse(readFileSync("web/content/voice-samples.json", "utf8")) as { samples: Record<string, Record<string, { seconds: number; words: number }>> };
+    // every hosted voice chosen, in every language it has a voice of its own chosen in (phase 5 spec §11)
+    for (const voice of hostedRoles()) {
+      for (const language of hostedLanguages(voice)) {
+        expect(existsSync(`web/public/voices/${voice}.${language}.mp3`), `${voice}.${language}`).toBe(true);
+        expect(listed.samples[voice]?.[language]?.words, `${voice}.${language}`).toBe(SAMPLE_LINES[language as keyof typeof SAMPLE_LINES].split(/\s+/).length);
+      }
+    }
     // every voice that can be chosen: the worker's own and the designed ones whose clip has been made
     // every voice that can be chosen, in every language it has a clip made in (the narrators in all twenty)
     for (const voice of [...BUILT_IN_VOICES, ...designedVoices()]) {
@@ -106,7 +114,8 @@ describe("a voice that speaks slower or faster than the narrators", () => {
   it("is asked for fewer or more words, by its pace measured in the languages it was made in", () => {
     const listed = JSON.parse(readFileSync("web/content/voice-samples.json", "utf8")) as { samples: Record<string, Record<string, { seconds: number; words: number }>> };
     const rate = (v: string, l: string) => listed.samples[v][l].words / listed.samples[v][l].seconds;
-    for (const voice of [...BUILT_IN_VOICES, ...designedVoices()]) {
+    // every voice with samples: the hosted ones since phase 5 spec §11, the narrators in every language
+    for (const voice of Object.keys(listed.samples)) {
       const langs = Object.keys(listed.samples[voice]);
       const measured = langs.reduce((sum, l) => sum + rate(voice, l) / ((rate("narrator-m", l) + rate("narrator-f", l)) / 2), 0) / langs.length;
       // the pace on the list is within a twentieth of what the samples say
@@ -114,8 +123,8 @@ describe("a voice that speaks slower or faster than the narrators", () => {
     }
     expect(voicePace(undefined)).toBe(1);
     expect(voicePace("someone")).toBe(1);
-    expect(wordsPerSecond("en", "calm")).toBe(1.66);
-    expect(buildScriptPrompt({ ...base, timing, voiceId: "calm" })).toContain("about 50 words");
+    expect(wordsPerSecond("en", "calm")).toBe(2.16);
+    expect(buildScriptPrompt({ ...base, timing, voiceId: "calm" })).toContain("about 65 words");
     expect(buildScriptPrompt({ ...base, timing, voiceId: "upbeat" })).toContain("about 83 words");
     expect(buildScriptPrompt({ ...base, timing, voiceId: "narrator-m" })).toContain("about 72 words");
   });

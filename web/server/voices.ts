@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { BUILT_IN_VOICES, SPEECH_LANGUAGE_CODES, type SpeechLanguage, type VoiceId, VOICES } from "@src/voice/language";
-import { hostedLanguages, hostedRoles } from "@src/voice/hosted";
+import { hostedLanguages, hostedNames, hostedRoles } from "@src/voice/hosted";
 import { clipLanguages, designedVoices } from "@src/voice/library";
 import { baseRoots } from "./config";
 
@@ -30,6 +30,13 @@ export function nativeVoices(): Record<SpeechLanguage, VoiceId[]> {
   const ready = readyVoices();
   const has = hosted()
     ? (v: VoiceId, lang: string) => hostedLanguages(v, dir()).includes(lang)
-    : (v: VoiceId, lang: string) => (BUILT_IN_VOICES.includes(v) && WORKER_CLIPS.includes(lang)) || clipLanguages(v, dir()).includes(lang);
+    : (v: VoiceId, lang: string) => ((BUILT_IN_VOICES as readonly string[]).includes(v) && WORKER_CLIPS.includes(lang)) || clipLanguages(v, dir()).includes(lang);
   return Object.fromEntries(SPEECH_LANGUAGE_CODES.map((lang) => [lang, ready.filter((v) => has(v, lang))])) as Record<SpeechLanguage, VoiceId[]>;
+}
+
+/** The name and the few words the form shows of each voice in each language, where they are not its own (hosted voices). */
+export type VoiceNames = Partial<Record<SpeechLanguage, Partial<Record<VoiceId, { label?: string; about?: string }>>>>;
+export function voiceNames(): VoiceNames {
+  if (!hosted()) return {};
+  return Object.fromEntries(SPEECH_LANGUAGE_CODES.map((lang) => [lang, hostedNames(lang, dir())])) as VoiceNames;
 }

@@ -4,9 +4,11 @@
  * downloads each one's preview beside it, for choosing by ear and by measure (phase 5 spec §11). Reads only; it
  * buys nothing, but it is the owner's account: the owner's click.
  *
- * npm run make:voices -- --hosted-add <role> <language> <voiceId> [<publicOwnerId>]: gives one of the studio's
- * voices that hosted voice in that language (adding a library voice to the account first) and writes it to
- * assets/voices/elevenlabs.json. Buys nothing; changes the account: the owner's click.
+ * npm run make:voices -- --hosted-add <role> <language> <voiceId> [<publicOwnerId>] [--label <name>]: gives one of
+ * the studio's voices that hosted voice in that language and writes it to assets/voices/elevenlabs.json. A library
+ * voice speaks without being in the account; with its `publicOwnerId` it is added to the account first, which keeps
+ * it for the notice its owner set should they withdraw it (the key needs the voices_write permission). Buys
+ * nothing; the owner's click.
  *
  * npm run make:voices -- --design [<language> …]: makes every voice in every language natively (see `design`),
  * on the studio's voice engine, and keeps the clips in assets/voices/ and their samples on the form. **It buys
@@ -35,7 +37,7 @@ import { runpodRates } from "../src/config.js";
 import { RunpodClient } from "../src/providers/runpod.js";
 import { heardShare } from "../src/voice/align.js";
 import { pitchFits, TOO_ALIKE, voiceDistance, type VoiceFeatures, voiceFeatures } from "../src/voice/features.js";
-import { BUILT_IN_VOICES, SPEECH_LANGUAGES, type SpeechLanguage, VOICE_DESIGNS, type VoiceId, VOICES } from "../src/voice/language.js";
+import { BUILT_IN_VOICES, OWN_VOICE_IDS, type OwnVoiceId, SPEECH_LANGUAGES, type SpeechLanguage, VOICE_DESIGNS, type VoiceId, VOICES } from "../src/voice/language.js";
 import { HOSTED_FILE, hostedCatalogue, hostedLanguages, hostedRoles, hostedVoice } from "../src/voice/hosted.js";
 import { designedDir, designedVoices } from "../src/voice/library.js";
 
@@ -104,7 +106,7 @@ async function design(env: Env, asked: string[]): Promise<void> {
   await mkdir(tmp, { recursive: true });
   let usd = 0;
 
-  const take = async (voice: VoiceId, language: SpeechLanguage, seed: number): Promise<Take | null> => {
+  const take = async (voice: OwnVoiceId, language: SpeechLanguage, seed: number): Promise<Take | null> => {
     const line = SAMPLE_LINES[language];
     const id = await client.run(endpoint, { task: "design", workflow: "voice-voxcpm2@1", description: VOICE_DESIGNS[voice].description, text: line, language, seed }, { executionTimeout: 300_000, ttl: 3_600_000 }, new AbortController().signal);
     // Reading a job's state is safe to repeat, and RunPod now and then answers it with a server error: one such
@@ -143,7 +145,7 @@ async function design(env: Env, asked: string[]): Promise<void> {
     }));
     return out;
   };
-  const keep = async (voice: VoiceId, language: SpeechLanguage, chosen: Take) => {
+  const keep = async (voice: OwnVoiceId, language: SpeechLanguage, chosen: Take) => {
     await rename(chosen.file, join(dir, `${voice}.${language}.flac`));
     (list[voice] ??= {})[language] = SAMPLE_LINES[language];
     await writeFile(listFile, `${JSON.stringify(list, null, 2)}\n`);
@@ -156,9 +158,9 @@ async function design(env: Env, asked: string[]): Promise<void> {
     await writeFile(LIST, `${JSON.stringify(samples, null, 2)}\n`);
   };
   /** What each voice sounds like in a language, as far as it has been kept. */
-  const keptIn = async (language: SpeechLanguage): Promise<Map<VoiceId, VoiceFeatures>> => {
-    const kept = new Map<VoiceId, VoiceFeatures>();
-    for (const voice of Object.keys(VOICES) as VoiceId[]) {
+  const keptIn = async (language: SpeechLanguage): Promise<Map<OwnVoiceId, VoiceFeatures>> => {
+    const kept = new Map<OwnVoiceId, VoiceFeatures>();
+    for (const voice of OWN_VOICE_IDS) {
       const own = BUILT_IN_VOICES.includes(voice) && ["en", "tr"].includes(language) ? join("worker-voice/voices", `${voice}.${language}.flac`) : join(dir, `${voice}.${language}.flac`);
       if (existsSync(own)) kept.set(voice, voiceFeatures(await samplesOf(own)));
     }
@@ -172,7 +174,7 @@ async function design(env: Env, asked: string[]): Promise<void> {
     for (const language of (["en", ...languages.filter((l) => l !== "en")] as SpeechLanguage[]).filter((l) => languages.includes(l))) {
       const kept = await keptIn(language);
       const english = language === "en" ? null : await keptIn("en");
-      const wanted = (Object.keys(VOICES) as VoiceId[]).filter((v) => !kept.has(v));
+      const wanted = OWN_VOICE_IDS.filter((v) => !kept.has(v));
       if (wanted.length === 0) continue;
       // Takes are made in rounds: a voice is kept from the first round that has a take fitting it, and the voices
       // with none get another round of new seeds, up to four. A take fits when its line was heard, its pitch is
@@ -181,7 +183,7 @@ async function design(env: Env, asked: string[]): Promise<void> {
       for (let round = 0; round < 4 && left.length > 0; round++) {
         const seeds = (language === "en" && round === 0 ? [11, 23, 37, 53] : [11, 29]).map((s) => s + round * 101);
         const takes = await pool(left.flatMap((voice) => seeds.map((seed) => async () => ({ voice, take: await take(voice, language, seed + language.charCodeAt(0) * 1000 + language.charCodeAt(1)) }))));
-        const still: VoiceId[] = [];
+        const still: OwnVoiceId[] = [];
         for (const voice of left) {
           const nearestOther = (t: Take) => Math.min(Infinity, ...[...kept.entries()].filter(([v]) => v !== voice).map(([, f]) => voiceDistance(t.features, f)));
           const target = english?.get(voice);
@@ -282,14 +284,28 @@ async function hostedCandidates(env: Env, language: string | undefined): Promise
   console.log(`${found.length} candidate(s) for ${language}, ${previews} preview(s) downloaded, in .superpowers/voices/`);
 }
 
+/**
+ * What the form calls a hosted voice and says of it: the first name its owner gave it ("Frederick Surrey - Smooth
+ * and Velvety" is Frederick), unless one is given, and its sex, age and, in English, accent, from the service's
+ * labels. Pure, for a test.
+ */
+export function shownAs(name: string, labels: Record<string, string | undefined>, language: string, label?: string): { label: string; about?: string } {
+  const first = name.split(/\s+[-–]\s+|[-–]/)[0].trim().split(/\s+/)[0];
+  const word = (w?: string) => (w ? w.replace(/[_-]+/g, " ").trim() : "");
+  const parts = [word(labels.gender), language === "en" ? word(labels.accent) : "", word(labels.age)].filter(Boolean);
+  const about = parts.length ? parts.map((p, i) => (i === 0 ? p[0].toUpperCase() + p.slice(1) : p)).join(", ").replace(/\bamerican\b/, "American").replace(/\bbritish\b/, "British").replace(/\baustralian\b/, "Australian") : undefined;
+  return { label: (label ?? first).slice(0, 24), ...(about ? { about: about.slice(0, 60) } : {}) };
+}
+
 /** Gives one of the studio's voices a hosted voice in a language, adding a library voice to the account first. */
 async function hostedAdd(env: Env, args: string[]): Promise<void> {
-  const [role, language, voiceId, publicOwnerId] = args;
+  const at = args.indexOf("--label");
+  const label = at >= 0 ? args[at + 1] : undefined;
+  const [role, language, voiceId, publicOwnerId] = at >= 0 ? [...args.slice(0, at), ...args.slice(at + 2)] : args;
   if (!role || !Object.hasOwn(VOICES, role)) throw new Error(`say which voice: one of ${Object.keys(VOICES).join(", ")}`);
   if (!language || !Object.hasOwn(SPEECH_LANGUAGES, language)) throw new Error(`say a language: one of ${Object.keys(SPEECH_LANGUAGES).join(", ")}`);
   if (!voiceId || !/^[A-Za-z0-9]{8,40}$/.test(voiceId)) throw new Error("say the hosted voice's id");
   let id = voiceId;
-  let name = `${role} (${language})`;
   if (publicOwnerId) {
     // a library voice is used through the account: added once, under a name that says what it is for here
     const added = await hosted<{ voice_id: string }>(env, `/v1/voices/add/${encodeURIComponent(publicOwnerId)}/${encodeURIComponent(voiceId)}`, {
@@ -298,12 +314,18 @@ async function hostedAdd(env: Env, args: string[]): Promise<void> {
     });
     id = added.voice_id;
   }
-  const voice = await hosted<{ name: string }>(env, `/v1/voices/${encodeURIComponent(id)}`);
-  name = voice.name;
+  // What it is called and how it sounds: as the library shared it, where it came from there (a library voice
+  // speaks without being in the account, and the account does not know it then), else as the account has it.
+  const shared = JSON.parse(existsSync(join(".superpowers/voices", `${language}.json`)) ? readFileSync(join(".superpowers/voices", `${language}.json`), "utf8") : "[]") as Candidate[];
+  const original = shared.find((c) => c.voiceId === voiceId);
+  const voice = original && !publicOwnerId ? { name: original.name, labels: {} as Record<string, string> } : await hosted<{ name: string; labels?: Record<string, string> }>(env, `/v1/voices/${encodeURIComponent(id)}`);
+  const name = original?.name ?? voice.name;
+  const labels = { gender: original?.gender ?? voice.labels?.gender, age: original?.age ?? voice.labels?.age, accent: original?.accent ?? voice.labels?.accent };
+  const shown = shownAs(name, labels, language, label);
   const catalogue = hostedCatalogue();
-  (catalogue.voices[role] ??= {})[language] = { id, name };
+  (catalogue.voices[role] ??= {})[language] = { id, name, ...shown };
   await writeFile(join(designedDir(), HOSTED_FILE), `${JSON.stringify(catalogue, null, 2)}\n`);
-  console.log(`${role} in ${language}: ${name} (${id})`);
+  console.log(`${role} in ${language}: ${shown.label}${shown.about ? ` (${shown.about})` : ""} — ${name} (${id})`);
 }
 
 async function main(): Promise<void> {
@@ -332,7 +354,7 @@ async function main(): Promise<void> {
     for (const voice of readyVoices(hosted)) {
       // A hosted voice is heard in the languages it has a voice chosen in, and the narrators in every language
       // (the form offers them where no voice is native, in their English voice).
-      if (hosted && !hostedLanguages(voice).includes(language) && !BUILT_IN_VOICES.includes(voice)) continue;
+      if (hosted && !hostedLanguages(voice).includes(language) && !(BUILT_IN_VOICES as readonly string[]).includes(voice)) continue;
       asked_++;
       const text = SAMPLE_LINES[language];
       // a sample that is there is not bought again (delete it from the list, or say --again, to make it again)

@@ -3,11 +3,11 @@
   "samples": {
     "narrator-m": {
       "en": {
-        "seconds": 7.04,
+        "seconds": 6.83,
         "words": 23
       },
       "tr": {
-        "seconds": 6.24,
+        "seconds": 7.62,
         "words": 17
       },
       "es": {
@@ -85,11 +85,11 @@
     },
     "narrator-f": {
       "en": {
-        "seconds": 7.2,
+        "seconds": 6.73,
         "words": 23
       },
       "tr": {
-        "seconds": 7.04,
+        "seconds": 6.64,
         "words": 17
       },
       "es": {
@@ -167,102 +167,228 @@
     },
     "storyteller": {
       "en": {
-        "seconds": 8.48,
+        "seconds": 6.69,
         "words": 23
       },
       "tr": {
-        "seconds": 8.48,
+        "seconds": 7.29,
         "words": 17
       }
     },
     "documentary": {
       "en": {
-        "seconds": 8.16,
+        "seconds": 7.29,
         "words": 23
       },
       "tr": {
-        "seconds": 8.16,
+        "seconds": 8.59,
         "words": 17
       }
     },
     "trailer": {
       "en": {
-        "seconds": 8,
+        "seconds": 9.38,
         "words": 23
       },
       "tr": {
-        "seconds": 7.04,
+        "seconds": 7.15,
         "words": 17
       }
     },
     "host": {
       "en": {
-        "seconds": 6.24,
+        "seconds": 7.01,
         "words": 23
       },
       "tr": {
-        "seconds": 7.2,
+        "seconds": 6.41,
         "words": 17
       }
     },
     "explainer": {
       "en": {
-        "seconds": 6.56,
+        "seconds": 6.87,
         "words": 23
       },
       "tr": {
-        "seconds": 6.56,
+        "seconds": 8.41,
         "words": 17
       }
     },
     "anchor": {
       "en": {
-        "seconds": 6.4,
+        "seconds": 6.27,
         "words": 23
       },
       "tr": {
-        "seconds": 5.6,
+        "seconds": 6.73,
         "words": 17
       }
     },
     "upbeat": {
       "en": {
-        "seconds": 6.4,
+        "seconds": 5.02,
         "words": 23
       },
       "tr": {
-        "seconds": 5.6,
+        "seconds": 7.38,
         "words": 17
       }
     },
     "calm": {
       "en": {
-        "seconds": 9.6,
+        "seconds": 9.2,
         "words": 23
       },
       "tr": {
-        "seconds": 10.24,
+        "seconds": 6.64,
         "words": 17
       }
     },
     "mystery": {
       "en": {
-        "seconds": 9.28,
+        "seconds": 7.38,
         "words": 23
       },
       "tr": {
-        "seconds": 10.24,
+        "seconds": 5.06,
         "words": 17
       }
     },
     "storybook": {
       "en": {
-        "seconds": 7.68,
+        "seconds": 7.38,
         "words": 23
       },
       "tr": {
-        "seconds": 6.08,
+        "seconds": 9.52,
         "words": 17
+      }
+    },
+    "adam": {
+      "en": {
+        "seconds": 6.73,
+        "words": 23
+      }
+    },
+    "brian": {
+      "en": {
+        "seconds": 6.5,
+        "words": 23
+      }
+    },
+    "george": {
+      "en": {
+        "seconds": 6.83,
+        "words": 23
+      }
+    },
+    "bill": {
+      "en": {
+        "seconds": 8.78,
+        "words": 23
+      }
+    },
+    "daniel": {
+      "en": {
+        "seconds": 7.66,
+        "words": 23
+      }
+    },
+    "eric": {
+      "en": {
+        "seconds": 5.99,
+        "words": 23
+      }
+    },
+    "roger": {
+      "en": {
+        "seconds": 6.46,
+        "words": 23
+      }
+    },
+    "chris": {
+      "en": {
+        "seconds": 6.04,
+        "words": 23
+      }
+    },
+    "will": {
+      "en": {
+        "seconds": 6.92,
+        "words": 23
+      }
+    },
+    "liam": {
+      "en": {
+        "seconds": 6.73,
+        "words": 23
+      }
+    },
+    "charlie": {
+      "en": {
+        "seconds": 7.38,
+        "words": 23
+      }
+    },
+    "callum": {
+      "en": {
+        "seconds": 7.66,
+        "words": 23
+      }
+    },
+    "harry": {
+      "en": {
+        "seconds": 6.92,
+        "words": 23
+      }
+    },
+    "river": {
+      "en": {
+        "seconds": 6.46,
+        "words": 23
+      }
+    },
+    "sarah": {
+      "en": {
+        "seconds": 6.78,
+        "words": 23
+      }
+    },
+    "alice": {
+      "en": {
+        "seconds": 7.62,
+        "words": 23
+      }
+    },
+    "matilda": {
+      "en": {
+        "seconds": 7.01,
+        "words": 23
+      }
+    },
+    "bella": {
+      "en": {
+        "seconds": 7.01,
+        "words": 23
+      }
+    },
+    "lily": {
+      "en": {
+        "seconds": 7.29,
+        "words": 23
+      }
+    },
+    "jessica": {
+      "en": {
+        "seconds": 6.5,
+        "words": 23
+      }
+    },
+    "laura": {
+      "en": {
+        "seconds": 6.5,
+        "words": 23
       }
     }
   }

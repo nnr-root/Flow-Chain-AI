@@ -816,12 +816,11 @@ The ElevenLabs subscription is a fixed monthly cost the plans' figures do not ca
 
 ### 11.4 Not done yet, and parked
 
-- **No hosted voice is chosen yet.** The owner makes an ElevenLabs account and sets the key; then
-  `--hosted-candidates en` and `tr`, a choice by ear and by the speaker-recognition measure (each role unlike the
-  others), `--hosted-add`, and the samples. Until then a new run with the key set refuses its voice, and the form
-  offers the own voices.
-- The paces (`VOICES[].pace`) and words a second (`WORDS_PER_SECOND_IN`) were measured on the own voice. They are
-  measured again from the hosted voices' samples when those are made.
+- ~~No hosted voice is chosen yet.~~ Chosen in English and Turkish: §11.5.
+- The paces were measured again from the hosted voices' samples (§11.5). The words a second
+  (`WORDS_PER_SECOND`, `WORDS_PER_SECOND_IN`) were measured in videos of the own voice; the hosted narrators' samples
+  are about 5% faster in English and 5% slower in Turkish than the own voice's were. Measured again with the first
+  videos.
 - The own voice's ten designed voices (phase 7 §16) stay, for runs made with them and for a studio without the
   hosted key.
 - A live check of the cost of a video spoken by the hosted voice, to replace the worked-out $0.226 with a measured
@@ -829,3 +828,39 @@ The ElevenLabs subscription is a fixed monthly cost the plans' figures do not ca
 - Library voices may be taken down by whoever shared them, after the notice they set; a role whose voice goes is
   given another with `--hosted-add` (a voice chosen again is another voice, so a run in progress refuses its next
   line rather than change voice in the middle).
+
+### 11.5 The voices chosen, by name, and the best-known ones (2026-10-11)
+
+**Chosen.** `--hosted-candidates` found 326 English and 300 Turkish library voices. Twelve were chosen in each
+language, one per role: by what the library says of each (sex, age, use, the words of its description), by use,
+and so that no two are the same person by the speaker-recognition model (none above 0.40; the nearest pairs 0.36
+and 0.38, against 0.61–0.77 for the own voices of §16). A Turkish candidate whose preview a language-identification
+model (VoxLingua107) did not hear as Turkish was left out (70 of 300). The owner listened to the previews and
+approved all. Two were then replaced by the next candidate so that no two voices in a language share a shown name
+(Turkish Storybook, İrem → Elif; English Anchor, Jessica → Clara). The Turkish library has no whispering or
+mystery voice: Mystery is a deep narrator there, and Storyteller is mature rather than old.
+
+**Shown by name** (owner: as facelessreels.com and the like do; its picker is behind a sign-in, and the market's
+is a person's name with a few words). The catalogue carries for each voice in each language a `label` (the first
+name it was shared under: Frederick, Sinan) and an `about` (sex, age, and in English accent, from the library's
+labels); the card shows the name, the few words, and what the role suits. The studio's own voices are still shown
+by what they are. Names are first names only, as the service shows them.
+
+**The best-known voices** (owner: "do not forget the famous ones, like Adam"): the service's twenty-one default
+voices (Adam, Brian, George, Bill, Daniel, Eric, Roger, Chris, Will, Liam, Charlie, Callum, Harry, River, Sarah,
+Alice, Matilda, Bella, Lily, Jessica, Laura) are voices of their own in `VOICES` (`HOSTED_ONLY_VOICES`), offered
+in English. They have no clip in the own voice, so without the hosted voice they are not offered
+(`OwnVoiceId` is what the own voice can speak). The account's other voices (clones someone made, one of a TV
+character) were not taken.
+
+**A library voice speaks without being added to the account** (one word was bought to see it). The owner's key
+has no `voices_write` permission, so none was added; `--hosted-add` writes the catalogue without adding unless a
+`publicOwnerId` is given. Parked: an added voice is kept for the notice its owner set should they withdraw it,
+and one used directly is not; give the key that permission and add the twenty-four (free).
+
+**Samples and paces.** The forty-five samples (twelve in Turkish, thirty-three in English) were made in the
+hosted voices: $1.52 at the 0.30 rate, taken from the plan's characters. The paces in `VOICES` are now the hosted
+voices', from those samples (the own voice's were dropped: they would be wrong for its fallback, a small error in
+the length of a video). The narrators' samples in the other eighteen languages are still the own voice's; with no
+voice chosen in those languages, the narrators speak them in their English hosted voice, which those samples do
+not let anyone hear. Next: choose voices in those languages, or at least make the narrators' samples again in them.

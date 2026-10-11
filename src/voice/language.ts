@@ -71,30 +71,65 @@ export const fontCovers = (file: string, language: SpeechLanguage): boolean => !
 /**
  * The studio's own voices, by the id the voice worker knows them by (a test holds this list to the worker's own
  * files). `label`: what a person is shown. `suits`: the videos the voice was made for. `pace`: how fast it speaks
- * against the narrators, from its samples in the languages it has them in (absent: within a twentieth of them); a script
+ * against the narrators, from its samples in the languages it has them in (absent: within a twentieth of them),
+ * which are the hosted voice's since phase 5 spec §11 (the own voice's paces were not kept: they are for its fallback); a script
  * for a slower voice is asked for fewer words, or its video would run long (phase 7 spec §15). The two narrators are
  * plain, even voices for anything; the others were each designed from a description of who speaks and how
  * (`scripts/design-voices.py`), and what is said of them here is what was asked for: how one sounds is for the
  * person to hear in its sample.
  */
-export const VOICES = {
+const OWN_VOICES = {
   "narrator-m": { label: "Narrator (male)", suits: "A plain, even voice for any video" },
   "narrator-f": { label: "Narrator (female)", suits: "A plain, even voice for any video" },
-  storyteller: { label: "Storyteller", suits: "Fables, history, legends and stories told slowly", pace: 0.81 },
-  documentary: { label: "Documentary", suits: "Nature, science and history that want some weight", pace: 0.84 },
-  trailer: { label: "Trailer", suits: "True crime, horror, epics and anything dramatic", pace: 0.91 },
+  storyteller: { label: "Storyteller", suits: "Fables, history, legends and stories told slowly" },
+  documentary: { label: "Documentary", suits: "Nature, science and history that want some weight", pace: 0.88 },
+  trailer: { label: "Trailer", suits: "True crime, horror, epics and anything dramatic", pace: 0.86 },
   host: { label: "Host", suits: "Fast facts, countdowns, tech and anything with energy" },
-  explainer: { label: "Explainer", suits: "How-to, money, business and step-by-step guides" },
-  anchor: { label: "Anchor", suits: "News, reports and facts told straight", pace: 1.15 },
-  upbeat: { label: "Upbeat", suits: "Fun facts, food, lifestyle and light-hearted videos", pace: 1.15 },
-  calm: { label: "Calm", suits: "Wellness, sleep, nature and gentle stories", pace: 0.69 },
-  mystery: { label: "Mystery", suits: "Unsolved cases, secrets and the strange", pace: 0.71 },
-  storybook: { label: "Storybook", suits: "Children's stories, fables and cartoons" },
+  explainer: { label: "Explainer", suits: "How-to, money, business and step-by-step guides", pace: 0.92 },
+  anchor: { label: "Anchor", suits: "News, reports and facts told straight", pace: 1.07 },
+  upbeat: { label: "Upbeat", suits: "Fun facts, food, lifestyle and light-hearted videos", pace: 1.16 },
+  calm: { label: "Calm", suits: "Wellness, sleep, nature and gentle stories", pace: 0.9 },
+  mystery: { label: "Mystery", suits: "Unsolved cases, secrets and the strange", pace: 1.16 },
+  storybook: { label: "Storybook", suits: "Children's stories, fables and cartoons", pace: 0.83 },
 } as const;
+
+/**
+ * The hosted voice's own best-known voices (phase 5 spec §11.5), offered by their names in English once each is in
+ * the catalogue (`assets/voices/elevenlabs.json`). The studio's own voice has no clip of them: without the hosted
+ * voice they are not offered. `suits` is what each was made for, in the studio's words.
+ */
+const HOSTED_ONLY_VOICES = {
+  adam: { label: "Adam", suits: "Firm and bright: motivation, bold facts and ads" },
+  brian: { label: "Brian", suits: "Deep and comforting: narration and documentaries" },
+  george: { label: "George", suits: "A warm British storyteller: stories and history" },
+  bill: { label: "Bill", suits: "Wise and mature: stories, history and life lessons", pace: 0.77 },
+  daniel: { label: "Daniel", suits: "A steady British broadcaster: news and reports", pace: 0.89 },
+  eric: { label: "Eric", suits: "Smooth and trustworthy: business and money", pace: 1.13 },
+  roger: { label: "Roger", suits: "Laid-back and resonant: casual talk and podcasts" },
+  chris: { label: "Chris", suits: "Down to earth: reviews, vlogs and everyday stories", pace: 1.12 },
+  will: { label: "Will", suits: "A relaxed optimist: easygoing, friendly videos" },
+  liam: { label: "Liam", suits: "Young and energetic: social media and tech" },
+  charlie: { label: "Charlie", suits: "Confident and Australian: energetic facts and sport", pace: 0.92 },
+  callum: { label: "Callum", suits: "Gravelly, with an edge: mystery, villains and games", pace: 0.89 },
+  harry: { label: "Harry", suits: "Fierce and animated: action, battles and games" },
+  river: { label: "River", suits: "Relaxed and neutral: anything informative" },
+  sarah: { label: "Sarah", suits: "Confident and warm: explainers and news" },
+  alice: { label: "Alice", suits: "A clear British educator: how-to and learning", pace: 0.89 },
+  matilda: { label: "Matilda", suits: "A professional alto: business and explainers" },
+  bella: { label: "Bella", suits: "Bright and professional: education and ads" },
+  lily: { label: "Lily", suits: "Velvety and British: drama and narration", pace: 0.93 },
+  jessica: { label: "Jessica", suits: "Playful and bright: fun facts, trends and lifestyle" },
+  laura: { label: "Laura", suits: "Sunny and quirky: lifestyle and light-hearted videos" },
+} as const;
+
+export const VOICES = { ...OWN_VOICES, ...HOSTED_ONLY_VOICES } as const;
+/** The voices the studio's own voice can speak: the ones it has, or can design, a clip of. */
+export type OwnVoiceId = keyof typeof OWN_VOICES;
+export const OWN_VOICE_IDS = Object.keys(OWN_VOICES) as OwnVoiceId[];
 export type VoiceId = keyof typeof VOICES;
 
 /** The voices the voice worker's image has clips of (English and Turkish). Every other clip goes with each line. */
-export const BUILT_IN_VOICES: readonly VoiceId[] = ["narrator-m", "narrator-f"];
+export const BUILT_IN_VOICES: readonly OwnVoiceId[] = ["narrator-m", "narrator-f"];
 
 /**
  * How each voice is asked for (phase 7 spec §16): its sex, and in words who speaks, the colour of the voice, the
@@ -105,7 +140,7 @@ export const BUILT_IN_VOICES: readonly VoiceId[] = ["narrator-m", "narrator-f"];
  * The descriptions differ in what makes voices different, not only in mood: sex, age, pitch, and the grain of
  * the voice. Ten voices described by mood alone came out as three or four voices in different moods (§15.1).
  */
-export const VOICE_DESIGNS: Record<VoiceId, { sex: "m" | "f"; description: string }> = {
+export const VOICE_DESIGNS: Record<OwnVoiceId, { sex: "m" | "f"; description: string }> = {
   "narrator-m": { sex: "m", description: "A man in his forties with a clear, pleasant mid-range voice, neutral and even, calm, medium pace" },
   "narrator-f": { sex: "f", description: "A woman in her thirties with a clear, pleasant mid-range voice, neutral and even, calm, medium pace" },
   storyteller: { sex: "m", description: "An old man in his seventies with a raspy, gravelly, weathered voice, kind and warm, slow and unhurried, like a grandfather by the fire" },

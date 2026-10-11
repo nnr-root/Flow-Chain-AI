@@ -145,8 +145,13 @@ test("a new video is asked for by its length, how long each scene stays and what
   await expect(page.getByTestId("language").locator("option")).toHaveCount(20);
   await expect(page.getByTestId("language").locator("option")).toContainText(["English", "Türkçe", "Español", "Deutsch", "Русский", "Tiếng Việt"]);
   await expect(page.getByTestId("language")).toHaveValue("en");
-  await expect(page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio")).toHaveCount(12);
+  // The hosted voices chosen (phase 5 spec §11): in English the studio's twelve and the service's twenty-one
+  // best-known, each shown by its name, who it sounds like and what it suits.
+  await expect(page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio")).toHaveCount(33);
+  await expect(page.getByTestId("voice-mystery")).toContainText("Ian");
   await expect(page.getByTestId("voice-mystery")).toContainText("Unsolved cases");
+  await expect(page.getByTestId("about-mystery")).toHaveText("Male, American, middle aged");
+  await expect(page.getByTestId("voice-adam")).toContainText("Adam");
   await page.getByTestId("language").selectOption("es");
   const sample = page.waitForRequest((r) => r.url().endsWith("/voices/narrator-f.es.mp3"));
   await page.getByTestId("listen-narrator-f").click();
@@ -154,7 +159,9 @@ test("a new video is asked for by its length, how long each scene stays and what
   await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName("Stop the sample of Narrator (female)");
   // a sample is of one language: choosing another ends it
   await page.getByTestId("language").selectOption("tr");
-  await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName("Hear Narrator (female) in Türkçe");
+  // in Turkish the same voice is a Turkish one, by its own name
+  await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName("Hear Mia in Türkçe");
+  await expect(page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio")).toHaveCount(12);
   await page.getByTestId("voice-narrator-f").click();
   // every voice shown has its sample; in a language no voice was made in, the narrators are offered and said not to be native
   for (const voice of await page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.replace("voice-", "")))) {

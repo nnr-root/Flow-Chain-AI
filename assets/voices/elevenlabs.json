@@ -1,0 +1,340 @@
+{
+  "voices": {
+    "adam": {
+      "en": {
+        "id": "pNInz6obpgDQGcFmaJgB",
+        "name": "Adam - Dominant, Firm",
+        "label": "Adam",
+        "about": "Male, American, middle aged"
+      }
+    },
+    "brian": {
+      "en": {
+        "id": "nPczCjzI2devNBz1zQrb",
+        "name": "Brian - Deep, Resonant and Comforting",
+        "label": "Brian",
+        "about": "Male, American, middle aged"
+      }
+    },
+    "george": {
+      "en": {
+        "id": "JBFqnCBsd6RMkjVDRZzb",
+        "name": "George - Warm, Captivating Storyteller",
+        "label": "George",
+        "about": "Male, British, middle aged"
+      }
+    },
+    "bill": {
+      "en": {
+        "id": "pqHfZKP75CvOlQylNhV4",
+        "name": "Bill - Wise, Mature, Balanced",
+        "label": "Bill",
+        "about": "Male, American, old"
+      }
+    },
+    "daniel": {
+      "en": {
+        "id": "onwK4e9ZLuTAKqWW03F9",
+        "name": "Daniel - Steady Broadcaster",
+        "label": "Daniel",
+        "about": "Male, British, middle aged"
+      }
+    },
+    "eric": {
+      "en": {
+        "id": "cjVigY5qzO86Huf0OWal",
+        "name": "Eric - Smooth, Trustworthy",
+        "label": "Eric",
+        "about": "Male, American, middle aged"
+      }
+    },
+    "roger": {
+      "en": {
+        "id": "CwhRBWXzGAHq8TQ4Fs17",
+        "name": "Roger - Laid-Back, Casual, Resonant",
+        "label": "Roger",
+        "about": "Male, American, middle aged"
+      }
+    },
+    "chris": {
+      "en": {
+        "id": "iP95p4xoKVk53GoZ742B",
+        "name": "Chris - Charming, Down-to-Earth",
+        "label": "Chris",
+        "about": "Male, American, middle aged"
+      }
+    },
+    "will": {
+      "en": {
+        "id": "bIHbv24MWmeRgasZH58o",
+        "name": "Will - Relaxed Optimist",
+        "label": "Will",
+        "about": "Male, American, young"
+      }
+    },
+    "liam": {
+      "en": {
+        "id": "TX3LPaxmHKxFdv7VOQHJ",
+        "name": "Liam - Energetic, Social Media Creator",
+        "label": "Liam",
+        "about": "Male, American, young"
+      }
+    },
+    "charlie": {
+      "en": {
+        "id": "IKne3meq5aSn9XLyUdCD",
+        "name": "Charlie - Deep, Confident, Energetic",
+        "label": "Charlie",
+        "about": "Male, Australian, young"
+      }
+    },
+    "callum": {
+      "en": {
+        "id": "N2lVS1w4EtoT3dr4eOWO",
+        "name": "Callum - Husky Trickster",
+        "label": "Callum",
+        "about": "Male, American, middle aged"
+      }
+    },
+    "harry": {
+      "en": {
+        "id": "SOYHLrjzK2X1ezoPC6cr",
+        "name": "Harry - Fierce Warrior",
+        "label": "Harry",
+        "about": "Male, American, young"
+      }
+    },
+    "river": {
+      "en": {
+        "id": "SAz9YHcvj6GT2YYXdXww",
+        "name": "River - Relaxed, Neutral, Informative",
+        "label": "River",
+        "about": "Neutral, American, middle aged"
+      }
+    },
+    "sarah": {
+      "en": {
+        "id": "EXAVITQu4vr4xnSDxMaL",
+        "name": "Sarah - Mature, Reassuring, Confident",
+        "label": "Sarah",
+        "about": "Female, American, young"
+      }
+    },
+    "alice": {
+      "en": {
+        "id": "Xb7hH8MSUJpSbSDYk0k2",
+        "name": "Alice - Clear, Engaging Educator",
+        "label": "Alice",
+        "about": "Female, British, middle aged"
+      }
+    },
+    "matilda": {
+      "en": {
+        "id": "XrExE9yKIg1WjnnlVkGX",
+        "name": "Matilda - Knowledgable, Professional",
+        "label": "Matilda",
+        "about": "Female, American, middle aged"
+      }
+    },
+    "bella": {
+      "en": {
+        "id": "hpp4J3VqNfWAUOO0d1Us",
+        "name": "Bella - Professional, Bright, Warm",
+        "label": "Bella",
+        "about": "Female, American, middle aged"
+      }
+    },
+    "lily": {
+      "en": {
+        "id": "pFZP5JQG7iQjIQuC4Bku",
+        "name": "Lily - Velvety Actress",
+        "label": "Lily",
+        "about": "Female, British, middle aged"
+      }
+    },
+    "jessica": {
+      "en": {
+        "id": "cgSgspJ2msm6clMCkdW9",
+        "name": "Jessica - Playful, Bright, Warm",
+        "label": "Jessica",
+        "about": "Female, American, young"
+      }
+    },
+    "laura": {
+      "en": {
+        "id": "FGY2WhTYpPnrIDTdsKH5",
+        "name": "Laura - Enthusiast, Quirky Attitude",
+        "label": "Laura",
+        "about": "Female, American, young"
+      }
+    },
+    "storybook": {
+      "en": {
+        "id": "XJ2fW4ybq7HouelYYGcL",
+        "name": "Cherry Twinkle - Bubbly and Sweet",
+        "label": "Cherry",
+        "about": "Female, American, young"
+      },
+      "tr": {
+        "id": "i50A6Mcx7A7vVwCVZVeZ",
+        "name": "Elif Ozder",
+        "label": "Elif",
+        "about": "Female, young"
+      }
+    },
+    "trailer": {
+      "en": {
+        "id": "mtrellq69YZsNwzUSyXh",
+        "name": "Rex Thunder - Deep N Tough",
+        "label": "Rex",
+        "about": "Male, American, middle aged"
+      },
+      "tr": {
+        "id": "KediIz7pebzt5TaDHiiZ",
+        "name": "Alex - Deep, Clear and Fluent",
+        "label": "Alex",
+        "about": "Male, middle aged"
+      }
+    },
+    "mystery": {
+      "en": {
+        "id": "e5WNhrdI30aXpS2RSGm1",
+        "name": "Ian Cartwell - Suspense and Mystery",
+        "label": "Ian",
+        "about": "Male, American, middle aged"
+      },
+      "tr": {
+        "id": "unqqMxNhRqWL4QxPGPFl",
+        "name": "AZ - Deep Narrative & Documentary",
+        "label": "AZ",
+        "about": "Male, young"
+      }
+    },
+    "storyteller": {
+      "en": {
+        "id": "MFZUKuGQUsGJPQjTS4wC",
+        "name": "Jon - Warm & Grounded Storyteller",
+        "label": "Jon",
+        "about": "Male, American, middle aged"
+      },
+      "tr": {
+        "id": "j82ax9yhzfYwq9lDvRWL",
+        "name": "Kadir Kayışcı - Deep, Mature and Soft",
+        "label": "Kadir",
+        "about": "Male, middle aged"
+      }
+    },
+    "calm": {
+      "en": {
+        "id": "pjcYQlDFKMbcOUp6F5GD",
+        "name": "Brittney - Relaxing, Calm and Meditative",
+        "label": "Brittney",
+        "about": "Female, American, young"
+      },
+      "tr": {
+        "id": "bqjv45qc9PWU5Y4p1ofx",
+        "name": "Seda - Relaxing, Friendly and Soft",
+        "label": "Seda",
+        "about": "Female, young"
+      }
+    },
+    "upbeat": {
+      "en": {
+        "id": "WtA85syCrJwasGeHGH2p",
+        "name": "Ember - Energetic, Confident Protagonist",
+        "label": "Ember",
+        "about": "Female, American, young"
+      },
+      "tr": {
+        "id": "oPC5I9GKjMReiaM29gjY",
+        "name": "Gökçe Deniz - Joyful, Friendly and Warm",
+        "label": "Gökçe",
+        "about": "Female, young"
+      }
+    },
+    "host": {
+      "en": {
+        "id": "yl2ZDV1MzN4HbQJbMihG",
+        "name": "Alex - Upbeat, Energetic and Clear",
+        "label": "Alex",
+        "about": "Male, American, young"
+      },
+      "tr": {
+        "id": "lxZLq5dcyw12UangGJgN",
+        "name": "Cavit - Energetic and Fast-Paced",
+        "label": "Cavit",
+        "about": "Male, middle aged"
+      }
+    },
+    "anchor": {
+      "en": {
+        "id": "ZIlrSGI4jZqobxRKprJz",
+        "name": "Clara - Warm, Professional and Helpful",
+        "label": "Clara",
+        "about": "Female, American, middle aged"
+      },
+      "tr": {
+        "id": "uvU9jrgGLWNPeNA4NgNT",
+        "name": "İrem - Authoritarian Female Voice",
+        "label": "İrem",
+        "about": "Female, middle aged"
+      }
+    },
+    "documentary": {
+      "en": {
+        "id": "fCxG8OHm4STbIsWe4aT9",
+        "name": "Harrison Gale -  Smooth, Rich and Deep",
+        "label": "Harrison",
+        "about": "Male, American, middle aged"
+      },
+      "tr": {
+        "id": "Zpbxhg6LG47cY8y5BJrf",
+        "name": "Celil-Documentary Narrator – Deep Male",
+        "label": "Celil",
+        "about": "Male, middle aged"
+      }
+    },
+    "explainer": {
+      "en": {
+        "id": "19STyYD15bswVz51nqLf",
+        "name": "Samara X - Smooth Classy British",
+        "label": "Samara",
+        "about": "Female, British, middle aged"
+      },
+      "tr": {
+        "id": "1Iy00CVh3yqYLlZBmEFo",
+        "name": "Amelia - Warm, Friendly and Articulate",
+        "label": "Amelia",
+        "about": "Female, middle aged"
+      }
+    },
+    "narrator-f": {
+      "en": {
+        "id": "XfNU2rGpBa01ckF309OY",
+        "name": "Nichalia Schwartz - Bright and Friendly",
+        "label": "Nichalia",
+        "about": "Female, American, young"
+      },
+      "tr": {
+        "id": "PdYVUd1CAGSXsTvZZTNn",
+        "name": "Mia - Clear, Steady and Warm",
+        "label": "Mia",
+        "about": "Female, middle aged"
+      }
+    },
+    "narrator-m": {
+      "en": {
+        "id": "j9jfwdrw7BRfcR43Qohk",
+        "name": "Frederick Surrey - Smooth and Velvety",
+        "label": "Frederick",
+        "about": "Male, British, middle aged"
+      },
+      "tr": {
+        "id": "Rn6ATQ4HFbyhBC6mze4Z",
+        "name": "Sinan - Deep & Clear Turkish Narrator",
+        "label": "Sinan",
+        "about": "Male, middle aged"
+      }
+    }
+  }
+}

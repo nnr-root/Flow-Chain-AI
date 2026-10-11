@@ -18,6 +18,10 @@ const Entry = z.strictObject({
   id: z.string().regex(/^[A-Za-z0-9]{8,40}$/),
   /** Its name there: for the owner, never shown to a customer. */
   name: z.string().min(1).max(80),
+  /** What the form calls it: a first name, as voices are known by (phase 5 spec §11.5). Unique in its language. */
+  label: z.string().min(1).max(24).optional(),
+  /** Who it sounds like, in a few words ("Male, British, middle-aged"). */
+  about: z.string().min(1).max(60).optional(),
 });
 const Catalogue = z.strictObject({
   voices: z.record(z.string(), z.record(z.string().regex(/^[a-z]{2}$/), Entry)),
@@ -29,6 +33,13 @@ export const HOSTED_FILE = "elevenlabs.json";
 export function hostedCatalogue(dir = designedDir()): HostedCatalogue {
   const file = join(dir, HOSTED_FILE);
   return existsSync(file) ? Catalogue.parse(JSON.parse(readFileSync(file, "utf8"))) : { voices: {} };
+}
+
+/** What the form shows of each voice in a language: its name and who it sounds like, where the catalogue says. */
+export function hostedNames(language: string, dir = designedDir()): Record<string, { label?: string; about?: string }> {
+  return Object.fromEntries(
+    Object.entries(hostedCatalogue(dir).voices).flatMap(([role, by]) => (by[language] ? [[role, { label: by[language].label, about: by[language].about }]] : [])),
+  );
 }
 
 /** The roles that have a hosted voice in English: the ones a run spoken by the hosted service can be asked for. */

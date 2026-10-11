@@ -12,7 +12,10 @@ const hasSample = (voice: VoiceId, language: SpeechLanguage): boolean => Object.
  * voice speaking that language. One sample plays at a time. A voice with no sample in a language yet can still
  * be chosen: there is only nothing to hear beforehand.
  */
-export function VoicePicker({ voices: native, language, voice, onLanguage, onVoice }: { voices: Partial<Record<SpeechLanguage, VoiceId[]>>; language: SpeechLanguage; voice: VoiceId; onLanguage: (l: SpeechLanguage) => void; onVoice: (v: VoiceId) => void }) {
+export function VoicePicker({ voices: native, names = {}, language, voice, onLanguage, onVoice }: { voices: Partial<Record<SpeechLanguage, VoiceId[]>>; names?: Partial<Record<SpeechLanguage, Partial<Record<VoiceId, { label?: string; about?: string }>>>>; language: SpeechLanguage; voice: VoiceId; onLanguage: (l: SpeechLanguage) => void; onVoice: (v: VoiceId) => void }) {
+  // A voice is shown by its name where it has one in this language (Frederick, Adam…), and by what it is for
+  // below it; the studio's own voices are shown by what they are (phase 5 spec §11.5).
+  const title = (id: VoiceId) => names[language]?.[id]?.label ?? VOICES[id].label;
   // the voices made in this language; where none is yet, the narrators, said not to be native
   const voices = native[language]?.length ? native[language]! : (["narrator-m", "narrator-f"] as VoiceId[]);
   const notNative = !native[language]?.length;
@@ -61,14 +64,15 @@ export function VoicePicker({ voices: native, language, voice, onLanguage, onVoi
                 disabled={!hasSample(id, language)}
                 title={hasSample(id, language) ? undefined : "No sample in this language yet"}
                 data-testid={`listen-${id}`}
-                aria-label={playing === id ? `Stop the sample of ${VOICES[id].label}` : `Hear ${VOICES[id].label} in ${SPEECH_LANGUAGES[language]}`}
+                aria-label={playing === id ? `Stop the sample of ${title(id)}` : `Hear ${title(id)} in ${SPEECH_LANGUAGES[language]}`}
                 onClick={() => listen(id)}
                 className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-signal text-[0.95rem] font-bold text-paper hover:bg-ink disabled:bg-wash disabled:text-graphite"
               >
                 <span aria-hidden>{playing === id ? "❚❚" : "▶"}</span>
               </button>
               <button type="button" role="radio" aria-checked={on} data-testid={`voice-${id}`} onClick={() => onVoice(id)} className="flex-1 text-left">
-                <span className="block font-bold"><span className={on ? "marked" : ""}>{VOICES[id].label}</span></span>
+                <span className="block font-bold"><span className={on ? "marked" : ""}>{title(id)}</span></span>
+                {names[language]?.[id]?.about && <span className="block text-[0.82rem] leading-snug" data-testid={`about-${id}`}>{names[language]![id]!.about}</span>}
                 <span className="block text-[0.82rem] leading-snug text-graphite">{VOICES[id].suits}</span>
               </button>
             </div>

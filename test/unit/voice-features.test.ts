@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { pitchFits, TOO_ALIKE, voiceDistance, voiceFeatures } from "../../src/voice/features.js";
 import { designedClip } from "../../src/voice/library.js";
-import { VOICE_DESIGNS, VOICES } from "../../src/voice/language.js";
+import { OWN_VOICE_IDS, VOICE_DESIGNS, VOICES } from "../../src/voice/language.js";
 
 /* Telling voices apart (phase 7 spec §16), on made sounds whose pitch and colour are known. */
 const tone = (hz: number, harmonics: number[], seconds = 1): Float32Array =>
@@ -35,7 +35,7 @@ describe("measuring a voice", () => {
 
 describe("the voices on the list", () => {
   it("are each described by more than a mood: a sex, an age or pitch, and the grain of the voice", () => {
-    expect(Object.keys(VOICE_DESIGNS).sort()).toEqual(Object.keys(VOICES).sort());
+    expect(Object.keys(VOICE_DESIGNS).sort()).toEqual([...OWN_VOICE_IDS].sort());
     const descriptions = Object.values(VOICE_DESIGNS).map((d) => d.description);
     expect(new Set(descriptions).size).toBe(descriptions.length);
     for (const { sex, description } of Object.values(VOICE_DESIGNS)) {
