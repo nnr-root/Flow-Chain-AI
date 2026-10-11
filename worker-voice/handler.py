@@ -1,4 +1,5 @@
-"""RunPod Serverless entry point of the voice worker: one line of a script in, its speech and word times out.
+"""RunPod Serverless entry point of the voice worker: one line of a script in, its speech and word times out;
+or a description of a voice in, that voice's reference clip out (phase 7 spec §15).
 
 The speech goes back inside the answer itself. Nothing is uploaded anywhere, and the two files this makes on
 the worker's own disk are removed before it answers, whatever happened (phase 5 spec §8).
@@ -46,19 +47,32 @@ def handler(job):
         return {"error": f"invalid request: {err}"}
     job_id = job["id"]
     wav = os.path.join(TMP_DIR, f"{job_id}.wav")
-    mp3 = os.path.join(TMP_DIR, f"{job_id}.mp3")
+    out = os.path.join(TMP_DIR, f"{job_id}.out")
+    given = os.path.join(TMP_DIR, f"{job_id}.ref.flac")
     try:
-        ref = contract.reference(voices, req["voice"], req["language"])
-        rate, seconds = engine.speak(
-            req["text"], os.path.join(VOICES_DIR, f"{req['voice']}.{ref}.flac"), voices[req["voice"]][ref], req.get("seed"), wav
-        )
-        heard = engine.words(wav, req["language"])
-        engine.to_mp3(wav, mp3)
-        with open(mp3, "rb") as f:
+        if req["task"] == "design":
+            # a new voice: what goes back is its reference clip, in the form the voices' clips are kept in
+            rate, seconds = engine.design(req["description"], req["text"], req.get("seed"), wav)
+            heard = engine.words(wav, "en")
+            engine.to_flac(wav, out)
+        else:
+            if "reference" in req:
+                # the voice's clip came with the request: on this disk only for as long as the line takes
+                with open(given, "wb") as f:
+                    f.write(req["reference"]["audio"])
+                clip, said = given, req["reference"]["text"]
+            else:
+                ref = contract.reference(voices, req["voice"], req["language"])
+                clip, said = os.path.join(VOICES_DIR, f"{req['voice']}.{ref}.flac"), voices[req["voice"]][ref]
+            rate, seconds = engine.speak(req["text"], clip, said, req.get("seed"), wav)
+            heard = engine.words(wav, req["language"])
+            engine.to_mp3(wav, out)
+        with open(out, "rb") as f:
             audio = base64.b64encode(f.read()).decode()
     finally:
         _remove(wav)
-        _remove(mp3)
+        _remove(out)
+        _remove(given)
     return {"audio": audio, "words": heard, "seconds": round(seconds, 3), "sampleRate": rate, "executionMs": int((time.monotonic() - started) * 1000)}
 
 

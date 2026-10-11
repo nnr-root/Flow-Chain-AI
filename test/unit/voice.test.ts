@@ -7,6 +7,10 @@ import { RunpodClient } from "../../src/providers/runpod.js";
 import { RunpodTts } from "../../src/providers/runpod-voice.js";
 import { alignWords, fold, heardShare } from "../../src/voice/align.js";
 import { speechLanguage } from "../../src/voice/language.js";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { designedVoices } from "../../src/voice/library.js";
 import { FakeRunpodApi } from "../fakes/runpod.js";
 
 const w = (text: string, start: number, end: number) => ({ text, start, end });
@@ -114,6 +118,25 @@ describe("the studio's own voice", () => {
     expect(api.runs[0]).toMatchObject({ endpointId: "ep-v", input: { task: "speak", workflow: "voice-voxcpm2@1", text: "Most photos fail", voice: "narrator-f", language: "en", seed: 42 } });
     expect(Object.keys(api.runs[0].input).sort()).toEqual(["language", "seed", "task", "text", "voice", "workflow"]);
     expect(api.runs[0].policy).toEqual({ executionTimeout: 120_000, ttl: 3_600_000 });
+  });
+
+  it("sends a designed voice's clip with every line, in the line's language where it has one, and the narrators' never", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "voices-"));
+    await writeFile(join(dir, "voices.json"), JSON.stringify({ storyteller: { en: "Good evening.", tr: "İyi akşamlar." } }));
+    await writeFile(join(dir, "storyteller.en.flac"), Buffer.from("fLaC-en"));
+    await writeFile(join(dir, "storyteller.tr.flac"), Buffer.from("fLaC-tr"));
+    const api = new FakeRunpodApi(() => [done()]);
+    const tts = new RunpodTts({ client: new RunpodClient("rk", { fetch: api.fetch }), usdPerSec: 0.000306, poll: { pollMs: 1, sleep: async () => {} }, voicesDir: dir }, target);
+    await tts.speak({ text: "Most photos fail", voiceId: "storyteller", language: "es" });
+    expect(api.runs[0].input).toMatchObject({ voice: "storyteller", language: "es", reference: { audio: Buffer.from("fLaC-en").toString("base64"), text: "Good evening." } });
+    await tts.speak({ text: "Most photos fail", voiceId: "storyteller", language: "tr" });
+    expect(api.runs[1].input.reference).toEqual({ audio: Buffer.from("fLaC-tr").toString("base64"), text: "İyi akşamlar." });
+    await tts.speak({ text: "Most photos fail", voiceId: "narrator-m", language: "tr" });
+    expect(api.runs[2].input).not.toHaveProperty("reference");
+    expect(designedVoices(dir)).toEqual(["storyteller"]);
+    // a voice on the list without its clip yet is not one that is ready
+    await writeFile(join(dir, "voices.json"), JSON.stringify({ storyteller: { en: "Good evening." }, calm: { en: "Hello." } }));
+    expect(designedVoices(dir)).toEqual(["storyteller"]);
   });
 
   it("leaves the language out when it is not known: the worker listens for it", async () => {

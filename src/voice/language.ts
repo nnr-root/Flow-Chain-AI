@@ -69,12 +69,45 @@ const FONT_LACKS: Record<string, readonly SpeechLanguage[]> = {
 export const fontCovers = (file: string, language: SpeechLanguage): boolean => !(FONT_LACKS[file] ?? []).includes(language);
 
 /**
- * The studio's own voices, by the id the voice worker knows them by, in the words a person is shown. They say
- * who speaks and nothing about how it sounds: a person hears that from the sample.
+ * The studio's own voices, by the id the voice worker knows them by (a test holds this list to the worker's own
+ * files). `label`: what a person is shown. `suits`: the videos the voice was made for. The two narrators are
+ * plain, even voices for anything; the others were each designed from a description of who speaks and how
+ * (`scripts/design-voices.py`), and what is said of them here is what was asked for: how one sounds is for the
+ * person to hear in its sample.
  */
 export const VOICES = {
-  "narrator-m": { label: "Narrator, male" },
-  "narrator-f": { label: "Narrator, female" },
+  "narrator-m": { label: "Narrator (male)", suits: "A plain, even voice for any video" },
+  "narrator-f": { label: "Narrator (female)", suits: "A plain, even voice for any video" },
+  storyteller: { label: "Storyteller", suits: "Fables, history, legends and stories told slowly" },
+  documentary: { label: "Documentary", suits: "Nature, science and history that want some weight" },
+  trailer: { label: "Trailer", suits: "True crime, horror, epics and anything dramatic" },
+  host: { label: "Host", suits: "Fast facts, countdowns, tech and anything with energy" },
+  explainer: { label: "Explainer", suits: "How-to, money, business and step-by-step guides" },
+  anchor: { label: "Anchor", suits: "News, reports and facts told straight" },
+  upbeat: { label: "Upbeat", suits: "Fun facts, food, lifestyle and light-hearted videos" },
+  calm: { label: "Calm", suits: "Wellness, sleep, nature and gentle stories" },
+  mystery: { label: "Mystery", suits: "Unsolved cases, secrets and the strange" },
+  storybook: { label: "Storybook", suits: "Children's stories, fables and cartoons" },
 } as const;
 export type VoiceId = keyof typeof VOICES;
+
+/** The voices the voice worker's image has. Every other voice is a designed one, whose clip goes with each line. */
+export const BUILT_IN_VOICES: readonly VoiceId[] = ["narrator-m", "narrator-f"];
+
+/**
+ * How each designed voice was asked for: who speaks, the colour of the voice, the mood and the pace (the voice
+ * model takes gender, age, tone, emotion and pace). Read by `npm run make:voices -- --design`.
+ */
+export const VOICE_DESIGNS: Partial<Record<VoiceId, string>> = {
+  storyteller: "An older man in his sixties, warm, deep and slightly gravelly voice, kind and calm, slow unhurried pace, like a grandfather telling a story by the fire",
+  documentary: "A middle-aged man, deep, rich and authoritative voice, serious and composed, measured steady pace, like a nature documentary narrator",
+  trailer: "A man with a very low, dark and intense voice, dramatic and gripping, slow heavy pace, like a movie trailer voice-over",
+  host: "A young man in his twenties, bright, energetic and excited voice, smiling and enthusiastic, fast lively pace, like an online video host",
+  explainer: "A man in his thirties, friendly, clear and conversational voice, relaxed and approachable, medium pace, like a teacher explaining something simply",
+  anchor: "A woman in her thirties, clear, crisp and confident voice, poised and professional, brisk even pace, like a television news anchor",
+  upbeat: "A young woman in her twenties, cheerful, bright and playful voice, smiling and bubbly, quick upbeat pace",
+  calm: "A woman with a soft, soothing and gentle voice, peaceful and tender, slow relaxed pace, like a guided meditation",
+  mystery: "A woman with a low, hushed and mysterious voice, secretive and suspenseful, slow deliberate pace, almost a whisper",
+  storybook: "A young woman with a bright, animated and expressive voice, warm and full of wonder, lively pace, like someone reading a picture book to children",
+};
 

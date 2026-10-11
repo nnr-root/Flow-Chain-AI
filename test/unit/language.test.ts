@@ -6,7 +6,8 @@ import { buildScriptPrompt } from "../../src/providers/gemini.js";
 import { timingProblems } from "../../src/stages/script.js";
 import { PRESETS } from "../../src/presets.js";
 import { captionStyleFor } from "../../src/stages/look.js";
-import { fontCovers, LANGUAGE_IN_ENGLISH, SPEECH_LANGUAGES, VOICES } from "../../src/voice/language.js";
+import { BUILT_IN_VOICES, fontCovers, LANGUAGE_IN_ENGLISH, SPEECH_LANGUAGES, VOICE_DESIGNS, VOICES } from "../../src/voice/language.js";
+import { designedVoices } from "../../src/voice/library.js";
 import { SAMPLE_LINES } from "../../scripts/make-voices.js";
 import { timedScript } from "../fakes/providers.js";
 
@@ -18,8 +19,14 @@ describe("the languages and voices on offer", () => {
   const recorded = JSON.parse(readFileSync("worker-voice/voices/voices.json", "utf8")) as Record<string, Record<string, string>>;
 
   it("are exactly the voices the voice worker has, each with the English clip every other language is spoken from", () => {
-    expect(Object.keys(VOICES).sort()).toEqual(Object.keys(recorded).sort());
+    // the worker's image has its own voices; every other voice on the list is designed, and was asked for in words
+    expect([...BUILT_IN_VOICES].sort()).toEqual(Object.keys(recorded).sort());
     for (const voice of Object.keys(VOICES)) {
+      if (!BUILT_IN_VOICES.includes(voice as never)) expect(VOICE_DESIGNS[voice as keyof typeof VOICE_DESIGNS], voice).toBeTruthy();
+    }
+    // a description goes to the model inside one pair of parentheses
+    for (const d of Object.values(VOICE_DESIGNS)) expect(d).not.toMatch(/[()]/);
+    for (const voice of BUILT_IN_VOICES) {
       // English is what a language without a clip of its own falls back to, in the worker
       expect(Object.keys(recorded[voice]), voice).toContain("en");
       for (const language of Object.keys(recorded[voice])) {
@@ -55,7 +62,8 @@ describe("the languages and voices on offer", () => {
 
   it("have a sample to listen to for every voice in every language, said by the engine and heard as its line", () => {
     const listed = JSON.parse(readFileSync("web/content/voice-samples.json", "utf8")) as { samples: Record<string, Record<string, { seconds: number; words: number }>> };
-    for (const voice of Object.keys(VOICES)) {
+    // every voice that can be chosen: the worker's own and the designed ones whose clip has been made
+    for (const voice of [...BUILT_IN_VOICES, ...designedVoices()]) {
       for (const language of Object.keys(SPEECH_LANGUAGES)) {
         expect(existsSync(`web/public/voices/${voice}.${language}.mp3`), `${voice}.${language}`).toBe(true);
         const sample = listed.samples[voice]?.[language];

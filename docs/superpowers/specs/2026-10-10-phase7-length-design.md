@@ -324,3 +324,32 @@ engine was heard to say them; a native reader may still find a phrase stiff.
 style; forty samples made and served; the form's list in a browser. **Not checked:** a whole video in any
 language but English: its script, its real length, its captions on screen.
 
+## 15. More voices, each for its kind of video (owner's direction, 2026-10-11)
+
+The owner: more voices, as distinct as they can be, beside the plain ones, so that each kind of video has one.
+
+**Ten designed voices are on the list** (`VOICES`), each with what it suits: Storyteller, Documentary, Trailer,
+Host, Explainer, Anchor, Upbeat, Calm, Mystery, Storybook, beside the two narrators. Each is asked for in words
+(`VOICE_DESIGNS`: who speaks, the colour of the voice, the mood, the pace), which is how the voice model makes
+a voice that was never recorded. A voice is shown on the form only once its clip has been made.
+
+**How a designed voice is made and spoken.** First tried on this machine (free): the model needs about five
+gigabytes, and the download did not finish in two hours. So the voice worker learns two things instead
+(`worker-voice/`, tested with fakes):
+
+- `design`: a description and a line in, that voice's reference clip (FLAC) out. A script's line can never
+  reach it: a spoken line still may not begin with a parenthesis, and a description may not contain one.
+- `speak` with a `reference`: the clip of the voice comes with the request, used for that one line and removed.
+
+A designed voice's clip is kept in the code (`assets/voices/`) and sent with every line it says
+(`designedClip`; its hash is part of the line's key, so a voice made again is bought again, and no earlier run's
+key changes). So the image is built once, for the two new abilities, and a voice designed later needs no build.
+`npm run make:voices -- --design` designs the voices that have no clip, and keeps one only when at least four
+fifths of its line were heard as written; `npm run make:voices` then makes its samples in every language.
+
+**What is the owner's to click, in order:** push (the image is built from `worker-voice/` by the workflow);
+`npm run voice:deploy` once it is built; `make:voices -- --design`; `make:voices`.
+
+**Not known until then:** whether the model makes ten voices that sound as different as their descriptions;
+how a designed voice holds up in another language (it speaks every language from its English clip).
+

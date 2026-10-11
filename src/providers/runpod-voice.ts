@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { WordTiming } from "../manifest/schema.js";
 import { alignWords, heardShare } from "../voice/align.js";
+import { designedClip } from "../voice/library.js";
 import { NonRetryableError, UnusableResultError } from "./retry.js";
 import type { RunpodClient, RunpodPolicy } from "./runpod.js";
 import type { SpeakRequest, TtsProvider } from "./types.js";
@@ -15,6 +16,8 @@ export type VoiceDeps = {
   /** GPU price per second of the voice endpoint. */
   usdPerSec: number;
   poll?: { pollMs?: number; sleep?: (ms: number) => Promise<void>; now?: () => number };
+  /** Where the designed voices' clips are (tests); the bundled ones otherwise. */
+  voicesDir?: string;
 };
 
 type Target = { endpointId: string; workflow: string; version: number };
@@ -65,9 +68,12 @@ export class RunpodTts implements TtsProvider {
 
   private async once(req: SpeakRequest, attempt: number): Promise<{ audio: Buffer; words: WordTiming[]; costUsd?: number }> {
     const { pollMs = 2000, sleep = realSleep, now = Date.now } = this.deps.poll ?? {};
+    const clip = designedClip(req.voiceId, req.language, this.deps.voicesDir);
     const input = {
       task: "speak", workflow: `${this.target.workflow}@${this.target.version}`, text: req.text, voice: req.voiceId,
       ...(req.language ? { language: req.language } : {}),
+      // a designed voice brings its clip: the worker's image holds only its own two
+      ...(clip ? { reference: { audio: clip.audio.toString("base64"), text: clip.text } } : {}),
       // the same line gives the same speech; a second try must not
       seed: SEEDS[attempt] ?? attempt,
     };

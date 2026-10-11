@@ -1,4 +1,9 @@
 /*
+ * npm run make:voices -- --design [<voice> …]: designs the voices that have a description and no clip yet
+ * (`VOICE_DESIGNS`), on the studio's voice engine, and keeps each one's clip in assets/voices/. **It buys
+ * speech** (one line a voice). The engine must be one that designs (deployed from worker-voice/ as of phase 7
+ * spec §15). A voice is kept only when what it said was heard as the line it was given.
+ *
  * npm run make:voices [-- <language> …]: makes the sample a person hears for each voice in each language on the
  * new-video form, on the studio's own voice engine. **It buys speech** (one line a voice and language, a
  * fraction of a cent each, and the engine's start): the owner's click, like every command that spends.
@@ -12,11 +17,15 @@
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { loadEnv, loadPrices } from "../src/config.js";
+import { type Env, loadEnv, loadPrices } from "../src/config.js";
 import { ffmpeg, probeDuration } from "../src/media/ffmpeg.js";
 import { createProviders } from "../src/providers/factory.js";
 import { newRunProviders, newRunVoice } from "../src/providers/new-run.js";
-import { SPEECH_LANGUAGES, type SpeechLanguage, type VoiceId, VOICES } from "../src/voice/language.js";
+import { runpodRates } from "../src/config.js";
+import { RunpodClient } from "../src/providers/runpod.js";
+import { heardShare } from "../src/voice/align.js";
+import { BUILT_IN_VOICES, SPEECH_LANGUAGES, type SpeechLanguage, VOICE_DESIGNS, type VoiceId } from "../src/voice/language.js";
+import { DESIGNED_DIR, designedVoices } from "../src/voice/library.js";
 
 /** The same two sentences in every language: an opening, as a narrator would say one. */
 export const SAMPLE_LINES: Record<SpeechLanguage, string> = {
@@ -46,9 +55,60 @@ type Sample = { seconds: number; words: number };
 type Listed = { madeOn: string | null; samples: Partial<Record<VoiceId, Partial<Record<SpeechLanguage, Sample>>>> };
 const LIST = "web/content/voice-samples.json";
 
+/** The voices there is something to hear of: the worker's own and the designed ones that have a clip. */
+const readyVoices = (): VoiceId[] => [...BUILT_IN_VOICES, ...(designedVoices() as VoiceId[])];
+
+/** Designs each asked-for voice that has a description and no clip yet; keeps a clip only when its line was heard. */
+async function design(env: Env, asked: string[]): Promise<void> {
+  const names = (asked.length > 0 ? asked : Object.keys(VOICE_DESIGNS)) as VoiceId[];
+  const bad = names.filter((n) => !VOICE_DESIGNS[n]);
+  if (bad.length > 0) throw new Error(`no description for: ${bad.join(", ")}`);
+  const endpoint = env.RUNPOD_VOICE_ENDPOINT;
+  if (!endpoint || !env.RUNPOD_API_KEY) throw new Error("RUNPOD_VOICE_ENDPOINT and RUNPOD_API_KEY must be set");
+  const client = new RunpodClient(env.RUNPOD_API_KEY);
+  const rate = runpodRates(loadPrices()).voiceUsdPerSec;
+  const line = SAMPLE_LINES.en;
+  const listFile = join(DESIGNED_DIR, "voices.json");
+  const list = JSON.parse(readFileSync(listFile, "utf8")) as Record<string, Record<string, string>>;
+  let usd = 0;
+  for (const name of names) {
+    if (designedVoices().includes(name)) {
+      console.log(`${name}: has a clip already (delete it from assets/voices/ to design it again)`);
+      continue;
+    }
+    let kept = false;
+    for (const seed of [20261011, 7]) {
+      const id = await client.run(endpoint, { task: "design", workflow: "voice-voxcpm2@1", description: VOICE_DESIGNS[name], text: line, seed }, { executionTimeout: 300_000, ttl: 3_600_000 }, new AbortController().signal);
+      let job = await client.status(endpoint, id);
+      while (job && !["COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"].includes(job.status)) {
+        await new Promise((r) => setTimeout(r, 3000));
+        job = await client.status(endpoint, id);
+      }
+      usd += job?.executionTime ? (job.executionTime / 1000) * rate : 0;
+      const out = job?.output as { audio?: string; words?: Array<{ text: string; start: number; end: number }>; error?: string } | undefined;
+      if (job?.status !== "COMPLETED" || !out?.audio) throw new Error(`${name}: the engine did not design it (${job?.status ?? "gone"}${out?.error ? `: ${out.error}` : ""}); is the deployed voice worker one that designs?`);
+      const share = heardShare(line, out.words ?? []);
+      if (share < 0.8) {
+        console.log(`${name}: what it said was not the line (${Math.round(share * 100)}% heard); designed again`);
+        continue;
+      }
+      await writeFile(join(DESIGNED_DIR, `${name}.en.flac`), Buffer.from(out.audio, "base64"));
+      list[name] = { en: line };
+      await writeFile(listFile, `${JSON.stringify(list, null, 2)}
+`);
+      console.log(`${name}: designed (${Math.round(share * 100)}% of its line heard)`);
+      kept = true;
+      break;
+    }
+    if (!kept) console.log(`${name}: NOT KEPT: twice it did not say its line`);
+  }
+  console.log(`designing cost about $${usd.toFixed(4)}`);
+}
+
 async function main(): Promise<void> {
   process.loadEnvFile(".env");
   const env = loadEnv();
+  if (process.argv[2] === "--design") return design(env, process.argv.slice(3));
   const asked = process.argv.slice(2);
   const unknown = asked.filter((l) => !Object.hasOwn(SPEECH_LANGUAGES, l));
   if (unknown.length > 0) throw new Error(`no such language: ${unknown.join(", ")} (the languages are ${Object.keys(SPEECH_LANGUAGES).join(", ")})`);
@@ -61,7 +121,7 @@ async function main(): Promise<void> {
   let usd = 0;
   const failed: string[] = [];
   for (const language of languages) {
-    for (const voice of Object.keys(VOICES) as VoiceId[]) {
+    for (const voice of readyVoices()) {
       const text = SAMPLE_LINES[language];
       try {
         const said = await tts.speak({ text, voiceId: voice, language });
@@ -84,7 +144,7 @@ async function main(): Promise<void> {
       await writeFile(LIST, `${JSON.stringify(listed, null, 2)}\n`);
     }
   }
-  console.log(`${languages.length * Object.keys(VOICES).length - failed.length} sample(s) made for about $${usd.toFixed(4)}${failed.length > 0 ? `; not made: ${failed.join(", ")}` : ""}.`);
+  console.log(`${languages.length * readyVoices().length - failed.length} sample(s) made for about $${usd.toFixed(4)}${failed.length > 0 ? `; not made: ${failed.join(", ")}` : ""}.`);
 }
 
 // (imported by a test for the lines alone: only run as a command does it buy anything)

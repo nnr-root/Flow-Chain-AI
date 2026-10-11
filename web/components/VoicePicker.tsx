@@ -12,7 +12,7 @@ const hasSample = (voice: VoiceId, language: SpeechLanguage): boolean => Object.
  * voice speaking that language. One sample plays at a time. A voice with no sample in a language yet can still
  * be chosen: there is only nothing to hear beforehand.
  */
-export function VoicePicker({ language, voice, onLanguage, onVoice }: { language: SpeechLanguage; voice: VoiceId; onLanguage: (l: SpeechLanguage) => void; onVoice: (v: VoiceId) => void }) {
+export function VoicePicker({ voices, language, voice, onLanguage, onVoice }: { voices: VoiceId[]; language: SpeechLanguage; voice: VoiceId; onLanguage: (l: SpeechLanguage) => void; onVoice: (v: VoiceId) => void }) {
   const player = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState<VoiceId | null>(null);
   const stop = () => {
@@ -43,11 +43,11 @@ export function VoicePicker({ language, voice, onLanguage, onVoice }: { language
         </label>
         <span className="text-[0.85rem] text-graphite">The script is written in it, the voice speaks it, and the captions follow.</span>
       </div>
-      <div role="radiogroup" aria-label="Voice" className="grid gap-3 sm:grid-cols-2">
-        {(Object.keys(VOICES) as VoiceId[]).map((id) => {
+      <div role="radiogroup" aria-label="Voice" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {voices.map((id) => {
           const on = id === voice;
           return (
-            <div key={id} className={`flex items-center gap-3 rounded-[18px] bg-sheet p-3 outline-offset-2 ${on ? "outline outline-[3px] outline-signal" : ""}`}>
+            <div key={id} className={`flex items-start gap-3 rounded-[18px] bg-sheet p-3 outline-offset-2 ${on ? "outline outline-[3px] outline-signal" : ""}`}>
               <button
                 type="button"
                 disabled={!hasSample(id, language)}
@@ -61,7 +61,7 @@ export function VoicePicker({ language, voice, onLanguage, onVoice }: { language
               </button>
               <button type="button" role="radio" aria-checked={on} data-testid={`voice-${id}`} onClick={() => onVoice(id)} className="flex-1 text-left">
                 <span className="block font-bold"><span className={on ? "marked" : ""}>{VOICES[id].label}</span></span>
-                <span className="block text-[0.85rem] text-graphite">{on ? "Tells this video" : "Choose this voice"}</span>
+                <span className="block text-[0.82rem] leading-snug text-graphite">{VOICES[id].suits}</span>
               </button>
             </div>
           );

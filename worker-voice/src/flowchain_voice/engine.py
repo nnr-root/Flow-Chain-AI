@@ -70,6 +70,21 @@ def speak(text, reference_wav, reference_text, seed, wav_path):
     return rate, len(wav) / rate
 
 
+def design(description, text, seed, wav_path):
+    """A new voice, described in words, saying `text`. Writes the speech to `wav_path`; returns its sample rate and length."""
+    import soundfile as sf
+    import torch
+
+    model = speaker()
+    if seed is not None:
+        torch.manual_seed(seed)
+    # the model's own way of being told who speaks: the description in parentheses before the line
+    wav = model.generate(text=f"({description}){text}", cfg_value=2.0, inference_timesteps=10)
+    rate = model.tts_model.sample_rate
+    sf.write(wav_path, wav, rate)
+    return rate, len(wav) / rate
+
+
 def words(wav_path, language):
     """Every word heard in the clip with its start and end in seconds."""
     segments, _ = listener().transcribe(wav_path, language=language, word_timestamps=True, beam_size=5, condition_on_previous_text=False)
@@ -79,5 +94,13 @@ def words(wav_path, language):
 def to_mp3(wav_path, mp3_path):
     subprocess.run(
         ["ffmpeg", "-loglevel", "error", "-y", "-i", wav_path, "-ac", "1", "-ar", "44100", "-b:a", "128k", mp3_path],
+        check=True, timeout=60,
+    )
+
+
+def to_flac(wav_path, flac_path):
+    """A reference clip as the voices' clips are kept: one channel, 48 kHz, 16 bits."""
+    subprocess.run(
+        ["ffmpeg", "-loglevel", "error", "-y", "-i", wav_path, "-ac", "1", "-ar", "48000", "-sample_fmt", "s16", flac_path],
         check=True, timeout=60,
     )

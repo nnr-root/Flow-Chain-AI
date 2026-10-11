@@ -5,6 +5,7 @@ import type { Manifest } from "../manifest/schema.js";
 import { TIMEOUTS, UnusableResultError, withRetry } from "../providers/retry.js";
 import { VOICE_WAIT_MS } from "../providers/runpod-voice.js";
 import { speechLanguage } from "../voice/language.js";
+import { designedClip } from "../voice/library.js";
 
 import { outPath, paths } from "./paths.js";
 import { requireScript } from "./require.js";
@@ -28,6 +29,16 @@ function speech(m: Manifest, i: number) {
   };
 }
 
+/**
+ * What a line is bought from. A designed voice's clip is part of it (a clip made again is another voice); the
+ * two narrators' clips are in the worker's image and every earlier run's key stays as it was.
+ */
+function lineInputs(m: Manifest, i: number) {
+  const req = speech(m, i);
+  const clip = ownVoice(m) ? designedClip(req.voiceId, req.language) : null;
+  return { model: m.models.tts, ...req, ...(clip ? { voiceClip: clip.sha256 } : {}) };
+}
+
 /** What a line is expected to cost: per character on the hosted voice, by GPU seconds on the studio's own. */
 function lineCost(ctx: Pick<StageContext, "manifest" | "prices">, scene: number, chars: number): number {
   if (!ownVoice(ctx.manifest)) return ttsCost(ctx.prices, chars);
@@ -42,7 +53,7 @@ export const ttsStage: Stage = {
   perScene: true,
   paid: true,
   deps: () => [{ stage: "script" }],
-  inputsFor: async (ctx, scene) => ({ model: ctx.manifest.models.tts, ...speech(ctx.manifest, scene!) }),
+  inputsFor: async (ctx, scene) => lineInputs(ctx.manifest, scene!),
   outputsFor: (_m, scene) => [paths.rawAudio(scene!)],
   estimateCostUsd: (ctx, scene) => lineCost(ctx, scene!, ctx.manifest.script?.scenes[scene!]?.narration.length ?? FALLBACK_NARRATION_CHARS),
   async run(ctx, scene) {

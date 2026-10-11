@@ -150,10 +150,10 @@ test("a new video is asked for by its length, how long each scene stays and what
   const sample = page.waitForRequest((r) => r.url().endsWith("/voices/narrator-f.es.mp3"));
   await page.getByTestId("listen-narrator-f").click();
   await sample;
-  await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName("Stop the sample of Narrator, female");
+  await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName("Stop the sample of Narrator (female)");
   // a sample is of one language: choosing another ends it
   await page.getByTestId("language").selectOption("tr");
-  await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName("Hear Narrator, female in Türkçe");
+  await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName("Hear Narrator (female) in Türkçe");
   await page.getByTestId("voice-narrator-f").click();
   // every sample the form can ask for is there
   for (const code of await page.getByTestId("language").locator("option").evaluateAll((options) => options.map((o) => (o as HTMLOptionElement).value))) {
