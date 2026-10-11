@@ -12,7 +12,14 @@ const hasSample = (voice: VoiceId, language: SpeechLanguage): boolean => Object.
  * voice speaking that language. One sample plays at a time. A voice with no sample in a language yet can still
  * be chosen: there is only nothing to hear beforehand.
  */
-export function VoicePicker({ voices, language, voice, onLanguage, onVoice }: { voices: VoiceId[]; language: SpeechLanguage; voice: VoiceId; onLanguage: (l: SpeechLanguage) => void; onVoice: (v: VoiceId) => void }) {
+export function VoicePicker({ voices: native, language, voice, onLanguage, onVoice }: { voices: Partial<Record<SpeechLanguage, VoiceId[]>>; language: SpeechLanguage; voice: VoiceId; onLanguage: (l: SpeechLanguage) => void; onVoice: (v: VoiceId) => void }) {
+  // the voices made in this language; where none is yet, the narrators, said not to be native
+  const voices = native[language]?.length ? native[language]! : (["narrator-m", "narrator-f"] as VoiceId[]);
+  const notNative = !native[language]?.length;
+  // a voice chosen in one language that has none in another is swapped for the first that has one
+  useEffect(() => {
+    if (!voices.includes(voice)) onVoice(voices[0]);
+  }, [voices, voice, onVoice]);
   const player = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState<VoiceId | null>(null);
   const stop = () => {
@@ -43,6 +50,7 @@ export function VoicePicker({ voices, language, voice, onLanguage, onVoice }: { 
         </label>
         <span className="text-[0.85rem] text-graphite">The script is written in it, the voice speaks it, and the captions follow.</span>
       </div>
+      {notNative && <p className="text-[0.85rem] text-warn" data-testid="voices-not-native">No voice has been made in this language yet: the narrators speak it from their English voice, with its accent.</p>}
       <div role="radiogroup" aria-label="Voice" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {voices.map((id) => {
           const on = id === voice;

@@ -370,3 +370,36 @@ how a designed voice holds up in another language (it speaks every language from
 - Nobody has listened to them: how distinct, how natural, and how well each holds in another language is for
   the owner to hear.
 
+## 16. Twelve different voices, each made in each language (owner's direction, 2026-10-11)
+
+The owner, on §15: some voices are one voice in different moods; and a voice made in English speaks Turkish
+with an English accent ("hör" for "her"). Both were so. Measured (pitch, and the shape of the spectrum): Upbeat
+and Storybook were one voice (0.36 apart, where two voices are 2 or more), Documentary, Storyteller and Trailer
+one deep voice, Calm and Mystery close. The cause: ten descriptions that differed in mood only, made with one
+seed. And every voice but the narrators' English and Turkish spoke every language from its English clip.
+
+**What changed.**
+- Every voice, the narrators included, is described by what makes voices different: sex, age, pitch and grain
+  (`VOICE_DESIGNS`), five men and five women beside the two narrators.
+- **Every voice is made in each language from its description, speaking that language natively** (the voice
+  worker designs in the language of its line, and listens for it). A voice speaks a language from its clip made
+  in it; one made here with none in a language falls back to its English clip, and the form does not offer it
+  there (`nativeVoices`). A language no voice was made in yet is offered the narrators, with a note that they
+  speak it from their English voice.
+- Takes are measured (`src/voice/features.ts`) and kept only when they fit: the line heard, the pitch of the
+  sex described, and not too near a voice already kept in that language. In English the take furthest from the
+  others is kept; in another language the one nearest the voice's English clip, so that it is the same voice
+  as far as the model allows. A voice with no fitting take gets more rounds of new seeds.
+- The Host, asked for as a "light tenor" and then a "full male voice", came out at a woman's pitch in fourteen
+  takes; asked for as "deep, low-pitched", the first take fitted.
+- A job's state is asked again on a server error (one ended a run and lost its paid takes, a few cents).
+
+**Made so far (owner's choice: English and Turkish first)**: ten voices in both, about 23 cents in all. The
+nearest two now: Upbeat and Storybook in Turkish at 1.84; every other pair is 2.3 or more. The voices' paces
+were measured again from these samples (Calm and Mystery about 30% slower than the narrators, Storyteller and
+Documentary 15–20%, Anchor and Upbeat 15% faster).
+
+**Left**: the other eighteen languages, for all twelve voices (about $1, when the owner has heard these).
+Until then those languages offer the narrators, accented. Whether the voices sound as distinct as measured is
+for the owner to hear.
+

@@ -96,10 +96,22 @@ async function design(env: Env, asked: string[]): Promise<void> {
   const take = async (voice: VoiceId, language: SpeechLanguage, seed: number): Promise<Take | null> => {
     const line = SAMPLE_LINES[language];
     const id = await client.run(endpoint, { task: "design", workflow: "voice-voxcpm2@1", description: VOICE_DESIGNS[voice].description, text: line, language, seed }, { executionTimeout: 300_000, ttl: 3_600_000 }, new AbortController().signal);
-    let job = await client.status(endpoint, id);
+    // Reading a job's state is safe to repeat, and RunPod now and then answers it with a server error: one such
+    // answer ended a whole run of takes once, throwing away the ones already paid for. So it is asked again.
+    const status = async () => {
+      for (let tries = 0; ; tries++) {
+        try {
+          return await client.status(endpoint, id);
+        } catch (err) {
+          if (tries >= 10) throw err;
+          await new Promise((r) => setTimeout(r, 3000));
+        }
+      }
+    };
+    let job = await status();
     while (job && !["COMPLETED", "FAILED", "CANCELLED", "TIMED_OUT"].includes(job.status)) {
       await new Promise((r) => setTimeout(r, 2000));
-      job = await client.status(endpoint, id);
+      job = await status();
     }
     usd += job?.executionTime ? (job.executionTime / 1000) * rate : 0;
     const out = job?.output as { audio?: string; words?: Array<{ text: string; start: number; end: number }>; seconds?: number } | undefined;
@@ -151,27 +163,37 @@ async function design(env: Env, asked: string[]): Promise<void> {
       const english = language === "en" ? null : await keptIn("en");
       const wanted = (Object.keys(VOICES) as VoiceId[]).filter((v) => !kept.has(v));
       if (wanted.length === 0) continue;
-      const seeds = language === "en" ? [11, 23, 37, 53] : [11, 29];
-      const takes = await pool(wanted.flatMap((voice) => seeds.map((seed) => async () => ({ voice, take: await take(voice, language, seed + language.charCodeAt(0) * 1000 + language.charCodeAt(1)) }))));
-      for (const voice of wanted) {
-        const usable = takes.filter((t) => t.voice === voice && t.take && t.take.heard >= 0.8).map((t) => t.take!);
-        if (usable.length === 0) {
-          console.log(`${language} ${voice}: NOT KEPT (no take said its line)`);
-          continue;
+      // Takes are made in rounds: a voice is kept from the first round that has a take fitting it, and the voices
+      // with none get another round of new seeds, up to four. A take fits when its line was heard, its pitch is
+      // that of the sex the voice was described as, and it is not too near a voice kept already in the language.
+      let left = wanted;
+      for (let round = 0; round < 4 && left.length > 0; round++) {
+        const seeds = (language === "en" && round === 0 ? [11, 23, 37, 53] : [11, 29]).map((s) => s + round * 101);
+        const takes = await pool(left.flatMap((voice) => seeds.map((seed) => async () => ({ voice, take: await take(voice, language, seed + language.charCodeAt(0) * 1000 + language.charCodeAt(1)) }))));
+        const still: VoiceId[] = [];
+        for (const voice of left) {
+          const nearestOther = (t: Take) => Math.min(Infinity, ...[...kept.entries()].filter(([v]) => v !== voice).map(([, f]) => voiceDistance(t.features, f)));
+          const target = english?.get(voice);
+          const fits = takes
+            .filter((t) => t.voice === voice && t.take && t.take.heard >= 0.8 && pitchFits(t.take.features, VOICE_DESIGNS[voice].sex) && nearestOther(t.take) >= TOO_ALIKE)
+            .map((t) => t.take!);
+          if (fits.length === 0) {
+            // what each take was, so that a voice that is never kept says why
+            const why = takes.filter((t) => t.voice === voice).map((t) => (t.take ? `${Math.round(t.take.features.f0)} Hz, ${Math.round(t.take.heard * 100)}% heard, ${nearestOther(t.take).toFixed(2)} apart` : "no take"));
+            console.log(`${language} ${voice}: round ${round + 1} had no take that fits (${why.join("; ")})`);
+            still.push(voice);
+            continue;
+          }
+          // in English the one furthest from the others; in another language the one nearest its English voice
+          const score = (t: Take) => (target ? voiceDistance(t.features, target) : -nearestOther(t));
+          const chosen = fits.sort((x, y) => score(x) - score(y))[0];
+          await keep(voice, language, chosen);
+          kept.set(voice, chosen.features);
+          console.log(`${language} ${voice}: kept in round ${round + 1} (${Math.round(chosen.features.f0)} Hz, ${nearestOther(chosen).toFixed(2)} from the nearest other voice${target ? `, ${voiceDistance(chosen.features, target).toFixed(2)} from its English voice` : ""})`);
         }
-        const nearestOther = (t: Take) => Math.min(Infinity, ...[...kept.values()].map((f) => voiceDistance(t.features, f)));
-        const sexFits = (t: Take) => (pitchFits(t.features, VOICE_DESIGNS[voice].sex) ? 0 : 2);
-        const target = english?.get(voice);
-        const score = (t: Take) =>
-          target
-            ? voiceDistance(t.features, target) + sexFits(t) + (nearestOther(t) < TOO_ALIKE ? 3 : 0)
-            : -nearestOther(t) + sexFits(t);
-        const chosen = usable.sort((x, y) => score(x) - score(y))[0];
-        await keep(voice, language, chosen);
-        kept.set(voice, chosen.features);
-        const apart = nearestOther(chosen);
-        console.log(`${language} ${voice}: kept (${Math.round(chosen.features.f0)} Hz${target ? `, ${voiceDistance(chosen.features, target).toFixed(2)} from its English voice` : ""}${Number.isFinite(apart) && apart < TOO_ALIKE ? `; CLOSE to another voice (${apart.toFixed(2)})` : ""})`);
+        left = still;
       }
+      for (const voice of left) console.log(`${language} ${voice}: NOT KEPT (no take fitted it in four rounds)`);
     }
   } finally {
     await rest.update("endpoints", endpoint, { workersMax: before?.workersMax ?? 1 });

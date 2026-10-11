@@ -86,5 +86,9 @@ export function voiceDistance(a: VoiceFeatures, b: VoiceFeatures): number {
 }
 export const TOO_ALIKE = 1.6;
 
-/** Whether a voice's pitch is that of the sex it was described as (a man below 165 Hz, a woman above). */
-export const pitchFits = (f: VoiceFeatures, sex: "m" | "f"): boolean => (sex === "m" ? f.f0 > 0 && f.f0 < 165 : f.f0 >= 165);
+/**
+ * Whether a voice's pitch is that of the sex it was described as: a man below 180 Hz, a woman above 165 (a man
+ * speaking excitedly rises, a woman speaking low falls, and the two overlap a little). A take outside it is not
+ * kept: one "young man" came out at 250 Hz and one Turkish "deep bass man" at 280 (phase 7 spec §16).
+ */
+export const pitchFits = (f: VoiceFeatures, sex: "m" | "f"): boolean => (sex === "m" ? f.f0 > 0 && f.f0 < 180 : f.f0 >= 165);

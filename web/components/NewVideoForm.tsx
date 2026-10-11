@@ -31,7 +31,7 @@ const MADE_OF = [
  * The form a video starts from. `series`: the same choices are saved as a series instead of being spent on one
  * video: there is a name and a premise in place of a topic, and nothing is bought (phase 6 spec §3).
  */
-export function NewVideoForm({ health: initialHealth, kits, tracks: initialTracks, presets, topic = "", series = false, voices = ["narrator-m", "narrator-f"] }: { health: StudioHealth; kits: KitSummary[]; tracks: Track[]; presets: PresetCard[]; topic?: string; series?: boolean; voices?: VoiceId[] }) {
+export function NewVideoForm({ health: initialHealth, kits, tracks: initialTracks, presets, topic = "", series = false, voices = {} }: { health: StudioHealth; kits: KitSummary[]; tracks: Track[]; presets: PresetCard[]; topic?: string; series?: boolean; voices?: Partial<Record<SpeechLanguage, VoiceId[]>> }) {
   const router = useRouter();
   const [health, setHealth] = useState(initialHealth);
   const [tracks, setTracks] = useState(initialTracks);

@@ -1,6 +1,6 @@
 import { NewVideoForm } from "@/components/NewVideoForm";
 import { styleCards } from "@/lib/styles";
-import { readyVoices } from "@/server/voices";
+import { nativeVoices } from "@/server/voices";
 import { studioHealth } from "@/server/jobs";
 import { listKits, listMusic } from "@/server/library";
 import { forUser } from "@/server/page";
@@ -13,5 +13,5 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
   const topic = (typeof given === "string" ? given : "").slice(0, 500);
   const presets = styleCards();
   const data = await forUser(async () => ({ health: await studioHealth(), kits: await listKits(), tracks: await listMusic() }));
-  return <NewVideoForm {...data} presets={presets} voices={readyVoices()} topic={topic} />;
+  return <NewVideoForm {...data} presets={presets} voices={nativeVoices()} topic={topic} />;
 }

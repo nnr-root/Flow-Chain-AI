@@ -156,10 +156,16 @@ test("a new video is asked for by its length, how long each scene stays and what
   await page.getByTestId("language").selectOption("tr");
   await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName("Hear Narrator (female) in Türkçe");
   await page.getByTestId("voice-narrator-f").click();
-  // every sample the form can ask for is there
-  for (const code of await page.getByTestId("language").locator("option").evaluateAll((options) => options.map((o) => (o as HTMLOptionElement).value))) {
-    for (const voice of ["narrator-m", "narrator-f", "storyteller", "calm", "trailer"]) expect((await page.request.get(`/voices/${voice}.${code}.mp3`)).status(), `${voice}.${code}`).toBe(200);
+  // every voice shown has its sample; in a language no voice was made in, the narrators are offered and said not to be native
+  for (const voice of await page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.replace("voice-", "")))) {
+    expect((await page.request.get(`/voices/${voice}.tr.mp3`)).status(), voice).toBe(200);
   }
+  await expect(page.getByTestId("voices-not-native")).toHaveCount(0);
+  await page.getByTestId("language").selectOption("pt");
+  await expect(page.getByTestId("voices-not-native")).toBeVisible();
+  await expect(page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio")).toHaveCount(2);
+  await page.getByTestId("language").selectOption("tr");
+  await page.getByTestId("voice-narrator-f").click();
 
   // pictures only, both, or clips only
   const madeOf = page.getByRole("radiogroup", { name: "What the video is made of" });

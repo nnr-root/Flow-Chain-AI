@@ -71,7 +71,7 @@ export const fontCovers = (file: string, language: SpeechLanguage): boolean => !
 /**
  * The studio's own voices, by the id the voice worker knows them by (a test holds this list to the worker's own
  * files). `label`: what a person is shown. `suits`: the videos the voice was made for. `pace`: how fast it speaks
- * against the narrators, from its samples in all twenty languages (absent: within a twentieth of them); a script
+ * against the narrators, from its samples in the languages it has them in (absent: within a twentieth of them); a script
  * for a slower voice is asked for fewer words, or its video would run long (phase 7 spec §15). The two narrators are
  * plain, even voices for anything; the others were each designed from a description of who speaks and how
  * (`scripts/design-voices.py`), and what is said of them here is what was asked for: how one sounds is for the
@@ -80,15 +80,15 @@ export const fontCovers = (file: string, language: SpeechLanguage): boolean => !
 export const VOICES = {
   "narrator-m": { label: "Narrator (male)", suits: "A plain, even voice for any video" },
   "narrator-f": { label: "Narrator (female)", suits: "A plain, even voice for any video" },
-  storyteller: { label: "Storyteller", suits: "Fables, history, legends and stories told slowly", pace: 0.93 },
-  documentary: { label: "Documentary", suits: "Nature, science and history that want some weight", pace: 0.93 },
-  trailer: { label: "Trailer", suits: "True crime, horror, epics and anything dramatic" },
-  host: { label: "Host", suits: "Fast facts, countdowns, tech and anything with energy", pace: 1.15 },
-  explainer: { label: "Explainer", suits: "How-to, money, business and step-by-step guides", pace: 0.9 },
-  anchor: { label: "Anchor", suits: "News, reports and facts told straight" },
-  upbeat: { label: "Upbeat", suits: "Fun facts, food, lifestyle and light-hearted videos" },
-  calm: { label: "Calm", suits: "Wellness, sleep, nature and gentle stories", pace: 0.68 },
-  mystery: { label: "Mystery", suits: "Unsolved cases, secrets and the strange", pace: 0.73 },
+  storyteller: { label: "Storyteller", suits: "Fables, history, legends and stories told slowly", pace: 0.81 },
+  documentary: { label: "Documentary", suits: "Nature, science and history that want some weight", pace: 0.84 },
+  trailer: { label: "Trailer", suits: "True crime, horror, epics and anything dramatic", pace: 0.91 },
+  host: { label: "Host", suits: "Fast facts, countdowns, tech and anything with energy" },
+  explainer: { label: "Explainer", suits: "How-to, money, business and step-by-step guides" },
+  anchor: { label: "Anchor", suits: "News, reports and facts told straight", pace: 1.15 },
+  upbeat: { label: "Upbeat", suits: "Fun facts, food, lifestyle and light-hearted videos", pace: 1.15 },
+  calm: { label: "Calm", suits: "Wellness, sleep, nature and gentle stories", pace: 0.69 },
+  mystery: { label: "Mystery", suits: "Unsolved cases, secrets and the strange", pace: 0.71 },
   storybook: { label: "Storybook", suits: "Children's stories, fables and cartoons" },
 } as const;
 export type VoiceId = keyof typeof VOICES;
@@ -111,7 +111,7 @@ export const VOICE_DESIGNS: Record<VoiceId, { sex: "m" | "f"; description: strin
   storyteller: { sex: "m", description: "An old man in his seventies with a raspy, gravelly, weathered voice, kind and warm, slow and unhurried, like a grandfather by the fire" },
   documentary: { sex: "m", description: "A man in his fifties with a deep, smooth and resonant baritone voice, rich and polished, serious and measured, steady pace" },
   trailer: { sex: "m", description: "A man with an extremely deep, booming bass voice, dark, powerful and dramatic, slow heavy pace, like a movie trailer" },
-  host: { sex: "m", description: "A young man of about twenty with a light, bright tenor voice, excited and energetic, grinning, very fast lively pace" },
+  host: { sex: "m", description: "A man in his thirties with a deep, low-pitched male voice, loud and energetic, enthusiastic and punchy, fast pace, like a radio host" },
   mystery: { sex: "m", description: "A man in his thirties with a husky, breathy, hushed voice, close to a whisper, secretive and suspenseful, slow pace" },
   explainer: { sex: "f", description: "A woman in her thirties with a warm, rounded low alto voice, friendly and patient, conversational, medium pace" },
   anchor: { sex: "f", description: "A woman in her late forties with a firm, crisp and slightly low voice, authoritative and poised, brisk precise pace" },
