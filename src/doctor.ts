@@ -6,7 +6,7 @@ import { EXAMPLE_BRAND_DIR, SFX_DIR } from "./assets.js";
 import { loadBrandKit } from "./brand.js";
 import type { Env } from "./config.js";
 import type { Models } from "./manifest/schema.js";
-import { CAPTION_STYLES } from "./media/remotion/styles.js";
+import { CAPTION_STYLES, SCRIPT_FACES } from "./media/remotion/styles.js";
 import { sfxFiles } from "./media/sfx.js";
 import { PRESETS } from "./presets.js";
 import { ElevenLabsTts } from "./providers/elevenlabs.js";
@@ -63,7 +63,7 @@ async function attempt(name: string, fn: () => Promise<string>): Promise<Check> 
 /** Every font a caption can use: the named caption styles' and every style preset's. */
 export function captionFontFiles(fontsDir: string): string[] {
   const styles = [...Object.values(CAPTION_STYLES), ...Object.values(PRESETS).map((p) => p.caption)];
-  return [...new Set(styles.map((s) => join(fontsDir, s.font.file)))];
+  return [...new Set([...styles.map((s) => s.font), ...Object.values(SCRIPT_FACES)].map((f) => join(fontsDir, f.file)))];
 }
 
 /** Whether a run buys from the studio's own GPU endpoints; a run made on a retired hosted model has nothing to check. */

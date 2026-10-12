@@ -1,357 +1,9 @@
 {
-  "madeOn": "2026-10-11",
+  "madeOn": "2026-10-12",
   "samples": {
-    "narrator-m": {
-      "en": {
-        "seconds": 6.83,
-        "words": 23
-      },
-      "tr": {
-        "seconds": 7.62,
-        "words": 17
-      },
-      "es": {
-        "seconds": 7.68,
-        "words": 18
-      },
-      "fr": {
-        "seconds": 8.16,
-        "words": 21
-      },
-      "de": {
-        "seconds": 8.48,
-        "words": 21
-      },
-      "it": {
-        "seconds": 7.52,
-        "words": 19
-      },
-      "pt": {
-        "seconds": 7.52,
-        "words": 19
-      },
-      "nl": {
-        "seconds": 7.36,
-        "words": 21
-      },
-      "pl": {
-        "seconds": 8,
-        "words": 20
-      },
-      "ru": {
-        "seconds": 8.16,
-        "words": 18
-      },
-      "sv": {
-        "seconds": 7.68,
-        "words": 20
-      },
-      "da": {
-        "seconds": 8,
-        "words": 20
-      },
-      "no": {
-        "seconds": 7.84,
-        "words": 21
-      },
-      "fi": {
-        "seconds": 7.84,
-        "words": 15
-      },
-      "el": {
-        "seconds": 7.04,
-        "words": 20
-      },
-      "id": {
-        "seconds": 9.28,
-        "words": 19
-      },
-      "ms": {
-        "seconds": 8.64,
-        "words": 19
-      },
-      "tl": {
-        "seconds": 9.12,
-        "words": 19
-      },
-      "sw": {
-        "seconds": 7.68,
-        "words": 16
-      },
-      "vi": {
-        "seconds": 7.04,
-        "words": 30
-      }
-    },
-    "narrator-f": {
-      "en": {
-        "seconds": 6.73,
-        "words": 23
-      },
-      "tr": {
-        "seconds": 6.64,
-        "words": 17
-      },
-      "es": {
-        "seconds": 7.52,
-        "words": 18
-      },
-      "fr": {
-        "seconds": 7.84,
-        "words": 21
-      },
-      "de": {
-        "seconds": 8.32,
-        "words": 21
-      },
-      "it": {
-        "seconds": 7.2,
-        "words": 19
-      },
-      "pt": {
-        "seconds": 7.68,
-        "words": 19
-      },
-      "nl": {
-        "seconds": 7.04,
-        "words": 21
-      },
-      "pl": {
-        "seconds": 6.4,
-        "words": 20
-      },
-      "ru": {
-        "seconds": 7.04,
-        "words": 18
-      },
-      "sv": {
-        "seconds": 7.68,
-        "words": 20
-      },
-      "da": {
-        "seconds": 6.88,
-        "words": 20
-      },
-      "no": {
-        "seconds": 8.32,
-        "words": 21
-      },
-      "fi": {
-        "seconds": 7.68,
-        "words": 15
-      },
-      "el": {
-        "seconds": 6.56,
-        "words": 20
-      },
-      "id": {
-        "seconds": 9.92,
-        "words": 19
-      },
-      "ms": {
-        "seconds": 8.96,
-        "words": 19
-      },
-      "tl": {
-        "seconds": 8.96,
-        "words": 19
-      },
-      "sw": {
-        "seconds": 7.52,
-        "words": 16
-      },
-      "vi": {
-        "seconds": 7.2,
-        "words": 30
-      }
-    },
-    "storyteller": {
-      "en": {
-        "seconds": 6.69,
-        "words": 23
-      },
-      "tr": {
-        "seconds": 7.29,
-        "words": 17
-      }
-    },
-    "documentary": {
-      "en": {
-        "seconds": 7.29,
-        "words": 23
-      },
-      "tr": {
-        "seconds": 8.59,
-        "words": 17
-      }
-    },
-    "trailer": {
-      "en": {
-        "seconds": 9.38,
-        "words": 23
-      },
-      "tr": {
-        "seconds": 7.15,
-        "words": 17
-      }
-    },
-    "host": {
-      "en": {
-        "seconds": 7.01,
-        "words": 23
-      },
-      "tr": {
-        "seconds": 6.41,
-        "words": 17
-      }
-    },
-    "explainer": {
-      "en": {
-        "seconds": 6.87,
-        "words": 23
-      },
-      "tr": {
-        "seconds": 8.41,
-        "words": 17
-      }
-    },
-    "anchor": {
-      "en": {
-        "seconds": 6.27,
-        "words": 23
-      },
-      "tr": {
-        "seconds": 6.73,
-        "words": 17
-      }
-    },
-    "upbeat": {
-      "en": {
-        "seconds": 5.02,
-        "words": 23
-      },
-      "tr": {
-        "seconds": 7.38,
-        "words": 17
-      }
-    },
-    "calm": {
-      "en": {
-        "seconds": 9.2,
-        "words": 23
-      },
-      "tr": {
-        "seconds": 6.64,
-        "words": 17
-      }
-    },
-    "mystery": {
-      "en": {
-        "seconds": 7.38,
-        "words": 23
-      },
-      "tr": {
-        "seconds": 5.06,
-        "words": 17
-      }
-    },
-    "storybook": {
-      "en": {
-        "seconds": 7.38,
-        "words": 23
-      },
-      "tr": {
-        "seconds": 9.52,
-        "words": 17
-      }
-    },
     "adam": {
       "en": {
         "seconds": 6.73,
-        "words": 23
-      }
-    },
-    "brian": {
-      "en": {
-        "seconds": 6.5,
-        "words": 23
-      }
-    },
-    "george": {
-      "en": {
-        "seconds": 6.83,
-        "words": 23
-      }
-    },
-    "bill": {
-      "en": {
-        "seconds": 8.78,
-        "words": 23
-      }
-    },
-    "daniel": {
-      "en": {
-        "seconds": 7.66,
-        "words": 23
-      }
-    },
-    "eric": {
-      "en": {
-        "seconds": 5.99,
-        "words": 23
-      }
-    },
-    "roger": {
-      "en": {
-        "seconds": 6.46,
-        "words": 23
-      }
-    },
-    "chris": {
-      "en": {
-        "seconds": 6.04,
-        "words": 23
-      }
-    },
-    "will": {
-      "en": {
-        "seconds": 6.92,
-        "words": 23
-      }
-    },
-    "liam": {
-      "en": {
-        "seconds": 6.73,
-        "words": 23
-      }
-    },
-    "charlie": {
-      "en": {
-        "seconds": 7.38,
-        "words": 23
-      }
-    },
-    "callum": {
-      "en": {
-        "seconds": 7.66,
-        "words": 23
-      }
-    },
-    "harry": {
-      "en": {
-        "seconds": 6.92,
-        "words": 23
-      }
-    },
-    "river": {
-      "en": {
-        "seconds": 6.46,
-        "words": 23
-      }
-    },
-    "sarah": {
-      "en": {
-        "seconds": 6.78,
         "words": 23
       }
     },
@@ -361,10 +13,98 @@
         "words": 23
       }
     },
-    "matilda": {
+    "anchor": {
+      "bg": {
+        "seconds": 7.34,
+        "words": 19
+      },
+      "cs": {
+        "seconds": 8.59,
+        "words": 16
+      },
+      "de": {
+        "seconds": 8.22,
+        "words": 21
+      },
+      "el": {
+        "seconds": 7.57,
+        "words": 20
+      },
       "en": {
-        "seconds": 7.01,
+        "seconds": 6.27,
         "words": 23
+      },
+      "es": {
+        "seconds": 8.17,
+        "words": 18
+      },
+      "fr": {
+        "seconds": 8.73,
+        "words": 21
+      },
+      "hi": {
+        "seconds": 7.89,
+        "words": 26
+      },
+      "hr": {
+        "seconds": 8.5,
+        "words": 19
+      },
+      "id": {
+        "seconds": 8.92,
+        "words": 19
+      },
+      "it": {
+        "seconds": 8.08,
+        "words": 19
+      },
+      "ja": {
+        "seconds": 13.24,
+        "words": 56
+      },
+      "ko": {
+        "seconds": 10.91,
+        "words": 16
+      },
+      "nl": {
+        "seconds": 13.47,
+        "words": 21
+      },
+      "no": {
+        "seconds": 7.89,
+        "words": 21
+      },
+      "pl": {
+        "seconds": 8.13,
+        "words": 20
+      },
+      "pt": {
+        "seconds": 7.43,
+        "words": 19
+      },
+      "ru": {
+        "seconds": 9.1,
+        "words": 18
+      },
+      "sk": {
+        "seconds": 11.33,
+        "words": 18
+      },
+      "tl": {
+        "seconds": 10.17,
+        "words": 19
+      },
+      "tr": {
+        "seconds": 6.73,
+        "words": 17
+      },
+      "uk": {
+        "seconds": 7.34,
+        "words": 17
+      },
+      "vi": {
+        "seconds": 6.92,
+        "words": 30
       }
     },
     "bella": {
@@ -373,10 +113,458 @@
         "words": 23
       }
     },
-    "lily": {
+    "bill": {
+      "en": {
+        "seconds": 8.78,
+        "words": 23
+      }
+    },
+    "brian": {
+      "en": {
+        "seconds": 6.5,
+        "words": 23
+      }
+    },
+    "callum": {
+      "en": {
+        "seconds": 7.66,
+        "words": 23
+      }
+    },
+    "calm": {
+      "bg": {
+        "seconds": 6.22,
+        "words": 19
+      },
+      "cs": {
+        "seconds": 8.59,
+        "words": 16
+      },
+      "da": {
+        "seconds": 6.92,
+        "words": 20
+      },
+      "de": {
+        "seconds": 9.8,
+        "words": 21
+      },
+      "el": {
+        "seconds": 7.99,
+        "words": 20
+      },
+      "en": {
+        "seconds": 9.2,
+        "words": 23
+      },
+      "es": {
+        "seconds": 9.15,
+        "words": 18
+      },
+      "fi": {
+        "seconds": 6.87,
+        "words": 15
+      },
+      "fr": {
+        "seconds": 6.97,
+        "words": 21
+      },
+      "hi": {
+        "seconds": 7.38,
+        "words": 26
+      },
+      "hr": {
+        "seconds": 10.17,
+        "words": 19
+      },
+      "hu": {
+        "seconds": 9.01,
+        "words": 16
+      },
+      "id": {
+        "seconds": 9.24,
+        "words": 19
+      },
+      "it": {
+        "seconds": 7.01,
+        "words": 19
+      },
+      "ja": {
+        "seconds": 19.32,
+        "words": 56
+      },
+      "ko": {
+        "seconds": 8.27,
+        "words": 16
+      },
+      "ms": {
+        "seconds": 9.2,
+        "words": 19
+      },
+      "nl": {
+        "seconds": 7.29,
+        "words": 21
+      },
+      "no": {
+        "seconds": 8.54,
+        "words": 21
+      },
+      "pl": {
+        "seconds": 8.82,
+        "words": 20
+      },
+      "pt": {
+        "seconds": 6.46,
+        "words": 19
+      },
+      "ru": {
+        "seconds": 8.31,
+        "words": 18
+      },
+      "sk": {
+        "seconds": 7.94,
+        "words": 18
+      },
+      "tl": {
+        "seconds": 10.17,
+        "words": 19
+      },
+      "tr": {
+        "seconds": 6.64,
+        "words": 17
+      },
+      "uk": {
+        "seconds": 8.54,
+        "words": 17
+      },
+      "vi": {
+        "seconds": 9.15,
+        "words": 30
+      }
+    },
+    "charlie": {
+      "en": {
+        "seconds": 7.38,
+        "words": 23
+      }
+    },
+    "chris": {
+      "en": {
+        "seconds": 6.04,
+        "words": 23
+      }
+    },
+    "daniel": {
+      "en": {
+        "seconds": 7.66,
+        "words": 23
+      }
+    },
+    "documentary": {
+      "bg": {
+        "seconds": 7.94,
+        "words": 19
+      },
+      "cs": {
+        "seconds": 9.8,
+        "words": 16
+      },
+      "da": {
+        "seconds": 7.38,
+        "words": 20
+      },
+      "de": {
+        "seconds": 9.24,
+        "words": 21
+      },
+      "el": {
+        "seconds": 8.08,
+        "words": 20
+      },
       "en": {
         "seconds": 7.29,
         "words": 23
+      },
+      "es": {
+        "seconds": 7.06,
+        "words": 18
+      },
+      "fi": {
+        "seconds": 9.24,
+        "words": 15
+      },
+      "fr": {
+        "seconds": 8.5,
+        "words": 21
+      },
+      "hi": {
+        "seconds": 11.1,
+        "words": 26
+      },
+      "hr": {
+        "seconds": 10.12,
+        "words": 19
+      },
+      "hu": {
+        "seconds": 7.01,
+        "words": 16
+      },
+      "id": {
+        "seconds": 7.62,
+        "words": 19
+      },
+      "it": {
+        "seconds": 6.18,
+        "words": 19
+      },
+      "ja": {
+        "seconds": 14.02,
+        "words": 56
+      },
+      "ko": {
+        "seconds": 8.45,
+        "words": 16
+      },
+      "nl": {
+        "seconds": 7.24,
+        "words": 21
+      },
+      "no": {
+        "seconds": 10.12,
+        "words": 21
+      },
+      "pl": {
+        "seconds": 9.52,
+        "words": 20
+      },
+      "pt": {
+        "seconds": 7.89,
+        "words": 19
+      },
+      "ru": {
+        "seconds": 7.62,
+        "words": 18
+      },
+      "sk": {
+        "seconds": 6.97,
+        "words": 18
+      },
+      "tl": {
+        "seconds": 9.89,
+        "words": 19
+      },
+      "tr": {
+        "seconds": 8.59,
+        "words": 17
+      },
+      "uk": {
+        "seconds": 7.34,
+        "words": 17
+      },
+      "vi": {
+        "seconds": 7.38,
+        "words": 30
+      }
+    },
+    "eric": {
+      "en": {
+        "seconds": 5.99,
+        "words": 23
+      }
+    },
+    "explainer": {
+      "bg": {
+        "seconds": 7.66,
+        "words": 19
+      },
+      "cs": {
+        "seconds": 6.73,
+        "words": 16
+      },
+      "de": {
+        "seconds": 8.31,
+        "words": 21
+      },
+      "en": {
+        "seconds": 6.87,
+        "words": 23
+      },
+      "es": {
+        "seconds": 7.06,
+        "words": 18
+      },
+      "fr": {
+        "seconds": 6.46,
+        "words": 21
+      },
+      "hi": {
+        "seconds": 7.8,
+        "words": 26
+      },
+      "hr": {
+        "seconds": 7.57,
+        "words": 19
+      },
+      "id": {
+        "seconds": 11.61,
+        "words": 19
+      },
+      "it": {
+        "seconds": 7.15,
+        "words": 19
+      },
+      "ja": {
+        "seconds": 13.93,
+        "words": 56
+      },
+      "ko": {
+        "seconds": 13.79,
+        "words": 16
+      },
+      "nl": {
+        "seconds": 6.55,
+        "words": 21
+      },
+      "pl": {
+        "seconds": 7.48,
+        "words": 20
+      },
+      "pt": {
+        "seconds": 8.78,
+        "words": 19
+      },
+      "ru": {
+        "seconds": 7.85,
+        "words": 18
+      },
+      "tl": {
+        "seconds": 9.06,
+        "words": 19
+      },
+      "tr": {
+        "seconds": 8.41,
+        "words": 17
+      },
+      "vi": {
+        "seconds": 6.97,
+        "words": 30
+      }
+    },
+    "george": {
+      "en": {
+        "seconds": 6.83,
+        "words": 23
+      }
+    },
+    "harry": {
+      "en": {
+        "seconds": 6.92,
+        "words": 23
+      }
+    },
+    "host": {
+      "bg": {
+        "seconds": 7.76,
+        "words": 19
+      },
+      "cs": {
+        "seconds": 6.83,
+        "words": 16
+      },
+      "da": {
+        "seconds": 6.92,
+        "words": 20
+      },
+      "de": {
+        "seconds": 7.52,
+        "words": 21
+      },
+      "el": {
+        "seconds": 6.78,
+        "words": 20
+      },
+      "en": {
+        "seconds": 7.01,
+        "words": 23
+      },
+      "es": {
+        "seconds": 7.99,
+        "words": 18
+      },
+      "fi": {
+        "seconds": 8.45,
+        "words": 15
+      },
+      "fr": {
+        "seconds": 6.55,
+        "words": 21
+      },
+      "hi": {
+        "seconds": 9.24,
+        "words": 26
+      },
+      "hr": {
+        "seconds": 8.92,
+        "words": 19
+      },
+      "hu": {
+        "seconds": 6.5,
+        "words": 16
+      },
+      "id": {
+        "seconds": 10.63,
+        "words": 19
+      },
+      "it": {
+        "seconds": 5.99,
+        "words": 19
+      },
+      "ja": {
+        "seconds": 10.77,
+        "words": 56
+      },
+      "ko": {
+        "seconds": 8.22,
+        "words": 16
+      },
+      "nl": {
+        "seconds": 7.15,
+        "words": 21
+      },
+      "no": {
+        "seconds": 6.36,
+        "words": 21
+      },
+      "pl": {
+        "seconds": 7.89,
+        "words": 20
+      },
+      "pt": {
+        "seconds": 6.92,
+        "words": 19
+      },
+      "ru": {
+        "seconds": 8.87,
+        "words": 18
+      },
+      "sk": {
+        "seconds": 7.62,
+        "words": 18
+      },
+      "tl": {
+        "seconds": 8.27,
+        "words": 19
+      },
+      "tr": {
+        "seconds": 6.41,
+        "words": 17
+      },
+      "uk": {
+        "seconds": 8.73,
+        "words": 17
+      },
+      "vi": {
+        "seconds": 6.92,
+        "words": 30
       }
     },
     "jessica": {
@@ -388,6 +576,810 @@
     "laura": {
       "en": {
         "seconds": 6.5,
+        "words": 23
+      }
+    },
+    "liam": {
+      "en": {
+        "seconds": 6.73,
+        "words": 23
+      }
+    },
+    "lily": {
+      "en": {
+        "seconds": 7.29,
+        "words": 23
+      }
+    },
+    "matilda": {
+      "en": {
+        "seconds": 7.01,
+        "words": 23
+      }
+    },
+    "mystery": {
+      "ar": {
+        "seconds": 7.24,
+        "words": 14
+      },
+      "bg": {
+        "seconds": 7.52,
+        "words": 19
+      },
+      "cs": {
+        "seconds": 8.96,
+        "words": 16
+      },
+      "da": {
+        "seconds": 6.78,
+        "words": 20
+      },
+      "de": {
+        "seconds": 7.43,
+        "words": 21
+      },
+      "el": {
+        "seconds": 6.97,
+        "words": 20
+      },
+      "en": {
+        "seconds": 7.38,
+        "words": 23
+      },
+      "es": {
+        "seconds": 6.46,
+        "words": 18
+      },
+      "fi": {
+        "seconds": 8.31,
+        "words": 15
+      },
+      "fr": {
+        "seconds": 10.22,
+        "words": 21
+      },
+      "hi": {
+        "seconds": 10.77,
+        "words": 26
+      },
+      "hr": {
+        "seconds": 6.92,
+        "words": 19
+      },
+      "hu": {
+        "seconds": 7.2,
+        "words": 16
+      },
+      "id": {
+        "seconds": 10.91,
+        "words": 19
+      },
+      "it": {
+        "seconds": 8.82,
+        "words": 19
+      },
+      "ja": {
+        "seconds": 10.26,
+        "words": 56
+      },
+      "ko": {
+        "seconds": 14.21,
+        "words": 16
+      },
+      "ms": {
+        "seconds": 9.29,
+        "words": 19
+      },
+      "nl": {
+        "seconds": 6.46,
+        "words": 21
+      },
+      "no": {
+        "seconds": 7.2,
+        "words": 21
+      },
+      "pl": {
+        "seconds": 9.43,
+        "words": 20
+      },
+      "pt": {
+        "seconds": 9.38,
+        "words": 19
+      },
+      "ru": {
+        "seconds": 6.97,
+        "words": 18
+      },
+      "sk": {
+        "seconds": 6.83,
+        "words": 18
+      },
+      "tl": {
+        "seconds": 11.8,
+        "words": 19
+      },
+      "tr": {
+        "seconds": 5.06,
+        "words": 17
+      },
+      "uk": {
+        "seconds": 12.63,
+        "words": 17
+      },
+      "vi": {
+        "seconds": 12.17,
+        "words": 30
+      }
+    },
+    "narrator-f": {
+      "bg": {
+        "seconds": 7.24,
+        "words": 19
+      },
+      "cs": {
+        "seconds": 8.5,
+        "words": 16
+      },
+      "da": {
+        "seconds": 8.54,
+        "words": 20
+      },
+      "de": {
+        "seconds": 8.27,
+        "words": 21
+      },
+      "el": {
+        "seconds": 9.38,
+        "words": 20
+      },
+      "en": {
+        "seconds": 6.73,
+        "words": 23
+      },
+      "es": {
+        "seconds": 6.22,
+        "words": 18
+      },
+      "fi": {
+        "seconds": 7.01,
+        "words": 15
+      },
+      "fr": {
+        "seconds": 7.76,
+        "words": 21
+      },
+      "hi": {
+        "seconds": 8.08,
+        "words": 26
+      },
+      "hr": {
+        "seconds": 8.87,
+        "words": 19
+      },
+      "hu": {
+        "seconds": 7.15,
+        "words": 16
+      },
+      "id": {
+        "seconds": 11.15,
+        "words": 19
+      },
+      "it": {
+        "seconds": 7.29,
+        "words": 19
+      },
+      "ja": {
+        "seconds": 11.24,
+        "words": 56
+      },
+      "ko": {
+        "seconds": 8.73,
+        "words": 16
+      },
+      "nl": {
+        "seconds": 7.2,
+        "words": 21
+      },
+      "no": {
+        "seconds": 6.13,
+        "words": 21
+      },
+      "pl": {
+        "seconds": 7.24,
+        "words": 20
+      },
+      "pt": {
+        "seconds": 7.76,
+        "words": 19
+      },
+      "ru": {
+        "seconds": 7.76,
+        "words": 18
+      },
+      "sk": {
+        "seconds": 7.15,
+        "words": 18
+      },
+      "tl": {
+        "seconds": 10.03,
+        "words": 19
+      },
+      "tr": {
+        "seconds": 6.64,
+        "words": 17
+      },
+      "vi": {
+        "seconds": 7.29,
+        "words": 30
+      }
+    },
+    "narrator-m": {
+      "bg": {
+        "seconds": 7.38,
+        "words": 19
+      },
+      "cs": {
+        "seconds": 8.03,
+        "words": 16
+      },
+      "da": {
+        "seconds": 6.36,
+        "words": 20
+      },
+      "de": {
+        "seconds": 9.1,
+        "words": 21
+      },
+      "el": {
+        "seconds": 8.73,
+        "words": 20
+      },
+      "en": {
+        "seconds": 6.83,
+        "words": 23
+      },
+      "es": {
+        "seconds": 5.8,
+        "words": 18
+      },
+      "fi": {
+        "seconds": 7.99,
+        "words": 15
+      },
+      "fr": {
+        "seconds": 6.55,
+        "words": 21
+      },
+      "hi": {
+        "seconds": 7.76,
+        "words": 26
+      },
+      "hr": {
+        "seconds": 7.99,
+        "words": 19
+      },
+      "hu": {
+        "seconds": 6.87,
+        "words": 16
+      },
+      "id": {
+        "seconds": 12.68,
+        "words": 19
+      },
+      "it": {
+        "seconds": 6.59,
+        "words": 19
+      },
+      "ja": {
+        "seconds": 15.56,
+        "words": 56
+      },
+      "ko": {
+        "seconds": 6.55,
+        "words": 16
+      },
+      "nl": {
+        "seconds": 6.64,
+        "words": 21
+      },
+      "no": {
+        "seconds": 9.43,
+        "words": 21
+      },
+      "pl": {
+        "seconds": 8.13,
+        "words": 20
+      },
+      "pt": {
+        "seconds": 7.57,
+        "words": 19
+      },
+      "ru": {
+        "seconds": 6.92,
+        "words": 18
+      },
+      "sk": {
+        "seconds": 6.73,
+        "words": 18
+      },
+      "tl": {
+        "seconds": 11.15,
+        "words": 19
+      },
+      "tr": {
+        "seconds": 7.62,
+        "words": 17
+      },
+      "vi": {
+        "seconds": 12.21,
+        "words": 30
+      }
+    },
+    "river": {
+      "en": {
+        "seconds": 6.46,
+        "words": 23
+      }
+    },
+    "roger": {
+      "en": {
+        "seconds": 6.46,
+        "words": 23
+      }
+    },
+    "sarah": {
+      "en": {
+        "seconds": 6.78,
+        "words": 23
+      }
+    },
+    "storybook": {
+      "ar": {
+        "seconds": 6.97,
+        "words": 14
+      },
+      "bg": {
+        "seconds": 9.47,
+        "words": 19
+      },
+      "cs": {
+        "seconds": 6.5,
+        "words": 16
+      },
+      "da": {
+        "seconds": 6.78,
+        "words": 20
+      },
+      "de": {
+        "seconds": 7.57,
+        "words": 21
+      },
+      "el": {
+        "seconds": 8.31,
+        "words": 20
+      },
+      "en": {
+        "seconds": 7.38,
+        "words": 23
+      },
+      "es": {
+        "seconds": 7.43,
+        "words": 18
+      },
+      "fi": {
+        "seconds": 7.71,
+        "words": 15
+      },
+      "fr": {
+        "seconds": 6.41,
+        "words": 21
+      },
+      "hi": {
+        "seconds": 8.82,
+        "words": 26
+      },
+      "hr": {
+        "seconds": 8.41,
+        "words": 19
+      },
+      "hu": {
+        "seconds": 6.22,
+        "words": 16
+      },
+      "id": {
+        "seconds": 10.4,
+        "words": 19
+      },
+      "it": {
+        "seconds": 8.68,
+        "words": 19
+      },
+      "ja": {
+        "seconds": 12.63,
+        "words": 56
+      },
+      "ko": {
+        "seconds": 14.44,
+        "words": 16
+      },
+      "ms": {
+        "seconds": 10.96,
+        "words": 19
+      },
+      "nl": {
+        "seconds": 8.27,
+        "words": 21
+      },
+      "no": {
+        "seconds": 8.78,
+        "words": 21
+      },
+      "pl": {
+        "seconds": 7.85,
+        "words": 20
+      },
+      "pt": {
+        "seconds": 7.85,
+        "words": 19
+      },
+      "ro": {
+        "seconds": 6.92,
+        "words": 21
+      },
+      "ru": {
+        "seconds": 8.68,
+        "words": 18
+      },
+      "sk": {
+        "seconds": 12.63,
+        "words": 18
+      },
+      "tl": {
+        "seconds": 9.98,
+        "words": 19
+      },
+      "tr": {
+        "seconds": 9.52,
+        "words": 17
+      },
+      "uk": {
+        "seconds": 9.43,
+        "words": 17
+      },
+      "vi": {
+        "seconds": 9.47,
+        "words": 30
+      }
+    },
+    "storyteller": {
+      "ar": {
+        "seconds": 14.77,
+        "words": 14
+      },
+      "bg": {
+        "seconds": 6.55,
+        "words": 19
+      },
+      "cs": {
+        "seconds": 7.66,
+        "words": 16
+      },
+      "da": {
+        "seconds": 6.73,
+        "words": 20
+      },
+      "de": {
+        "seconds": 8.08,
+        "words": 21
+      },
+      "el": {
+        "seconds": 6.73,
+        "words": 20
+      },
+      "en": {
+        "seconds": 6.69,
+        "words": 23
+      },
+      "es": {
+        "seconds": 9.43,
+        "words": 18
+      },
+      "fi": {
+        "seconds": 9.89,
+        "words": 15
+      },
+      "fr": {
+        "seconds": 10.63,
+        "words": 21
+      },
+      "hi": {
+        "seconds": 11.01,
+        "words": 26
+      },
+      "hr": {
+        "seconds": 7.57,
+        "words": 19
+      },
+      "hu": {
+        "seconds": 5.8,
+        "words": 16
+      },
+      "id": {
+        "seconds": 8.22,
+        "words": 19
+      },
+      "it": {
+        "seconds": 7.38,
+        "words": 19
+      },
+      "ja": {
+        "seconds": 13.84,
+        "words": 56
+      },
+      "ko": {
+        "seconds": 10.54,
+        "words": 16
+      },
+      "ms": {
+        "seconds": 9.06,
+        "words": 19
+      },
+      "nl": {
+        "seconds": 7.71,
+        "words": 21
+      },
+      "no": {
+        "seconds": 8.27,
+        "words": 21
+      },
+      "pl": {
+        "seconds": 6.32,
+        "words": 20
+      },
+      "pt": {
+        "seconds": 6.78,
+        "words": 19
+      },
+      "ru": {
+        "seconds": 8.08,
+        "words": 18
+      },
+      "sk": {
+        "seconds": 10.22,
+        "words": 18
+      },
+      "tl": {
+        "seconds": 10.45,
+        "words": 19
+      },
+      "tr": {
+        "seconds": 7.29,
+        "words": 17
+      },
+      "uk": {
+        "seconds": 7.66,
+        "words": 17
+      },
+      "vi": {
+        "seconds": 7.01,
+        "words": 30
+      }
+    },
+    "trailer": {
+      "ar": {
+        "seconds": 7.57,
+        "words": 14
+      },
+      "bg": {
+        "seconds": 6.78,
+        "words": 19
+      },
+      "cs": {
+        "seconds": 6.55,
+        "words": 16
+      },
+      "da": {
+        "seconds": 7.34,
+        "words": 20
+      },
+      "de": {
+        "seconds": 11.24,
+        "words": 21
+      },
+      "el": {
+        "seconds": 7.06,
+        "words": 20
+      },
+      "en": {
+        "seconds": 9.38,
+        "words": 23
+      },
+      "es": {
+        "seconds": 7.57,
+        "words": 18
+      },
+      "fi": {
+        "seconds": 7.48,
+        "words": 15
+      },
+      "fr": {
+        "seconds": 7.57,
+        "words": 21
+      },
+      "hi": {
+        "seconds": 9.61,
+        "words": 26
+      },
+      "hr": {
+        "seconds": 7.2,
+        "words": 19
+      },
+      "hu": {
+        "seconds": 7.48,
+        "words": 16
+      },
+      "id": {
+        "seconds": 9.85,
+        "words": 19
+      },
+      "it": {
+        "seconds": 7.01,
+        "words": 19
+      },
+      "ja": {
+        "seconds": 12.72,
+        "words": 56
+      },
+      "ko": {
+        "seconds": 12.59,
+        "words": 16
+      },
+      "ms": {
+        "seconds": 12.72,
+        "words": 19
+      },
+      "nl": {
+        "seconds": 5.85,
+        "words": 21
+      },
+      "no": {
+        "seconds": 9.2,
+        "words": 21
+      },
+      "pl": {
+        "seconds": 9.06,
+        "words": 20
+      },
+      "pt": {
+        "seconds": 7.62,
+        "words": 19
+      },
+      "ru": {
+        "seconds": 8.17,
+        "words": 18
+      },
+      "sk": {
+        "seconds": 6.87,
+        "words": 18
+      },
+      "tl": {
+        "seconds": 10.22,
+        "words": 19
+      },
+      "tr": {
+        "seconds": 7.15,
+        "words": 17
+      },
+      "uk": {
+        "seconds": 7.52,
+        "words": 17
+      },
+      "vi": {
+        "seconds": 6.73,
+        "words": 30
+      }
+    },
+    "upbeat": {
+      "bg": {
+        "seconds": 7.01,
+        "words": 19
+      },
+      "cs": {
+        "seconds": 8.96,
+        "words": 16
+      },
+      "de": {
+        "seconds": 10.45,
+        "words": 21
+      },
+      "el": {
+        "seconds": 7.8,
+        "words": 20
+      },
+      "en": {
+        "seconds": 5.02,
+        "words": 23
+      },
+      "es": {
+        "seconds": 5.39,
+        "words": 18
+      },
+      "fi": {
+        "seconds": 7.76,
+        "words": 15
+      },
+      "fr": {
+        "seconds": 6.83,
+        "words": 21
+      },
+      "hi": {
+        "seconds": 7.48,
+        "words": 26
+      },
+      "hr": {
+        "seconds": 9.06,
+        "words": 19
+      },
+      "id": {
+        "seconds": 11.42,
+        "words": 19
+      },
+      "it": {
+        "seconds": 7.06,
+        "words": 19
+      },
+      "ja": {
+        "seconds": 9.85,
+        "words": 56
+      },
+      "ko": {
+        "seconds": 9.52,
+        "words": 16
+      },
+      "nl": {
+        "seconds": 6.87,
+        "words": 21
+      },
+      "no": {
+        "seconds": 8.41,
+        "words": 21
+      },
+      "pl": {
+        "seconds": 5.94,
+        "words": 20
+      },
+      "pt": {
+        "seconds": 6.41,
+        "words": 19
+      },
+      "ru": {
+        "seconds": 10.4,
+        "words": 18
+      },
+      "sk": {
+        "seconds": 7.15,
+        "words": 18
+      },
+      "tl": {
+        "seconds": 11.1,
+        "words": 19
+      },
+      "tr": {
+        "seconds": 7.38,
+        "words": 17
+      },
+      "uk": {
+        "seconds": 8.31,
+        "words": 17
+      },
+      "vi": {
+        "seconds": 6.08,
+        "words": 30
+      }
+    },
+    "will": {
+      "en": {
+        "seconds": 6.92,
         "words": 23
       }
     }

@@ -110,12 +110,14 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
   there are, the run is laid out again once it has (`layOutScenes`), and nothing can be given per scene before
   that. The arithmetic is in `src/duration.ts`, which reads nothing and is imported by the browser too: keep it
   that way. A length is a target for the writing, never a duration a visual is made to fit.
-- **A video is asked for in a language** (`request.language`; phase 7 spec §13): the script writes what is
-  heard in it and what the picture models read in English, and the voice speaks from its clip in it. The
-  languages and voices on offer are in `src/voice/language.ts`, held by a test to the voice worker's own files;
-  the words a length comes to depend on the language (`wordsPerSecond`: English measured in videos, the others
-  worked out from the samples). Twenty languages (§14): one is added only when the voice model speaks it, its
-  words are set apart by spaces, and a shipped caption typeface has its letters (`fontCovers`).
+- **A video is asked for in a language** (`request.language`; phase 7 spec §13, §17): the script writes what is
+  heard in it and what the picture models read in English, and the voice speaks it. Thirty-one languages, each one
+  the hosted voice has hundreds of native voices in; the studio's own voice speaks nineteen of them
+  (`OWN_VOICE_LANGUAGES`), and without the hosted voice only those are offered. The words a length comes to depend
+  on the language (`wordsPerSecond`). **Chinese and Japanese write no spaces**: their length is counted in characters
+  and their words found by `Intl.Segmenter` (`src/voice/words.ts`); count and split words through that module, never
+  with `split(/\s+/)`. Arabic is set right to left, captions carry the language so capitals follow it (Turkish İ),
+  and a script the styles' faces lack is set in its own (`SCRIPT_FACES`, `fontCovers`).
 - **New runs are spoken by the hosted voice while `ELEVENLABS_API_KEY` is set** (phase 5 spec §11; the studio's own
   voice is the fallback, and a run stays on the voice it was made with). The studio's voices are roles: the hosted
   voice that plays each, per language, is in `assets/voices/elevenlabs.json`, and the one resolved is part of a

@@ -1,10 +1,11 @@
 import { writeFile } from "node:fs/promises";
 import { scriptCost } from "../cost.js";
-import { type SceneSeconds, sceneBounds, sceneWords, scriptAnswerCost, scriptParts, timedScriptCost, type Timing, totalWords, wordsPerSecond, wordsTolerance } from "../duration.js";
+import { maxSceneUnits, type SceneSeconds, sceneBounds, sceneWords, scriptAnswerCost, scriptParts, timedScriptCost, type Timing, totalWords, wordsPerSecond, wordsTolerance } from "../duration.js";
 import { LlmOutline, LlmPart, LlmScript, MAX_HOOK_WORDS, MAX_NARRATION_WORDS } from "../manifest/schema.js";
 import { layOutScenes } from "../manifest/store.js";
 import { PRESETS } from "../presets.js";
 import { voicePace } from "../voice/language.js";
+import { countUnits, hookCap, isUnspaced, lengthUnit, unitsPerWord } from "../voice/words.js";
 import { TIMEOUTS, withRetry } from "../providers/retry.js";
 import type { ScriptRequest } from "../providers/types.js";
 import { outPath, paths } from "./paths.js";
@@ -18,9 +19,11 @@ type Checked<T> = { ok: true; value: T } | { ok: false; problems: string[] };
 
 const issues = (error: { issues: Array<{ path: PropertyKey[]; message: string }> }): string[] => error.issues.map((i) => `${i.path.join(".")}: ${i.message}`);
 
-function hookProblems(hook: string): string[] {
-  const words = countWords(hook);
-  return words === 0 || words > MAX_HOOK_WORDS ? [`hook has ${words} words (1-${MAX_HOOK_WORDS})`] : [];
+/** The hook fits on the screen: six words at most, or in a language without spaces the characters that say as much. */
+function hookProblems(hook: string, language?: string, voice?: string): string[] {
+  const words = countUnits(hook, language);
+  const most = isUnspaced(language) ? hookCap(language, wordsPerSecond(language, voice)) : MAX_HOOK_WORDS;
+  return words === 0 || words > most ? [`hook has ${words} ${lengthUnit(language)} (1-${most})`] : [];
 }
 
 /**
@@ -28,27 +31,31 @@ function hookProblems(hook: string): string[] {
  * ones the model was given: an answer is paid for whether or not it is accepted, and the video's real length
  * is the voice's in any case, so only an answer that would come out clearly wrong is sent back.
  */
-export function timingProblems(scenes: Array<{ narration: string }>, sec: number, sceneSec: SceneSeconds, what = "the script", rate?: number): string[] {
+export function timingProblems(scenes: Array<{ narration: string }>, sec: number, sceneSec: SceneSeconds, what = "the script", rate?: number, language?: string): string[] {
   const problems: string[] = [];
   const bounds = sceneBounds(sec, sceneSec);
   const [fewest, most] = [Math.max(1, Math.floor(bounds.min * 0.8)), Math.ceil(bounds.max * 1.2)];
   if (scenes.length < fewest || scenes.length > most) {
     problems.push(`${what} has ${scenes.length} scenes; it must have between ${bounds.min} and ${bounds.max}`);
   }
-  const each = sceneWords(sceneSec, rate);
+  // (counted in words, or in Chinese and Japanese in characters, with limits that say as much: phase 7 spec §17)
+  const unit = lengthUnit(language);
+  const cap = isUnspaced(language) ? maxSceneUnits(language, rate ?? wordsPerSecond(language)) : MAX_NARRATION_WORDS;
+  const near = isUnspaced(language) ? Math.round(2 * unitsPerWord(language, rate ?? wordsPerSecond(language))) : 2;
+  const each = sceneWords(sceneSec, rate, cap);
   let total = 0;
   scenes.forEach((s, i) => {
-    const words = countWords(s.narration);
+    const words = countUnits(s.narration, language);
     total += words;
-    if (words > MAX_NARRATION_WORDS) problems.push(`scene ${i + 1} narration has ${words} words (max ${MAX_NARRATION_WORDS})`);
-    else if (words > each.max + 2 || words < Math.max(1, each.min - 2)) {
-      problems.push(`scene ${i + 1} narration has ${words} words; a scene of ${sceneSec.min === sceneSec.max ? sceneSec.min : `${sceneSec.min}-${sceneSec.max}`} seconds has ${each.min} to ${each.max}`);
+    if (words > cap) problems.push(`scene ${i + 1} narration has ${words} ${unit} (max ${cap})`);
+    else if (words > each.max + near || words < Math.max(1, each.min - near)) {
+      problems.push(`scene ${i + 1} narration has ${words} ${unit}; a scene of ${sceneSec.min === sceneSec.max ? sceneSec.min : `${sceneSec.min}-${sceneSec.max}`} seconds has ${each.min} to ${each.max}`);
     }
   });
   const wanted = totalWords(sec, rate);
   const slack = wordsTolerance(wanted);
   if (Math.abs(total - wanted) > slack) {
-    problems.push(`the narrations of ${what} have ${total} words in all; ${Math.round(sec)} seconds of speech are about ${wanted} (between ${wanted - slack} and ${wanted + slack})`);
+    problems.push(`the narrations of ${what} have ${total} ${unit} in all; ${Math.round(sec)} seconds of speech are about ${wanted} (between ${wanted - slack} and ${wanted + slack})`);
   }
   return problems;
 }
@@ -61,27 +68,28 @@ export function validateScript(raw: unknown, sceneCount: number, timing?: Timing
   const parsed = LlmScript.safeParse(raw);
   if (!parsed.success) return { ok: false, problems: issues(parsed.error) };
   const problems: string[] = [];
-  if (timing) problems.push(...timingProblems(parsed.data.scenes, timing.targetSec, timing.sceneSec, "the script", wordsPerSecond(language, voice)));
+  if (timing) problems.push(...timingProblems(parsed.data.scenes, timing.targetSec, timing.sceneSec, "the script", wordsPerSecond(language, voice), language));
   else {
     if (parsed.data.scenes.length !== sceneCount) {
       problems.push(`expected exactly ${sceneCount} scenes, got ${parsed.data.scenes.length}`);
     }
+    const most = isUnspaced(language) ? maxSceneUnits(language, wordsPerSecond(language, voice)) : MAX_NARRATION_WORDS;
     parsed.data.scenes.forEach((s, i) => {
-      const words = countWords(s.narration);
-      if (words > MAX_NARRATION_WORDS) {
-        problems.push(`scene ${i + 1} narration has ${words} words (max ${MAX_NARRATION_WORDS})`);
+      const words = countUnits(s.narration, language);
+      if (words > most) {
+        problems.push(`scene ${i + 1} narration has ${words} ${lengthUnit(language)} (max ${most})`);
       }
     });
   }
-  problems.push(...hookProblems(parsed.data.hook));
+  problems.push(...hookProblems(parsed.data.hook, language, voice));
   return problems.length > 0 ? { ok: false, problems } : { ok: true, script: parsed.data };
 }
 
 /** A long video's outline: the right number of parts, and a hook that fits on the screen. */
-export function validateOutline(raw: unknown, parts: number): Checked<LlmOutline> {
+export function validateOutline(raw: unknown, parts: number, language?: string, voice?: string): Checked<LlmOutline> {
   const parsed = LlmOutline.safeParse(raw);
   if (!parsed.success) return { ok: false, problems: issues(parsed.error) };
-  const problems = hookProblems(parsed.data.hook);
+  const problems = hookProblems(parsed.data.hook, language, voice);
   if (parsed.data.parts.length !== parts) problems.push(`expected exactly ${parts} parts, got ${parsed.data.parts.length}`);
   return problems.length > 0 ? { ok: false, problems } : { ok: true, value: parsed.data };
 }
@@ -90,7 +98,7 @@ export function validateOutline(raw: unknown, parts: number): Checked<LlmOutline
 export function validatePart(raw: unknown, index: number, sec: number, sceneSec: SceneSeconds, language?: string, voice?: string): Checked<LlmPart["scenes"]> {
   const parsed = LlmPart.safeParse(raw);
   if (!parsed.success) return { ok: false, problems: issues(parsed.error) };
-  const problems = timingProblems(parsed.data.scenes, sec, sceneSec, `part ${index + 1}`, wordsPerSecond(language, voice));
+  const problems = timingProblems(parsed.data.scenes, sec, sceneSec, `part ${index + 1}`, wordsPerSecond(language, voice), language);
   return problems.length > 0 ? { ok: false, problems } : { ok: true, value: parsed.data.scenes };
 }
 
@@ -122,7 +130,7 @@ async function writeInParts(ctx: RunContext, req: ScriptRequest, timing: Timing,
   if (m.scriptParts?.inputHash !== ctx.inputHash) m.scriptParts = { inputHash: ctx.inputHash, parts: [] };
   const kept = m.scriptParts;
   const outline = kept.outline ?? (await answer(ctx, "script:outline", scriptAnswerCost(ctx.prices, 0), { ...req, ask: { kind: "outline", partSec } },
-    (raw) => validateOutline(raw, partSec.length), (value) => (kept.outline = value)));
+    (raw) => validateOutline(raw, partSec.length, req.language, req.voiceId), (value) => (kept.outline = value)));
   for (let i = kept.parts.length; i < partSec.length; i++) {
     const previous = (kept.parts[i - 1] ?? []).slice(-2).map((s) => s.narration);
     await answer(ctx, `script:part:${i}`, scriptAnswerCost(ctx.prices, sceneBounds(partSec[i], timing.sceneSec).max), { ...req, ask: { kind: "part", index: i, partSec, outline, previous } },

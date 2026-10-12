@@ -140,10 +140,10 @@ test("a new video is asked for by its length, how long each scene stays and what
   await page.getByTestId("look-film_noir").click();
   await expect(page.getByTestId("style-note")).toContainText("Film noir. Suits true crime, detectives");
 
-  // The language the video is told in, one of twenty by its own name, and the voice: every voice has a sample
+  // The language the video is told in, one of thirty-one by its own name, and the voice: every voice has a sample
   // in the language that is chosen.
-  await expect(page.getByTestId("language").locator("option")).toHaveCount(20);
-  await expect(page.getByTestId("language").locator("option")).toContainText(["English", "Türkçe", "Español", "Deutsch", "Русский", "Tiếng Việt"]);
+  await expect(page.getByTestId("language").locator("option")).toHaveCount(31);
+  await expect(page.getByTestId("language").locator("option")).toContainText(["English", "Türkçe", "Español", "Deutsch", "Русский", "Tiếng Việt", "日本語", "中文", "العربية"]);
   await expect(page.getByTestId("language")).toHaveValue("en");
   // The hosted voices chosen (phase 5 spec §11): in English the studio's twelve and the service's twenty-one
   // best-known, each shown by its name, who it sounds like and what it suits.
@@ -156,7 +156,7 @@ test("a new video is asked for by its length, how long each scene stays and what
   const sample = page.waitForRequest((r) => r.url().endsWith("/voices/narrator-f.es.mp3"));
   await page.getByTestId("listen-narrator-f").click();
   await sample;
-  await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName("Stop the sample of Narrator (female)");
+  await expect(page.getByTestId("listen-narrator-f")).toHaveAccessibleName(/^Stop the sample of /);
   // a sample is of one language: choosing another ends it
   await page.getByTestId("language").selectOption("tr");
   // in Turkish the same voice is a Turkish one, by its own name
@@ -168,9 +168,15 @@ test("a new video is asked for by its length, how long each scene stays and what
     expect((await page.request.get(`/voices/${voice}.tr.mp3`)).status(), voice).toBe(200);
   }
   await expect(page.getByTestId("voices-not-native")).toHaveCount(0);
-  await page.getByTestId("language").selectOption("pt");
-  await expect(page.getByTestId("voices-not-native")).toBeVisible();
-  await expect(page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio")).toHaveCount(2);
+  // these languages have twelve voices native to them, each with its sample (phase 7 spec §17; a few have nine to eleven)
+  for (const lang of ["pt", "ja", "hi", "ko"]) {
+    await page.getByTestId("language").selectOption(lang);
+    await expect(page.getByTestId("voices-not-native")).toHaveCount(0);
+    await expect(page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio")).toHaveCount(12);
+    for (const voice of await page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio").evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")!.replace("voice-", "")))) {
+      expect((await page.request.get(`/voices/${voice}.${lang}.mp3`)).status(), `${voice}.${lang}`).toBe(200);
+    }
+  }
   await page.getByTestId("language").selectOption("tr");
   await page.getByTestId("voice-narrator-f").click();
 

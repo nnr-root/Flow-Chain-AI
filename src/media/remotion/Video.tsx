@@ -15,8 +15,8 @@ export const Video: React.FC<RenderProps> = (props) => (
       <SceneLayer scenes={props.scenes} />
       <TransitionLayer scenes={props.scenes} boundaries={props.boundaries} />
     </SnapZoom>
-    <Captions style={props.captions.style} bottomPct={props.captions.bottomPct} pages={props.captions.pages} />
-    {props.hook && <HookLayer hook={props.hook} style={props.captions.style} />}
+    <Captions style={props.captions.style} bottomPct={props.captions.bottomPct} pages={props.captions.pages} lang={props.captions.lang} />
+    {props.hook && <HookLayer hook={props.hook} style={props.captions.style} lang={props.captions.lang} />}
     {props.brand && <BrandLayer brand={props.brand} />}
     <AudioLayer audio={props.audio} totalFrames={props.totalFrames} />
   </AbsoluteFill>

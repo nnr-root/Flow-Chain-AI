@@ -118,7 +118,11 @@ export const RenderProps = z.object({
   totalFrames: z.number().int().positive(),
   scenes: z.array(SceneProps),
   boundaries: z.array(Boundary),
-  captions: z.object({ style: CaptionStyle, bottomPct: z.number(), pages: z.array(CaptionPage) }),
+  /**
+   * `lang`: the video's language, where it was asked for one (phase 7 spec §17): capitals follow it (Turkish "i" is
+   * "İ"), a language without spaces sets its words side by side, and Arabic is set right to left.
+   */
+  captions: z.object({ style: CaptionStyle, bottomPct: z.number(), pages: z.array(CaptionPage), lang: z.string().regex(/^[a-z]{2}$/).optional() }),
   /** null = no hook (no zoom, no title, no impact sound). The title uses `captions.style`. */
   hook: HookProps.nullable(),
   brand: BrandProps.nullable(),

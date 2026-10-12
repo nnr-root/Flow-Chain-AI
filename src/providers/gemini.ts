@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
-import { lengthInWords, sceneBounds, sceneWords, totalWords, typicalSceneWords, wordsPerSecond } from "../duration.js";
+import { lengthInWords, maxSceneUnits, sceneBounds, sceneWords, totalWords, typicalSceneWords, wordsPerSecond } from "../duration.js";
+import { hookCap, isUnspaced, lengthUnit, unitsPerWord } from "../voice/words.js";
 import { LANGUAGE_IN_ENGLISH } from "../voice/language.js";
 import { LlmOutline, LlmPart, LlmScript, MAX_COUNTED_SCENES, MAX_NARRATION_WORDS } from "../manifest/schema.js";
 import { PRESETS } from "../presets.js";
@@ -33,13 +34,15 @@ const seconds = (r: { min: number; max: number }): string => (r.min === r.max ? 
 /** What a stretch of a video asked for by its length must come to: its words, and the scenes it may be told in. */
 function lengthRules(what: string, sec: number, sceneSec: { min: number; max: number }, language?: string, voice?: string): string[] {
   const rate = wordsPerSecond(language, voice);
-  const words = sceneWords(sceneSec, rate);
+  const words = sceneWords(sceneSec, rate, maxSceneUnits(language, rate));
   const scenes = sceneBounds(sec, sceneSec);
+  // (in Chinese and Japanese, counted in characters: phase 7 spec §17)
+  const unit = lengthUnit(language);
   return [
-    `Length: ${what} runs about ${Math.round(sec)} seconds when spoken. The voice speaks about ${rate} words a second, so all its narrations together are about ${totalWords(sec, rate)} words. Count them: far fewer and the video is too short, far more and it is too long.`,
-    `Each scene stays on screen for ${seconds(sceneSec)} seconds, so each scene's narration is ${words.min} to ${words.max} words.`,
+    `Length: ${what} runs about ${Math.round(sec)} seconds when spoken. The voice speaks about ${rate} ${unit} a second, so all its narrations together are about ${totalWords(sec, rate)} ${unit}. Count them: far fewer and the video is too short, far more and it is too long.`,
+    `Each scene stays on screen for ${seconds(sceneSec)} seconds, so each scene's narration is ${words.min} to ${words.max} ${unit}.`,
     // (asked for on 2026-10-10 without this, the model wrote every scene at the top of its range, and the video ran a fifth long)
-    ...(sceneSec.min === sceneSec.max ? [] : [`Use the whole range: on average a scene is about ${typicalSceneWords(sceneSec, rate)} words. Do not write every scene at the longest length; the total number of words is what decides how long the video runs, and it must not be exceeded.`]),
+    ...(sceneSec.min === sceneSec.max ? [] : [`Use the whole range: on average a scene is about ${typicalSceneWords(sceneSec, rate)} ${unit}. Do not write every scene at the longest length; the total number of ${unit} is what decides how long the video runs, and it must not be exceeded.`]),
     scenes.min === scenes.max
       ? `Return exactly ${scenes.min} ${scenes.min === 1 ? "scene" : "scenes"}.`
       : `Return between ${scenes.min} and ${scenes.max} scenes. You decide how many and how long each one is, within those limits: a quick beat gets a short scene, a thought that needs room a longer one.`,
@@ -54,7 +57,12 @@ const presetRules = (req: ScriptRequest): string[] => [
     : "- stylePreset: set it to the preset that best fits the topic.",
 ];
 
-const hookRule = "- hook: 2-6 punchy words shown as a big title over the first 3 seconds; tease the payoff without giving it away; no emojis, hashtags or quotes.";
+const HOOK_RULE = "- hook: 2-6 punchy words shown as a big title over the first 3 seconds; tease the payoff without giving it away; no emojis, hashtags or quotes.";
+/** The hook's rule: in words, or in a language without spaces in characters (`hookCap`). */
+const hookRule = (req: ScriptRequest): string =>
+  isUnspaced(req.language)
+    ? `- hook: a punchy title of at most ${hookCap(req.language, wordsPerSecond(req.language, req.voiceId))} characters shown big over the first 3 seconds; tease the payoff without giving it away; no emojis, hashtags or quotes.`
+    : HOOK_RULE;
 
 const bibleRules = (req: ScriptRequest): string[] => [
   "- styleBible.artStyle: one visual style used by every scene (medium, lighting, lens, mood), matching the style preset.",
@@ -90,10 +98,16 @@ function sceneRules(req: ScriptRequest): string[] {
   ];
 }
 
-const narrationRule = (req: ScriptRequest): string =>
-  req.timing
-    ? `- narration: the spoken voiceover for the scene, ${sceneWords(req.timing.sceneSec, wordsPerSecond(req.language, req.voiceId)).min} to ${sceneWords(req.timing.sceneSec, wordsPerSecond(req.language, req.voiceId)).max} words and never more than ${MAX_NARRATION_WORDS}, plain text, no stage directions, emojis or hashtags.`
-    : `- narration: the spoken voiceover for the scene, at most ${MAX_NARRATION_WORDS} words (ideally 12-15), plain text, no stage directions, emojis or hashtags.`;
+const narrationRule = (req: ScriptRequest): string => {
+  const rate = wordsPerSecond(req.language, req.voiceId);
+  const most = maxSceneUnits(req.language, rate);
+  const unit = lengthUnit(req.language);
+  const k = unitsPerWord(req.language, rate);
+  const each = req.timing ? sceneWords(req.timing.sceneSec, rate, most) : undefined;
+  return each
+    ? `- narration: the spoken voiceover for the scene, ${each.min} to ${each.max} ${unit} and never more than ${most}, plain text, no stage directions, emojis or hashtags.`
+    : `- narration: the spoken voiceover for the scene, at most ${most} ${unit} (ideally ${Math.round(12 * k)}-${Math.round(15 * k)}), plain text, no stage directions, emojis or hashtags.`;
+};
 
 /**
  * The language a video is told in, when one was asked for. What is heard and read is in it; what the picture
@@ -118,7 +132,7 @@ function wholePrompt(req: ScriptRequest): string {
     ...languageRule(req, "the title, the hook and every narration"),
     narrationRule(req),
     "- All narrations together read as one continuous script with a strong hook in scene 1.",
-    hookRule,
+    hookRule(req),
     ...bibleRules(req),
     ...sceneRules(req),
     ...feedbackLines(req),
@@ -137,7 +151,7 @@ function outlinePrompt(req: ScriptRequest, partSec: number[]): string {
     "Rules:",
     ...languageRule(req, "the title, the hook and every part's summary"),
     "- title: the video's title.",
-    hookRule,
+    hookRule(req),
     ...bibleRules(req),
     `- parts: exactly ${partSec.length}, in order. For each, summary: what that part tells, in one or two plain sentences, specific enough that someone else could write it.`,
     "- The parts together are one story with a direction: part 1 opens on the hook and makes a promise, each part adds something the ones before did not, and the last part pays the promise off. No part repeats another, and none is filler.",

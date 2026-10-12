@@ -1,5 +1,6 @@
 import { type LlmRates, round4, scriptCost } from "./cost.js";
 import { voicePace } from "./voice/language.js";
+import { unitsPerWord } from "./voice/words.js";
 
 /*
  * A video asked for by its length (phase 7 spec): how long the whole of it runs and how long each scene stays,
@@ -39,8 +40,9 @@ export const WORDS_PER_SECOND = 2.4;
  */
 // (samples of 2026-10-10: English 3.23 words a second there against 2.42 in videos, so each is its sample's
 // figure times 0.75)
+// (Chinese and Japanese are counted in characters, not words: `countUnits`; their figures are characters a second)
 const WORDS_PER_SECOND_IN: Record<string, number> = {
-  en: WORDS_PER_SECOND, tr: 1.9, es: 1.8, fr: 2.0, de: 1.9, it: 1.9, pt: 1.9, nl: 2.2, pl: 2.1, ru: 1.8, sv: 2.0, da: 2.0, no: 1.9, fi: 1.4, el: 2.2, id: 1.5, ms: 1.6, tl: 1.6, sw: 1.6, vi: 3.2,
+  en: WORDS_PER_SECOND, tr: 1.7, es: 2.1, fr: 2.1, de: 1.7, it: 1.9, pt: 1.8, nl: 2.2, pl: 1.8, ru: 1.7, sv: 2.0, da: 1.9, no: 2.0, fi: 1.4, el: 1.6, id: 1.1, ms: 1.6, tl: 1.3, vi: 2.3, bg: 1.8, ro: 2.0, cs: 1.4, hr: 1.6, sk: 1.8, uk: 1.8, hu: 1.6, ja: 3.0, zh: 4.2, ko: 1.5, hi: 2.3, ar: 1.8,
 };
 export const wordsPerSecond = (language?: string, voice?: string): number =>
   Math.round((WORDS_PER_SECOND_IN[language ?? "en"] ?? WORDS_PER_SECOND) * voicePace(voice) * 100) / 100;
@@ -69,11 +71,17 @@ export function expectedScenes(t: Timing): number {
   return Math.max(min, Math.min(max, Math.round(t.targetSec / ((t.sceneSec.min + t.sceneSec.max) / 2))));
 }
 
+/**
+ * The most a scene's narration may have in a language: sixteen words, or in a language without spaces the
+ * characters its voice says in the time of sixteen English words.
+ */
+export const maxSceneUnits = (language: string | undefined, rate: number): number => Math.round(MAX_SCENE_WORDS * unitsPerWord(language, rate));
+
 /** The words of one scene's narration. A scene asked for at one exact length is given a word either way. */
-export function sceneWords(sceneSec: SceneSeconds, rate = WORDS_PER_SECOND): Range {
+export function sceneWords(sceneSec: SceneSeconds, rate = WORDS_PER_SECOND, most = MAX_SCENE_WORDS): Range {
   const slack = sceneSec.min === sceneSec.max ? 1 : 0;
   const min = Math.max(2, Math.floor(sceneSec.min * rate) - slack);
-  return { min, max: Math.max(min, Math.min(MAX_SCENE_WORDS, Math.ceil(sceneSec.max * rate) + slack)) };
+  return { min, max: Math.max(min, Math.min(most, Math.ceil(sceneSec.max * rate) + slack)) };
 }
 
 /** The words a scene has on average when a script uses its range and not only the top of it. */

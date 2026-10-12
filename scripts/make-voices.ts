@@ -38,6 +38,8 @@ import { RunpodClient } from "../src/providers/runpod.js";
 import { heardShare } from "../src/voice/align.js";
 import { pitchFits, TOO_ALIKE, voiceDistance, type VoiceFeatures, voiceFeatures } from "../src/voice/features.js";
 import { BUILT_IN_VOICES, OWN_VOICE_IDS, type OwnVoiceId, SPEECH_LANGUAGES, type SpeechLanguage, VOICE_DESIGNS, type VoiceId, VOICES } from "../src/voice/language.js";
+import { SERVICE_CODE } from "../src/providers/elevenlabs.js";
+import { countUnits } from "../src/voice/words.js";
 import { HOSTED_FILE, hostedCatalogue, hostedLanguages, hostedRoles, hostedVoice } from "../src/voice/hosted.js";
 import { designedDir, designedVoices } from "../src/voice/library.js";
 
@@ -61,8 +63,19 @@ export const SAMPLE_LINES: Record<SpeechLanguage, string> = {
   id: "Setiap kisah besar dimulai dari satu pertanyaan. Tetaplah bersama saya sebentar, dan saya akan menunjukkan bagaimana kisah ini berakhir.",
   ms: "Setiap kisah hebat bermula dengan satu soalan. Tunggu bersama saya sebentar, dan saya akan tunjukkan bagaimana kisah ini berakhir.",
   tl: "Bawat dakilang kuwento ay nagsisimula sa iisang tanong. Samahan mo ako sandali, at ipapakita ko kung paano ito nagtatapos.",
-  sw: "Kila hadithi kubwa huanza na swali moja. Kaa nami kwa muda, nami nitakuonyesha jinsi hii inavyoisha.",
   vi: "Mỗi câu chuyện lớn đều bắt đầu từ một câu hỏi. Hãy ở lại với tôi một chút, tôi sẽ cho bạn thấy câu chuyện này kết thúc thế nào.",
+  bg: "Всяка голяма история започва с един-единствен въпрос. Остани с мен за момент и ще ти покажа как завършва тази.",
+  ro: "Orice poveste mare începe cu o singură întrebare. Rămâi cu mine o clipă și îți voi arăta cum se termină aceasta.",
+  cs: "Každý velký příběh začíná jedinou otázkou. Zůstaň chvíli se mnou a ukážu ti, jak tenhle skončí.",
+  hr: "Svaka velika priča počinje jednim jedinim pitanjem. Ostani sa mnom na trenutak i pokazat ću ti kako ova završava.",
+  sk: "Každý veľký príbeh sa začína jedinou otázkou. Zostaň chvíľu so mnou a ukážem ti, ako sa tento skončí.",
+  uk: "Кожна велика історія починається з одного-єдиного запитання. Побудь зі мною хвилинку, і я покажу, чим закінчиться ця.",
+  hu: "Minden nagy történet egyetlen kérdéssel kezdődik. Maradj velem egy pillanatra, és megmutatom, hogyan ér véget ez.",
+  ja: "すべての偉大な物語は、ひとつの問いから始まります。少しだけ私と一緒にいてください。この物語がどう終わるのか、お見せします。",
+  zh: "每一个伟大的故事，都始于一个问题。请陪我片刻，我会告诉你这个故事是如何结束的。",
+  ko: "모든 위대한 이야기는 하나의 질문에서 시작됩니다. 잠시만 저와 함께해 주세요. 이 이야기가 어떻게 끝나는지 보여 드릴게요.",
+  hi: "हर महान कहानी एक ही सवाल से शुरू होती है। एक पल मेरे साथ रहिए, और मैं आपको दिखाऊँगा कि यह कहानी कैसे ख़त्म होती है।",
+  ar: "كل قصة عظيمة تبدأ بسؤال واحد. ابقَ معي للحظة، وسأريك كيف تنتهي هذه القصة.",
 };
 
 type Sample = { seconds: number; words: number };
@@ -237,26 +250,30 @@ type Candidate = {
   usage?: number;
   preview?: string;
   source: "account" | "library";
+  /** The language the library has it as its own (a voice may also be verified in others, with its own accent). */
+  nativeLanguage?: string;
 };
 
 /**
  * The hosted voices native to a language, with what is said of each and its preview: the library's (by use, most
  * used first) and the account's own. Nothing is bought; the previews are the service's own files.
  */
-async function hostedCandidates(env: Env, language: string | undefined): Promise<void> {
+async function hostedCandidates(env: Env, language: string | undefined, pages = 3): Promise<void> {
   if (!language || !Object.hasOwn(SPEECH_LANGUAGES, language)) throw new Error(`say a language: one of ${Object.keys(SPEECH_LANGUAGES).join(", ")}`);
   const found: Candidate[] = [];
-  for (let page = 0; page < 3; page++) {
+  for (let page = 0; page < pages; page++) {
     const got = await hosted<{ voices: Array<Record<string, unknown>>; has_more: boolean }>(
       env,
-      `/v1/shared-voices?page_size=100&page=${page}&language=${language}&sort=usage_character_count_1y`,
+      `/v1/shared-voices?page_size=100&page=${page}&language=${SERVICE_CODE[language] ?? language}&sort=usage_character_count_1y`,
     );
     for (const v of got.voices) {
       found.push({
         voiceId: String(v.voice_id), publicOwnerId: String(v.public_owner_id), name: String(v.name),
         gender: v.gender as string | undefined, age: v.age as string | undefined, accent: v.accent as string | undefined,
         description: v.description as string | undefined, useCase: v.use_case as string | undefined,
-        usage: v.usage_character_count_1y as number | undefined, preview: v.preview_url as string | undefined, source: "library",
+        // its preview in this language where it has one: a voice's own preview is often in English, which says nothing of how it speaks this one
+        usage: v.usage_character_count_1y as number | undefined, source: "library", nativeLanguage: v.language as string | undefined,
+        preview: ((v.verified_languages as Array<{ language: string; preview_url?: string }> | undefined)?.find((x) => x.language === (SERVICE_CODE[language] ?? language) && x.preview_url)?.preview_url) ?? (v.preview_url as string | undefined),
       });
     }
     if (!got.has_more) break;
@@ -273,13 +290,16 @@ async function hostedCandidates(env: Env, language: string | undefined): Promise
   const dir = join(".superpowers/voices", language);
   await mkdir(dir, { recursive: true });
   let previews = 0;
-  for (const c of found) {
-    if (!c.preview || existsSync(join(dir, `${c.voiceId}.mp3`))) continue;
-    const res = await fetch(c.preview);
-    if (!res.ok) continue;
-    await writeFile(join(dir, `${c.voiceId}.mp3`), Buffer.from(await res.arrayBuffer()));
-    previews++;
-  }
+  // eight at a time: one after another, a hundred previews took five minutes
+  const wanted = found.filter((c) => c.preview && !existsSync(join(dir, `${c.voiceId}.mp3`)));
+  await Promise.all(Array.from({ length: 8 }, async () => {
+    for (let c = wanted.shift(); c; c = wanted.shift()) {
+      const res = await fetch(c.preview!).catch(() => null);
+      if (!res?.ok) continue;
+      await writeFile(join(dir, `${c.voiceId}.mp3`), Buffer.from(await res.arrayBuffer()));
+      previews++;
+    }
+  }));
   await writeFile(join(".superpowers/voices", `${language}.json`), `${JSON.stringify(found, null, 2)}\n`);
   console.log(`${found.length} candidate(s) for ${language}, ${previews} preview(s) downloaded, in .superpowers/voices/`);
 }
@@ -332,7 +352,8 @@ async function main(): Promise<void> {
   process.loadEnvFile(".env");
   const env = loadEnv();
   if (process.argv[2] === "--design") return design(env, process.argv.slice(3));
-  if (process.argv[2] === "--hosted-candidates") return hostedCandidates(env, process.argv[3]);
+  // (a third word: how many hundreds of the most used to look at; three by default)
+  if (process.argv[2] === "--hosted-candidates") return hostedCandidates(env, process.argv[3], process.argv[4] ? Number(process.argv[4]) : undefined);
   if (process.argv[2] === "--hosted-add") return hostedAdd(env, process.argv.slice(3));
   // --again: make the samples that are there again (they were made by another voice)
   const again = process.argv.includes("--again");
@@ -341,9 +362,9 @@ async function main(): Promise<void> {
   if (unknown.length > 0) throw new Error(`no such language: ${unknown.join(", ")} (the languages are ${Object.keys(SPEECH_LANGUAGES).join(", ")})`);
   const languages = (asked.length > 0 ? asked : Object.keys(SPEECH_LANGUAGES)) as SpeechLanguage[];
   const chosen = newRunProviders(env, "480p");
-  const voiceModel = newRunVoice(env).model;
-  const hosted = !voiceModel.startsWith("runpod:");
-  const { tts } = createProviders(env, { llm: env.GEMINI_MODEL, tts: voiceModel, image: chosen.image, video: chosen.video }, loadPrices());
+  const hosted = !newRunVoice(env).model.startsWith("runpod:");
+  // each language in the model that speaks it, as a run in it would be (phase 5 spec §11)
+  const ttsFor = (language: SpeechLanguage) => createProviders(env, { llm: env.GEMINI_MODEL, tts: newRunVoice(env, language).model, image: chosen.image, video: chosen.video }, loadPrices()).tts;
   const outDir = "web/public/voices";
   await mkdir(outDir, { recursive: true });
   const listed: Listed = existsSync(LIST) ? (JSON.parse(readFileSync(LIST, "utf8")) as Listed) : { madeOn: null, samples: {} };
@@ -360,14 +381,15 @@ async function main(): Promise<void> {
       // a sample that is there is not bought again (delete it from the list, or say --again, to make it again)
       if (!again && listed.samples[voice]?.[language] && existsSync(join(outDir, `${voice}.${language}.mp3`))) continue;
       try {
-        const said = await tts.speak({ text, voiceId: hosted ? hostedVoice(voice, language)! : voice, language });
+        const said = await ttsFor(language).speak({ text, voiceId: hosted ? hostedVoice(voice, language)! : voice, language });
         const raw = join(outDir, `_${voice}.${language}.raw`);
         await writeFile(raw, said.audio);
         const file = join(outDir, `${voice}.${language}.mp3`);
         await ffmpeg(["-i", raw, "-ac", "1", "-b:a", "64k", file]);
         await rm(raw, { force: true });
         const seconds = Math.round((await probeDuration(file)) * 100) / 100;
-        const words = text.split(/\s+/).filter(Boolean).length;
+        // (in characters for Chinese and Japanese, as their scripts are counted)
+        const words = countUnits(text, language);
         (listed.samples[voice] ??= {})[language] = { seconds, words };
         usd += said.costUsd ?? 0;
         console.log(`${language} ${voice}: ${seconds} s for ${words} words (${(words / seconds).toFixed(2)} a second)`);

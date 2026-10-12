@@ -1,4 +1,5 @@
 import type { WordTiming } from "../manifest/schema.js";
+import { isUnspaced } from "../voice/words.js";
 import { HttpError } from "./retry.js";
 import type { SpeakRequest, TtsProvider } from "./types.js";
 
@@ -17,7 +18,9 @@ const api = (): string => process.env.ELEVENLABS_API_BASE ?? "https://api.eleven
  * do well for a whole line of Turkish; a test of the own voice showed what a model that guesses can do to a word
  * like "her", so a model that takes the language is told it).
  */
-const TAKES_LANGUAGE = new Set(["eleven_flash_v2_5", "eleven_turbo_v2_5", "eleven_v3"]);
+const TAKES_LANGUAGE = new Set(["eleven_flash_v2_5", "eleven_turbo_v2_5", "eleven_v3", "eleven_v4", "eleven_v4_turbo"]);
+/** The languages the service knows by another code than the studio does. */
+export const SERVICE_CODE: Readonly<Record<string, string>> = { tl: "fil" };
 
 export type Alignment = {
   characters: string[];
@@ -25,7 +28,31 @@ export type Alignment = {
   character_end_times_seconds: number[];
 };
 
-export function wordsFromAlignment(a: Alignment): WordTiming[] {
+/**
+ * The words of a line and when each was said, from the service's times for each character. Words are split on
+ * spaces, or in a language without them (Chinese, Japanese) by the word segmenter (phase 7 spec §17), the
+ * punctuation after a word kept on it.
+ */
+export function wordsFromAlignment(a: Alignment, language?: string): WordTiming[] {
+  if (isUnspaced(language)) {
+    const text = a.characters.join("");
+    // where each character of the joined text came from (a character may be more than one code unit)
+    const at: number[] = [];
+    a.characters.forEach((ch, i) => { for (let k = 0; k < ch.length; k++) at.push(i); });
+    const words: WordTiming[] = [];
+    for (const s of new Intl.Segmenter(language, { granularity: "word" }).segment(text)) {
+      const word = s.segment.trim();
+      if (!word) continue;
+      const first = at[s.index + s.segment.indexOf(word)];
+      const last = at[s.index + s.segment.indexOf(word) + word.length - 1];
+      const timed = { text: word, start: a.character_start_times_seconds[first], end: a.character_end_times_seconds[last] };
+      if (!s.isWordLike && words.length > 0) {
+        const prev = words[words.length - 1];
+        words[words.length - 1] = { ...prev, text: prev.text + word, end: timed.end };
+      } else words.push(timed);
+    }
+    return words;
+  }
   const words: WordTiming[] = [];
   let text = "";
   let start = 0;
@@ -63,7 +90,7 @@ export class ElevenLabsTts implements TtsProvider {
         model_id: this.model,
         previous_text: req.previousText,
         next_text: req.nextText,
-        ...(req.language && TAKES_LANGUAGE.has(this.model) ? { language_code: req.language } : {}),
+        ...(req.language && TAKES_LANGUAGE.has(this.model) ? { language_code: SERVICE_CODE[req.language] ?? req.language } : {}),
       }),
     });
     if (!res.ok) throw new HttpError(`ElevenLabs TTS HTTP ${res.status}: ${await res.text()}`, res.status);
@@ -75,7 +102,7 @@ export class ElevenLabsTts implements TtsProvider {
     const alignment = body.alignment ?? body.normalized_alignment;
     if (!alignment) throw new Error("ElevenLabs response contained no alignment");
     const costUsd = Math.round((req.text.length / 1000) * this.usdPer1kChars * 10_000) / 10_000;
-    return { audio: Buffer.from(body.audio_base64, "base64"), words: wordsFromAlignment(alignment), costUsd };
+    return { audio: Buffer.from(body.audio_base64, "base64"), words: wordsFromAlignment(alignment, req.language), costUsd };
   }
 
   async checkVoice(voiceId: string): Promise<void> {

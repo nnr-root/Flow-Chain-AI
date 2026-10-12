@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { BUILT_IN_VOICES, SPEECH_LANGUAGE_CODES, type SpeechLanguage, type VoiceId, VOICES } from "@src/voice/language";
+import { BUILT_IN_VOICES, OWN_VOICE_LANGUAGES, SPEECH_LANGUAGE_CODES, type SpeechLanguage, type VoiceId, VOICES } from "@src/voice/language";
 import { hostedLanguages, hostedNames, hostedRoles } from "@src/voice/hosted";
 import { clipLanguages, designedVoices } from "@src/voice/library";
 import { baseRoots } from "./config";
@@ -39,4 +39,9 @@ export type VoiceNames = Partial<Record<SpeechLanguage, Partial<Record<VoiceId, 
 export function voiceNames(): VoiceNames {
   if (!hosted()) return {};
   return Object.fromEntries(SPEECH_LANGUAGE_CODES.map((lang) => [lang, hostedNames(lang, dir())])) as VoiceNames;
+}
+
+/** The languages a video can be asked for in: all of them with the hosted voice, the own voice's without it (phase 7 spec §17). */
+export function offeredLanguages(): SpeechLanguage[] {
+  return hosted() ? [...SPEECH_LANGUAGE_CODES] : [...OWN_VOICE_LANGUAGES];
 }

@@ -1,13 +1,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { sceneWords, totalWords, typicalSceneWords, WORDS_PER_SECOND, wordsPerSecond } from "../../src/duration.js";
+import { maxSceneUnits, sceneWords, totalWords, typicalSceneWords, WORDS_PER_SECOND, wordsPerSecond } from "../../src/duration.js";
 import { RunRequest } from "../../src/manifest/schema.js";
 import { buildScriptPrompt } from "../../src/providers/gemini.js";
 import { timingProblems } from "../../src/stages/script.js";
 import { PRESETS } from "../../src/presets.js";
 import { captionStyleFor } from "../../src/stages/look.js";
 import { BUILT_IN_VOICES, fontCovers, voicePace, LANGUAGE_IN_ENGLISH, OWN_VOICE_IDS, SPEECH_LANGUAGES, VOICE_DESIGNS, VOICES } from "../../src/voice/language.js";
-import { hostedLanguages, hostedRoles } from "../../src/voice/hosted.js";
+import { hostedCatalogue, hostedLanguages } from "../../src/voice/hosted.js";
+import { countUnits, isUnspaced } from "../../src/voice/words.js";
 import { clipLanguages, designedVoices } from "../../src/voice/library.js";
 import { SAMPLE_LINES } from "../../scripts/make-voices.js";
 import { timedScript } from "../fakes/providers.js";
@@ -35,49 +36,53 @@ describe("the languages and voices on offer", () => {
     }
   });
 
-  it("are twenty languages, each with its own name, its English name, a line to say and a measured pace", () => {
+  it("are thirty-one languages, each with its own name, its English name, a line to say and a measured pace", () => {
     const codes = Object.keys(SPEECH_LANGUAGES);
-    expect(codes).toHaveLength(20);
+    expect(codes).toHaveLength(31);
+    // Swahili was taken out (phase 7 spec §17): too few voices native to it
+    expect(codes).not.toContain("sw");
     // the voice worker takes a language as two letters
     for (const code of codes) expect(code).toMatch(/^[a-z]{2}$/);
     expect(Object.keys(LANGUAGE_IN_ENGLISH).sort()).toEqual([...codes].sort());
     expect(Object.keys(SAMPLE_LINES).sort()).toEqual([...codes].sort());
-    expect(new Set(Object.values(SAMPLE_LINES)).size).toBe(20);
+    expect(new Set(Object.values(SAMPLE_LINES)).size).toBe(31);
     for (const code of codes) {
-      // a pace of its own, within what speech can be, and never the English one by default
+      // a pace of its own, within what speech can be (characters a second in Chinese and Japanese), and never the English one by default
       expect(wordsPerSecond(code), code).toBeGreaterThan(1);
-      expect(wordsPerSecond(code), code).toBeLessThan(4);
+      expect(wordsPerSecond(code), code).toBeLessThan(isUnspaced(code) ? 10 : 4);
       if (code !== "en") expect(wordsPerSecond(code), code).not.toBe(WORDS_PER_SECOND);
       // and a scene of any length it can be asked for at is a number of words a script can have
       for (let min = 2; min <= 5; min++) for (let max = min; max <= 5; max++) {
-        const words = sceneWords({ min, max }, wordsPerSecond(code));
+        const most = maxSceneUnits(code, wordsPerSecond(code));
+        const words = sceneWords({ min, max }, wordsPerSecond(code), most);
         expect(words.min, `${code} ${min}-${max}`).toBeGreaterThanOrEqual(2);
         expect(words.max, `${code} ${min}-${max}`).toBeGreaterThanOrEqual(words.min);
-        expect(words.max, `${code} ${min}-${max}`).toBeLessThanOrEqual(16);
+        expect(words.max, `${code} ${min}-${max}`).toBeLessThanOrEqual(most);
       }
     }
   });
 
   it("have a sample to listen to for every voice in every language, said by the engine and heard as its line", () => {
     const listed = JSON.parse(readFileSync("web/content/voice-samples.json", "utf8")) as { samples: Record<string, Record<string, { seconds: number; words: number }>> };
-    // every hosted voice chosen, in every language it has a voice of its own chosen in (phase 5 spec §11)
-    for (const voice of hostedRoles()) {
+    // every hosted voice chosen, in every language it has a voice of its own chosen in (phase 5 spec §11), but
+    // the ones whose samples the account's monthly characters ran out before (phase 7 spec §17.5): when they are
+    // made, this list is emptied
+    const missing: string[] = [];
+    for (const voice of Object.keys(hostedCatalogue().voices)) {
       for (const language of hostedLanguages(voice)) {
-        expect(existsSync(`web/public/voices/${voice}.${language}.mp3`), `${voice}.${language}`).toBe(true);
-        expect(listed.samples[voice]?.[language]?.words, `${voice}.${language}`).toBe(SAMPLE_LINES[language as keyof typeof SAMPLE_LINES].split(/\s+/).length);
+        if (!existsSync(`web/public/voices/${voice}.${language}.mp3`)) {
+          missing.push(`${voice}.${language}`);
+          continue;
+        }
+        expect(listed.samples[voice]?.[language]?.words, `${voice}.${language}`).toBe(countUnits(SAMPLE_LINES[language as keyof typeof SAMPLE_LINES], language));
       }
     }
-    // every voice that can be chosen: the worker's own and the designed ones whose clip has been made
-    // every voice that can be chosen, in every language it has a clip made in (the narrators in all twenty)
-    for (const voice of [...BUILT_IN_VOICES, ...designedVoices()]) {
-      for (const language of BUILT_IN_VOICES.includes(voice as never) ? Object.keys(SPEECH_LANGUAGES) : clipLanguages(voice)) {
-        expect(existsSync(`web/public/voices/${voice}.${language}.mp3`), `${voice}.${language}`).toBe(true);
-        const sample = listed.samples[voice]?.[language];
-        expect(sample, `${voice}.${language}`).toBeDefined();
-        // the line it was made from is the one in the command that makes them
-        expect(sample.words, `${voice}.${language}`).toBe(SAMPLE_LINES[language as keyof typeof SAMPLE_LINES].split(/\s+/).length);
-        expect(sample.seconds).toBeGreaterThan(3);
-        expect(sample.seconds).toBeLessThan(15);
+    expect(missing.sort()).toEqual([...SAMPLES_NOT_MADE].sort());
+    // every sample is of the length a sample is (the Japanese line is the longest: twenty seconds in the calmest voice)
+    for (const [voice, by] of Object.entries(listed.samples)) {
+      for (const [language, sample] of Object.entries(by)) {
+        expect(sample.seconds, `${voice}.${language}`).toBeGreaterThan(3);
+        expect(sample.seconds, `${voice}.${language}`).toBeLessThan(20);
       }
     }
   });
@@ -106,7 +111,7 @@ describe("the languages and voices on offer", () => {
     const run = { topic: "t", aspect: "9:16", sceneCount: 2, modes: [1, 1], voiceId: "narrator-m" };
     expect(RunRequest.parse(run).language).toBeUndefined();
     for (const language of Object.keys(SPEECH_LANGUAGES)) expect(RunRequest.parse({ ...run, language }).language).toBe(language);
-    for (const other of ["ar", "zh", "ja", "hi", "english", ""]) expect(RunRequest.safeParse({ ...run, language: other }).success, other).toBe(false);
+    for (const other of ["sw", "th", "he", "english", ""]) expect(RunRequest.safeParse({ ...run, language: other }).success, other).toBe(false);
   });
 });
 
@@ -114,18 +119,20 @@ describe("a voice that speaks slower or faster than the narrators", () => {
   it("is asked for fewer or more words, by its pace measured in the languages it was made in", () => {
     const listed = JSON.parse(readFileSync("web/content/voice-samples.json", "utf8")) as { samples: Record<string, Record<string, { seconds: number; words: number }>> };
     const rate = (v: string, l: string) => listed.samples[v][l].words / listed.samples[v][l].seconds;
-    // every voice with samples: the hosted ones since phase 5 spec §11, the narrators in every language
+    // every voice with samples (the hosted ones since phase 5 spec §11), in the languages both narrators have samples in
+    const narrated = (l: string) => !!listed.samples["narrator-m"][l] && !!listed.samples["narrator-f"][l];
     for (const voice of Object.keys(listed.samples)) {
-      const langs = Object.keys(listed.samples[voice]);
+      const langs = Object.keys(listed.samples[voice]).filter(narrated);
+      if (langs.length === 0) continue;
       const measured = langs.reduce((sum, l) => sum + rate(voice, l) / ((rate("narrator-m", l) + rate("narrator-f", l)) / 2), 0) / langs.length;
       // the pace on the list is within a twentieth of what the samples say
       expect(Math.abs(voicePace(voice) - measured), voice).toBeLessThan(0.05);
     }
     expect(voicePace(undefined)).toBe(1);
     expect(voicePace("someone")).toBe(1);
-    expect(wordsPerSecond("en", "calm")).toBe(2.16);
-    expect(buildScriptPrompt({ ...base, timing, voiceId: "calm" })).toContain("about 65 words");
-    expect(buildScriptPrompt({ ...base, timing, voiceId: "upbeat" })).toContain("about 83 words");
+    expect(wordsPerSecond("en", "bill")).toBe(1.85);
+    expect(buildScriptPrompt({ ...base, timing, voiceId: "bill" })).toContain("about 56 words");
+    expect(buildScriptPrompt({ ...base, timing, voiceId: "chris" })).toContain("about 81 words");
     expect(buildScriptPrompt({ ...base, timing, voiceId: "narrator-m" })).toContain("about 72 words");
   });
 });
@@ -147,17 +154,30 @@ describe("a script in a language that was asked for", () => {
     expect([wordsPerSecond(), wordsPerSecond("en"), wordsPerSecond("xx")]).toEqual([WORDS_PER_SECOND, WORDS_PER_SECOND, WORDS_PER_SECOND]);
     const tr = wordsPerSecond("tr");
     expect(tr).toBeLessThan(WORDS_PER_SECOND);
-    expect(totalWords(30, tr)).toBe(57);
-    expect(sceneWords({ min: 3, max: 5 }, tr)).toEqual({ min: 5, max: 10 });
-    expect(typicalSceneWords({ min: 3, max: 5 }, tr)).toBe(8);
+    expect(totalWords(30, tr)).toBe(51);
+    expect(sceneWords({ min: 3, max: 5 }, tr)).toEqual({ min: 5, max: 9 });
+    expect(typicalSceneWords({ min: 3, max: 5 }, tr)).toBe(7);
     const prompt = buildScriptPrompt({ ...base, timing, language: "tr" });
-    expect(prompt).toContain("about 57 words");
-    expect(prompt).toContain("each scene's narration is 5 to 10 words");
+    expect(prompt).toContain("about 51 words");
+    expect(prompt).toContain("each scene's narration is 5 to 9 words");
     // a language is named to the model by its English name
     expect(buildScriptPrompt({ ...base, timing, language: "vi" })).toContain("in Vietnamese");
-    // and checked against the same: sixty words pass in Turkish and are too few in English
-    const sixty = timedScript(Array(7).fill(8).concat([4])).scenes;
-    expect(timingProblems(sixty, 30, timing.sceneSec, "the script", tr)).toEqual([]);
-    expect(timingProblems(sixty, 30, timing.sceneSec).join(" ")).toContain("have 60 words in all");
+    // and checked against the same: fifty-two words pass in Turkish and are too few in English
+    const fiftyTwo = timedScript(Array(6).fill(8).concat([4])).scenes;
+    expect(timingProblems(fiftyTwo, 30, timing.sceneSec, "the script", tr)).toEqual([]);
+    expect(timingProblems(fiftyTwo, 30, timing.sceneSec).join(" ")).toContain("have 52 words in all");
   });
 });
+
+/** The hosted voices whose samples were not made before the account ran out of characters (2026-10-12). */
+const SAMPLES_NOT_MADE = [
+  "storybook.zh", "storybook.sv", "trailer.zh", "trailer.sv", "trailer.ro", "mystery.zh",
+  "mystery.sv", "mystery.ro", "storyteller.zh", "storyteller.sv", "storyteller.ro", "calm.ar",
+  "calm.zh", "calm.sv", "calm.ro", "upbeat.ar", "upbeat.zh", "upbeat.sv",
+  "upbeat.ro", "upbeat.ms", "host.ar", "host.zh", "host.sv", "host.ro",
+  "host.ms", "anchor.ar", "anchor.zh", "anchor.sv", "anchor.ro", "anchor.ms",
+  "documentary.ar", "documentary.zh", "documentary.sv", "documentary.ro", "documentary.ms", "explainer.ar",
+  "explainer.zh", "explainer.uk", "explainer.sv", "explainer.ro", "explainer.ms", "narrator-f.ar",
+  "narrator-f.zh", "narrator-f.uk", "narrator-f.sv", "narrator-f.ro", "narrator-f.ms", "narrator-m.ar",
+  "narrator-m.zh", "narrator-m.uk", "narrator-m.sv", "narrator-m.ro", "narrator-m.ms",
+];

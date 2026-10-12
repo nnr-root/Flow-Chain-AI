@@ -1,6 +1,8 @@
 import { type Env, type Prices, runpodRates } from "../config.js";
 import type { ImageProfileId } from "../image-profiles.js";
 import { CLIP_QUALITIES, type ClipQuality, type VideoProfileId } from "../video-profiles.js";
+import { hostedModelFor } from "../voice/hosted.js";
+import { OWN_VOICE_LANGUAGES } from "../voice/language.js";
 import { RUNPOD_WORKFLOWS, runpodModelId } from "./model-id.js";
 
 export type NewRunProviders = { image: string; video: string; imageProfile: ImageProfileId; videoProfile: VideoProfileId };
@@ -36,13 +38,17 @@ export function frozenModePrices(prices: Prices): Prices {
 }
 
 /**
- * The voice a new run is frozen with: the hosted voice while its key is set (phase 5 spec §11), else the studio's
- * own (§6.1). The run's voice is one of the studio's voices (`FLOWCHAIN_VOICE`, or the one the studio asks for); the
- * hosted service's voice for it is chosen line by line from the catalogue, by the run's language.
+ * The voice a new run is frozen with: the hosted voice while its key is set (phase 5 spec §11), in the model that
+ * speaks the run's language (`hostedModelFor`), else the studio's own (§6.1), which speaks only its own languages.
+ * The run's voice is one of the studio's voices (`FLOWCHAIN_VOICE`, or the one the studio asks for); the hosted
+ * service's voice for it is chosen line by line from the catalogue, by the run's language.
  */
-export function newRunVoice(env: Env): { model: string; voiceId: string } {
-  if (env.ELEVENLABS_API_KEY) return { model: env.ELEVENLABS_MODEL, voiceId: env.FLOWCHAIN_VOICE };
+export function newRunVoice(env: Env, language?: string): { model: string; voiceId: string } {
+  if (env.ELEVENLABS_API_KEY) return { model: hostedModelFor(language, env.ELEVENLABS_MODEL), voiceId: env.FLOWCHAIN_VOICE };
   if (!env.RUNPOD_VOICE_ENDPOINT) throw new Error("no voice is set up: set ELEVENLABS_API_KEY (the hosted voice), or run npm run voice:deploy (the studio's own)");
+  if (language && !(OWN_VOICE_LANGUAGES as readonly string[]).includes(language)) {
+    throw new Error(`the studio's own voice does not speak "${language}": set ELEVENLABS_API_KEY to make a video in it`);
+  }
   const { voice } = RUNPOD_WORKFLOWS;
   return { model: runpodModelId(env.RUNPOD_VOICE_ENDPOINT, voice.workflow, voice.version), voiceId: env.FLOWCHAIN_VOICE };
 }

@@ -8,7 +8,7 @@ import { round4 } from "@/lib/credit";
 import { cliJson, cliText, jobReady, type JobView, releaseJob, startJob, studioHealthRaw, viewJob } from "./jobs";
 import { requireManifest } from "./runs";
 import { multiTenant } from "./tenant";
-import { readyVoices } from "./voices";
+import { offeredLanguages, readyVoices } from "./voices";
 import { draftArgs, kitDir, type Look, modesArg, musicPath, type NewVideo, rerenderArgs } from "./schemas";
 
 /** The run has a job that is running or waiting its turn. */
@@ -37,6 +37,8 @@ export async function createDraft(input: NewVideo, seriesId?: string): Promise<{
   if (input.music && !existsSync(musicPath(input.music))) throw new ApiError("validation", `music: no track ${input.music}`);
   // a voice on the list whose clip has not been made yet has nothing to speak from
   if (input.voiceId && !readyVoices().includes(input.voiceId)) throw new ApiError("validation", `voiceId: the voice ${input.voiceId} is not ready yet`);
+  // a language only the hosted voice speaks is not offered without it (phase 7 spec §17)
+  if (input.language && !offeredLanguages().includes(input.language)) throw new ApiError("validation", `language: ${input.language} is not offered in this studio`);
   if (multiTenant()) {
     // the run is registered as the user's, and the script's cost is held from their credit, before anything is queued
     const runId = await newTenantRun(input.topic, seriesId);

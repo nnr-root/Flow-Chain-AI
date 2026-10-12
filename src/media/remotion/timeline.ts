@@ -32,10 +32,10 @@ export function zoomAt(frame: number, zoomFrom: number, zoomFrames: number): num
  * Splits the hook into one line or two balanced lines, whichever lets it be drawn bigger. `fit` returns the
  * largest font size at which a line fits the width; the result is capped at `wanted`. Ties keep one line.
  */
-export function hookLines(words: string[], fit: (line: string) => number, wanted: number): { lines: string[]; fontSize: number } {
-  let best = { lines: [words.join(" ")], fontSize: Math.min(wanted, fit(words.join(" "))) };
+export function hookLines(words: string[], fit: (line: string) => number, wanted: number, joiner = " "): { lines: string[]; fontSize: number } {
+  let best = { lines: [words.join(joiner)], fontSize: Math.min(wanted, fit(words.join(joiner))) };
   for (let k = 1; k < words.length; k++) {
-    const lines = [words.slice(0, k).join(" "), words.slice(k).join(" ")];
+    const lines = [words.slice(0, k).join(joiner), words.slice(k).join(joiner)];
     const fontSize = Math.min(wanted, ...lines.map(fit));
     if (fontSize > best.fontSize) best = { lines, fontSize };
   }

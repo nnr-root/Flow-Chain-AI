@@ -27,7 +27,7 @@ export function withLook(m: Manifest, flags: LookFlags = {}): Manifest {
  */
 export function previewProps(m: Manifest, opts: RenderPropsOptions, flags: LookFlags = {}): RenderInputs {
   const look = withLook(m, flags);
-  return buildRenderProps(look, opts, wordsToCaptions(globalWords(look), captionStyleFor(look).maxWordsPerPage));
+  return buildRenderProps(look, opts, wordsToCaptions(globalWords(look), captionStyleFor(look).maxWordsPerPage, look.request.language));
 }
 
 /**
@@ -48,7 +48,7 @@ export function buildDraftProps(m: Manifest, opts: RenderPropsOptions, flags: Lo
       frames,
     }),
     words,
-    captions: wordsToCaptions(words, captionStyleFor(look).maxWordsPerPage),
+    captions: wordsToCaptions(words, captionStyleFor(look).maxWordsPerPage, look.request.language),
     narration: { rel: DRAFT_FILES.silence, abs: `${VIRTUAL}silence` },
   });
 }

@@ -24,7 +24,7 @@ describe("doctor", () => {
     expect(await checkRemotionBrowser()).toMatch(/^ready \(/);
   });
 
-  it("checks the font of every caption style and every style preset, each once", () => {
+  it("checks the font of every caption style, every style preset and every script's own face, each once", () => {
     const fonts = captionFontFiles("assets/fonts");
     expect(fonts.map((f) => f.replace("assets/fonts/", "")).sort()).toEqual([
       "Bangers-Regular.ttf",
@@ -32,6 +32,11 @@ describe("doctor", () => {
       "Inter-SemiBold.ttf",
       "LuckiestGuy-Regular.ttf",
       "Montserrat-ExtraBold.ttf",
+      "NotoSansArabic-ExtraBold.ttf",
+      "NotoSansDevanagari-ExtraBold.ttf",
+      "NotoSansJP-ExtraBold.ttf",
+      "NotoSansKR-ExtraBold.ttf",
+      "NotoSansSC-ExtraBold.ttf",
       "Orbitron-Variable.ttf",
     ]);
     expect(fonts.every((f) => existsSync(f))).toBe(true);

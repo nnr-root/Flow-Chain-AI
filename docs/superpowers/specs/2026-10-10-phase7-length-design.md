@@ -403,3 +403,96 @@ Documentary 15–20%, Anchor and Upbeat 15% faster).
 Until then those languages offer the narrators, accented. Whether the voices sound as distinct as measured is
 for the owner to hear.
 
+
+## 17. Thirty-one languages, and captions in scripts of their own (owner's direction, 2026-10-12)
+
+The owner, on seeing how many voices the hosted service has in each language (phase 5 spec §11): take Swahili
+out, add the others it has hundreds of, then Japanese, Chinese, Korean, Hindi and Arabic, solve the captions for
+them, and whatever else is wrong. Where this section and §14 differ, this one wins.
+
+### 17.1 The languages
+
+- **Out:** Swahili. The library has ten voices native to it, none professional, and the default model does not
+  speak it. A run asked for in it no longer parses (no run anywhere was).
+- **In:** Bulgarian, Romanian, Czech, Croatian, Slovak, Ukrainian, Hungarian (hundreds of voices each, alphabets the
+  caption faces already have), and Japanese, Chinese (Mandarin, simplified), Korean, Hindi and Arabic. Thirty-one.
+- The library was counted on 2026-10-12: every one of the thirty-one has at least 499 voices native to it. The
+  languages its models speak but it has five to fifty voices in (Estonian, Latvian, Lithuanian, Slovenian, Serbian,
+  Hebrew, Thai, Persian, Urdu, Bengali, Telugu, Marathi and others) are not offered.
+- **The studio's own voice speaks the first nineteen** (`OWN_VOICE_LANGUAGES`). Without the hosted voice, the form
+  offers only those, the action refuses the others, and `newRunVoice` refuses a run in one of them: its alignment
+  splits on spaces and was never tried on these scripts.
+
+### 17.2 The model a language is spoken by
+
+The default model (`eleven_multilingual_v2`) speaks twenty-nine languages and not Norwegian, Vietnamese or
+Hungarian: a run in one of those would have been read by a model guessing at it. `hostedModelFor` freezes such a run
+in `eleven_turbo_v2_5`, which speaks them and is told the language. Filipino is "fil" to the service and "tl" here
+(`SERVICE_CODE`).
+
+### 17.3 Languages without spaces: Chinese and Japanese (`src/voice/words.ts`)
+
+- **Length in characters.** A script's length, a scene's limit, the hook's and the prompt's are counted in
+  characters (letters and digits, not punctuation): a model asked for "about 80 words" of Chinese cannot be relied
+  on, and a writer of it counts characters. Words a second become characters a second. The limits written in words
+  (sixteen a scene, six for the hook) are the characters that say as much, by the voice's rate against 2.4.
+  Spaced languages are untouched, prompts included.
+- **Words for captions** are found by the word segmenter Node and every browser carry (`Intl.Segmenter`), the
+  punctuation after a word kept on it: in the hosted voice's alignment (character times mapped onto segments), in a
+  draft's placeholder timing, and in the hook. Caption words and the hook's lines are joined with nothing.
+- A draft's estimated timing in these languages is characters at the voice's rate, not letters at the alphabet's.
+
+### 17.4 Captions in every script
+
+- **Faces.** The caption faces have no Japanese, Chinese, Korean, Devanagari or Arabic letters. Five Noto Sans faces
+  at extra-bold, made static from Google's variable files (OFL, about 23 MB in `assets/fonts/`, the reason for the
+  size being the CJK character sets), are `SCRIPT_FACES`: a video in one of those languages has its captions and hook
+  in its face, whatever the style. Japanese and Chinese have their own (they share characters, not shapes).
+  `FONT_LACKS` was read again from every face's character map against each language's alphabet and sample line in
+  both cases: Bulgarian and Ukrainian are in Montserrat and Inter, and lacking in the display faces, which swap.
+- **Capitals by language.** The caption and hook layers carry the video's language (`lang`), so a style in capitals
+  makes Turkish "i" into "İ" (it was "I": "BIR SEHIR" for "BİR ŞEHİR").
+- **Right to left.** Arabic captions and hook are set right to left (`dir="rtl"`): the first word on the right, the
+  last word of the hook (in the accent colour) on the left.
+- **Page breaks** follow the full stops and commas of Chinese, Japanese, Arabic and Hindi as they do the Latin ones.
+- Checked by eye on 2026-10-12: frames rendered in Chinese, Arabic, Hindi and Turkish show each in its own letters,
+  Chinese without spaces, Arabic joined and right to left, Turkish with dotted capitals.
+
+### 17.5 The voices
+
+Twelve hosted voices for each of the twenty-nine new or remaining languages, chosen as English and Turkish were
+(phase 5 spec §11.5) from the hundred most used in each, with two changes: a preview heard as a neighbouring language
+is not left out (Malay and Indonesian, Czech and Slovak, the Scandinavian three, Croatian and Bosnian and Serbian,
+Ukrainian and Russian, Hindi and Urdu, Portuguese and Galician or Spanish, Tagalog and Cebuano), and no two voices of
+a language share a shown name. Their samples are made in the model each language is spoken by, and the rates and
+paces measured again from them.
+
+### 17.6 What came of it (2026-10-12)
+
+- **Natives only.** The library answers a language with every voice *verified* in it, and the most used of those
+  are the same few multilingual voices everywhere (a Turkish voice came out as Arabic's, Malay's and Norwegian's
+  Upbeat). A voice is now chosen in a language only if the library has that language as its own; a native a little
+  nearer the others (up to 0.48, still under the ~0.5 of one person) is taken before any voice of another
+  language, and a role with no native in a language has no voice there. Every voice of the thirty-one languages is
+  native to it.
+- **Not twelve everywhere.** Where native women are few the female narrator is chosen first (the voice a video most
+  often wants), and these roles are missing: Norwegian, Greek and Slovak Explainer; Finnish Anchor and Explainer;
+  Danish and Hungarian Upbeat, Anchor and Explainer. The form offers the others.
+- **A preview in the language.** A library voice's own preview is often in English; the one in the language is in
+  its `verified_languages`, and is what the language-identification check listens to now (it had been throwing out
+  most of the Nordic and Slavic candidates for sounding English).
+- **Rates and paces** were measured again from the samples (`WORDS_PER_SECOND_IN`: English stays 2.4 as measured in
+  videos, every other language is 2.4 times its narrators' samples against the English narrators'). Turkish is
+  1.7 now (1.9 was the own voice's); Japanese is 3.0 characters a second; Chinese keeps its estimate (4.2) until
+  its samples are made. A voice's pace is its samples against the narrators' over all its languages: the studio's
+  roles come out within a twentieth (each is a different person in each language), the best-known English voices
+  do not (Bill 0.77, Eric 1.13, Chris 1.12).
+- **The account ran out.** The owner's ElevenLabs account was on the free plan (10,000 characters a month, not the
+  Creator plan's 100,000 the figures above assumed), and fifty-three samples were refused: all of Chinese and
+  Swedish, eleven Romanian, eight Arabic, seven Malay, three Ukrainian. Those voices are chosen and speak; the form
+  shows them without a sample (the button is greyed). `SAMPLES_NOT_MADE` in `test/unit/language.test.ts` lists
+  them, and the test fails when one is made and the list is not emptied. To make them:
+  `npm run make:voices -- --again zh sv ro ar ms uk` once the account has characters. Videos need characters too:
+  until the plan is upgraded, a video's narration is refused the same way.
+- The narrators' samples in Swedish and Malay were the own voice's; they were deleted rather than shown as the
+  hosted narrators'.

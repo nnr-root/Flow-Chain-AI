@@ -62,3 +62,29 @@ export function hostedVoice(role: string, language?: string, dir = designedDir()
   if (!by) return null;
   return (language && by[language]?.id) || by.en?.id || null;
 }
+
+/**
+ * The languages each of the hosted service's models speaks, by the studio's codes (read from its /v1/models on
+ * 2026-10-12; Filipino is "fil" there, "tl" here). The default model speaks twenty-nine; Norwegian, Vietnamese and
+ * Hungarian are spoken only by the 2.5 models, which are also told the language.
+ */
+const MODEL_LANGUAGES: Readonly<Record<string, readonly string[]>> = {
+  eleven_multilingual_v2: ["en", "ja", "zh", "de", "hi", "fr", "ko", "pt", "it", "es", "id", "nl", "tr", "tl", "pl", "sv", "bg", "ro", "ar", "cs", "el", "fi", "hr", "ms", "sk", "da", "ta", "uk", "ru"],
+  eleven_flash_v2_5: ["en", "ja", "zh", "de", "hi", "fr", "ko", "pt", "it", "es", "ru", "id", "nl", "tr", "tl", "pl", "sv", "bg", "ro", "ar", "cs", "el", "fi", "hr", "ms", "sk", "da", "ta", "uk", "hu", "no", "vi"],
+  eleven_turbo_v2_5: ["en", "ja", "zh", "de", "hi", "fr", "ko", "pt", "it", "es", "ru", "id", "nl", "tr", "tl", "pl", "sv", "bg", "ro", "ar", "cs", "el", "fi", "hr", "ms", "sk", "da", "ta", "uk", "vi", "no", "hu"],
+};
+/** Where a language the chosen model does not speak is sent: the model of the same family that does. */
+const SPEAKS_MORE = ["eleven_turbo_v2_5", "eleven_flash_v2_5"];
+
+/**
+ * The model a new run in a language is frozen with: the one chosen (`ELEVENLABS_MODEL`) where it speaks the
+ * language, else the first of the 2.5 models that does. A language none of them speaks is refused, rather than
+ * read out by a model guessing at it. A model this list does not know is taken at its word.
+ */
+export function hostedModelFor(language: string | undefined, chosen: string): string {
+  const speaks = (model: string) => MODEL_LANGUAGES[model]?.includes(language ?? "en") ?? true;
+  if (!language || speaks(chosen)) return chosen;
+  const other = SPEAKS_MORE.find((m) => MODEL_LANGUAGES[m].includes(language));
+  if (!other) throw new Error(`no voice model speaks "${language}"`);
+  return other;
+}

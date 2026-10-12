@@ -128,7 +128,7 @@ export function assembleRenderProps(m: Manifest, opts: RenderPropsOptions, parts
       totalFrames,
       scenes,
       boundaries,
-      captions: { style, bottomPct: captionBottomPct(size.width, size.height), pages: captionPages(parts.captions) },
+      captions: { style, bottomPct: captionBottomPct(size.width, size.height), pages: captionPages(parts.captions), ...(m.request.language ? { lang: m.request.language } : {}) },
       hook,
       brand,
       audio: {

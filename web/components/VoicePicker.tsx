@@ -12,7 +12,7 @@ const hasSample = (voice: VoiceId, language: SpeechLanguage): boolean => Object.
  * voice speaking that language. One sample plays at a time. A voice with no sample in a language yet can still
  * be chosen: there is only nothing to hear beforehand.
  */
-export function VoicePicker({ voices: native, names = {}, language, voice, onLanguage, onVoice }: { voices: Partial<Record<SpeechLanguage, VoiceId[]>>; names?: Partial<Record<SpeechLanguage, Partial<Record<VoiceId, { label?: string; about?: string }>>>>; language: SpeechLanguage; voice: VoiceId; onLanguage: (l: SpeechLanguage) => void; onVoice: (v: VoiceId) => void }) {
+export function VoicePicker({ voices: native, names = {}, languages = Object.keys(SPEECH_LANGUAGES) as SpeechLanguage[], language, voice, onLanguage, onVoice }: { voices: Partial<Record<SpeechLanguage, VoiceId[]>>; names?: Partial<Record<SpeechLanguage, Partial<Record<VoiceId, { label?: string; about?: string }>>>>; languages?: SpeechLanguage[]; language: SpeechLanguage; voice: VoiceId; onLanguage: (l: SpeechLanguage) => void; onVoice: (v: VoiceId) => void }) {
   // A voice is shown by its name where it has one in this language (Frederick, Adam…), and by what it is for
   // below it; the studio's own voices are shown by what they are (phase 5 spec §11.5).
   const title = (id: VoiceId) => names[language]?.[id]?.label ?? VOICES[id].label;
@@ -46,9 +46,9 @@ export function VoicePicker({ voices: native, names = {}, language, voice, onLan
       <div className="flex flex-wrap items-center gap-3 text-[0.95rem]">
         <label className="flex items-center gap-3">
           <span className="font-bold">Language</span>
-          {/* (twenty of them: a list to choose from, each by its own name) */}
+          {/* (thirty-one of them with the hosted voice: a list to choose from, each by its own name) */}
           <select data-testid="language" value={language} onChange={(e) => onLanguage(e.target.value as SpeechLanguage)} className="!w-auto min-w-[12rem]">
-            {(Object.keys(SPEECH_LANGUAGES) as SpeechLanguage[]).map((code) => <option key={code} value={code}>{SPEECH_LANGUAGES[code]}</option>)}
+            {languages.map((code) => <option key={code} value={code}>{SPEECH_LANGUAGES[code]}</option>)}
           </select>
         </label>
         <span className="text-[0.85rem] text-graphite">The script is written in it, the voice speaks it, and the captions follow.</span>

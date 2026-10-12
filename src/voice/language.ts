@@ -24,47 +24,54 @@ export function speechLanguage(text: string): "tr" | "en" | undefined {
 }
 
 /**
- * The languages a video can be asked for in (phase 7 spec §14), each by its own name. A language is here when
- * all of this holds for it:
- * - the voice model speaks it (its makers list thirty languages);
- * - its words are set apart by spaces, which is how a script's length is counted and how captions are laid over
- *   what was heard, one word at a time;
- * - a caption typeface the studio ships has its letters (`fontCovers` below).
- * That leaves out the model's other ten: Arabic and Hebrew (written right to left), Hindi, Thai, Burmese,
- * Khmer and Lao (no typeface here has their letters, and most write no spaces), Chinese and Japanese (no
- * spaces), Korean (no typeface). Each is a piece of work of its own, not a line in this list.
- *
- * A voice speaks a language from its own reference clip where it has one (English and Turkish) and from its
- * English clip otherwise; the voice worker has always done so.
+ * The languages a video can be asked for in (phase 7 spec §14, §17), each by its own name. A language is here when
+ * the hosted voice has voices native to it in numbers (phase 5 spec §11: hundreds in each of these; Swahili, with
+ * ten and none professional, was taken out on the owner's word), its model speaks it (`hostedModelFor`), and a
+ * caption typeface the studio ships has its letters (`fontCovers`, and the script faces in `SCRIPT_FACES`).
+ * Chinese and Japanese write no spaces and Arabic is written right to left: `words.ts` and the caption layer
+ * handle both. The studio's own voice speaks the first nineteen (`OWN_VOICE_LANGUAGES`); the others are offered
+ * only with the hosted voice.
  */
 export const SPEECH_LANGUAGES = {
   en: "English", tr: "Türkçe", es: "Español", fr: "Français", de: "Deutsch", it: "Italiano", pt: "Português",
   nl: "Nederlands", pl: "Polski", ru: "Русский", sv: "Svenska", da: "Dansk", no: "Norsk", fi: "Suomi",
-  el: "Ελληνικά", id: "Bahasa Indonesia", ms: "Bahasa Melayu", tl: "Tagalog", sw: "Kiswahili", vi: "Tiếng Việt",
+  el: "Ελληνικά", id: "Bahasa Indonesia", ms: "Bahasa Melayu", tl: "Tagalog", vi: "Tiếng Việt",
+  bg: "Български", ro: "Română", cs: "Čeština", hr: "Hrvatski", sk: "Slovenčina", uk: "Українська", hu: "Magyar",
+  ja: "日本語", zh: "中文", ko: "한국어", hi: "हिन्दी", ar: "العربية",
 } as const;
 export type SpeechLanguage = keyof typeof SPEECH_LANGUAGES;
 export const SPEECH_LANGUAGE_CODES = Object.keys(SPEECH_LANGUAGES) as [SpeechLanguage, ...SpeechLanguage[]];
+
+/** The languages the studio's own voice speaks (phase 7 spec §14): without the hosted voice, only these are offered. */
+export const OWN_VOICE_LANGUAGES: readonly SpeechLanguage[] = ["en", "tr", "es", "fr", "de", "it", "pt", "nl", "pl", "ru", "sv", "da", "no", "fi", "el", "id", "ms", "tl", "vi"];
 
 /** How a script's model is told the language: its English name. */
 export const LANGUAGE_IN_ENGLISH: Record<SpeechLanguage, string> = {
   en: "English", tr: "Turkish", es: "Spanish", fr: "French", de: "German", it: "Italian", pt: "Portuguese",
   nl: "Dutch", pl: "Polish", ru: "Russian", sv: "Swedish", da: "Danish", no: "Norwegian", fi: "Finnish",
-  el: "Greek", id: "Indonesian", ms: "Malay", tl: "Tagalog (Filipino)", sw: "Swahili", vi: "Vietnamese",
+  el: "Greek", id: "Indonesian", ms: "Malay", tl: "Tagalog (Filipino)", vi: "Vietnamese",
+  bg: "Bulgarian", ro: "Romanian", cs: "Czech", hr: "Croatian", sk: "Slovak", uk: "Ukrainian", hu: "Hungarian",
+  ja: "Japanese", zh: "Chinese (Mandarin, in simplified characters)", ko: "Korean", hi: "Hindi (in Devanagari)", ar: "Arabic (Modern Standard)",
 };
 
 /**
  * The languages whose letters a shipped caption typeface does not have, by its file (read from the files'
- * own character maps on 2026-10-10). A caption set in a face without a language's letters shows those letters
+ * own character maps on 2026-10-12, with each language's alphabet and its sample line in both cases). A caption set in a face without a language's letters shows those letters
  * in whatever the renderer falls back to, mixed in with the rest: a video in such a language is given a face
  * that has them all instead (`captionStyleFor`). A face not listed here (a brand's own) is taken as it is.
  */
 const FONT_LACKS: Record<string, readonly SpeechLanguage[]> = {
-  "Montserrat-ExtraBold.ttf": ["el"],
-  "Inter-SemiBold.ttf": [],
-  "Bangers-Regular.ttf": ["ru", "el"],
-  "Cinzel-Variable.ttf": ["vi", "ru", "el"],
-  "LuckiestGuy-Regular.ttf": ["vi", "ru", "el"],
-  "Orbitron-Variable.ttf": ["tr", "pl", "sv", "da", "no", "vi", "ru", "el"],
+  "Montserrat-ExtraBold.ttf": ["el", "ja", "zh", "ko", "hi", "ar"],
+  "Inter-SemiBold.ttf": ["ja", "zh", "ko", "hi", "ar"],
+  "Bangers-Regular.ttf": ["ru", "el", "bg", "uk", "ja", "zh", "ko", "hi", "ar"],
+  "Cinzel-Variable.ttf": ["ru", "el", "vi", "bg", "uk", "ja", "zh", "ko", "hi", "ar"],
+  "LuckiestGuy-Regular.ttf": ["ru", "el", "vi", "bg", "ro", "uk", "ja", "zh", "ko", "hi", "ar"],
+  "Orbitron-Variable.ttf": ["tr", "pl", "ru", "da", "no", "el", "vi", "bg", "ro", "cs", "hr", "sk", "uk", "hu", "ja", "zh", "ko", "hi", "ar"],
+  "NotoSansJP-ExtraBold.ttf": ["tr", "fr", "pl", "el", "ro", "cs", "hr", "sk", "uk", "hu", "zh", "ko", "hi", "ar"],
+  "NotoSansSC-ExtraBold.ttf": ["tr", "fr", "pl", "el", "ro", "cs", "hr", "sk", "uk", "hu", "ko", "hi", "ar"],
+  "NotoSansKR-ExtraBold.ttf": ["tr", "fr", "pl", "el", "ro", "cs", "hr", "sk", "uk", "hu", "ja", "zh", "hi", "ar"],
+  "NotoSansDevanagari-ExtraBold.ttf": ["ru", "el", "vi", "bg", "uk", "ja", "zh", "ko", "ar"],
+  "NotoSansArabic-ExtraBold.ttf": ["ru", "el", "vi", "bg", "uk", "ja", "zh", "ko", "hi"],
 };
 export const fontCovers = (file: string, language: SpeechLanguage): boolean => !(FONT_LACKS[file] ?? []).includes(language);
 
@@ -82,15 +89,15 @@ const OWN_VOICES = {
   "narrator-m": { label: "Narrator (male)", suits: "A plain, even voice for any video" },
   "narrator-f": { label: "Narrator (female)", suits: "A plain, even voice for any video" },
   storyteller: { label: "Storyteller", suits: "Fables, history, legends and stories told slowly" },
-  documentary: { label: "Documentary", suits: "Nature, science and history that want some weight", pace: 0.88 },
-  trailer: { label: "Trailer", suits: "True crime, horror, epics and anything dramatic", pace: 0.86 },
-  host: { label: "Host", suits: "Fast facts, countdowns, tech and anything with energy" },
-  explainer: { label: "Explainer", suits: "How-to, money, business and step-by-step guides", pace: 0.92 },
-  anchor: { label: "Anchor", suits: "News, reports and facts told straight", pace: 1.07 },
-  upbeat: { label: "Upbeat", suits: "Fun facts, food, lifestyle and light-hearted videos", pace: 1.16 },
-  calm: { label: "Calm", suits: "Wellness, sleep, nature and gentle stories", pace: 0.9 },
-  mystery: { label: "Mystery", suits: "Unsolved cases, secrets and the strange", pace: 1.16 },
-  storybook: { label: "Storybook", suits: "Children's stories, fables and cartoons", pace: 0.83 },
+  documentary: { label: "Documentary", suits: "Nature, science and history that want some weight", pace: 0.95 },
+  trailer: { label: "Trailer", suits: "True crime, horror, epics and anything dramatic" },
+  host: { label: "Host", suits: "Fast facts, countdowns, tech and anything with energy", pace: 1.05 },
+  explainer: { label: "Explainer", suits: "How-to, money, business and step-by-step guides" },
+  anchor: { label: "Anchor", suits: "News, reports and facts told straight", pace: 0.95 },
+  upbeat: { label: "Upbeat", suits: "Fun facts, food, lifestyle and light-hearted videos" },
+  calm: { label: "Calm", suits: "Wellness, sleep, nature and gentle stories" },
+  mystery: { label: "Mystery", suits: "Unsolved cases, secrets and the strange" },
+  storybook: { label: "Storybook", suits: "Children's stories, fables and cartoons", pace: 0.94 },
 } as const;
 
 /**
@@ -105,14 +112,14 @@ const HOSTED_ONLY_VOICES = {
   bill: { label: "Bill", suits: "Wise and mature: stories, history and life lessons", pace: 0.77 },
   daniel: { label: "Daniel", suits: "A steady British broadcaster: news and reports", pace: 0.89 },
   eric: { label: "Eric", suits: "Smooth and trustworthy: business and money", pace: 1.13 },
-  roger: { label: "Roger", suits: "Laid-back and resonant: casual talk and podcasts" },
+  roger: { label: "Roger", suits: "Laid-back and resonant: casual talk and podcasts", pace: 1.05 },
   chris: { label: "Chris", suits: "Down to earth: reviews, vlogs and everyday stories", pace: 1.12 },
   will: { label: "Will", suits: "A relaxed optimist: easygoing, friendly videos" },
   liam: { label: "Liam", suits: "Young and energetic: social media and tech" },
   charlie: { label: "Charlie", suits: "Confident and Australian: energetic facts and sport", pace: 0.92 },
   callum: { label: "Callum", suits: "Gravelly, with an edge: mystery, villains and games", pace: 0.89 },
   harry: { label: "Harry", suits: "Fierce and animated: action, battles and games" },
-  river: { label: "River", suits: "Relaxed and neutral: anything informative" },
+  river: { label: "River", suits: "Relaxed and neutral: anything informative", pace: 1.05 },
   sarah: { label: "Sarah", suits: "Confident and warm: explainers and news" },
   alice: { label: "Alice", suits: "A clear British educator: how-to and learning", pace: 0.89 },
   matilda: { label: "Matilda", suits: "A professional alto: business and explainers" },

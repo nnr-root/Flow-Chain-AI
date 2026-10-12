@@ -6,6 +6,8 @@ import { planModes, type PlanModesResult } from "../modes.js";
 import { pinnedModes } from "../stages/modes.js";
 import { requireScript } from "../stages/require.js";
 import { videoProfileOf } from "../video-profiles.js";
+import { wordsPerSecond } from "../duration.js";
+import { countUnits, isUnspaced, splitWords } from "../voice/words.js";
 
 /**
  * How long a narration will probably take to speak, before its voiceover exists. 0.055 s per character is the
@@ -14,13 +16,15 @@ import { videoProfileOf } from "../video-profiles.js";
 export const DRAFT_SEC_PER_CHAR = 0.055;
 export const DRAFT_MIN_SCENE_SEC = 1;
 
-export function estimateNarrationSec(narration: string): number {
-  return Math.max(DRAFT_MIN_SCENE_SEC, Math.round(narration.trim().length * DRAFT_SEC_PER_CHAR * 100) / 100);
+export function estimateNarrationSec(narration: string, language?: string): number {
+  // a character of Chinese or Japanese is a syllable or more, not a letter: those are timed at their voice's rate
+  const sec = isUnspaced(language) ? countUnits(narration, language) / wordsPerSecond(language) : narration.trim().length * DRAFT_SEC_PER_CHAR;
+  return Math.max(DRAFT_MIN_SCENE_SEC, Math.round(sec * 100) / 100);
 }
 
 /** Estimated length of every scene of a scripted run. */
 export function draftDurations(m: Manifest): number[] {
-  return requireScript(m).scenes.map((s) => estimateNarrationSec(s.narration));
+  return requireScript(m).scenes.map((s) => estimateNarrationSec(s.narration, m.request.language));
 }
 
 /** The narration's words on the video's clock, each given a share of its scene's estimated length by its letters. */
@@ -28,7 +32,7 @@ export function draftWords(m: Manifest): TimedWord[] {
   const durations = draftDurations(m);
   const starts = audioStarts(durations);
   return requireScript(m).scenes.flatMap((scene, i) => {
-    const texts = scene.narration.trim().split(/\s+/).filter(Boolean);
+    const texts = splitWords(scene.narration, m.request.language);
     const weights = texts.map((t) => t.length + 1);
     const total = weights.reduce((a, b) => a + b, 0);
     let at = starts[i];

@@ -180,6 +180,180 @@
         "name": "Elif Ozder",
         "label": "Elif",
         "about": "Female, young"
+      },
+      "es": {
+        "id": "1BxAZWANeDIxeyHKSJF2",
+        "name": "Isabela - Pleasant, Calm and Melodic",
+        "label": "Isabela",
+        "about": "Female, middle aged"
+      },
+      "fr": {
+        "id": "tKaoyJLW05zqV0tIH9FD",
+        "name": "Gaëlle - Storyteller",
+        "label": "Gaëlle",
+        "about": "Female, middle aged"
+      },
+      "de": {
+        "id": "ghgFyr7gmpr57xyTgX9q",
+        "name": "Emilia - Young and Charming",
+        "label": "Emilia",
+        "about": "Female, young"
+      },
+      "pt": {
+        "id": "oJebhZNaPllxk6W0LSBA",
+        "name": "Carla - Children's Story Narrator",
+        "label": "Carla",
+        "about": "Female, young"
+      },
+      "pl": {
+        "id": "Pid5DJleNF2sxsuF6YKD",
+        "name": "Aneta - Loud and Reflective",
+        "label": "Aneta",
+        "about": "Female, middle aged"
+      },
+      "ru": {
+        "id": "rSfuQoQ3FY8SVKeraMAp",
+        "name": "Lunya - Little Fairy",
+        "label": "Lunya",
+        "about": "Female, young"
+      },
+      "vi": {
+        "id": "IovBBFnLZ6QzJhFLLroy",
+        "name": "Tam Nguyen - Fairy Tail & children Friendly",
+        "label": "Tam",
+        "about": "Female, young"
+      },
+      "ja": {
+        "id": "hMK7c1GPJmptCzI4bQIu",
+        "name": "Sameno - inviting, Clear and Steady",
+        "label": "Sameno",
+        "about": "Female, young"
+      },
+      "ko": {
+        "id": "4p0HBzAAGyju0nYfNntV",
+        "name": "Sunny - Warm, Calm and Balanced",
+        "label": "Sunny",
+        "about": "Female, middle aged"
+      },
+      "hi": {
+        "id": "Sm1seazb4gs7RSlUVw7c",
+        "name": "Anika - Animated, Friendly and Engaging",
+        "label": "Anika",
+        "about": "Female, young"
+      },
+      "nl": {
+        "id": "yO6w2xlECAQRFP6pX7Hw",
+        "name": "Ruth - Friendly Children's Storyteller",
+        "label": "Ruth",
+        "about": "Female, middle aged"
+      },
+      "it": {
+        "id": "Z9LM7NBnQ8aOZKIXkd5S",
+        "name": "Carlotta - Fairy Princess",
+        "label": "Carlotta",
+        "about": "Female, young"
+      },
+      "ar": {
+        "id": "vWDp3PLsTWjIhBxxUKh9",
+        "name": "Fatima - Smooth Audiobook Narrator",
+        "label": "Fatima",
+        "about": "Female, young"
+      },
+      "zh": {
+        "id": "BT0SH7Hb8NRPpT5xbCgg",
+        "name": "Lulu - Cute Little Witch ",
+        "label": "Lulu",
+        "about": "Female, young"
+      },
+      "tl": {
+        "id": "RKj1DIXprh8zdvjllfhJ",
+        "name": "Tiya Maria - Horror Storyteller",
+        "label": "Tiya",
+        "about": "Female, middle aged"
+      },
+      "id": {
+        "id": "3AwU3nHsI4YWeBJbz6yn",
+        "name": "Honeypie - Warm, Youthful and Friendly",
+        "label": "Honeypie",
+        "about": "Female, young"
+      },
+      "no": {
+        "id": "BGEU6wFi2uNm6Kje1Yhk",
+        "name": "Maja E - Calm Audiobook Narrator",
+        "label": "Maja",
+        "about": "Female, middle aged"
+      },
+      "uk": {
+        "id": "NzxZZhrUg9MwxGQtQRFf",
+        "name": "Marichka Kvitka - Bright & Playful",
+        "label": "Marichka",
+        "about": "Female, young"
+      },
+      "sv": {
+        "id": "4Ct5uMEndw4cJ7q0Jx0l",
+        "name": "Elin - Neutral and Clear",
+        "label": "Elin",
+        "about": "Female, young"
+      },
+      "hr": {
+        "id": "0jvpZ98RZwx5FBOSZAc3",
+        "name": "Maja - Engaging, Narrative",
+        "label": "Maja",
+        "about": "Female, young"
+      },
+      "cs": {
+        "id": "XOgpjkYNnVH5W7ZAlLYg",
+        "name": "Petra - Kind and Clear voice teacher",
+        "label": "Petra",
+        "about": "Female, young"
+      },
+      "el": {
+        "id": "GKXCdIjjORefHK29tFTY",
+        "name": "Niki 3 - Lively, Cartoon Character",
+        "label": "Niki",
+        "about": "Female, young"
+      },
+      "sk": {
+        "id": "GsFe19Xn8iGqNR2RxINi",
+        "name": "Jolana",
+        "label": "Jolana",
+        "about": "Female, middle aged"
+      },
+      "ro": {
+        "id": "RjgBjNgGkuZd49zyCxIq",
+        "name": "Corina Capuccina - Warm and Energetic",
+        "label": "Corina",
+        "about": "Female, young"
+      },
+      "fi": {
+        "id": "c4ZwDxrFaobUF5e1KlEM",
+        "name": "Lumi - Anxious, Cold and Light",
+        "label": "Lumi",
+        "about": "Female, young"
+      },
+      "bg": {
+        "id": "mW3jGQPMrIgiOavQfIhc",
+        "name": "Nadya - Cheerful & Optimistic",
+        "label": "Nadya",
+        "about": "Female, middle aged"
+      },
+      "da": {
+        "id": "4RklGmuxoAskAbGXplXN",
+        "name": "Camilla - Engaging, Clear and Calm",
+        "label": "Camilla",
+        "about": "Female, middle aged"
+      },
+      "hu": {
+        "id": "xjlfQQ3ynqiEyRpArrT8",
+        "name": "Vera - Young, Energetic and Expressive",
+        "label": "Vera",
+        "about": "Female, middle aged"
+      },
+      "ms": {
+        "id": "qKNMkrcmsdf29T6K7Dbu",
+        "name": "Aisyah - Animated, Expressive and Joyful",
+        "label": "Aisyah",
+        "about": "Female, young"
       }
     },
     "trailer": {
@@ -193,6 +367,180 @@
         "id": "KediIz7pebzt5TaDHiiZ",
         "name": "Alex - Deep, Clear and Fluent",
         "label": "Alex",
+        "about": "Male, middle aged"
+      },
+      "es": {
+        "id": "k8cFOyAg7B9qwBlDDNTC",
+        "name": "Miguel - Deep, Rich and Cinematic",
+        "label": "Miguel",
+        "about": "Male, middle aged"
+      },
+      "fr": {
+        "id": "ecxPjiGTvAfpGEams6ec",
+        "name": "Paul K — French Ad & Trailer Voice",
+        "label": "Paul",
+        "about": "Male, middle aged"
+      },
+      "de": {
+        "id": "g1jpii0iyvtRs8fqXsd1",
+        "name": "Helmut - German Epic Trailer Voice ",
+        "label": "Helmut",
+        "about": "Male, old"
+      },
+      "pt": {
+        "id": "7i7dgyCkKt4c16dLtwT3",
+        "name": "David - Deep, Gravelly and Resonnat",
+        "label": "David",
+        "about": "Male, middle aged"
+      },
+      "pl": {
+        "id": "xsSg7GkDPDhaGZpbKOLn",
+        "name": "Tomasz Z - Expressive and Deep",
+        "label": "Tomasz",
+        "about": "Male, old"
+      },
+      "ru": {
+        "id": "dWNEQ4rqRY6thcusuDyq",
+        "name": "Fuad - Clear, Deep and Rich",
+        "label": "Fuad",
+        "about": "Male, middle aged"
+      },
+      "vi": {
+        "id": "47rM9DW5VmjOw23BVHWi",
+        "name": "Tuan Anh - Deep & Powerful Vietnamese",
+        "label": "Tuan",
+        "about": "Male, middle aged"
+      },
+      "ja": {
+        "id": "H8ZPDxbrPcks5hEsi2fq",
+        "name": "Koichi - Japanese Deep Calm Narrator",
+        "label": "Koichi",
+        "about": "Male, middle aged"
+      },
+      "ko": {
+        "id": "FQ3MuLxZh0jHcZmA5vW1",
+        "name": "Dohyeon - Whisper, Measured and Neutral",
+        "label": "Dohyeon",
+        "about": "Male, middle aged"
+      },
+      "hi": {
+        "id": "vIdhHAZdn1bGjKe1dFw8",
+        "name": "Rudra - Intense Documentary Narrator",
+        "label": "Rudra",
+        "about": "Male, middle aged"
+      },
+      "nl": {
+        "id": "vY9oBYvK4JJ9fCOB5lmn",
+        "name": "Eric - Engaging Commercial Storyteller",
+        "label": "Eric",
+        "about": "Male, middle aged"
+      },
+      "it": {
+        "id": "32vqZVYOe7sQVGys0soJ",
+        "name": "Roberto - Deep Italian Male Narrator",
+        "label": "Roberto",
+        "about": "Male, middle aged"
+      },
+      "ar": {
+        "id": "QRq5hPRAKf5ZhSlTBH6r",
+        "name": "Yahya - Deep, Warm and Expressive",
+        "label": "Yahya",
+        "about": "Male, middle aged"
+      },
+      "zh": {
+        "id": "brChkoggsUHF1stW6omH",
+        "name": "Ethan Zhang - Deep, Seductive and Smooth",
+        "label": "Ethan",
+        "about": "Male, middle aged"
+      },
+      "tl": {
+        "id": "JSMh8s3WWBQAs0aJuDNS",
+        "name": "Kafka Hibino - Recap Voice Artist",
+        "label": "Kafka",
+        "about": "Male, middle aged"
+      },
+      "id": {
+        "id": "ACRfKVNOAnzVitkYerdl",
+        "name": "Mizan - Deep, Soothing and Calm",
+        "label": "Mizan",
+        "about": "Male, middle aged"
+      },
+      "no": {
+        "id": "nhvaqgRyAq6BmFs3WcdX",
+        "name": "Oyvind - Deep, Calm & Trustworthy",
+        "label": "Oyvind",
+        "about": "Male, middle aged"
+      },
+      "uk": {
+        "id": "autkcVQ5nxwPh8ICic4z",
+        "name": "Danylo - Top Brand Voice & Deep Baritone",
+        "label": "Danylo",
+        "about": "Male, middle aged"
+      },
+      "sv": {
+        "id": "wVebHqxy2EFBILywVrdC",
+        "name": "Andreas - Deep, Manly & Dramatic",
+        "label": "Andreas",
+        "about": "Male, middle aged"
+      },
+      "hr": {
+        "id": "ocaele7kOTNS1wQzhbSM",
+        "name": "Marko - Deep, Calm and Narrative",
+        "label": "Marko",
+        "about": "Male, middle aged"
+      },
+      "cs": {
+        "id": "NHv5TpkohJlOhwlTCzJk",
+        "name": "Pawel - Cinematic, Deep and Confident",
+        "label": "Pawel",
+        "about": "Male, middle aged"
+      },
+      "el": {
+        "id": "n0vzWypeCK1NlWPVwhOc",
+        "name": "Theos - Narrational, Assertive and Warm",
+        "label": "Theos",
+        "about": "Male, middle aged"
+      },
+      "sk": {
+        "id": "Zai7B4Aol2bJtneyq0L1",
+        "name": "Luki Zajo - Lively, Deep and Focused",
+        "label": "Luki",
+        "about": "Male, middle aged"
+      },
+      "ro": {
+        "id": "OlBp4oyr3FBAGEAtJOnU",
+        "name": "Jora Slobod - Calm, Deep and Reassuring",
+        "label": "Jora",
+        "about": "Male, middle aged"
+      },
+      "fi": {
+        "id": "3OArekHEkHv5XvmZirVD",
+        "name": "Christoffer Weiss - Hopeful and Steady",
+        "label": "Christoffer",
+        "about": "Male, middle aged"
+      },
+      "bg": {
+        "id": "NRh6kcwL61BoyIMyyDuy",
+        "name": "Valentin",
+        "label": "Valentin",
+        "about": "Male, middle aged"
+      },
+      "da": {
+        "id": "Bl1YwS3uJac5zEOSNESn",
+        "name": "Jesper - Calm, Deep and Professional",
+        "label": "Jesper",
+        "about": "Male, middle aged"
+      },
+      "hu": {
+        "id": "M336tBVZHWWiWb4R54ui",
+        "name": "David - Deep, Soothing and Sincere",
+        "label": "David",
+        "about": "Male, middle aged"
+      },
+      "ms": {
+        "id": "IWNl2N9h4kpb5pOZn2NT",
+        "name": "Zain - Deep, Mysterious and Dramatic",
+        "label": "Zain",
         "about": "Male, middle aged"
       }
     },
@@ -208,6 +556,180 @@
         "name": "AZ - Deep Narrative & Documentary",
         "label": "AZ",
         "about": "Male, young"
+      },
+      "es": {
+        "id": "K3TeN3ZVK8WnOeJ0NYqZ",
+        "name": "David - Deep, Attractive, Mysterious",
+        "label": "David",
+        "about": "Male, young"
+      },
+      "fr": {
+        "id": "wyZnrAs18zdIj8UgFSV8",
+        "name": "Martin Dupont - Thriller Narrator",
+        "label": "Martin",
+        "about": "Male, middle aged"
+      },
+      "de": {
+        "id": "Ay1WwRHxUsu3hEeAp8JZ",
+        "name": "Anton - Formal and Strong",
+        "label": "Anton",
+        "about": "Male, middle aged"
+      },
+      "pt": {
+        "id": "h96v1HCJtcisNNeagp0R",
+        "name": "Will - Serious, Suspenseful and Clear",
+        "label": "Will",
+        "about": "Male, middle aged"
+      },
+      "pl": {
+        "id": "rUOVqZ1ISbf2yl2Vbpwa",
+        "name": "Ryszard - Sinister Storyteller",
+        "label": "Ryszard",
+        "about": "Male, young"
+      },
+      "ru": {
+        "id": "oKxkBkm5a8Bmrd1Whf2c",
+        "name": "Prince Nur - Smooth, Rich and Engaging",
+        "label": "Prince",
+        "about": "Male, young"
+      },
+      "vi": {
+        "id": "DXiwi9uoxet6zAiZXynP",
+        "name": "Hung Tran - Deep, Calm and Reflective",
+        "label": "Hung",
+        "about": "Male, middle aged"
+      },
+      "ja": {
+        "id": "KdlbMHGeafEyWqPCWkW0",
+        "name": "Kiyo - Inviting, Clear and Measured",
+        "label": "Kiyo",
+        "about": "Male, middle aged"
+      },
+      "ko": {
+        "id": "ibCGc01503OQd2R6i1n1",
+        "name": "Marcus - Baritone(Stoic)",
+        "label": "Marcus",
+        "about": "Male, middle aged"
+      },
+      "hi": {
+        "id": "wbOlq3nIga8HKqcDhASI",
+        "name": "Shivank - Deep, Breathy and Suspense",
+        "label": "Shivank",
+        "about": "Male, middle aged"
+      },
+      "nl": {
+        "id": "T6sdx9oLQ9xfxeKIi6AM",
+        "name": "Lucas - Deep, Raspy and Engaging",
+        "label": "Lucas",
+        "about": "Male, middle aged"
+      },
+      "it": {
+        "id": "ovchBcE0QzMVMrtS8r4T",
+        "name": "Brando Vox – Expressive, Confident, Conversational",
+        "label": "Brando",
+        "about": "Male, middle aged"
+      },
+      "ar": {
+        "id": "wxweiHvoC2r2jFM7mS8b",
+        "name": "Haytham - Dramatic and Narrative",
+        "label": "Haytham",
+        "about": "Male, middle aged"
+      },
+      "zh": {
+        "id": "fYmV8EanqZP9BI4WvpB7",
+        "name": "Erich Li - Mystery Host",
+        "label": "Erich",
+        "about": "Male, middle aged"
+      },
+      "tl": {
+        "id": "v62z0VKKcUk8lLyqM042",
+        "name": "KataCute - Horror Narrator",
+        "label": "KataCute",
+        "about": "Male, middle aged"
+      },
+      "id": {
+        "id": "tX4zpyB6s34no1FgD0Mm",
+        "name": "Eyang - Deep, Calm and Mysterious",
+        "label": "Eyang",
+        "about": "Male, old"
+      },
+      "no": {
+        "id": "SAa140Q9akujSiZCBSNt",
+        "name": "William Dahl",
+        "label": "William",
+        "about": "Male, middle aged"
+      },
+      "uk": {
+        "id": "IM2NskAf9RDJ9aOlvoTu",
+        "name": "Casanova - Your Love Story, Whispered",
+        "label": "Casanova",
+        "about": "Male, middle aged"
+      },
+      "sv": {
+        "id": "7UMEOkIJdI4hjmR2SWNq",
+        "name": "Ola Paulakoski - Deep, Soft and Engaging",
+        "label": "Ola",
+        "about": "Male, middle aged"
+      },
+      "hr": {
+        "id": "ZLYZToA7aDsMbHwM9AOr",
+        "name": "Luka - Calm, Narrative",
+        "label": "Luka",
+        "about": "Male, middle aged"
+      },
+      "cs": {
+        "id": "A4QaWrc6j9wnj1l191pm",
+        "name": "Jiri - Deep, Reflective and Husky",
+        "label": "Jiri",
+        "about": "Male, middle aged"
+      },
+      "el": {
+        "id": "20zUtLxCwVzsFDWub4sB",
+        "name": "Stefanos - Calm, Narrational and Soft",
+        "label": "Stefanos",
+        "about": "Male, young"
+      },
+      "sk": {
+        "id": "d6IbhdqAKkXCCVuJjbie",
+        "name": "Peter - Alien, Friendly and Soft",
+        "label": "Peter",
+        "about": "Male, young"
+      },
+      "ro": {
+        "id": "5BZv9Z02hAMUmkkcd5Hj",
+        "name": "Paul - Engaging, Friendly and Mysterious",
+        "label": "Paul",
+        "about": "Male, middle aged"
+      },
+      "fi": {
+        "id": "JMfkzZiSsox62UXcXUqM",
+        "name": "Jaakko - Calm, Reflective and Soft",
+        "label": "Jaakko",
+        "about": "Male, young"
+      },
+      "bg": {
+        "id": "31jwlwrRwpOA5yGuVAby",
+        "name": "Georgi - Tender, Rich, and Reassuring",
+        "label": "Georgi",
+        "about": "Male, young"
+      },
+      "da": {
+        "id": "qhEux886xDKbOdF7jkFP",
+        "name": "Peter - Natural, Crisp and Clear",
+        "label": "Peter",
+        "about": "Male, middle aged"
+      },
+      "hu": {
+        "id": "A9fIUjJSvi6o6ft9W7Eh",
+        "name": "Erik - Deep Hungarian Baritone",
+        "label": "Erik",
+        "about": "Male, middle aged"
+      },
+      "ms": {
+        "id": "T1mr7V3bcaBm2vQhsxFG",
+        "name": "Rizal - Youthful Malay Storyteller",
+        "label": "Rizal",
+        "about": "Male, young"
       }
     },
     "storyteller": {
@@ -221,6 +743,180 @@
         "id": "j82ax9yhzfYwq9lDvRWL",
         "name": "Kadir Kayışcı - Deep, Mature and Soft",
         "label": "Kadir",
+        "about": "Male, middle aged"
+      },
+      "es": {
+        "id": "5egO01tkUjEzu7xSSE8M",
+        "name": "Carmelo - Mature, Mysterious and Clear",
+        "label": "Carmelo",
+        "about": "Male, middle aged"
+      },
+      "fr": {
+        "id": "Qrl71rx6Yg8RvyPYRGCQ",
+        "name": "Guillaume - Narrator",
+        "label": "Guillaume",
+        "about": "Male, middle aged"
+      },
+      "de": {
+        "id": "NBqeXKdZHweef6y0B67V",
+        "name": "Christian - Warm and Captivating",
+        "label": "Christian",
+        "about": "Male, middle aged"
+      },
+      "pt": {
+        "id": "5lrBPYY4YvMbKHTo8kvZ",
+        "name": "Arthur Freeman - Warm & Professional",
+        "label": "Arthur",
+        "about": "Male, middle aged"
+      },
+      "pl": {
+        "id": "gFl0NeqphJUaoBLtWrqM",
+        "name": "Piotr - Neutral and Mature Bard",
+        "label": "Piotr",
+        "about": "Male, middle aged"
+      },
+      "ru": {
+        "id": "ogi2DyUAKJb7CEdqqvlU",
+        "name": "Stanislav - Deep, Empathetic and Warm",
+        "label": "Stanislav",
+        "about": "Male, middle aged"
+      },
+      "vi": {
+        "id": "4HGP1feHKTQ1DJst6Tk8",
+        "name": "Ton - Vietnamese, Warm, Narration-vibe",
+        "label": "Ton",
+        "about": "Male, middle aged"
+      },
+      "ja": {
+        "id": "bEg9geTboP3ghzJ9Rt3L",
+        "name": "Umine - Deep Japanese Male Voice -",
+        "label": "Umine",
+        "about": "Male, middle aged"
+      },
+      "ko": {
+        "id": "BbsagRO6ohd8MKPS2Ob0",
+        "name": "Jin Geon Song - Neutral, Calm and Steady",
+        "label": "Jin",
+        "about": "Male, middle aged"
+      },
+      "hi": {
+        "id": "Aano0MRpH01ekWzUtv60",
+        "name": "Shardul K - Deep Horror Storyteller",
+        "label": "Shardul",
+        "about": "Male, middle aged"
+      },
+      "nl": {
+        "id": "dSPqR7aIUDP4AvcVHLlr",
+        "name": "Jan - Gentle Children's Storyteller",
+        "label": "Jan",
+        "about": "Male, middle aged"
+      },
+      "it": {
+        "id": "DLMxnwJE0a28JQLTMJPJ",
+        "name": "Andy - Warm, Nuanced and Mature",
+        "label": "Andy",
+        "about": "Male, middle aged"
+      },
+      "ar": {
+        "id": "fw7cr3U7H7Q0wGpoCmjW",
+        "name": "Daoud - Calm, warm, deep, and friendly",
+        "label": "Daoud",
+        "about": "Male, middle aged"
+      },
+      "zh": {
+        "id": "vZZLclMx4wouUtKBRfZn",
+        "name": "Jin - Clear, Warm and Casual",
+        "label": "Jin",
+        "about": "Male, middle aged"
+      },
+      "tl": {
+        "id": "4tyvjitnpBSM6fJ9YKur",
+        "name": "Ron Mabuhay - Charismatic Storyteller",
+        "label": "Ron",
+        "about": "Male, middle aged"
+      },
+      "id": {
+        "id": "vLsH4ENK3zGpAuW1lSh4",
+        "name": "Ghaisan - Warm, Engaging and Clear",
+        "label": "Ghaisan",
+        "about": "Male, middle aged"
+      },
+      "no": {
+        "id": "4kCDY3HJwvO7Zp3con83",
+        "name": "Sebastian - Confident Podcaster",
+        "label": "Sebastian",
+        "about": "Male, middle aged"
+      },
+      "uk": {
+        "id": "yFgkuUnlOWx3k7ezUZQm",
+        "name": "Mykhailo Grushevski - Warm, Deep, Rich",
+        "label": "Mykhailo",
+        "about": "Male, middle aged"
+      },
+      "sv": {
+        "id": "CuaAIFbkzX2kaNH5EtHZ",
+        "name": "Martin - Warm, Confident and Relatable",
+        "label": "Martin",
+        "about": "Male, middle aged"
+      },
+      "hr": {
+        "id": "TRnNlYQWHAJwo9K75wNE",
+        "name": "Fran - Calm, Narrative",
+        "label": "Fran",
+        "about": "Male, middle aged"
+      },
+      "cs": {
+        "id": "delUumpO66oJVPRn3uiI",
+        "name": "Alex - Warm Storyteller",
+        "label": "Alex",
+        "about": "Male, middle aged"
+      },
+      "el": {
+        "id": "QpnXVbX7RkmUGDwpJh5v",
+        "name": "Talos",
+        "label": "Talos",
+        "about": "Male, old"
+      },
+      "sk": {
+        "id": "Gbg7vqyL0sYjsoEqVw0j",
+        "name": "Andrej - Mild & Calm",
+        "label": "Andrej",
+        "about": "Male, middle aged"
+      },
+      "ro": {
+        "id": "8nBBDfYxYXmDNaqTCxPH",
+        "name": "Serban Popescu - Professional Narrator",
+        "label": "Serban",
+        "about": "Male, middle aged"
+      },
+      "fi": {
+        "id": "Sz0tRTEpybtDJ9ru2kgD",
+        "name": "Viisas Kertoja - Calm, Warm and Rich",
+        "label": "Viisas",
+        "about": "Male, middle aged"
+      },
+      "bg": {
+        "id": "wdDLfj32GuDl838ypq7Z",
+        "name": "Alexander - Warm Narrative",
+        "label": "Alexander",
+        "about": "Male, young"
+      },
+      "da": {
+        "id": "tJDFCHyviItsYF1qqToS",
+        "name": "Leif - Warm Nordic Storyteller",
+        "label": "Leif",
+        "about": "Male, middle aged"
+      },
+      "hu": {
+        "id": "7B7mSWflzRSaO1yGeJH6",
+        "name": "Gábor - Warm, Natural and Confident",
+        "label": "Gábor",
+        "about": "Male, middle aged"
+      },
+      "ms": {
+        "id": "TXfZrONKsgH1CoxNoMuO",
+        "name": "Ahmad Yusuf",
+        "label": "Ahmad",
         "about": "Male, middle aged"
       }
     },
@@ -236,6 +932,180 @@
         "name": "Seda - Relaxing, Friendly and Soft",
         "label": "Seda",
         "about": "Female, young"
+      },
+      "es": {
+        "id": "2Lb1en5ujrODDIqmp7F3",
+        "name": "Jhenny - Soft, Calm, Sweet",
+        "label": "Jhenny",
+        "about": "Female, middle aged"
+      },
+      "fr": {
+        "id": "tMyQcCxfGDdIt7wJ2RQw",
+        "name": "Marie Alice - Soft, Calm and Captivating",
+        "label": "Marie",
+        "about": "Female, young"
+      },
+      "de": {
+        "id": "rAmra0SCIYOxYmRNDSm3",
+        "name": "Lana Weiss - Soft and Sweet",
+        "label": "Lana",
+        "about": "Female, young"
+      },
+      "pt": {
+        "id": "GFPGeIuI7dxt6YeFLE7l",
+        "name": "Ayres - Warm, Gentle and Soothing",
+        "label": "Ayres",
+        "about": "Female, young"
+      },
+      "pl": {
+        "id": "HnsghscV3PKM5tLCzch5",
+        "name": "Bea - Relaxed, Meditative and Soft",
+        "label": "Bea",
+        "about": "Female, middle aged"
+      },
+      "ru": {
+        "id": "ymDCYd8puC7gYjxIamPt",
+        "name": "Marina - Soft, Clear and Warm",
+        "label": "Marina",
+        "about": "Female, middle aged"
+      },
+      "vi": {
+        "id": "558B1EcdabtcSdleer40",
+        "name": "Thảo - Soft, Calm and Gentle",
+        "label": "Thảo",
+        "about": "Female, young"
+      },
+      "ja": {
+        "id": "WQz3clzUdMqvBf0jswZQ",
+        "name": "Shizuka - Natural and Soft",
+        "label": "Shizuka",
+        "about": "Female, young"
+      },
+      "ko": {
+        "id": "mYk0rAapHek2oTw18z8x",
+        "name": "Salang - Calm, Clear and Warm",
+        "label": "Salang",
+        "about": "Female, young"
+      },
+      "hi": {
+        "id": "OtEfb2LVzIE45wdYe54M",
+        "name": "Zara - Soft, Professional and Gentle",
+        "label": "Zara",
+        "about": "Female, young"
+      },
+      "nl": {
+        "id": "wwW0aOSbbYgXMec1zRTp",
+        "name": "Dauphine - Soft, friendly, narrator",
+        "label": "Dauphine",
+        "about": "Female, young"
+      },
+      "it": {
+        "id": "CnVVMwhKmKZ6hKBAkL6Y",
+        "name": "Giulia - Sweet, Soothing and Gentle",
+        "label": "Giulia",
+        "about": "Female, middle aged"
+      },
+      "ar": {
+        "id": "albaa6OioIhKtKdCEkQw",
+        "name": "Laloosh – Soothing Arabic Conversational Voice",
+        "label": "Laloosh",
+        "about": "Female, young"
+      },
+      "zh": {
+        "id": "APSIkVZudNbPAwyPoeVO",
+        "name": "Sage - Soothing & Gentle",
+        "label": "Sage",
+        "about": "Female, young"
+      },
+      "tl": {
+        "id": "4RLeKvASM0Zt73Htf5GF",
+        "name": "Maria - Soothing, Gentle, and Clear",
+        "label": "Maria",
+        "about": "Female, middle aged"
+      },
+      "id": {
+        "id": "RbNgJzKAV7jpYJNtCBpj",
+        "name": "Citra - Gentle, Inviting and Calm",
+        "label": "Citra",
+        "about": "Female, young"
+      },
+      "no": {
+        "id": "pSuPcYPRhKrCEH0xQhRU",
+        "name": "Harper - Warm and inviting",
+        "label": "Harper",
+        "about": "Female, young"
+      },
+      "uk": {
+        "id": "gF0lB8o9gaDnjqCxZayW",
+        "name": "Khrystyna - Sweet & Calm",
+        "label": "Khrystyna",
+        "about": "Female, young"
+      },
+      "sv": {
+        "id": "kPdGSxhZAqy4bmPAf9iJ",
+        "name": "Evelina - Calm, Clear and Engaging",
+        "label": "Evelina",
+        "about": "Female, middle aged"
+      },
+      "hr": {
+        "id": "V5O4WAcdw7w3Ccfvma8Z",
+        "name": "Zlata - Calm, Narrative and Relaxed",
+        "label": "Zlata",
+        "about": "Female, middle aged"
+      },
+      "cs": {
+        "id": "e6RzI8kmgjn6nh36K9J3",
+        "name": "Kami - Warm, Velvety and Soothing",
+        "label": "Kami",
+        "about": "Female, young"
+      },
+      "el": {
+        "id": "aTP4J5SJLQl74WTSRXKW",
+        "name": "Eleni - Soft, Narrational and Calm",
+        "label": "Eleni",
+        "about": "Female, young"
+      },
+      "sk": {
+        "id": "Ksn4Lnw42E8g9xJBlINT",
+        "name": "Dianka",
+        "label": "Dianka",
+        "about": "Female, young"
+      },
+      "ro": {
+        "id": "GRHbHyXbUO8nF4YexVTa",
+        "name": "Anca - Warm, Expressive and Soothing",
+        "label": "Anca",
+        "about": "Female, young"
+      },
+      "fi": {
+        "id": "8X97zFR9k9pK2xyFI7Nr",
+        "name": "Sini - Energetic and spirited",
+        "label": "Sini",
+        "about": "Female, middle aged"
+      },
+      "bg": {
+        "id": "zTQyc4NrQirk2Bu3ZOM7",
+        "name": "Elizabeth - Calm Narrator",
+        "label": "Elizabeth",
+        "about": "Female, young"
+      },
+      "da": {
+        "id": "sL4FgENCDCmms8byozKz",
+        "name": "Sarah",
+        "label": "Sarah",
+        "about": "Female, middle aged"
+      },
+      "hu": {
+        "id": "9QppwToemG29A6UTSbwz",
+        "name": "Vivianna - Sweet & Conversational",
+        "label": "Vivianna",
+        "about": "Female, young"
+      },
+      "ms": {
+        "id": "15Y62ZlO8it2f5wduybx",
+        "name": "Shazrina - Calm, Soothing and Gentle",
+        "label": "Shazrina",
+        "about": "Female, young"
       }
     },
     "upbeat": {
@@ -249,6 +1119,168 @@
         "id": "oPC5I9GKjMReiaM29gjY",
         "name": "Gökçe Deniz - Joyful, Friendly and Warm",
         "label": "Gökçe",
+        "about": "Female, young"
+      },
+      "es": {
+        "id": "p7AwDmKvTdoHTBuueGvP",
+        "name": "Malena - Warm, Dynamic and Confident",
+        "label": "Malena",
+        "about": "Female, young"
+      },
+      "fr": {
+        "id": "rbFGGoDXFHtVghjHuS3E",
+        "name": "Koraly – Promo Video",
+        "label": "Koraly",
+        "about": "Female, middle aged"
+      },
+      "de": {
+        "id": "NE7AIW5DoJ7lUosXV2KR",
+        "name": "Ela - Cheerful and Happy",
+        "label": "Ela",
+        "about": "Female, young"
+      },
+      "pt": {
+        "id": "GDzHdQOi6jjf8zaXhCYD",
+        "name": "Raquel - Expressive and Energetic",
+        "label": "Raquel",
+        "about": "Female, young"
+      },
+      "pl": {
+        "id": "NOWYzprzTwfZQqU76pBX",
+        "name": "Aleksandra ",
+        "label": "Aleksandra",
+        "about": "Female, young"
+      },
+      "ru": {
+        "id": "8M81RK3MD7u4DOJpu2G5",
+        "name": "Viktoriia - Energetic and Inviting",
+        "label": "Viktoriia",
+        "about": "Female, young"
+      },
+      "vi": {
+        "id": "zIusdI28yOZPwIBus0aI",
+        "name": "Ân - Casual, Bubbly and Energetic",
+        "label": "Ân",
+        "about": "Female, young"
+      },
+      "ja": {
+        "id": "GxhGYQesaQaYKePCZDEC",
+        "name": "Chii-chan - Neutral and Clear",
+        "label": "Chii",
+        "about": "Female, young"
+      },
+      "ko": {
+        "id": "xi3rF0t7dg7uN2M0WUhr",
+        "name": "Yuna - Cheerful, Clear and Natural",
+        "label": "Yuna",
+        "about": "Female, young"
+      },
+      "hi": {
+        "id": "TRnaQb7q41oL7sV0w6Bu",
+        "name": "Simran - Bright, Expressive and Friendly",
+        "label": "Simran",
+        "about": "Female, young"
+      },
+      "nl": {
+        "id": "OlBRrVAItyi00MuGMbna",
+        "name": "Emma - Calm, Clear and Confident",
+        "label": "Emma",
+        "about": "Female, young"
+      },
+      "it": {
+        "id": "Kq9pDHHIMmJsG9PEqOtv",
+        "name": "Kina - Joyful, Bright and Youthful",
+        "label": "Kina",
+        "about": "Female, young"
+      },
+      "ar": {
+        "id": "Wim44P0dU9HtjyzNnFsv",
+        "name": "Ghaida - Friendly, Charming and Caring",
+        "label": "Ghaida",
+        "about": "Female, young"
+      },
+      "zh": {
+        "id": "El018FmI047NtSsCfyrY",
+        "name": "Nina - Sweet and Warm Chinese Female",
+        "label": "Nina",
+        "about": "Female, young"
+      },
+      "tl": {
+        "id": "0OteN0TNg6Kyaflk2DY8",
+        "name": "Bea - Cute, Sweet, and Charming",
+        "label": "Bea",
+        "about": "Female, young"
+      },
+      "id": {
+        "id": "zd0hd2egR1Q6EzSLTzCp",
+        "name": "Naya - Soothing, Calm and Empathetic",
+        "label": "Naya",
+        "about": "Female, young"
+      },
+      "no": {
+        "id": "pbb4nvdETnNfQljwVeaL",
+        "name": "Ingrid - Clear and expressive",
+        "label": "Ingrid",
+        "about": "Female, young"
+      },
+      "uk": {
+        "id": "a30ekmfK56EKHR341YaO",
+        "name": "Torri Miles - Bright, Perky and Feminine",
+        "label": "Torri",
+        "about": "Female, young"
+      },
+      "sv": {
+        "id": "6t6kdi8hAnBYTTvzE62o",
+        "name": "Malin - Professional Commercial",
+        "label": "Malin",
+        "about": "Female, young"
+      },
+      "hr": {
+        "id": "L1kQ6rz0P1bI4L5Av3Ow",
+        "name": "Lara - Positive, Formal",
+        "label": "Lara",
+        "about": "Female, young"
+      },
+      "cs": {
+        "id": "bF7C2fCv7Zf30iT84wZ1",
+        "name": "Jana - Warm, Confident Czech Female",
+        "label": "Jana",
+        "about": "Female, young"
+      },
+      "el": {
+        "id": "0oYUKTNPbymIKVAkDQqh",
+        "name": "Sofia",
+        "label": "Sofia",
+        "about": "Female, young"
+      },
+      "sk": {
+        "id": "9Nd358gE1qQp0pDh8FgP",
+        "name": "Julia - Young & Airy",
+        "label": "Julia",
+        "about": "Female, young"
+      },
+      "ro": {
+        "id": "gCte8DU5EgI3W1KcuLSA",
+        "name": "Mikidutza - Playful, Clear and Friendly",
+        "label": "Mikidutza",
+        "about": "Female, young"
+      },
+      "fi": {
+        "id": "mAQFJGiGHnU55mtzMI27",
+        "name": "Aava - Tender, Calm and Natural",
+        "label": "Aava",
+        "about": "Female, young"
+      },
+      "bg": {
+        "id": "fSxb5mPM1l5zTVVtM3Vb",
+        "name": "Elena - Energetic, Friendly, and Clear",
+        "label": "Elena",
+        "about": "Female, young"
+      },
+      "ms": {
+        "id": "iHhlCVnG0eGUNtDlEX1c",
+        "name": "Aisyash - Animated Game Character",
+        "label": "Aisyash",
         "about": "Female, young"
       }
     },
@@ -264,6 +1296,180 @@
         "name": "Cavit - Energetic and Fast-Paced",
         "label": "Cavit",
         "about": "Male, middle aged"
+      },
+      "es": {
+        "id": "9XaoraKgpXhItOQktYsV",
+        "name": "Zabra - Energetic and Engaging Announcer",
+        "label": "Zabra",
+        "about": "Male, young"
+      },
+      "fr": {
+        "id": "jGpnMdbhtKgQbVrYezOx",
+        "name": "Kev - Young, Dynamic and Bright",
+        "label": "Kev",
+        "about": "Male, middle aged"
+      },
+      "de": {
+        "id": "1h6gHcRvQugDNZgdAo9N",
+        "name": "Elias - Pleasant and Memorable",
+        "label": "Elias",
+        "about": "Male, young"
+      },
+      "pt": {
+        "id": "7u8qsX4HQsSHJ0f8xsQZ",
+        "name": "João Pedro - Shy and Apologetic",
+        "label": "João",
+        "about": "Male, young"
+      },
+      "pl": {
+        "id": "8qCMI2ZZW5ZGwmg0lM1l",
+        "name": "Paweł Siwek - Engaging, Warm Radio Host",
+        "label": "Paweł",
+        "about": "Male, young"
+      },
+      "ru": {
+        "id": "hU3rD0Yk7DoiYULTX1pD",
+        "name": "Dmitry - Energetic and Confident",
+        "label": "Dmitry",
+        "about": "Male, middle aged"
+      },
+      "vi": {
+        "id": "BUPPIXeDaJWBz696iXRS",
+        "name": "Dũng - Poetic, Deep and Resonant",
+        "label": "Dũng",
+        "about": "Male, middle aged"
+      },
+      "ja": {
+        "id": "zdWu2I1sJrZsmxJG5rie",
+        "name": "Mitsuwo - Cheerful, Natural and Clear",
+        "label": "Mitsuwo",
+        "about": "Male, middle aged"
+      },
+      "ko": {
+        "id": "fHzGR8qcnsDR2uaj9r16",
+        "name": "Hojin Lim — Korean male voice, 30s",
+        "label": "Hojin",
+        "about": "Male, young"
+      },
+      "hi": {
+        "id": "IvLWq57RKibBrqZGpQrC",
+        "name": "Rian - Energetic Hindi Conversational",
+        "label": "Rian",
+        "about": "Male, middle aged"
+      },
+      "nl": {
+        "id": "49dczJmfGX7RoeudoOPi",
+        "name": " Vincent - Warm & Enthusiastic",
+        "label": "Vincent",
+        "about": "Male, middle aged"
+      },
+      "it": {
+        "id": "8BRNClOqAj0d70eCur4i",
+        "name": "SimoneF - Advertising & Social Media",
+        "label": "SimoneF",
+        "about": "Male, young"
+      },
+      "ar": {
+        "id": "pCKbQ4EPGE06zpEPGNvS",
+        "name": "Abdullah - Professional, and Energetic",
+        "label": "Abdullah",
+        "about": "Male, middle aged"
+      },
+      "zh": {
+        "id": "pu1tF8vhX5qEx1v7a6UV",
+        "name": "Suuny Su - Energetic & Slightly Husky",
+        "label": "Suuny",
+        "about": "Male, young"
+      },
+      "tl": {
+        "id": "DxICOrDlizHfox9uSCDm",
+        "name": "Kuya Pedro Penduko - Gentle Storyteller",
+        "label": "Kuya",
+        "about": "Male, young"
+      },
+      "id": {
+        "id": "R7biip4PFaCanifKPxe6",
+        "name": "Zandhira - Engaging, Calm and Clear",
+        "label": "Zandhira",
+        "about": "Male, young"
+      },
+      "no": {
+        "id": "EpYEY8MWJrUGskHBoNMA",
+        "name": "Erik - Clear and Natural",
+        "label": "Erik",
+        "about": "Male, middle aged"
+      },
+      "uk": {
+        "id": "hWHihsTve3RbzG4PHDBQ",
+        "name": "Andriy Tkachenko - Advertising Narrator",
+        "label": "Andriy",
+        "about": "Male, middle aged"
+      },
+      "sv": {
+        "id": "oJEeOXECH9V31Oci9WHK",
+        "name": "Peter - Natural and Engaging",
+        "label": "Peter",
+        "about": "Male, middle aged"
+      },
+      "hr": {
+        "id": "jVBTQrP67HZEE22UqQGF",
+        "name": "Mihael - Croatian Radio TV host",
+        "label": "Mihael",
+        "about": "Male, young"
+      },
+      "cs": {
+        "id": "uYFJyGaibp4N2VwYQshk",
+        "name": "Adam - Velvety and Conversational",
+        "label": "Adam",
+        "about": "Male, middle aged"
+      },
+      "el": {
+        "id": "TN3alZndDSA8GYZSOf3r",
+        "name": "Georgios - Casual, Calm and Reassuring",
+        "label": "Georgios",
+        "about": "Male, young"
+      },
+      "sk": {
+        "id": "OjH3kd1hF4veZngfTzH0",
+        "name": "Lister - Commercial, Ads & Promo",
+        "label": "Lister",
+        "about": "Male, middle aged"
+      },
+      "ro": {
+        "id": "S98OhkhaxeAKHEbhoLi7",
+        "name": "Andrei - Sophisticated and Empathetic",
+        "label": "Andrei",
+        "about": "Male, middle aged"
+      },
+      "fi": {
+        "id": "dlbXHgJnwobU5JdZ8F5M",
+        "name": "Jussi - Strong and Silly",
+        "label": "Jussi",
+        "about": "Male, young"
+      },
+      "bg": {
+        "id": "vZifugoCmJjNgn0bBdKH",
+        "name": "Yordan",
+        "label": "Yordan",
+        "about": "Male, middle aged"
+      },
+      "da": {
+        "id": "V34B5u5UbLdNJVEkcgXp",
+        "name": "Noam - Enganging and Clear",
+        "label": "Noam",
+        "about": "Male, young"
+      },
+      "hu": {
+        "id": "yyPLNYHg3CvjlSdSOdLh",
+        "name": "Balázs - Energetic, Clear and Personable",
+        "label": "Balázs",
+        "about": "Male, middle aged"
+      },
+      "ms": {
+        "id": "b8rQEOInWxNtdAoKJco6",
+        "name": "Shahrul - Natural Podcast Host",
+        "label": "Shahrul",
+        "about": "Male, young"
       }
     },
     "anchor": {
@@ -278,6 +1484,162 @@
         "name": "İrem - Authoritarian Female Voice",
         "label": "İrem",
         "about": "Female, middle aged"
+      },
+      "es": {
+        "id": "zl1Ut8dvwcVSuQSB9XkG",
+        "name": "Ninoska - Spanish Teacher",
+        "label": "Ninoska",
+        "about": "Female, middle aged"
+      },
+      "fr": {
+        "id": "hFgOzpmS0CMtL2to8sAl",
+        "name": "Camille Martin - Calm, Deep and Aged",
+        "label": "Camille",
+        "about": "Female, middle aged"
+      },
+      "de": {
+        "id": "rKiu7lQ4c5P3az3745s3",
+        "name": "Carla Blum - Confident and Informative",
+        "label": "Carla",
+        "about": "Female, middle aged"
+      },
+      "pt": {
+        "id": "iLelOQ6m5mpSeNH8fRob",
+        "name": "Maria - Anxious, Serious and Urgent",
+        "label": "Maria",
+        "about": "Female, middle aged"
+      },
+      "pl": {
+        "id": "74Aolxyv6bUq7ZAIooY5",
+        "name": " IwonaK - Professional radio voice",
+        "label": "IwonaK",
+        "about": "Female, middle aged"
+      },
+      "ru": {
+        "id": "FZGeNF7bE3syeQOynDKC",
+        "name": "Victoria - Engaging and Expressive",
+        "label": "Victoria",
+        "about": "Female, middle aged"
+      },
+      "vi": {
+        "id": "jpmnSYDOADVEpZksbLmc",
+        "name": "Nhung - Clear, Formal and Professional",
+        "label": "Nhung",
+        "about": "Female, middle aged"
+      },
+      "ja": {
+        "id": "T7yYq3WpB94yAuOXraRi",
+        "name": "Konoha - Professional JP Explainer",
+        "label": "Konoha",
+        "about": "Female, middle aged"
+      },
+      "ko": {
+        "id": "cBOtnpVZNlQ5VJygXGB8",
+        "name": "Eunha - Elegant Korean Female",
+        "label": "Eunha",
+        "about": "Female, middle aged"
+      },
+      "hi": {
+        "id": "y2H4TwIU5I2L0JXOdBeX",
+        "name": "Kanika – Confident News Anchor",
+        "label": "Kanika",
+        "about": "Female, middle aged"
+      },
+      "nl": {
+        "id": "okbmjAK8NioUeD7rgItA",
+        "name": "Cristina",
+        "label": "Cristina",
+        "about": "Female, middle aged"
+      },
+      "it": {
+        "id": "DrXMEEZ3ZiRzhi81CK7I",
+        "name": "Valeria – Warm, Expressive, Authentic",
+        "label": "Valeria",
+        "about": "Female, middle aged"
+      },
+      "ar": {
+        "id": "u0TsaWvt0v8migutHM3M",
+        "name": "Ghizlane - Smooth, Distinctive and Calm",
+        "label": "Ghizlane",
+        "about": "Female, middle aged"
+      },
+      "zh": {
+        "id": "4AfodMgwXps9oZFhHzoj",
+        "name": "Yun - Prime Mandarin Broadcast Anchor",
+        "label": "Yun",
+        "about": "Female, middle aged"
+      },
+      "tl": {
+        "id": "NEqPvTuKWuvwUMAEPBPR",
+        "name": "Ate Nikie - Soft and kind narrator",
+        "label": "Ate",
+        "about": "Female, middle aged"
+      },
+      "id": {
+        "id": "o5s6XRBkPSTD4syv6mZg",
+        "name": "Arunika - National TV Voice Over",
+        "label": "Arunika",
+        "about": "Female, middle aged"
+      },
+      "no": {
+        "id": "k5IgYJw2jfo6mO5HhagG",
+        "name": "Celine - Clear and Confident",
+        "label": "Celine",
+        "about": "Female, young"
+      },
+      "uk": {
+        "id": "bsourKGZEagmttzrIzmu",
+        "name": "Kateryna Pavlenko - Professional & Calm",
+        "label": "Kateryna",
+        "about": "Female, middle aged"
+      },
+      "sv": {
+        "id": "a2RZfOPKpyNO38vDv3DD",
+        "name": "Annie - Deep and Serious",
+        "label": "Annie",
+        "about": "Female, middle aged"
+      },
+      "hr": {
+        "id": "d3l4f3HgkE3P6Fo91lYA",
+        "name": "Ida - Clear, Confident Serbian",
+        "label": "Ida",
+        "about": "Female, middle aged"
+      },
+      "cs": {
+        "id": "cjDdmfVUe8VozmpZQVUC",
+        "name": "Monica - Slow, Steady and Clean",
+        "label": "Monica",
+        "about": "Female, middle aged"
+      },
+      "el": {
+        "id": "JrrE7QTGDmQKQuUnqk7H",
+        "name": "Martha - Expressive Greek Female",
+        "label": "Martha",
+        "about": "Female, middle aged"
+      },
+      "sk": {
+        "id": "WRDS9wgqjRDxow7GyX3w",
+        "name": "Ivana - Calm",
+        "label": "Ivana",
+        "about": "Female, middle aged"
+      },
+      "ro": {
+        "id": "AiaoHsEWJpbfK8rXdLbb",
+        "name": "Ioana Alexandra - Social media",
+        "label": "Ioana",
+        "about": "Female, middle aged"
+      },
+      "bg": {
+        "id": "M1ydWt7KnBCiuv4CnEDC",
+        "name": "Milena - Optimistic, Clear, and Balanced",
+        "label": "Milena",
+        "about": "Female, middle aged"
+      },
+      "ms": {
+        "id": "GlqBE2PF88HyOJJBxQ9T",
+        "name": "Kasih - Warm & Friendly",
+        "label": "Kasih",
+        "about": "Female, young"
       }
     },
     "documentary": {
@@ -292,6 +1654,180 @@
         "name": "Celil-Documentary Narrator – Deep Male",
         "label": "Celil",
         "about": "Male, middle aged"
+      },
+      "es": {
+        "id": "43h7ymOnaaYdWr3dRbsS",
+        "name": "Jaime - Confident, Clear and Warm",
+        "label": "Jaime",
+        "about": "Male, middle aged"
+      },
+      "fr": {
+        "id": "TTtB1x9U8PF0Vgf20IAP",
+        "name": "Adrien - Deep, Comforting and Warm",
+        "label": "Adrien",
+        "about": "Male, middle aged"
+      },
+      "de": {
+        "id": "muSxG4dqYjBCkbpXqbEl",
+        "name": "René Deutschmann - Trustworthy and Calm",
+        "label": "René",
+        "about": "Male, middle aged"
+      },
+      "pt": {
+        "id": "jkiD8IhCU1i2V7VvmNwi",
+        "name": "Randel - Deep Epic",
+        "label": "Randel",
+        "about": "Male, middle aged"
+      },
+      "pl": {
+        "id": "P2244jTXPnenPJjaAnTC",
+        "name": "Jakub Talarek - Deep, serious voice",
+        "label": "Jakub",
+        "about": "Male, middle aged"
+      },
+      "ru": {
+        "id": "iYMRkaJMA0qIuY9moBHL",
+        "name": "Arthur - Deep, Elegant and Clear",
+        "label": "Arthur",
+        "about": "Male, middle aged"
+      },
+      "vi": {
+        "id": "NSzi72jFi7P1JqCwPRuM",
+        "name": "Henry - Clear, Firm Master of Ceremonies",
+        "label": "Henry",
+        "about": "Male, middle aged"
+      },
+      "ja": {
+        "id": "2UGDsJpBJAiAlF0jQQ7x",
+        "name": "Henry - Neutral, Clear and Smoky",
+        "label": "Henry",
+        "about": "Male, middle aged"
+      },
+      "ko": {
+        "id": "H9ihk5yaEtJLXjhBgRaF",
+        "name": "Jay Lee - Calm and Steady",
+        "label": "Jay",
+        "about": "Male, middle aged"
+      },
+      "hi": {
+        "id": "d0grukerEzs069eKIauC",
+        "name": "Ranga - Powerful Brand Hindi Narrator",
+        "label": "Ranga",
+        "about": "Male, middle aged"
+      },
+      "nl": {
+        "id": "yBtEjlHaWNu9xrYohjbA",
+        "name": "Willem -  Powerful Cinematic Voice",
+        "label": "Willem",
+        "about": "Male, middle aged"
+      },
+      "it": {
+        "id": "wNIMZNAVa95a3UpgwWJr",
+        "name": "Giulio - Calm & Authoritative",
+        "label": "Giulio",
+        "about": "Male, middle aged"
+      },
+      "ar": {
+        "id": "G1HOkzin3NMwRHSq60UI",
+        "name": "Chaouki - Deep, Clear and Engaging",
+        "label": "Chaouki",
+        "about": "Male, middle aged"
+      },
+      "zh": {
+        "id": "YBS7vt5CeZiqlZYGamwR",
+        "name": "Jerry Lin - Deep, Calm & Authoritative",
+        "label": "Jerry",
+        "about": "Male, middle aged"
+      },
+      "tl": {
+        "id": "5X8i2DbRRfNUbpgg6oZD",
+        "name": "Rodrigo Dimagiba - Deep and Enchanting",
+        "label": "Rodrigo",
+        "about": "Male, middle aged"
+      },
+      "id": {
+        "id": "nLQvrSbE39AWDklI866Y",
+        "name": "Adi - Calm, Smooth, Deep Narrative Tone",
+        "label": "Adi",
+        "about": "Male, middle aged"
+      },
+      "no": {
+        "id": "GC1txXxPYDcfgO0KfuXm",
+        "name": "Haldor - Instructor ",
+        "label": "Haldor",
+        "about": "Male, middle aged"
+      },
+      "uk": {
+        "id": "dZde1M1SiLkAKiqjpqqT",
+        "name": "Anton - Unusual, Pleasant and Mysterious",
+        "label": "Anton",
+        "about": "Male, middle aged"
+      },
+      "sv": {
+        "id": "Hyidyy6OA9R3GpDKGwoZ",
+        "name": "Jonas - Deep and Soft",
+        "label": "Jonas",
+        "about": "Male, middle aged"
+      },
+      "hr": {
+        "id": "DAGnQ7r9sMtV0Q44g1Mi",
+        "name": "Nikola – Balkan Pro (Serbian, Croatian)",
+        "label": "Nikola",
+        "about": "Male, middle aged"
+      },
+      "cs": {
+        "id": "vP4R9CqQI4q0HlVrXJWj",
+        "name": "Zdeněk - Strong and Deep",
+        "label": "Zdeněk",
+        "about": "Male, middle aged"
+      },
+      "el": {
+        "id": "PaZ8laODC1yRxHTPYJFh",
+        "name": "Christos - Casual, Calm and Serious",
+        "label": "Christos",
+        "about": "Male, middle aged"
+      },
+      "sk": {
+        "id": "DXwrzy2wtKORwDTbsMwk",
+        "name": "Jaro",
+        "label": "Jaro",
+        "about": "Male, middle aged"
+      },
+      "ro": {
+        "id": "sGcPNcpR5PikknzyXcy7",
+        "name": "Cristi Romana - Deep and Engaging",
+        "label": "Cristi",
+        "about": "Male, middle aged"
+      },
+      "fi": {
+        "id": "paqSK057kuKFy1kq3bdZ",
+        "name": "Martti - Calm & relaxed",
+        "label": "Martti",
+        "about": "Male, middle aged"
+      },
+      "bg": {
+        "id": "UcGGwCMBEQAIYpXt4nTS",
+        "name": "Boris - Deep, steady, and authoritative",
+        "label": "Boris",
+        "about": "Male, middle aged"
+      },
+      "da": {
+        "id": "KLwMtB9otYg9CFf7AUWc",
+        "name": "Claus  Christensen",
+        "label": "Claus",
+        "about": "Male, middle aged"
+      },
+      "hu": {
+        "id": "WYg5oajoUHxVa6ikQXec",
+        "name": "Freddy - Natural, Calm and Deep",
+        "label": "Freddy",
+        "about": "Male, middle aged"
+      },
+      "ms": {
+        "id": "VbhRlZCHaUh9hxeUyRBD",
+        "name": "Daud M - Deep & Confident Narrator",
+        "label": "Daud",
+        "about": "Male, young"
       }
     },
     "explainer": {
@@ -306,6 +1842,144 @@
         "name": "Amelia - Warm, Friendly and Articulate",
         "label": "Amelia",
         "about": "Female, middle aged"
+      },
+      "es": {
+        "id": "kcQkGnn0HAT2JRDQ4Ljp",
+        "name": "Norah - Warm, Friendly and Clear",
+        "label": "Norah",
+        "about": "Female, young"
+      },
+      "fr": {
+        "id": "K7gx0ylJdff0yjM2uVQS",
+        "name": "Jeanne Mance - Charming, Clear and Young",
+        "label": "Jeanne",
+        "about": "Female, middle aged"
+      },
+      "de": {
+        "id": "WHaUUVTDq47Yqc9aDbkH",
+        "name": "Enniah - Friendly and Motivating",
+        "label": "Enniah",
+        "about": "Female, middle aged"
+      },
+      "pt": {
+        "id": "ORgG8rwdAiMYRug8RJwR",
+        "name": "Ana Alice - Friendly & Clear",
+        "label": "Ana",
+        "about": "Female, young"
+      },
+      "pl": {
+        "id": "H3IcxEgdFxIEJAqMc0Bc",
+        "name": "Joanna - Pure, Clear, and Welcoming",
+        "label": "Joanna",
+        "about": "Female, middle aged"
+      },
+      "ru": {
+        "id": "d60rsXo2p0OwikDR5bS7",
+        "name": "Olga Orlova - Clear and Engaging",
+        "label": "Olga",
+        "about": "Female, middle aged"
+      },
+      "vi": {
+        "id": "f5q6kePPoQAjCPYG6moa",
+        "name": "Giang - Northern female Narrator",
+        "label": "Giang",
+        "about": "Female, young"
+      },
+      "ja": {
+        "id": "G3EZ8O36A0x9lmeOtr0f",
+        "name": "Kaori - Relatable and Friendly Voice",
+        "label": "Kaori",
+        "about": "Female, middle aged"
+      },
+      "ko": {
+        "id": "fAgkbajYljImBTPFR28u",
+        "name": "Amytah - Friendly, Clear and Hollow",
+        "label": "Amytah",
+        "about": "Female, middle aged"
+      },
+      "hi": {
+        "id": "tA6LGZpsqStKtSaGiXND",
+        "name": "Tara – Hindi Reels Explainer Style",
+        "label": "Tara",
+        "about": "Female, young"
+      },
+      "nl": {
+        "id": "7bUjekA3fJWJxU5oaRYK",
+        "name": "Iris - Efficient, friendly, & compassionate",
+        "label": "Iris",
+        "about": "Female, middle aged"
+      },
+      "it": {
+        "id": "uV2Bhcm1HwmAqPqkbjfl",
+        "name": "Sara - Clear, Credible and Confident",
+        "label": "Sara",
+        "about": "Female, young"
+      },
+      "ar": {
+        "id": "B5xxC4eQoOFJnY4R5XkI",
+        "name": "Salma - Friendly, Clear and Reassuring",
+        "label": "Salma",
+        "about": "Female, young"
+      },
+      "zh": {
+        "id": "NIqnuIdrAT3LLSSxN05L",
+        "name": "Chihiro Yoko - Clear, Soothing and Sweet",
+        "label": "Chihiro",
+        "about": "Female, young"
+      },
+      "tl": {
+        "id": "Lnvev73Hs1s5LVjBfOr9",
+        "name": "Thea Santos - Hopeful and Reassuring",
+        "label": "Thea",
+        "about": "Female, young"
+      },
+      "id": {
+        "id": "GdyFAZdMpKMBHw5pc1Bu",
+        "name": "Livna - Neutral, Clear and Steady",
+        "label": "Livna",
+        "about": "Female, young"
+      },
+      "uk": {
+        "id": "W4ZBKBsXCMS1XKvLLTlU",
+        "name": "Marlena",
+        "label": "Marlena",
+        "about": "Female, young"
+      },
+      "sv": {
+        "id": "cLAH1kXlkAivJHxCW601",
+        "name": "Olivia - Bright, Youthful and Engaging",
+        "label": "Olivia",
+        "about": "Female, young"
+      },
+      "hr": {
+        "id": "VB7D8zswiztJjyl8LI3a",
+        "name": "Balkanika - Expressive Universal Slavic Narrator",
+        "label": "Balkanika",
+        "about": "Female, young"
+      },
+      "cs": {
+        "id": "8l5r0apxY5VWrLx8u6t6",
+        "name": "Zoe - Calm, Friendly & Natural ",
+        "label": "Zoe",
+        "about": "Female, young"
+      },
+      "ro": {
+        "id": "JU0J0uWqRHcz1YZUVXTE",
+        "name": "Ema - Informative, Engaging Journalist",
+        "label": "Ema",
+        "about": "Female, young"
+      },
+      "bg": {
+        "id": "Q7y69QlBd8K0CLYUdS1m",
+        "name": "Zori - Calm & Friendly",
+        "label": "Zori",
+        "about": "Female, young"
+      },
+      "ms": {
+        "id": "vzENlyfJ5X29uOlVQMWY",
+        "name": "Aina - Soft, Friendly and Encouraging",
+        "label": "Aina",
+        "about": "Female, young"
       }
     },
     "narrator-f": {
@@ -320,6 +1994,180 @@
         "name": "Mia - Clear, Steady and Warm",
         "label": "Mia",
         "about": "Female, middle aged"
+      },
+      "es": {
+        "id": "RgXx32WYOGrd7gFNifSf",
+        "name": "Eva Dorado - Warm, Soft and Convincing",
+        "label": "Eva",
+        "about": "Female, middle aged"
+      },
+      "fr": {
+        "id": "kwhMCf63M8O3rCfnQ3oQ",
+        "name": "Caroline - Warm, Sweet and Soft",
+        "label": "Caroline",
+        "about": "Female, young"
+      },
+      "de": {
+        "id": "E0OS48T5F0KU7O2NInWS",
+        "name": "Lucy Fennek - Children's Book Narrattor",
+        "label": "Lucy",
+        "about": "Female, young"
+      },
+      "pt": {
+        "id": "lWq4KDY8znfkV0DrK8Vb",
+        "name": "Yasmin Alves - Light, Clear and Musical",
+        "label": "Yasmin",
+        "about": "Female, young"
+      },
+      "pl": {
+        "id": "fEfGdiGJK4l3imI70mtC",
+        "name": "Magdalena - Warm, Low-Pitched and Lively",
+        "label": "Magdalena",
+        "about": "Female, middle aged"
+      },
+      "ru": {
+        "id": "AB9XsbSA4eLG12t2myjN",
+        "name": "Larisa Actrisa - Confident and Clear",
+        "label": "Larisa",
+        "about": "Female, young"
+      },
+      "vi": {
+        "id": "1l0C0QA9c9jN22EmWiB0",
+        "name": "Jade - Clear and Natural Narrator",
+        "label": "Jade",
+        "about": "Female, middle aged"
+      },
+      "ja": {
+        "id": "wcs09USXSN5Bl7FXohVZ",
+        "name": "Satomi - Calm, Smooth and Clear",
+        "label": "Satomi",
+        "about": "Female, middle aged"
+      },
+      "ko": {
+        "id": "F7wT70V3u09d2rY9pNa6",
+        "name": "Yura",
+        "label": "Yura",
+        "about": "Female, young"
+      },
+      "hi": {
+        "id": "gHu9GtaHOXcSqFTK06ux",
+        "name": "Anjali - Warm, Cheerful and Clear",
+        "label": "Anjali",
+        "about": "Female, young"
+      },
+      "nl": {
+        "id": "tfweP7lGJyLeNV9dH1Rm",
+        "name": "Marianne - Senior Dutch voice",
+        "label": "Marianne",
+        "about": "Female, middle aged"
+      },
+      "it": {
+        "id": "oVJbgLwL0s5pk9e2U6QH",
+        "name": "Manuela - Warm, Energetic and Swift",
+        "label": "Manuela",
+        "about": "Female, middle aged"
+      },
+      "ar": {
+        "id": "EUojVLG1QfxaqqH4ce6s",
+        "name": "Razan – Academic & Cultural Narration",
+        "label": "Razan",
+        "about": "Female, young"
+      },
+      "zh": {
+        "id": "Z8Aisvg1z70p27kGvkZZ",
+        "name": "Ling - Steady, Calm and Grounded",
+        "label": "Ling",
+        "about": "Female, middle aged"
+      },
+      "tl": {
+        "id": "J8DkQVPWPjh6B66q6Bcr",
+        "name": "Janice - Filipino Storyteller",
+        "label": "Janice",
+        "about": "Female, middle aged"
+      },
+      "id": {
+        "id": "eRyKqfgsJAedPgBBSuqA",
+        "name": "Leekeke - Raspsy, Serious, and Steady",
+        "label": "Leekeke",
+        "about": "Female, middle aged"
+      },
+      "no": {
+        "id": "MULNGIATG7qUsJ0Sjuhy",
+        "name": "Kristine - Norwegian (Oslo)",
+        "label": "Kristine",
+        "about": "Female, middle aged"
+      },
+      "uk": {
+        "id": "Bn2Tw7ruLKdtFQ6xcEkG",
+        "name": "Yevheniia - Warm & Bright for narration",
+        "label": "Yevheniia",
+        "about": "Female, middle aged"
+      },
+      "sv": {
+        "id": "ZSHzpa6aUvhjzShiBmYw",
+        "name": "Sanna Hartfield - Sassy and Natural",
+        "label": "Sanna",
+        "about": "Female, middle aged"
+      },
+      "hr": {
+        "id": "FXlzTee7Zx2caYKIAwBF",
+        "name": "Nina - Calm, Warm & Resonant",
+        "label": "Nina",
+        "about": "Female, middle aged"
+      },
+      "cs": {
+        "id": "vdZa6jplen8RQdIWzOGX",
+        "name": "Michaela - Calm Teacher",
+        "label": "Michaela",
+        "about": "Female, middle aged"
+      },
+      "el": {
+        "id": "TaxceJVmw8PImjbbbz3w",
+        "name": "Christina - Calm, Warm and Sultry",
+        "label": "Christina",
+        "about": "Female, young"
+      },
+      "sk": {
+        "id": "3K1lqsxxXFiTAXCO09Zv",
+        "name": "Ingrid - Steady Storyteller",
+        "label": "Ingrid",
+        "about": "Female, young"
+      },
+      "ro": {
+        "id": "3z9q8Y7plHbvhDZehEII",
+        "name": "Antonia - Mellow, Warm and Cute",
+        "label": "Antonia",
+        "about": "Female, young"
+      },
+      "fi": {
+        "id": "YSabzCJMvEHDduIDMdwV",
+        "name": "Aurora - Cheerful, Optimistic and Round",
+        "label": "Aurora",
+        "about": "Female, young"
+      },
+      "bg": {
+        "id": "6tPpQd1OMENsZ3qD7FSl",
+        "name": "Yoana - Fresh, bright, and engaging",
+        "label": "Yoana",
+        "about": "Female, young"
+      },
+      "da": {
+        "id": "RBQdnLdc4yI3og0Z9TQL",
+        "name": "Mia - Warm Danish Narrator",
+        "label": "Mia",
+        "about": "Female, middle aged"
+      },
+      "hu": {
+        "id": "Dme3o25EiC1DfrBQd73f",
+        "name": "Aggie - Expressive, Young and Lively",
+        "label": "Aggie",
+        "about": "Female, young"
+      },
+      "ms": {
+        "id": "UcqZLa941Kkt8ZhEEybf",
+        "name": "Afifah - Friendly, Tender and Calm",
+        "label": "Afifah",
+        "about": "Female, young"
       }
     },
     "narrator-m": {
@@ -333,6 +2181,180 @@
         "id": "Rn6ATQ4HFbyhBC6mze4Z",
         "name": "Sinan - Deep & Clear Turkish Narrator",
         "label": "Sinan",
+        "about": "Male, middle aged"
+      },
+      "es": {
+        "id": "t9LRTh3y1ioN00e9wsNh",
+        "name": "Aaron Abad - Native Castilian - Professional & Warm Narrator",
+        "label": "Aaron",
+        "about": "Male, middle aged"
+      },
+      "fr": {
+        "id": "EIe4oLyymVX7lKVYli9m",
+        "name": "Nicolas - Audiobook Narrator",
+        "label": "Nicolas",
+        "about": "Male, middle aged"
+      },
+      "de": {
+        "id": "ML23UVoFL5mI6APbRAeR",
+        "name": "Robert Ranger - Cool Storyteller",
+        "label": "Robert",
+        "about": "Male, middle aged"
+      },
+      "pt": {
+        "id": "dX7gRq1dIvLTgUaWpEFn",
+        "name": "Rafael Valente - Smooth and Captivating",
+        "label": "Rafael",
+        "about": "Male, middle aged"
+      },
+      "pl": {
+        "id": "bhehD3jAYQsch18622NF",
+        "name": "Michał - Calm and Cold",
+        "label": "Michał",
+        "about": "Male, middle aged"
+      },
+      "ru": {
+        "id": "pvY1pikBdoI4SB62vEVo",
+        "name": "Andrei - Clear, Gentle and Warm",
+        "label": "Andrei",
+        "about": "Male, middle aged"
+      },
+      "vi": {
+        "id": "hfQXFFMygx7xoaljt9aE",
+        "name": "Zenson - Clear, Calm and Confident",
+        "label": "Zenson",
+        "about": "Male, middle aged"
+      },
+      "ja": {
+        "id": "sRYzP8TwEiiqAWebdYPJ",
+        "name": "Hatake Kohei - Warm, Smooth and Husky",
+        "label": "Hatake",
+        "about": "Male, middle aged"
+      },
+      "ko": {
+        "id": "r2b2z8wPmZeh7CQksHSs",
+        "name": "Brian - Neutral and Measured",
+        "label": "Brian",
+        "about": "Male, middle aged"
+      },
+      "hi": {
+        "id": "trxRCYtDC6qFREKq6Ek2",
+        "name": "Sourabh - Friendly and Smooth",
+        "label": "Sourabh",
+        "about": "Male, middle aged"
+      },
+      "nl": {
+        "id": "pFgrx43UXAnvPLMtwX34",
+        "name": "Chris -  Narrative, Clear, Positive & Warm Story ",
+        "label": "Chris",
+        "about": "Male, middle aged"
+      },
+      "it": {
+        "id": "W71zT1VwIFFx3mMGH2uZ",
+        "name": "MarcoTrox - Warm, Balanced and Polished",
+        "label": "MarcoTrox",
+        "about": "Male, middle aged"
+      },
+      "ar": {
+        "id": "fkqevZRU7Xj52dY1CTkq",
+        "name": "Hijazi - Professional, and Expressive",
+        "label": "Hijazi",
+        "about": "Male, middle aged"
+      },
+      "zh": {
+        "id": "WkcRFJo38X9XEP8kGExm",
+        "name": "Vincent - Clear, Brisk and Mature",
+        "label": "Vincent",
+        "about": "Male, middle aged"
+      },
+      "tl": {
+        "id": "1ZA0KgPdD0Tns6SR4FVQ",
+        "name": "Juan - Clear, Muffled, and Friendly",
+        "label": "Juan",
+        "about": "Male, middle aged"
+      },
+      "id": {
+        "id": "1k39YpzqXZn52BgyLyGO",
+        "name": "Bian - Neutral, Calm and Clear",
+        "label": "Bian",
+        "about": "Male, middle aged"
+      },
+      "no": {
+        "id": "goUjLCRHn3Deb8y2jFuG",
+        "name": "Johann - Warm, Calm & Charming",
+        "label": "Johann",
+        "about": "Male, middle aged"
+      },
+      "uk": {
+        "id": "5nGIpKQWEmhylnRK4h9b",
+        "name": "Pavlo - Warm Ukrainian Baritone",
+        "label": "Pavlo",
+        "about": "Male, middle aged"
+      },
+      "sv": {
+        "id": "Z2ic84BAXoRvhU0mvJIa",
+        "name": "JJ PVC (ensakidag-baserat)",
+        "label": "JJ",
+        "about": "Male, middle aged"
+      },
+      "hr": {
+        "id": "mP6GNwIkel9neaN9zZIg",
+        "name": "Jusuf - Calm, Narrative",
+        "label": "Jusuf",
+        "about": "Male, middle aged"
+      },
+      "cs": {
+        "id": "pbkYN44QoHzaZgZJyduO",
+        "name": "Johnny Castle - Confident and Smart",
+        "label": "Johnny",
+        "about": "Male, middle aged"
+      },
+      "el": {
+        "id": "6z1Ks05MOtac6wYNh9PJ",
+        "name": "Kyriakos - Soft, Narrational and Calm",
+        "label": "Kyriakos",
+        "about": "Male, middle aged"
+      },
+      "sk": {
+        "id": "5wX6BPiNfXvFj6d0MzVa",
+        "name": "Dušan - Ideal storyteller",
+        "label": "Dušan",
+        "about": "Male, middle aged"
+      },
+      "ro": {
+        "id": "NKQBjfoAhInP7Bjx6P7l",
+        "name": "Bogdan  Gamaleț",
+        "label": "Bogdan",
+        "about": "Male, middle aged"
+      },
+      "fi": {
+        "id": "uBwJeWtV6tQa8ixtM7ZQ",
+        "name": "Petteri - Authentic Finnish",
+        "label": "Petteri",
+        "about": "Male, middle aged"
+      },
+      "bg": {
+        "id": "jFUMfgSnXMVNWDwPdkDf",
+        "name": "Nikolay - Clear, grounded, and energetic",
+        "label": "Nikolay",
+        "about": "Male, young"
+      },
+      "da": {
+        "id": "euI9c8kAFu0ki2AhFrKo",
+        "name": "Frank",
+        "label": "Frank",
+        "about": "Male, middle aged"
+      },
+      "hu": {
+        "id": "EDFPnOFl5aCWNcPPmPVK",
+        "name": "Attila B. - Warm & Confident",
+        "label": "Attila",
+        "about": "Male, middle aged"
+      },
+      "ms": {
+        "id": "9IHERNTfj1C1gH8dsxzI",
+        "name": "Firdaus",
+        "label": "Firdaus",
         "about": "Male, middle aged"
       }
     }

@@ -8,6 +8,7 @@ import {
 import { useMedia } from "../media.js";
 import type { CaptionPage, CaptionStyle } from "../props.js";
 import { activePageIndex, activeTokenIndex } from "../timeline.js";
+import { isRightToLeft } from "../../../voice/words.js";
 
 /**
  * Loads the style's bundled font before any frame is captured (no system fonts are used). The render is
@@ -31,10 +32,11 @@ export function useCaptionFont(style: CaptionStyle): boolean {
 }
 
 /** Word-by-word captions: the visible page, with the word being spoken in the active style. */
-export const Captions: React.FC<{ style: CaptionStyle; bottomPct: number; pages: CaptionPage[] }> = ({
+export const Captions: React.FC<{ style: CaptionStyle; bottomPct: number; pages: CaptionPage[]; lang?: string }> = ({
   style,
   bottomPct,
   pages,
+  lang,
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
@@ -61,6 +63,9 @@ export const Captions: React.FC<{ style: CaptionStyle; bottomPct: number; pages:
   return (
     <AbsoluteFill>
       <div
+        // the language sets how capitals are made (Turkish "i" is "İ"), and Arabic runs right to left (phase 7 spec §17)
+        lang={lang}
+        dir={isRightToLeft(lang) ? "rtl" : undefined}
         style={{
           position: "absolute",
           left: 0,

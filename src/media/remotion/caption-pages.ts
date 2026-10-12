@@ -1,16 +1,20 @@
 import { type Caption, createTikTokStyleCaptions } from "@remotion/captions";
+import { wordJoiner } from "../../voice/words.js";
 import type { CaptionPage } from "./props.js";
 
 export type TimedWord = { text: string; start: number; end: number };
 
-const BREAK_AFTER = /[.,!?;:]$/;
+// (and the full stops and commas of Chinese, Japanese, Arabic and Hindi: phase 7 spec §17)
+const BREAK_AFTER = /[.,!?;:。，、！？；：،؛؟।]$/;
 
 /**
  * Word timings (seconds, on the narration timeline) → @remotion/captions `Caption[]`. A page ends after
  * punctuation or after `maxWordsPerPage` words. The last word never carries `pageBreakAfter` (the library
  * would leave that page's duration at Infinity).
  */
-export function wordsToCaptions(words: TimedWord[], maxWordsPerPage: number): Caption[] {
+export function wordsToCaptions(words: TimedWord[], maxWordsPerPage: number, language?: string): Caption[] {
+  // in a language without spaces the words are set side by side (phase 7 spec §17)
+  const joiner = wordJoiner(language);
   let onPage = 0;
   return words.map((w, i) => {
     onPage++;
@@ -18,7 +22,7 @@ export function wordsToCaptions(words: TimedWord[], maxWordsPerPage: number): Ca
     const pageBreakAfter = !isLast && (onPage >= maxWordsPerPage || BREAK_AFTER.test(w.text));
     if (pageBreakAfter) onPage = 0;
     return {
-      text: i === 0 ? w.text : ` ${w.text}`,
+      text: i === 0 ? w.text : `${joiner}${w.text}`,
       startMs: Math.round(w.start * 1000),
       endMs: Math.round(w.end * 1000),
       timestampMs: null,

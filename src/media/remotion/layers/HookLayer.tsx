@@ -4,6 +4,7 @@ import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
 import type { CaptionStyle, HookProps } from "../props.js";
 import { HOOK, hookLines, hookTitleLook, zoomAt } from "../timeline.js";
 import { useCaptionFont } from "./Captions.js";
+import { isRightToLeft, splitWords, wordJoiner } from "../../../voice/words.js";
 
 /** Snap zoom: scales its children (the scenes and transitions) from `zoomFrom` back to 1 at the start. */
 export const SnapZoom: React.FC<{ hook: HookProps | null; children: React.ReactNode }> = ({ hook, children }) => {
@@ -13,14 +14,16 @@ export const SnapZoom: React.FC<{ hook: HookProps | null; children: React.ReactN
 };
 
 /** The hook title: big, upper-centre, in the caption font, on one or two lines, its last word in the accent colour. */
-export const HookLayer: React.FC<{ hook: HookProps; style: CaptionStyle }> = ({ hook, style }) => {
+export const HookLayer: React.FC<{ hook: HookProps; style: CaptionStyle; lang?: string }> = ({ hook, style, lang }) => {
   const frame = useCurrentFrame();
   const { width, height } = useVideoConfig();
   const loaded = useCaptionFont(style);
   const look = hookTitleLook(frame, hook.endFrame);
   if (!loaded || !look.visible) return null;
 
-  const words = hook.text.trim().split(/\s+/);
+  // (a language without spaces is split by the segmenter and set without them: phase 7 spec §17)
+  const words = splitWords(hook.text, lang);
+  const joiner = wordJoiner(lang);
   const wanted = (HOOK.sizePctOfShortSide / 100) * Math.min(width, height);
   const fit = (line: string) =>
     fitText({
@@ -30,13 +33,15 @@ export const HookLayer: React.FC<{ hook: HookProps; style: CaptionStyle }> = ({ 
       fontWeight: style.font.weight,
       textTransform: "uppercase",
     }).fontSize;
-  const { lines, fontSize } = hookLines(words, fit, wanted);
+  const { lines, fontSize } = hookLines(words, fit, wanted, joiner);
   const last = lines.length - 1;
-  const lastWords = lines[last].split(" ");
+  const lastWords = joiner ? lines[last].split(joiner) : splitWords(lines[last], lang);
 
   return (
     <AbsoluteFill>
       <div
+        lang={lang}
+        dir={isRightToLeft(lang) ? "rtl" : undefined}
         style={{
           position: "absolute",
           left: 0,
@@ -58,7 +63,7 @@ export const HookLayer: React.FC<{ hook: HookProps; style: CaptionStyle }> = ({ 
         }}
       >
         {lines.slice(0, last).map((line) => `${line}\n`)}
-        {lastWords.length > 1 ? `${lastWords.slice(0, -1).join(" ")} ` : ""}
+        {lastWords.length > 1 ? `${lastWords.slice(0, -1).join(joiner)}${joiner}` : ""}
         <span style={{ color: style.activeColor }}>{lastWords.at(-1)}</span>
       </div>
     </AbsoluteFill>

@@ -26,7 +26,7 @@ export const captionsStage: Stage = {
   outputsFor: () => [paths.captions],
   estimateCostUsd: () => 0,
   async run(ctx) {
-    const captions = wordsToCaptions(globalWords(ctx.manifest), maxWordsPerPage(ctx.manifest));
+    const captions = wordsToCaptions(globalWords(ctx.manifest), maxWordsPerPage(ctx.manifest), ctx.manifest.request.language);
     await writeFile(await outPath(ctx, paths.captions), `${JSON.stringify(captions, null, 2)}\n`);
   },
 };

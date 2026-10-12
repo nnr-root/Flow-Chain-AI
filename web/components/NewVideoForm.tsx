@@ -31,7 +31,7 @@ const MADE_OF = [
  * The form a video starts from. `series`: the same choices are saved as a series instead of being spent on one
  * video: there is a name and a premise in place of a topic, and nothing is bought (phase 6 spec §3).
  */
-export function NewVideoForm({ health: initialHealth, kits, tracks: initialTracks, presets, topic = "", series = false, voices = {}, voiceNames = {} }: { health: StudioHealth; kits: KitSummary[]; tracks: Track[]; presets: PresetCard[]; topic?: string; series?: boolean; voices?: Partial<Record<SpeechLanguage, VoiceId[]>>; voiceNames?: Partial<Record<SpeechLanguage, Partial<Record<VoiceId, { label?: string; about?: string }>>>> }) {
+export function NewVideoForm({ health: initialHealth, kits, tracks: initialTracks, presets, topic = "", series = false, voices = {}, voiceNames = {}, languages }: { health: StudioHealth; kits: KitSummary[]; tracks: Track[]; presets: PresetCard[]; topic?: string; series?: boolean; voices?: Partial<Record<SpeechLanguage, VoiceId[]>>; voiceNames?: Partial<Record<SpeechLanguage, Partial<Record<VoiceId, { label?: string; about?: string }>>>>; languages?: SpeechLanguage[] }) {
   const router = useRouter();
   const [health, setHealth] = useState(initialHealth);
   const [tracks, setTracks] = useState(initialTracks);
@@ -168,7 +168,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
       </Panel>
 
       <Panel title="Language and voice">
-        <VoicePicker voices={voices} names={voiceNames} language={f.language} voice={f.voiceId} onLanguage={(l) => set("language", l)} onVoice={(v) => set("voiceId", v)} />
+        <VoicePicker voices={voices} names={voiceNames} languages={languages} language={f.language} voice={f.voiceId} onLanguage={(l) => set("language", l)} onVoice={(v) => set("voiceId", v)} />
       </Panel>
 
       <Panel title="Brand and sound">

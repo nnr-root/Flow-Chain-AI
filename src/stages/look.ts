@@ -1,6 +1,6 @@
 import type { Manifest } from "../manifest/schema.js";
 import type { CaptionStyle, Transition } from "../media/remotion/props.js";
-import { CAPTION_STYLES } from "../media/remotion/styles.js";
+import { CAPTION_STYLES, SCRIPT_FACES } from "../media/remotion/styles.js";
 import { PRESETS, type StylePreset } from "../presets.js";
 import { fontCovers } from "../voice/language.js";
 
@@ -19,9 +19,12 @@ export function captionStyleFor(m: Manifest): CaptionStyle {
   const name = m.request.render.captionStyle;
   const chosen = name !== "preset" ? CAPTION_STYLES[name] : (effectivePreset(m)?.caption ?? CAPTION_STYLES.hormozi);
   // A face without the letters of the video's language is replaced by one that has them (everything else of
-  // the style stays): the first of the studio's two plain faces that covers the language.
+  // the style stays): the script's own face where it has one (Japanese, Chinese, Korean, Hindi, Arabic), else the
+  // first of the studio's two plain faces that covers the language.
   const language = m.request.language;
-  const face = language && !fontCovers(chosen.font.file, language) ? [CAPTION_STYLES.hormozi.font, CAPTION_STYLES.minimalist.font].find((f) => fontCovers(f.file, language)) : undefined;
+  const face = !language || fontCovers(chosen.font.file, language)
+    ? undefined
+    : (SCRIPT_FACES[language] ?? [CAPTION_STYLES.hormozi.font, CAPTION_STYLES.minimalist.font].find((f) => fontCovers(f.file, language)));
   const base = face ? { ...chosen, font: face } : chosen;
   const brand = m.request.render.brand;
   if (!brand) return base;

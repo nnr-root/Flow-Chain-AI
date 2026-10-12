@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { CAPTION_STYLES } from "@src/media/remotion/styles";
+import { CAPTION_STYLES, SCRIPT_FACES } from "@src/media/remotion/styles";
 import { PRESETS } from "@src/presets";
 import { roots } from "@/server/config";
 import { serveStatic } from "@/server/files";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 type Ctx = { params: Promise<{ name: string }> };
 
 /** The fonts the caption styles and presets ship with, by exact file name. */
-const BUNDLED = new Set([...Object.values(CAPTION_STYLES), ...Object.values(PRESETS).map((p) => p.caption)].map((s) => s.font.file));
+const BUNDLED = new Set([...[...Object.values(CAPTION_STYLES), ...Object.values(PRESETS).map((p) => p.caption)].map((s) => s.font.file), ...Object.values(SCRIPT_FACES).map((f) => f.file)]);
 
 /** A bundled caption font, for previews that have no run yet (the brand kit form). */
 export const GET = route<Ctx>({ write: false }, async (req, ctx) => {
