@@ -10,6 +10,11 @@
  * it for the notice its owner set should they withdraw it (the key needs the voices_write permission). Buys
  * nothing; the owner's click.
  *
+ * npm run make:voices -- --hosted-keep: adds every library voice in the catalogue to the account, so that it is kept
+ * for the notice its owner set should they withdraw it (library voices take none of the account's voice slots). The
+ * key needs the voices_write permission. Safe to run again: a voice already in the account is left. Buys nothing;
+ * changes the account: the owner's click.
+ *
  * npm run make:voices -- --design [<language> …]: makes every voice in every language natively (see `design`),
  * on the studio's voice engine, and keeps the clips in assets/voices/ and their samples on the form. **It buys
  * speech** (a few takes a voice and language) and sets the endpoint to four workers while it runs.
@@ -24,7 +29,7 @@
  * web/public/voices/ and listed, with how long each took to say, in web/content/voice-samples.json: the form
  * reads which there are, and the length is what the words a second of each language were worked out from.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { execa } from "execa";
 import { RunpodRest } from "../src/deploy/runpod.js";
@@ -348,6 +353,40 @@ async function hostedAdd(env: Env, args: string[]): Promise<void> {
   console.log(`${role} in ${language}: ${shown.label}${shown.about ? ` (${shown.about})` : ""} — ${name} (${id})`);
 }
 
+/** Adds every library voice of the catalogue to the account (see the head of this file). */
+async function hostedKeep(env: Env): Promise<void> {
+  // who shared each voice: the library said so when it was found (.superpowers/voices/<language>.json)
+  const owners = new Map<string, string>();
+  for (const f of existsSync(".superpowers/voices") ? readdirSync(".superpowers/voices").filter((f) => f.endsWith(".json")) : []) {
+    for (const c of JSON.parse(readFileSync(join(".superpowers/voices", f), "utf8")) as Candidate[]) if (c.publicOwnerId) owners.set(c.voiceId, c.publicOwnerId);
+  }
+  const mine = new Set((await hosted<{ voices: Array<{ voice_id: string }> }>(env, "/v1/voices")).voices.map((v) => v.voice_id));
+  const catalogue = hostedCatalogue();
+  let added = 0;
+  const unknown: string[] = [];
+  for (const [role, by] of Object.entries(catalogue.voices)) {
+    for (const [language, entry] of Object.entries(by)) {
+      if (mine.has(entry.id)) continue;
+      const owner = owners.get(entry.id);
+      // (the service's own voices are the account's already; one found nowhere is said, not guessed at)
+      if (!owner) {
+        unknown.push(`${role}.${language}`);
+        continue;
+      }
+      const got = await hosted<{ voice_id: string }>(env, `/v1/voices/add/${encodeURIComponent(owner)}/${encodeURIComponent(entry.id)}`, {
+        method: "POST",
+        body: JSON.stringify({ new_name: `flowchain ${role} ${language}` }),
+      });
+      // a voice that comes back under another id is that id from now on (a voice chosen again is another voice)
+      if (got.voice_id !== entry.id) entry.id = got.voice_id;
+      mine.add(got.voice_id);
+      added++;
+      await writeFile(join(designedDir(), HOSTED_FILE), `${JSON.stringify(catalogue, null, 2)}\n`);
+    }
+  }
+  console.log(`${added} voice(s) added to the account${unknown.length ? `; not found in the library lists: ${unknown.join(", ")}` : ""}`);
+}
+
 async function main(): Promise<void> {
   process.loadEnvFile(".env");
   const env = loadEnv();
@@ -355,6 +394,7 @@ async function main(): Promise<void> {
   // (a third word: how many hundreds of the most used to look at; three by default)
   if (process.argv[2] === "--hosted-candidates") return hostedCandidates(env, process.argv[3], process.argv[4] ? Number(process.argv[4]) : undefined);
   if (process.argv[2] === "--hosted-add") return hostedAdd(env, process.argv.slice(3));
+  if (process.argv[2] === "--hosted-keep") return hostedKeep(env);
   // --again: make the samples that are there again (they were made by another voice)
   const again = process.argv.includes("--again");
   const asked = process.argv.slice(2).filter((a) => a !== "--again");
