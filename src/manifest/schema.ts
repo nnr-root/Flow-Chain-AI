@@ -73,6 +73,12 @@ export const Script = z.object({
     artStyle: z.string(),
     characters: z.string(),
     palette: z.string(),
+    /**
+     * The one time and place the video is set in, with what is worn, used and lit there (phase 7 spec §21): added to
+     * every picture and clip, so none shows a suit in 1453. Absent on scripts written before it, which are prompted
+     * as they were.
+     */
+    setting: z.string().optional(),
   }),
   scenes: z.array(SceneSpec).min(1).max(MAX_SCENES),
   /** The hook title (2.3); optional when stored, so scripts written before 2.3 still load. */
@@ -90,8 +96,12 @@ const hashtags = z
 
 /** Gemini's answer (sent as the response schema): the fields added since are required. */
 export const LlmSceneSpec = SceneSpec.extend({ actionLevel, suggestedTransition, showsCharacter });
+const LlmStyleBible = Script.shape.styleBible.extend({
+  setting: z.string().describe("The one time and place every picture shows, with what people there wear and use and how it is lit, in English"),
+});
 export const LlmScript = Script.extend({
   stylePreset: PresetName.describe("The style preset that best fits the topic"),
+  styleBible: LlmStyleBible,
   scenes: z.array(LlmSceneSpec).min(1).max(MAX_SCENES),
   hook: z
     .string()
@@ -107,7 +117,7 @@ export type LlmScript = z.infer<typeof LlmScript>;
 export const LlmOutline = z.object({
   title: z.string(),
   stylePreset: PresetName.describe("The style preset that best fits the topic"),
-  styleBible: Script.shape.styleBible,
+  styleBible: LlmStyleBible,
   hook: LlmScript.shape.hook,
   parts: z.array(z.object({ summary: z.string().describe("What this part of the video tells, in one or two sentences") })).min(1).max(20),
   // (last: the model answers in this order, and tags a video best once it has said what the video tells)
@@ -115,7 +125,7 @@ export const LlmOutline = z.object({
 });
 export type LlmOutline = z.infer<typeof LlmOutline>;
 /** An outline as a run keeps it: one kept before hashtags were asked for has none, and still loads. */
-export const StoredOutline = LlmOutline.extend({ hashtags: LlmOutline.shape.hashtags.optional() });
+export const StoredOutline = LlmOutline.extend({ styleBible: Script.shape.styleBible, hashtags: LlmOutline.shape.hashtags.optional() });
 export type StoredOutline = z.infer<typeof StoredOutline>;
 export const LlmPart = z.object({ scenes: z.array(LlmSceneSpec).min(1).max(60) });
 export type LlmPart = z.infer<typeof LlmPart>;

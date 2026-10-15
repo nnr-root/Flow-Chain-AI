@@ -29,7 +29,7 @@ export function fakeScript(sceneCount: number, opts: FakeScriptOptions = {}) {
     stylePreset: opts.stylePreset ?? "cinematic_history",
     hook: opts.hook ?? "Foxes never sleep",
     hashtags: ["#wildlife", "#foxes", "#redfox", "#nightanimals", "#animalfacts"],
-    styleBible: { artStyle: "flat test pattern", characters: "a red fox", palette: "teal, orange" },
+    styleBible: { artStyle: "flat test pattern", characters: "a red fox", palette: "teal, orange", setting: "a snowy forest at night, the present day" },
     scenes: Array.from({ length: sceneCount }, (_, i) => ({
       narration: `Scene ${i + 1} says hello. Then it pauses and continues.`,
       imagePrompt: `image ${i + 1}`,

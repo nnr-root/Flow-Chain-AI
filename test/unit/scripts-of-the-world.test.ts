@@ -14,6 +14,7 @@ import { countUnits, isRightToLeft, lengthUnit, splitWords, wordJoiner } from ".
 import { wordsPerSecond } from "../../src/duration.js";
 import { fakeScript } from "../fakes/providers.js";
 import { normalizeHashtags } from "../../src/hashtags.js";
+import { anachronisms, isPast } from "../../src/anachronism.js";
 
 // Phase 7 spec §17: languages written without spaces, right to left, and in scripts of their own.
 
@@ -152,5 +153,30 @@ describe("the hashtags a video is posted with (phase 7 spec §18)", () => {
     const s = fakeScript(3);
     const checked = validateScript({ ...s, hashtags: ["fyp", "#wildlife", "wild life", "#Wildlife"] }, 3);
     expect(checked.ok && checked.script.hashtags).toEqual(["#wildlife"]);
+  });
+});
+
+describe("nothing of a later time in a video set in the past (phase 7 spec §21)", () => {
+  it("knows a setting in the past by a year before 1900, a year BC or the name of a period", () => {
+    for (const past of ["Constantinople, spring 1453", "Rome, 44 BC", "a medieval village", "Ottoman Istanbul", "the 18th century"]) expect(isPast(past), past).toBe(true);
+    for (const now of ["the present day, a city at night", "New York, 1969", "a space station in 2150"]) expect(isPast(now), now).toBe(false);
+  });
+
+  it("sends back a script set in the past whose prompts show something plainly modern, and says which and why", () => {
+    const s = fakeScript(2);
+    s.styleBible.setting = "Constantinople, spring 1453";
+    s.scenes[1].imagePrompt = "Close-up of hands in a business suit and a wristwatch unrolling a map";
+    const checked = validateScript(s, 2);
+    expect(checked.ok ? "" : checked.problems.join(" ")).toMatch(/scene 2 imagePrompt shows "business suit", which does not belong to the setting \(Constantinople, spring 1453\)/);
+    // a word that is also old is not taken for a modern thing: a suit of armour, drinking glasses, the camera of a shot
+    expect(anachronisms([{ imagePrompt: "A knight in a suit of armour raises glasses of wine", motionPrompt: "The camera pushes in" }], "a medieval castle")).toEqual([]);
+    // and a video set today may show anything of today
+    expect(anachronisms([{ imagePrompt: "A man in a business suit checks his smartphone", motionPrompt: "static" }], "the present day, an office")).toEqual([]);
+  });
+
+  it("asks for the setting and tells the model what may not be in it", () => {
+    const p = buildScriptPrompt({ topic: "t", aspect: "9:16", sceneCount: 3 });
+    expect(p).toContain("- styleBible.setting: the one time and place the whole video is set in");
+    expect(p).toMatch(/A person, or any part of one \(hands, arms, a silhouette\), is described with what they wear there/);
   });
 });

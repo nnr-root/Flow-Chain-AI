@@ -621,3 +621,24 @@ narrators).
 - The tests' runs are frozen at 2.4 (`TEST_WORDS_PER_SECOND`): their arithmetic is about the mechanism; the tests of
   the figures themselves derive them from `rates.ts`.
 - **Parked:** the two videos were made with the old figures and are short; making them again is a paid run.
+
+## 21. Nothing of a later time (owner's direction, 2026-10-15)
+
+The owner, on the Turkish History video: in the scene where Mehmed makes his plan, the clip shows arms in what looks
+like a suit, "and it is 1453. Logic errors like this must never happen." The scene's picture prompt said "hands
+unfurling a hand-drawn parchment map on a rustic wooden war table": whose hands and in what, it did not say, and
+the picture model filled that in with today's sleeves. The style bible's "period-accurate details" said nothing it
+could draw.
+
+- **The setting** (`styleBible.setting`, required of the script's model, optional when stored): the one time and
+  place the video is set in and what belongs to it — what people wear, what they use, what buildings and light there
+  are. It is put into **every picture and clip prompt** after the look (`imagePrompt`, `motionPrompt`) and into the
+  character portrait ("their clothes belong to this time and place"), as the character bible always was. A script
+  written before it has none and is prompted, and keyed, exactly as before.
+- **The rule** for every scene: everything belongs to the setting's time and place; a person or any part of one is
+  described with what they wear there; nothing of a later time (a suit, a necktie, a wristwatch, glasses, printed
+  paper, electric light, plastic, a vehicle, a screen).
+- **The check** (`src/anachronism.ts`): in a script set in the past (a year before 1900, a year BC, or a period's
+  name), a scene prompt that names something plainly modern sends the answer back, saying which scene, what and why.
+  Only plainly modern words are looked for: a suit of armour, drinking glasses, a folding screen and the camera of a
+  shot are not.

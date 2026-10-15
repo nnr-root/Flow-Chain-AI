@@ -49,15 +49,17 @@ function portraitPrompt(m: Manifest): string {
   const finish = preset ? ` ${preset.imageSuffix}` : "";
   // The klein worker copies what it is shown: clasped hands and whatever stood beside the portrait came back in
   // every scene (phase 5 spec §9.12). Its portrait is asked for first and bare, with the look after it.
+  // (the portrait is what every scene's person is drawn from: their clothes belong to the video's time and place)
+  const when = script.styleBible.setting ? `Their clothes belong to this time and place: ${script.styleBible.setting}. ` : "";
   if (m.request.imageProfile === "runpod-klein@1") {
     return (
-      `Character reference portrait of ${script.styleBible.characters}. ` +
+      `Character reference portrait of ${script.styleBible.characters}. ${when}` +
       "Neutral front-facing waist-up portrait, arms relaxed at the sides, empty hands, nothing else in the frame: " +
       `no furniture, no objects, no window. Plain light grey studio backdrop, soft even light. ${look}.`
     );
   }
   return (
-    `${look}. Character reference portrait of ${script.styleBible.characters}. ` +
+    `${look}. Character reference portrait of ${script.styleBible.characters}. ${when}` +
     `Neutral front-facing waist-up portrait, plain light grey background, soft even studio light.${finish}`
   );
 }

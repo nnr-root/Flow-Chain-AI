@@ -7,6 +7,7 @@ import { PRESETS } from "../presets.js";
 import { voicePace } from "../voice/language.js";
 import { countUnits, hookCap, isUnspaced, lengthUnit, unitsPerWord } from "../voice/words.js";
 import { normalizeHashtags } from "../hashtags.js";
+import { anachronisms } from "../anachronism.js";
 import { TIMEOUTS, withRetry } from "../providers/retry.js";
 import type { ScriptRequest } from "../providers/types.js";
 import { outPath, paths } from "./paths.js";
@@ -84,6 +85,8 @@ export function validateScript(raw: unknown, sceneCount: number, timing?: Timing
     });
   }
   problems.push(...hookProblems(parsed.data.hook, language));
+  // nothing of a later time in a video set in the past (phase 7 spec §21)
+  problems.push(...anachronisms(parsed.data.scenes, parsed.data.styleBible.setting));
   // (hashtags are put right, never a reason to send an answer back: phase 7 spec §18)
   return problems.length > 0 ? { ok: false, problems } : { ok: true, script: { ...parsed.data, hashtags: normalizeHashtags(parsed.data.hashtags) } };
 }
@@ -98,10 +101,10 @@ export function validateOutline(raw: unknown, parts: number, language?: string):
 }
 
 /** One part of a long video: scenes that come to the part's own seconds. */
-export function validatePart(raw: unknown, index: number, sec: number, sceneSec: SceneSeconds, language?: string, voice?: string, frozen?: number): Checked<LlmPart["scenes"]> {
+export function validatePart(raw: unknown, index: number, sec: number, sceneSec: SceneSeconds, language?: string, voice?: string, frozen?: number, setting?: string): Checked<LlmPart["scenes"]> {
   const parsed = LlmPart.safeParse(raw);
   if (!parsed.success) return { ok: false, problems: issues(parsed.error) };
-  const problems = timingProblems(parsed.data.scenes, sec, sceneSec, `part ${index + 1}`, frozen ?? wordsPerSecond(language, voice), language);
+  const problems = [...timingProblems(parsed.data.scenes, sec, sceneSec, `part ${index + 1}`, frozen ?? wordsPerSecond(language, voice), language), ...anachronisms(parsed.data.scenes, setting)];
   return problems.length > 0 ? { ok: false, problems } : { ok: true, value: parsed.data.scenes };
 }
 
@@ -137,7 +140,7 @@ async function writeInParts(ctx: RunContext, req: ScriptRequest, timing: Timing,
   for (let i = kept.parts.length; i < partSec.length; i++) {
     const previous = (kept.parts[i - 1] ?? []).slice(-2).map((s) => s.narration);
     await answer(ctx, `script:part:${i}`, scriptAnswerCost(ctx.prices, sceneBounds(partSec[i], timing.sceneSec).max), { ...req, ask: { kind: "part", index: i, partSec, outline, previous } },
-      (raw) => validatePart(raw, i, partSec[i], timing.sceneSec, req.language, req.voiceId, req.wordsPerSecond), (value) => kept.parts.push(value));
+      (raw) => validatePart(raw, i, partSec[i], timing.sceneSec, req.language, req.voiceId, req.wordsPerSecond, outline.styleBible.setting), (value) => kept.parts.push(value));
     ctx.log(`script: part ${i + 1} of ${partSec.length} written (${kept.parts[i].length} scenes)`);
   }
   // every part begins on a fresh picture: nothing of the part before is there to carry on from when it is written

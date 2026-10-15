@@ -90,11 +90,13 @@ describe("modes stage", () => {
     const { ctx, fakes } = await makeTestContext({ modes: [1, 1], style: "cyberpunk" });
     await runPipeline(ctx, STAGES, capture().opts);
     const p = PRESETS.cyberpunk;
+    // (the script's time and place is in every picture and clip: phase 7 spec §21)
+    const where = "Setting: a snowy forest at night, the present day.";
     expect(fakes.image.submits[0].prompt).toBe(
-      `${p.imagePrefix}. a red fox. Palette: ${p.palette}. image 1. ${p.imageSuffix}`,
+      `${p.imagePrefix}. ${where} a red fox. Palette: ${p.palette}. image 1. ${p.imageSuffix}`,
     );
     for (const call of fakes.video.submits) {
-      expect(call.prompt).toContain(`. ${p.motionKeywords}. Keep style consistent: ${p.artStyle}. a red fox.`);
+      expect(call.prompt).toContain(`. ${p.motionKeywords}. Keep style consistent: ${p.artStyle}. ${where} a red fox.`);
     }
   });
 

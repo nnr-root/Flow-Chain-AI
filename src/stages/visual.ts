@@ -27,15 +27,18 @@ export function imagePrompt(script: Script, i: number, preset: StylePreset | nul
   const b = script.styleBible;
   const scene = script.scenes[i].imagePrompt;
   const who = showsCharacter(script, i) ? `${b.characters}. ` : "";
-  if (!preset) return `${b.artStyle}. ${who}Palette: ${b.palette}. ${scene}`;
-  return `${preset.imagePrefix}. ${who}Palette: ${b.palette}. ${scene}. ${preset.imageSuffix}`;
+  // the time and place, in every picture: a scene that only says "hands on a map" is drawn in today's sleeves otherwise
+  const when = b.setting ? `Setting: ${b.setting}. ` : "";
+  if (!preset) return `${b.artStyle}. ${when}${who}Palette: ${b.palette}. ${scene}`;
+  return `${preset.imagePrefix}. ${when}${who}Palette: ${b.palette}. ${scene}. ${preset.imageSuffix}`;
 }
 
 export function motionPrompt(script: Script, i: number, preset: StylePreset | null): string {
   const b = script.styleBible;
   const motion = preset ? `${script.scenes[i].motionPrompt}. ${preset.motionKeywords}` : script.scenes[i].motionPrompt;
   const who = showsCharacter(script, i) ? ` ${b.characters}.` : "";
-  return `${motion}. Keep style consistent: ${b.artStyle}.${who}`;
+  const when = b.setting ? ` Setting: ${b.setting}.` : "";
+  return `${motion}. Keep style consistent: ${b.artStyle}.${when}${who}`;
 }
 
 /**

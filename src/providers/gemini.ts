@@ -81,6 +81,7 @@ const bibleRules = (req: ScriptRequest): string[] => [
     ? `- styleBible.characters: use exactly: "${req.characters}". Refer to these characters consistently in every scene they appear in.`
     : '- styleBible.characters: a precise, reusable description of every recurring character (age, clothing, hair, colors), or "none".',
   "- styleBible.palette: 3-5 dominant colors, as plain colour names.",
+  "- styleBible.setting: the one time and place the whole video is set in, and what belongs to it: what people there wear, what they use, what buildings and light there are (for example \"Constantinople, spring 1453: Ottoman soldiers in kaftans and turbans and Byzantine defenders in mail; wooden galleys, torches and oil lamps, parchment and quills\"). It is added to every picture, so it must be true of every scene. A video set today says so (\"the present day\") and what is around; a made-up story gives its own time and place.",
 ];
 
 /** The rules for a scene's own fields: the same whether the script is written in one answer or in parts. */
@@ -93,6 +94,7 @@ function sceneRules(req: ScriptRequest): string[] {
   return [
     `- imagePrompt: what a single still frame of the scene shows, ${orientation}. Do not describe the art style or repeat the style bible; they are added automatically. Never ask for text, captions, logos or watermarks.`,
     "- imagePrompt, how to write it: one or two plain sentences that a painter could work from. Name one clear main subject and what it is doing, where it is, how close the camera is (close-up, medium shot or wide shot) and from where it looks, and the light or time of day. Only things that can be seen: no feelings, ideas, metaphors, sounds or story. Say what is in the frame, never what is absent from it. Every scene's frame must differ from the one before it in subject, distance or angle.",
+    "- In every imagePrompt and motionPrompt, everything belongs to the setting's time and place. A person, or any part of one (hands, arms, a silhouette), is described with what they wear there. Nothing from a later time: not a suit, a necktie, a buttoned shirt, a wristwatch, glasses, printed paper, electric light, plastic, a vehicle or a screen in a time before them.",
     "- showsCharacter: true only when a recurring character is visible in the scene's frame, and then the imagePrompt says what they are doing; false for a scene of a place, an object or a detail, whose imagePrompt must not mention them.",
     `- motionPrompt: camera movement plus subject motion during the scene in one or two sentences, physically plausible for ${clip}.`,
     "- motionPrompt, how to write it: one camera move (for example a slow push-in, a pan left, an orbit, a tilt up, or a static camera) and one or two simple motions of things already in the frame. Nothing new enters the frame, nothing changes place or shape, and nobody speaks to the camera. Do not describe how anything looks.",
@@ -236,6 +238,7 @@ function partPrompt(req: ScriptRequest, ask: Extract<NonNullable<ScriptRequest["
     `- style preset: ${outline.stylePreset}`,
     `- characters: ${req.characters ?? outline.styleBible.characters}`,
     `- palette: ${outline.styleBible.palette}`,
+    ...(outline.styleBible.setting ? [`- setting (every scene's time and place, and what belongs to it): ${outline.styleBible.setting}`] : []),
     "",
     "Rules:",
     ...languageRule(req, "every narration"),
