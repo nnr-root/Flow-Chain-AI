@@ -19,6 +19,9 @@ const api = (): string => process.env.ELEVENLABS_API_BASE ?? "https://api.eleven
  * like "her", so a model that takes the language is told it).
  */
 const TAKES_LANGUAGE = new Set(["eleven_flash_v2_5", "eleven_turbo_v2_5", "eleven_v3", "eleven_v4", "eleven_v4_turbo"]);
+/** The models that refuse the lines around a line (`previous_text`, `next_text`). */
+const NO_CONTEXT = new Set(["eleven_v3"]);
+
 /** The languages the service knows by another code than the studio does. */
 export const SERVICE_CODE: Readonly<Record<string, string>> = { tl: "fil" };
 
@@ -88,8 +91,8 @@ export class ElevenLabsTts implements TtsProvider {
       body: JSON.stringify({
         text: req.text,
         model_id: this.model,
-        previous_text: req.previousText,
-        next_text: req.nextText,
+        // (the lines around this one, for its intonation: v3 refuses them, "not yet supported")
+        ...(NO_CONTEXT.has(this.model) ? {} : { previous_text: req.previousText, next_text: req.nextText }),
         ...(req.language && TAKES_LANGUAGE.has(this.model) ? { language_code: SERVICE_CODE[req.language] ?? req.language } : {}),
         // Expressive, and the same for every voice: a voice's own settings are its sharer's, and some are saved at
         // the flattest there is (stability 1), which reads like a list (phase 5 spec §11.6). v3 takes 0, 0.5 or 1.
