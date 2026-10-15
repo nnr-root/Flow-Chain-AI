@@ -1,7 +1,7 @@
 import { type LlmRates, round4, scriptCost } from "./cost.js";
 import { voicePace } from "./voice/language.js";
 import { SPEECH_RATE } from "./voice/rates.js";
-import { unitsPerWord } from "./voice/words.js";
+import { isUnspaced, unitsPerWord } from "./voice/words.js";
 
 /*
  * A video asked for by its length (phase 7 spec): how long the whole of it runs and how long each scene stays,
@@ -74,10 +74,12 @@ export function expectedScenes(t: Timing): number {
 }
 
 /**
- * The most a scene's narration may have in a language: sixteen words, or in a language without spaces the
- * characters its voice says in the time of sixteen English words.
+ * The most a scene's narration may have: what fits in a clip, which is sixteen words at 2.4 a second. A language
+ * spoken faster has more (Vietnamese in v3 needed seventeen for five seconds, over the old limit of sixteen, and
+ * every script would have been sent back); a slower one keeps sixteen. In a language without spaces, characters.
  */
-export const maxSceneUnits = (language: string | undefined, rate: number): number => Math.round(MAX_SCENE_WORDS * unitsPerWord(language, rate));
+export const maxSceneUnits = (language: string | undefined, rate: number): number =>
+  Math.round(MAX_SCENE_WORDS * (isUnspaced(language) ? unitsPerWord(language, rate) : Math.max(1, rate / 2.4)));
 
 /** The words of one scene's narration. A scene asked for at one exact length is given a word either way. */
 export function sceneWords(sceneSec: SceneSeconds, rate = WORDS_PER_SECOND, most = MAX_SCENE_WORDS): Range {

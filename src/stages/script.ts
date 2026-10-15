@@ -42,7 +42,7 @@ export function timingProblems(scenes: Array<{ narration: string }>, sec: number
   }
   // (counted in words, or in Chinese and Japanese in characters, with limits that say as much: phase 7 spec §17)
   const unit = lengthUnit(language);
-  const cap = isUnspaced(language) ? maxSceneUnits(language, rate ?? wordsPerSecond(language)) : MAX_NARRATION_WORDS;
+  const cap = maxSceneUnits(language, rate ?? wordsPerSecond(language));
   const near = isUnspaced(language) ? Math.round(2 * unitsPerWord(language, rate ?? wordsPerSecond(language))) : 2;
   const each = sceneWords(sceneSec, rate, cap);
   let total = 0;

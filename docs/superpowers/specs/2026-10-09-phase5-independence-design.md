@@ -889,3 +889,9 @@ and their paces are still the ones made in multilingual v2: a pace is a voice ag
 model, and is assumed to carry. Making them all again in v3 is about 45,000 characters, more than the Starter plan's
 month; parked until the plan is larger. `SPEECH_TO_VIDEO` was measured on multilingual v2 videos and is checked
 again with the first v3 ones.
+
+With the v3 rates Vietnamese is about 3.7 words a second, and a five-second scene needs seventeen words, over the
+sixteen a scene could have: every timed Vietnamese script would have been sent back (the language test caught it).
+A scene's limit is what fits in a clip, sixteen words at 2.4 a second, so it now grows with a faster language
+(`maxSceneUnits`) and stays sixteen for a slower one. A script asked for by its number of scenes is still told and
+checked at sixteen.

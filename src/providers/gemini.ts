@@ -113,7 +113,8 @@ function sceneRules(req: ScriptRequest): string[] {
 
 const narrationRule = (req: ScriptRequest): string => {
   const rate = req.wordsPerSecond ?? wordsPerSecond(req.language, req.voiceId);
-  const most = maxSceneUnits(req.language, rate);
+  // (a script asked for by its number of scenes is checked against sixteen words, as it always was: told the same)
+  const most = req.timing || isUnspaced(req.language) ? maxSceneUnits(req.language, rate) : MAX_NARRATION_WORDS;
   const unit = lengthUnit(req.language);
   const k = unitsPerWord(req.language, rate);
   const each = req.timing ? sceneWords(req.timing.sceneSec, rate, most) : undefined;
