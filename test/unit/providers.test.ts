@@ -124,6 +124,12 @@ describe("the hosted voice (phase 5 spec §11)", () => {
     expect(r.costUsd).toBe(Math.round(0.006 * 0.3 * 10_000) / 10_000);
   });
 
+  it("asks v3 for an expressive reading whatever the voice was saved with, and tells it Filipino as the service calls it", async () => {
+    const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
+    await new ElevenLabsTts("key", "eleven_v3", 0.3, answering(calls)).speak({ text: "Kumusta", voiceId: "v", language: "tl" });
+    expect(calls[0].body).toMatchObject({ model_id: "eleven_v3", language_code: "fil", voice_settings: { stability: 0.5 } });
+  });
+
   it("tells a model that takes one the line's language", async () => {
     const calls: Array<{ url: string; body: Record<string, unknown> }> = [];
     await new ElevenLabsTts("key", "eleven_flash_v2_5", 0.3, answering(calls)).speak({ text: "Her gün", voiceId: "v", language: "tr" });

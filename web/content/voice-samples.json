@@ -825,253 +825,253 @@
     },
     "narrator-f": {
       "ar": {
-        "seconds": 8.64,
+        "seconds": 7.52,
         "words": 14
       },
       "bg": {
-        "seconds": 7.24,
+        "seconds": 7.76,
         "words": 19
       },
       "cs": {
-        "seconds": 8.5,
+        "seconds": 8.32,
         "words": 16
       },
       "da": {
-        "seconds": 8.54,
+        "seconds": 7.44,
         "words": 20
       },
       "de": {
-        "seconds": 8.27,
+        "seconds": 6.96,
         "words": 21
       },
       "el": {
-        "seconds": 9.38,
+        "seconds": 7.84,
         "words": 20
       },
       "en": {
-        "seconds": 6.73,
+        "seconds": 7.04,
         "words": 23
       },
       "es": {
-        "seconds": 6.22,
+        "seconds": 5.92,
         "words": 18
       },
       "fi": {
-        "seconds": 7.01,
+        "seconds": 7.12,
         "words": 15
       },
       "fr": {
-        "seconds": 7.76,
+        "seconds": 8,
         "words": 21
       },
       "hi": {
-        "seconds": 8.08,
+        "seconds": 7.52,
         "words": 26
       },
       "hr": {
-        "seconds": 8.87,
+        "seconds": 11.28,
         "words": 19
       },
       "hu": {
-        "seconds": 7.15,
+        "seconds": 7.2,
         "words": 16
       },
       "id": {
-        "seconds": 11.15,
+        "seconds": 8.88,
         "words": 19
       },
       "it": {
-        "seconds": 7.29,
+        "seconds": 7.04,
         "words": 19
       },
       "ja": {
-        "seconds": 11.24,
+        "seconds": 12.88,
         "words": 56
       },
       "ko": {
-        "seconds": 8.73,
+        "seconds": 10.56,
         "words": 16
       },
       "ms": {
-        "seconds": 8.08,
+        "seconds": 8.88,
         "words": 19
       },
       "nl": {
-        "seconds": 7.2,
+        "seconds": 8,
         "words": 21
       },
       "no": {
-        "seconds": 6.13,
+        "seconds": 8.96,
         "words": 21
       },
       "pl": {
-        "seconds": 7.24,
+        "seconds": 7.2,
         "words": 20
       },
       "pt": {
-        "seconds": 7.76,
+        "seconds": 7.84,
         "words": 19
       },
       "ro": {
-        "seconds": 6.87,
+        "seconds": 6.72,
         "words": 21
       },
       "ru": {
-        "seconds": 7.76,
+        "seconds": 7.04,
         "words": 18
       },
       "sk": {
-        "seconds": 7.15,
+        "seconds": 8.08,
         "words": 18
       },
       "sv": {
-        "seconds": 8.03,
+        "seconds": 8.72,
         "words": 20
       },
       "tl": {
-        "seconds": 10.03,
+        "seconds": 8.8,
         "words": 19
       },
       "tr": {
-        "seconds": 6.64,
+        "seconds": 6.24,
         "words": 17
       },
       "uk": {
-        "seconds": 9.61,
+        "seconds": 10.8,
         "words": 17
       },
       "vi": {
-        "seconds": 7.29,
+        "seconds": 7.52,
         "words": 30
       },
       "zh": {
-        "seconds": 7.24,
+        "seconds": 8.96,
         "words": 35
       }
     },
     "narrator-m": {
       "ar": {
-        "seconds": 6.83,
+        "seconds": 7.04,
         "words": 14
       },
       "bg": {
-        "seconds": 7.38,
+        "seconds": 8.64,
         "words": 19
       },
       "cs": {
-        "seconds": 8.03,
+        "seconds": 8.08,
         "words": 16
       },
       "da": {
-        "seconds": 6.36,
+        "seconds": 7.76,
         "words": 20
       },
       "de": {
-        "seconds": 9.1,
+        "seconds": 8.08,
         "words": 21
       },
       "el": {
-        "seconds": 8.73,
+        "seconds": 10.16,
         "words": 20
       },
       "en": {
-        "seconds": 6.83,
+        "seconds": 6.88,
         "words": 23
       },
       "es": {
-        "seconds": 5.8,
+        "seconds": 6,
         "words": 18
       },
       "fi": {
-        "seconds": 7.99,
+        "seconds": 6.8,
         "words": 15
       },
       "fr": {
-        "seconds": 6.55,
+        "seconds": 7.12,
         "words": 21
       },
       "hi": {
-        "seconds": 7.76,
+        "seconds": 8.72,
         "words": 26
       },
       "hr": {
-        "seconds": 7.99,
+        "seconds": 9.44,
         "words": 19
       },
       "hu": {
-        "seconds": 6.87,
+        "seconds": 7.52,
         "words": 16
       },
       "id": {
-        "seconds": 12.68,
+        "seconds": 11.44,
         "words": 19
       },
       "it": {
-        "seconds": 6.59,
+        "seconds": 7.52,
         "words": 19
       },
       "ja": {
-        "seconds": 15.56,
+        "seconds": 13.2,
         "words": 56
       },
       "ko": {
-        "seconds": 6.55,
+        "seconds": 8.24,
         "words": 16
       },
       "ms": {
-        "seconds": 7.43,
+        "seconds": 7.52,
         "words": 19
       },
       "nl": {
-        "seconds": 6.64,
+        "seconds": 7.28,
         "words": 21
       },
       "no": {
-        "seconds": 9.43,
+        "seconds": 6.48,
         "words": 21
       },
       "pl": {
-        "seconds": 8.13,
+        "seconds": 7.12,
         "words": 20
       },
       "pt": {
-        "seconds": 7.57,
+        "seconds": 7.2,
         "words": 19
       },
       "ro": {
-        "seconds": 6.59,
+        "seconds": 6.72,
         "words": 21
       },
       "ru": {
-        "seconds": 6.92,
+        "seconds": 6.88,
         "words": 18
       },
       "sk": {
-        "seconds": 6.73,
+        "seconds": 7.44,
         "words": 18
       },
       "sv": {
-        "seconds": 6.59,
+        "seconds": 8.8,
         "words": 20
       },
       "tl": {
-        "seconds": 11.15,
+        "seconds": 8.24,
         "words": 19
       },
       "tr": {
-        "seconds": 7.62,
+        "seconds": 7.84,
         "words": 17
       },
       "uk": {
-        "seconds": 8.41,
+        "seconds": 8.16,
         "words": 17
       },
       "vi": {
-        "seconds": 12.21,
+        "seconds": 8,
         "words": 30
       },
       "zh": {
-        "seconds": 8.96,
+        "seconds": 9.36,
         "words": 35
       }
     },

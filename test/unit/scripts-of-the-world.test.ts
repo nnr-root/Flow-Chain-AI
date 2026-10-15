@@ -119,15 +119,17 @@ describe("the voice model a language is spoken by", () => {
     // the default model does not speak these three
     for (const lang of ["no", "vi", "hu"]) expect(hostedModelFor(lang, "eleven_multilingual_v2"), lang).toBe("eleven_turbo_v2_5");
     expect(hostedModelFor(undefined, "eleven_multilingual_v2")).toBe("eleven_multilingual_v2");
-    // every language on offer has a model that speaks it
+    // every language on offer has a model that speaks it, and v3 (the default since phase 5 spec §11.6) speaks them all
     for (const lang of Object.keys(SPEECH_LANGUAGES)) expect(() => hostedModelFor(lang, "eleven_multilingual_v2"), lang).not.toThrow();
+    for (const lang of Object.keys(SPEECH_LANGUAGES)) expect(hostedModelFor(lang, "eleven_v3"), lang).toBe("eleven_v3");
     expect(() => hostedModelFor("sw", "eleven_multilingual_v2")).toThrow(/no voice model speaks "sw"/);
   });
 
   it("freezes a new run in that model, and the own voice refuses a language it does not speak", () => {
-    const hosted = loadEnv({ GEMINI_API_KEY: "g", ELEVENLABS_API_KEY: "e" });
+    const hosted = loadEnv({ GEMINI_API_KEY: "g", ELEVENLABS_API_KEY: "e", ELEVENLABS_MODEL: "eleven_multilingual_v2" });
     expect(newRunVoice(hosted, "vi").model).toBe("eleven_turbo_v2_5");
     expect(newRunVoice(hosted, "ar").model).toBe("eleven_multilingual_v2");
+    expect(newRunVoice(loadEnv({ GEMINI_API_KEY: "g", ELEVENLABS_API_KEY: "e" }), "vi").model).toBe("eleven_v3");
     const own = loadEnv({ GEMINI_API_KEY: "g", RUNPOD_VOICE_ENDPOINT: "ep-v" });
     expect(newRunVoice(own, "tr").model).toBe("runpod:ep-v/voice-voxcpm2@1");
     expect(() => newRunVoice(own, "ja")).toThrow(/does not speak "ja"/);

@@ -404,7 +404,7 @@ async function speechSeconds(file: string): Promise<number> {
 }
 
 /** Writes src/voice/rates.ts from the samples (see the head of this file). */
-async function measure(): Promise<void> {
+async function measure(ratesOnly = false): Promise<void> {
   const listed = existsSync(LIST) ? (JSON.parse(readFileSync(LIST, "utf8")) as Listed) : { madeOn: null, samples: {} };
   const rate: Record<string, Record<string, number>> = {};
   for (const [voice, by] of Object.entries(listed.samples)) {
@@ -428,6 +428,13 @@ async function measure(): Promise<void> {
       if (Math.abs(p - 1) >= 0.05) (pace[voice] ??= {})[language] = p;
     }
   }
+  // --rates-only: the narrators' rates again, the voices' paces as they were (when only the narrators' samples were
+  // made again, as when the model changed: the paces are each voice against the narrators in the same model)
+  if (ratesOnly) {
+    const { VOICE_PACE } = await import("../src/voice/rates.js");
+    for (const k of Object.keys(pace)) delete pace[k];
+    Object.assign(pace, VOICE_PACE);
+  }
   const body = [
     `// Written by \`npm run make:voices -- --measure\` on ${new Date().toISOString().slice(0, 10)} from the samples in web/public/voices`,
     "// (phase 7 spec §20). Do not edit by hand: make the samples again and measure.",
@@ -445,7 +452,7 @@ async function measure(): Promise<void> {
 
 async function main(): Promise<void> {
   // (measuring reads only the samples: it needs no key)
-  if (process.argv[2] === "--measure") return measure();
+  if (process.argv[2] === "--measure") return measure(process.argv.includes("--rates-only"));
   process.loadEnvFile(".env");
   const env = loadEnv();
   if (process.argv[2] === "--design") return design(env, process.argv.slice(3));
@@ -453,9 +460,12 @@ async function main(): Promise<void> {
   if (process.argv[2] === "--hosted-candidates") return hostedCandidates(env, process.argv[3], process.argv[4] ? Number(process.argv[4]) : undefined);
   if (process.argv[2] === "--hosted-add") return hostedAdd(env, process.argv.slice(3));
   if (process.argv[2] === "--hosted-keep") return hostedKeep(env);
-  // --again: make the samples that are there again (they were made by another voice)
+  // --again: make the samples that are there again (they were made by another voice or model)
   const again = process.argv.includes("--again");
-  const asked = process.argv.slice(2).filter((a) => a !== "--again");
+  // --voices a,b: only these voices' samples
+  const at = process.argv.indexOf("--voices");
+  const only = at >= 0 ? new Set(process.argv[at + 1]?.split(",")) : null;
+  const asked = process.argv.slice(2).filter((a, i, all) => a !== "--again" && a !== "--voices" && all[i - 1] !== "--voices");
   const unknown = asked.filter((l) => !Object.hasOwn(SPEECH_LANGUAGES, l));
   if (unknown.length > 0) throw new Error(`no such language: ${unknown.join(", ")} (the languages are ${Object.keys(SPEECH_LANGUAGES).join(", ")})`);
   const languages = (asked.length > 0 ? asked : Object.keys(SPEECH_LANGUAGES)) as SpeechLanguage[];
@@ -471,6 +481,7 @@ async function main(): Promise<void> {
   let made = 0;
   for (const language of languages) {
     for (const voice of readyVoices(hosted)) {
+      if (only && !only.has(voice)) continue;
       // A hosted voice is heard in the languages it has a voice chosen in, and the narrators in every language
       // (the form offers them where no voice is native, in their English voice).
       if (hosted && !hostedLanguages(voice).includes(language) && !(BUILT_IN_VOICES as readonly string[]).includes(voice)) continue;

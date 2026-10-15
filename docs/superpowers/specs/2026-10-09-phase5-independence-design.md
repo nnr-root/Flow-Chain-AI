@@ -868,3 +868,24 @@ voices', from those samples (the own voice's were dropped: they would be wrong f
 the length of a video). The narrators' samples in the other eighteen languages are still the own voice's; with no
 voice chosen in those languages, the narrators speak them in their English hosted voice, which those samples do
 not let anyone hear. Next: choose voices in those languages, or at least make the narrators' samples again in them.
+
+### 11.6 The most expressive model, at the same price (owner's direction, 2026-10-15)
+
+The owner was not sure the videos had feeling. Two things were found:
+
+- **Some voices were saved flat.** A library voice's own settings are its sharer's, and the hosted service uses them
+  when a request sends none: the Turkish Documentary voice was saved at stability 1 (the flattest, a reading like a
+  list), the Turkish Upbeat at 0.95. Now a request sends its own.
+- **The same lines in three versions** (the voice as saved; the same model with an expressive setting; `eleven_v3`)
+  were made for the owner to hear: "v3 is the most expressive; use it if it costs no more". It does not: the
+  service's model list gives v3 and multilingual v2 the same cost a character (1; the 2.5 models 0.5). v3 also
+  speaks all thirty-one languages, so no language is sent to another model, and it returns timestamps.
+
+`ELEVENLABS_MODEL` defaults to `eleven_v3` (the owner's `.env` named the old model, and was changed in that one line),
+and every v3 request sends `stability: 0.5` ("natural": v3 takes 0, 0.5 or 1). The narrators' samples were made
+again in v3 (62, about 7,400 characters) and the languages' rates measured from them
+(`make:voices -- --voices narrator-m,narrator-f --again`, then `--measure --rates-only`). The other voices' samples
+and their paces are still the ones made in multilingual v2: a pace is a voice against the narrators in the same
+model, and is assumed to carry. Making them all again in v3 is about 45,000 characters, more than the Starter plan's
+month; parked until the plan is larger. `SPEECH_TO_VIDEO` was measured on multilingual v2 videos and is checked
+again with the first v3 ones.

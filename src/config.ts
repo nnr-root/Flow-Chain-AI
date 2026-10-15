@@ -29,7 +29,8 @@ const Env = z.object({
    * voice below is the one used without it. Its model is the one new runs are frozen with.
    */
   ELEVENLABS_API_KEY: z.string().min(1).optional(),
-  ELEVENLABS_MODEL: z.string().regex(/^[a-z0-9_]{1,60}$/).default("eleven_multilingual_v2"),
+  // (eleven_v3: the most expressive, at the same price a character as multilingual v2: phase 5 spec §11.6)
+  ELEVENLABS_MODEL: z.string().regex(/^[a-z0-9_]{1,60}$/).default("eleven_v3"),
   /** The studio's own voice (phase 5 spec §6.1): where new runs are spoken without the hosted voice's key. */
   RUNPOD_VOICE_ENDPOINT: z.string().min(1).optional(),
   /** Which of the voice worker's voices new runs use. */

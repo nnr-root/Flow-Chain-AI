@@ -198,7 +198,7 @@ describe("which voice a new run gets", () => {
     expect(newRunVoice(loadEnv({ ...base, RUNPOD_VOICE_ENDPOINT: "ep-v" }))).toEqual({ model: "runpod:ep-v/voice-voxcpm2@1", voiceId: "narrator-m" });
     expect(newRunVoice(loadEnv({ ...base, RUNPOD_VOICE_ENDPOINT: "ep-v", FLOWCHAIN_VOICE: "narrator-f" }))).toEqual({ model: "runpod:ep-v/voice-voxcpm2@1", voiceId: "narrator-f" });
     // with its key the hosted voice wins over the endpoint; the run's voice is one of the studio's, not the service's id
-    expect(newRunVoice(loadEnv({ ...base, RUNPOD_VOICE_ENDPOINT: "ep-v", ELEVENLABS_API_KEY: "e", FLOWCHAIN_VOICE: "storyteller" }))).toEqual({ model: "eleven_multilingual_v2", voiceId: "storyteller" });
+    expect(newRunVoice(loadEnv({ ...base, RUNPOD_VOICE_ENDPOINT: "ep-v", ELEVENLABS_API_KEY: "e", FLOWCHAIN_VOICE: "storyteller" }))).toEqual({ model: "eleven_v3", voiceId: "storyteller" });
     expect(newRunVoice(loadEnv({ ...base, ELEVENLABS_API_KEY: "e", ELEVENLABS_MODEL: "eleven_flash_v2_5" }))).toEqual({ model: "eleven_flash_v2_5", voiceId: "narrator-m" });
     expect(() => newRunVoice(loadEnv(base))).toThrow("no voice is set up");
     expect(() => loadEnv({ ...base, FLOWCHAIN_VOICE: "../x" })).toThrow();

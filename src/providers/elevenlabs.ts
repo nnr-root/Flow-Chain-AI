@@ -91,6 +91,9 @@ export class ElevenLabsTts implements TtsProvider {
         previous_text: req.previousText,
         next_text: req.nextText,
         ...(req.language && TAKES_LANGUAGE.has(this.model) ? { language_code: SERVICE_CODE[req.language] ?? req.language } : {}),
+        // Expressive, and the same for every voice: a voice's own settings are its sharer's, and some are saved at
+        // the flattest there is (stability 1), which reads like a list (phase 5 spec §11.6). v3 takes 0, 0.5 or 1.
+        ...(this.model === "eleven_v3" ? { voice_settings: { stability: 0.5 } } : {}),
       }),
     });
     if (!res.ok) throw new HttpError(`ElevenLabs TTS HTTP ${res.status}: ${await res.text()}`, res.status);

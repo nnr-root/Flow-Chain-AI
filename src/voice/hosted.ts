@@ -69,6 +69,7 @@ export function hostedVoice(role: string, language?: string, dir = designedDir()
  * Hungarian are spoken only by the 2.5 models, which are also told the language.
  */
 const MODEL_LANGUAGES: Readonly<Record<string, readonly string[]>> = {
+  eleven_v3: ["af", "ar", "hy", "as", "az", "be", "bn", "bs", "bg", "ca", "ceb", "ny", "hr", "cs", "da", "nl", "en", "et", "tl", "fi", "fr", "gl", "ka", "de", "el", "gu", "ha", "he", "hi", "hu", "is", "id", "ga", "it", "ja", "jv", "kn", "kk", "ky", "ko", "lv", "ln", "lt", "lb", "mk", "ms", "ml", "zh", "mr", "ne", "no", "ps", "fa", "pl", "pt", "pa", "ro", "ru", "sr", "sd", "sk", "sl", "so", "es", "sw", "sv", "ta", "te", "th", "tr", "uk", "ur", "vi", "cy"],
   eleven_multilingual_v2: ["en", "ja", "zh", "de", "hi", "fr", "ko", "pt", "it", "es", "id", "nl", "tr", "tl", "pl", "sv", "bg", "ro", "ar", "cs", "el", "fi", "hr", "ms", "sk", "da", "ta", "uk", "ru"],
   eleven_flash_v2_5: ["en", "ja", "zh", "de", "hi", "fr", "ko", "pt", "it", "es", "ru", "id", "nl", "tr", "tl", "pl", "sv", "bg", "ro", "ar", "cs", "el", "fi", "hr", "ms", "sk", "da", "ta", "uk", "hu", "no", "vi"],
   eleven_turbo_v2_5: ["en", "ja", "zh", "de", "hi", "fr", "ko", "pt", "it", "es", "ru", "id", "nl", "tr", "tl", "pl", "sv", "bg", "ro", "ar", "cs", "el", "fi", "hr", "ms", "sk", "da", "ta", "uk", "vi", "no", "hu"],
