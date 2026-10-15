@@ -7,7 +7,7 @@ import type { PresetName } from "../../src/presets.js";
 import type { ScriptRequest } from "../../src/providers/types.js";
 import type { StageContext } from "../../src/stages/types.js";
 import { expectedScenes, type Timing } from "../../src/duration.js";
-import { FakeImage, FakeLlm, FakeTts, FakeVideo, fakeScript, type Shot } from "../fakes/providers.js";
+import { FakeImage, FakeLlm, FakeTts, FakeVideo, fakeScript, fakeTranslation, type Shot } from "../fakes/providers.js";
 import { tempDir } from "./media.js";
 
 export type TestContextOptions = {
@@ -43,7 +43,9 @@ export async function makeTestContext(opts: TestContextOptions = {}) {
     llm: new FakeLlm((req, callNo) =>
       opts.script
         ? opts.script(callNo, req)
-        : fakeScript(req.sceneCount, { shots: opts.shots, actionLevels: opts.actionLevels, transitions: opts.transitions }),
+        : req.ask?.kind === "translate"
+          ? fakeTranslation(req)
+          : fakeScript(req.sceneCount, { shots: opts.shots, actionLevels: opts.actionLevels, transitions: opts.transitions }),
     ),
     tts: new FakeTts(fakesDir),
     image: new FakeImage(fakesDir),

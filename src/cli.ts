@@ -18,9 +18,10 @@ import {
   resolveShape,
 } from "./manifest/store.js";
 import { CaptionStyleName, Transition } from "./media/remotion/props.js";
-import { type Plan, planRun, RunAborted, runPipeline } from "./pipeline.js";
+import { type Plan, planRun, RunAborted, runPipeline, sealInherited } from "./pipeline.js";
+import { copySourceFiles, versionManifest, versionProblem } from "./versions.js";
 import { PresetName } from "./presets.js";
-import { SPEECH_LANGUAGES, type SpeechLanguage } from "./voice/language.js";
+import { LANGUAGE_IN_ENGLISH, SPEECH_LANGUAGES, type SpeechLanguage } from "./voice/language.js";
 import { createProviders } from "./providers/factory.js";
 import { frozenModePrices, newRunProviders, newRunVoice } from "./providers/new-run.js";
 import { CLIP_QUALITIES, type ClipQuality } from "./video-profiles.js";
@@ -342,6 +343,37 @@ program
       const ctx = contextFor(dir, manifest, providersFor(env, manifest.models), renderConcurrency(o.renderConcurrency));
       await execute(ctx, { budgetUsd: budget(o.budget, env), capUsd: cap(o.cap), yes: o.yes, from: o.from });
     });
+  });
+
+program
+  .command("translate <runId>")
+  .description("make a run in another language: its pictures and clips, with a new narration, voice and captions (phase 8 spec §4)")
+  .addOption(new Option("--language <code>", "the language of the version").choices(Object.keys(SPEECH_LANGUAGES)).makeOptionMandatory())
+  .option("--voice <id>", "the voice that speaks it (default: the run's own voice, in the new language)")
+  .option("--run-id <id>", "use this run id for the version instead of a new one")
+  .option("--budget <usd>", "ask before spending more than this (default: FLOWCHAIN_BUDGET_USD)")
+  .option("--cap <usd>", "stop if what this command spends plus what remains would exceed this")
+  .option("--render-concurrency <n>", "Remotion render concurrency")
+  .option("--yes", "never ask for confirmation")
+  .action(async (sourceId: string, o: { language: string; voice?: string; runId?: string; budget?: string; cap?: string; renderConcurrency?: string; yes?: boolean }) => {
+    const env = loadEnv();
+    const sourceDir = runDir(sourceId);
+    const source = await loadManifest(sourceDir);
+    const language = o.language as SpeechLanguage;
+    const problem = versionProblem(source, language);
+    if (problem) throw new Error(problem);
+    const voice = newRunVoice(env, language);
+    const runId = chosenRunId(o.runId);
+    const dir = runDir(runId);
+    const manifest = versionManifest(source, { runId, language, voiceId: o.voice ?? source.request.voiceId, ttsModel: voice.model, llmModel: env.GEMINI_MODEL });
+    await requireDoctor(env, manifest.models);
+    // (under the source's lock: nothing of it changes while its files are copied)
+    await withRunLock(sourceDir, () => copySourceFiles(sourceDir, dir));
+    const ctx = contextFor(dir, manifest, providersFor(env, manifest.models), renderConcurrency(o.renderConcurrency));
+    await sealInherited(ctx, STAGES);
+    await saveManifest(dir, manifest);
+    console.log(`Run ${runId}: ${sourceId} in ${LANGUAGE_IN_ENGLISH[language]} → ${dir}`);
+    await withRunLock(dir, () => execute(ctx, { budgetUsd: budget(o.budget, env), capUsd: cap(o.cap), yes: o.yes }));
   });
 
 program

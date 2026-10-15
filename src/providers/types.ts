@@ -41,7 +41,12 @@ export type ScriptRequest = {
    */
   ask?:
     | { kind: "outline"; partSec: number[] }
-    | { kind: "part"; index: number; partSec: number[]; outline: StoredOutline; previous: string[] };
+    | { kind: "part"; index: number; partSec: number[]; outline: StoredOutline; previous: string[] }
+    /**
+     * A version in another language (phase 8 spec §4): what the source says, scene by scene, and the seconds each
+     * scene's pictures were made for; answered as an `LlmTranslation` in `language`. `from`: the source's language.
+     */
+    | { kind: "translate"; source: { title: string; hook: string; narrations: string[] }; seconds: number[]; from?: SpeechLanguage };
 };
 export interface LlmProvider {
   /** Returns parsed JSON; the script stage validates it against the LlmScript schema. */

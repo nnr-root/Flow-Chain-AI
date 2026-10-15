@@ -132,6 +132,16 @@ export type StoredOutline = z.infer<typeof StoredOutline>;
 export const LlmPart = z.object({ scenes: z.array(LlmSceneSpec).min(1).max(60) });
 export type LlmPart = z.infer<typeof LlmPart>;
 
+/** A version's translation (phase 8 spec §4): what is said in the video, scene by scene, in its new language. */
+export const LlmTranslation = z.object({
+  title: z.string().min(1),
+  hook: LlmScript.shape.hook,
+  narrations: z.array(z.string().min(1).describe("What this scene says, in the new language")).min(1).max(MAX_SCENES),
+  // (last, as in a script: a video is tagged best once what it says has been written)
+  hashtags,
+});
+export type LlmTranslation = z.infer<typeof LlmTranslation>;
+
 export const WordTiming = z.object({ text: z.string(), start: z.number(), end: z.number() });
 export type WordTiming = z.infer<typeof WordTiming>;
 
@@ -285,6 +295,19 @@ export const RunRequest = z.object({
    * Absent on every run made before, which was not.
    */
   localize: z.boolean().optional(),
+  /**
+   * The run is a version of another in a new language (phase 8 spec §4): its pictures and clips are that run's, and
+   * what is said in it is a translation of what was said there (`title`, `hook`, `narrations`), each scene written to
+   * be spoken in about the seconds its pictures were made for (`seconds`). Absent on every other run.
+   */
+  versionOf: z.object({
+    runId: z.string().min(1),
+    language: z.enum(SPEECH_LANGUAGE_CODES).optional(),
+    title: z.string(),
+    hook: z.string(),
+    narrations: z.array(z.string()).min(1),
+    seconds: z.array(z.number().positive()).min(1),
+  }).optional(),
   /** Character bible (--characters or the brand kit's), enforced into styleBible.characters; frozen. */
   characters: z.string().trim().min(1).max(600).optional(),
   /** Flux seed shared by every keyframe of the run (plus the scene's reroll count); frozen. */

@@ -89,6 +89,19 @@ export function sceneWords(sceneSec: SceneSeconds, rate = WORDS_PER_SECOND, most
   return { min, max: Math.max(min, Math.min(most, Math.ceil(sceneSec.max * rate) + slack)) };
 }
 
+/**
+ * The words one scene of a version is asked for and accepted at (phase 8 spec §4): what the seconds its pictures
+ * were made for hold at the new voice's rate. It asks for a little less rather than more: a clip may be slowed a
+ * quarter before it has to hold its last frame, and a shorter line only trims it. An answer is sent back only when
+ * it is clearly off; never more than a scene may have.
+ */
+export function translationWords(seconds: number, rate: number, most: number): { target: number; asked: Range; accepted: Range } {
+  const target = Math.max(1, Math.round(seconds * rate));
+  const asked = { min: Math.max(1, Math.round(target * 0.85)), max: Math.max(1, Math.min(most, Math.round(target * 1.1))) };
+  const accepted = { min: Math.max(1, Math.floor(target * 0.65)), max: Math.max(1, Math.min(most, Math.ceil(target * 1.3))) };
+  return { target, asked: { min: Math.min(asked.min, asked.max), max: asked.max }, accepted: { min: Math.min(accepted.min, accepted.max), max: accepted.max } };
+}
+
 /** The words a scene has on average when a script uses its range and not only the top of it. */
 export function typicalSceneWords(sceneSec: SceneSeconds, rate = WORDS_PER_SECOND): number {
   return Math.round(((sceneSec.min + sceneSec.max) / 2) * rate);

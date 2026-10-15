@@ -46,6 +46,18 @@ export function fakeScript(sceneCount: number, opts: FakeScriptOptions = {}) {
 /** `count` words. */
 export const words = (count: number, word = "fox"): string => Array.from({ length: count }, () => word).join(" ");
 
+/** A version's translation (phase 8 spec §4): each scene's line as long as its seconds hold at the asked rate. */
+export function fakeTranslation(req: ScriptRequest) {
+  if (req.ask?.kind !== "translate") throw new Error("not a translation");
+  const rate = req.wordsPerSecond ?? 2.4;
+  return {
+    title: "Fake version",
+    hook: "Füchse schlafen nie",
+    narrations: req.ask.seconds.map((sec) => words(Math.max(1, Math.round(sec * rate)), "fuchs")),
+    hashtags: ["#tiere", "#fuchs", "#rotfuchs", "#nachttiere", "#tierwissen"],
+  };
+}
+
 /** A script whose scenes have the narrations given by their word counts (for a run asked for by its length). */
 export function timedScript(wordCounts: number[], opts: FakeScriptOptions = {}) {
   const script = fakeScript(wordCounts.length, opts);

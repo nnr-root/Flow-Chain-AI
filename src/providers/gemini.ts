@@ -1,25 +1,25 @@
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
-import { lengthInWords, maxSceneUnits, sceneBounds, sceneWords, totalWords, typicalSceneWords, wordsPerSecond } from "../duration.js";
+import { lengthInWords, maxSceneUnits, sceneBounds, sceneWords, totalWords, translationWords, typicalSceneWords, wordsPerSecond } from "../duration.js";
 import { hookCap, isUnspaced, lengthUnit, unitsPerWord } from "../voice/words.js";
 import { FACT_RULES, nicheById } from "../niches.js";
 import { formatById } from "../formats.js";
 import { editById } from "../edits.js";
 import { cultureRules } from "../culture.js";
 import { LANGUAGE_IN_ENGLISH } from "../voice/language.js";
-import { LlmOutline, LlmPart, LlmScript, MAX_COUNTED_SCENES, MAX_NARRATION_WORDS } from "../manifest/schema.js";
+import { LlmOutline, LlmPart, LlmScript, LlmTranslation, MAX_COUNTED_SCENES, MAX_NARRATION_WORDS } from "../manifest/schema.js";
 import { PRESETS } from "../presets.js";
 import type { LlmProvider, ScriptRequest } from "./types.js";
 
 /** Gemini's responseJsonSchema takes plain JSON Schema; drop the draft marker zod adds. */
-export function scriptJsonSchema(kind: "script" | "outline" | "part" = "script", most: number = MAX_COUNTED_SCENES): Record<string, unknown> {
-  const of = kind === "outline" ? LlmOutline : kind === "part" ? LlmPart : LlmScript;
+export function scriptJsonSchema(kind: "script" | "outline" | "part" | "translate" = "script", most: number = MAX_COUNTED_SCENES): Record<string, unknown> {
+  const of = kind === "outline" ? LlmOutline : kind === "part" ? LlmPart : kind === "translate" ? LlmTranslation : LlmScript;
   const { $schema: _ignored, ...schema } = z.toJSONSchema(of) as Record<string, unknown>;
   // The model's service refuses a schema whose list of scenes may be long: tried against it on 2026-10-10, a
   // limit of 12 or 16 is taken and one of 24, 54 or 360 is answered "invalid argument", while no limit at all is
   // taken. So a short list says its limit, as it always has, and a longer one says none: how many scenes an
   // answer has is checked when it comes back, whatever the schema said.
-  const list = (schema.properties as Record<string, { maxItems?: number }>)[kind === "outline" ? "parts" : "scenes"];
+  const list = (schema.properties as Record<string, { maxItems?: number }>)[kind === "outline" ? "parts" : kind === "translate" ? "narrations" : "scenes"];
   if (most <= MAX_COUNTED_SCENES) list.maxItems = most;
   else delete list.maxItems;
   return schema;
@@ -28,6 +28,7 @@ export function scriptJsonSchema(kind: "script" | "outline" | "part" = "script",
 /** The most entries the answer to a request may have: what the script stage would still accept (see `timingProblems`). */
 export function mostEntries(req: ScriptRequest): number {
   if (req.ask?.kind === "outline") return req.ask.partSec.length;
+  if (req.ask?.kind === "translate") return req.ask.seconds.length;
   if (!req.timing) return MAX_COUNTED_SCENES;
   const sec = req.ask?.kind === "part" ? req.ask.partSec[req.ask.index] : req.timing.targetSec;
   return Math.ceil(sceneBounds(sec, req.timing.sceneSec).max * 1.2);
@@ -296,7 +297,40 @@ function partPrompt(req: ScriptRequest, ask: Extract<NonNullable<ScriptRequest["
   ].join("\n");
 }
 
+/**
+ * A version in another language (phase 8 spec §4): what each scene says, said again in the new language to fit the
+ * same pictures. The pictures are made: every line keeps its scene's ideas in its scene's order, and takes about as
+ * long to say as the seconds its pictures run.
+ */
+function translatePrompt(req: ScriptRequest, ask: Extract<NonNullable<ScriptRequest["ask"]>, { kind: "translate" }>): string {
+  const language = req.language ? LANGUAGE_IN_ENGLISH[req.language] : "the new language";
+  const rate = req.wordsPerSecond ?? wordsPerSecond(req.language, req.voiceId);
+  const unit = lengthUnit(req.language);
+  const most = maxSceneUnits(req.language, rate);
+  return [
+    `You are making a finished faceless short video in ${language}. Its pictures are made and stay exactly as they are; only what is heard and read is new.`,
+    `It is called "${ask.source.title}"${ask.from ? `, and it was told in ${LANGUAGE_IN_ENGLISH[ask.from]}` : ""}. Its opening title reads "${ask.source.hook}".`,
+    `Each scene's line is spoken over that scene's pictures, so each must take about as long to say as the seconds below. The voice speaks about ${rate} ${unit} a second.`,
+    "",
+    "The scenes, with what each says now:",
+    ...ask.source.narrations.map((n, i) => {
+      const w = translationWords(ask.seconds[i], rate, most);
+      return `${i + 1}. (${ask.seconds[i].toFixed(1)} seconds: ${w.asked.min} to ${w.asked.max} ${unit}) "${n}"`;
+    }),
+    "",
+    "Rules:",
+    `- narrations: exactly ${ask.source.narrations.length}, in order, one for each scene above, each with the ${unit} shown for its scene and never more than ${most}.`,
+    `- Write each the way a native speaker of ${language} would say it aloud: say the same thing, not word for word. Keep every name, number and fact; add nothing and leave nothing out; keep each scene's ideas in that scene, so every line still matches its pictures. Plain text, no stage directions, emojis or hashtags.`,
+    "- The lines together read as one continuous script, with the first one still a strong hook.",
+    `- title: the video's title in ${language}.`,
+    hookRule(req),
+    hashtagRule(req),
+    ...feedbackLines(req),
+  ].join("\n");
+}
+
 export function buildScriptPrompt(req: ScriptRequest): string {
+  if (req.ask?.kind === "translate") return translatePrompt(req, req.ask);
   if (req.ask?.kind === "outline") return outlinePrompt(req, req.ask.partSec);
   if (req.ask?.kind === "part") return partPrompt(req, req.ask);
   return wholePrompt(req);

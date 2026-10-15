@@ -1,7 +1,7 @@
 # Phase 8: the layers of a video, its languages, and its audience
 
-Date: 2026-10-15. Status: §1–§3 and §5 built; §4 built in the commit after them; §6 is a trial still to run (it
-spends, so it waits for the owner's click).
+Date: 2026-10-15. Status: §1–§3 and §5 built; §4 built for the CLI (§4.1 says what the studio adds); §6 is a trial
+still to run (it spends, so it waits for the owner's click).
 
 The owner asked for seven things on 2026-10-15. Two were fixes and are recorded in the phase 7 spec: the silence
 trim that cut the last word (§22) and the hands of a shadow figure (§23). This spec covers the other five:
@@ -190,6 +190,30 @@ version is cut.
 
 **How a version is recorded.** A version names its source (`request.versionOf`). A version of a version is refused:
 it is made from the source instead.
+
+**Planning.** An inherited stage follows nothing of the version's own: a new narration does not plan a clip again.
+It is planned, at no cost, only when its file is gone, and then the run stops (`execute` refuses it). A test makes a
+source run and a version with stand-ins and checks:
+
+- not one picture or clip is bought again;
+- the version's ledger holds only the script and the voice;
+- the source's ledger is untouched;
+- a resume finds nothing to do;
+- a deleted clip stops the run instead of buying it.
+
+### 4.1 In the studio (next)
+
+The CLI command is the whole mechanism. The studio needs four more things:
+
+1. **A job.** A paid job `translate <source> --language <l> --voice <v> --run-id <new> --budget <usd> --cap <usd>`,
+   checked to exactly that shape by `refusal()`:
+   - the source id matches `RUN_ID`, so it can never name a path;
+   - the new id is the job's own run.
+2. **The worker.** Before such a job, the worker brings the *source* run from the bucket, under the user's own key.
+3. **The hold.** The credit held is the translation plus the voice for the source's narration, with room for a longer
+   language. The run settles at what it spent.
+4. **The run page.** A run that can have versions gets "Make it in another language" (a language and a voice). A
+   version's page names its source and offers no reroll of what it inherited.
 
 ## 5. Made for its language's viewers
 

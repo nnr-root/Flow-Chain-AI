@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { scriptCost } from "../cost.js";
-import { maxSceneUnits, type SceneSeconds, sceneBounds, sceneWords, scriptAnswerCost, scriptParts, timedScriptCost, type Timing, totalWords, wordsPerSecond, wordsTolerance } from "../duration.js";
-import { LlmOutline, LlmPart, LlmScript, MAX_HOOK_WORDS, MAX_NARRATION_WORDS } from "../manifest/schema.js";
+import { maxSceneUnits, type SceneSeconds, sceneBounds, sceneWords, scriptAnswerCost, scriptParts, timedScriptCost, type Timing, totalWords, translationWords, wordsPerSecond, wordsTolerance } from "../duration.js";
+import { LlmOutline, LlmPart, LlmScript, LlmTranslation, MAX_HOOK_WORDS, MAX_NARRATION_WORDS } from "../manifest/schema.js";
 import { layOutScenes } from "../manifest/store.js";
 import { PRESETS } from "../presets.js";
 import { voicePace } from "../voice/language.js";
@@ -111,6 +111,45 @@ export function validatePart(raw: unknown, index: number, sec: number, sceneSec:
 }
 
 /**
+ * A version's translation (phase 8 spec §4): one line for every scene, each about as long to say as its pictures
+ * run, and a hook that fits on the screen. A line clearly too long or too short is sent back; the rest is the voice's.
+ */
+export function validateTranslation(raw: unknown, seconds: number[], language?: string, rate?: number): Checked<LlmTranslation> {
+  const parsed = LlmTranslation.safeParse(raw);
+  if (!parsed.success) return { ok: false, problems: issues(parsed.error) };
+  const problems = hookProblems(parsed.data.hook, language);
+  const r = rate ?? wordsPerSecond(language);
+  const most = maxSceneUnits(language, r);
+  const unit = lengthUnit(language);
+  if (parsed.data.narrations.length !== seconds.length) problems.push(`expected exactly ${seconds.length} narrations, one for each scene, got ${parsed.data.narrations.length}`);
+  else {
+    parsed.data.narrations.forEach((n, i) => {
+      const units = countUnits(n, language);
+      const w = translationWords(seconds[i], r, most);
+      if (units < w.accepted.min || units > w.accepted.max) problems.push(`scene ${i + 1} narration has ${units} ${unit}; its ${seconds[i].toFixed(1)} seconds hold ${w.asked.min} to ${w.asked.max}`);
+    });
+  }
+  return problems.length > 0 ? { ok: false, problems } : { ok: true, value: { ...parsed.data, hashtags: normalizeHashtags(parsed.data.hashtags) } };
+}
+
+/** A version's script: its source's, with what is said in it in the new language, and every picture's words as they were. */
+async function translate(ctx: RunContext): Promise<void> {
+  const m = ctx.manifest;
+  const v = m.request.versionOf!;
+  const { topic, sceneCount, aspect, language, voiceId, wordsPerSecond: frozen } = m.request;
+  const rate = frozen ?? wordsPerSecond(language, voiceId);
+  const req: ScriptRequest = { topic, sceneCount, aspect, language, voiceId, wordsPerSecond: rate, ask: { kind: "translate", source: { title: v.title, hook: v.hook, narrations: v.narrations }, seconds: v.seconds, ...(v.language ? { from: v.language } : {}) } };
+  const t = await answer(ctx, "script", scriptCost(ctx.prices), req, (raw) => validateTranslation(raw, v.seconds, language, rate));
+  const script = structuredClone(m.script!);
+  script.title = t.title;
+  script.hook = t.hook;
+  script.hashtags = t.hashtags;
+  script.scenes.forEach((scene, i) => (scene.narration = t.narrations[i]));
+  m.script = script;
+  await writeFile(await outPath(ctx, paths.script), `${JSON.stringify(script, null, 2)}\n`);
+}
+
+/**
  * Buys one answer, twice at most: an answer that is sent back is asked for again with what was wrong with it.
  * Every answer is paid for, accepted or not. `keep` puts an accepted answer in the manifest before its charge is
  * recorded, so that the save that records the charge records the answer with it.
@@ -156,6 +195,12 @@ export const scriptStage: Stage = {
   paid: true,
   deps: () => [],
   inputsFor: async (ctx) => {
+    // a version's script is a translation of what its source said (phase 8 spec §4)
+    const version = ctx.manifest.request.versionOf;
+    if (version) {
+      const { language, voiceId, wordsPerSecond: rate } = ctx.manifest.request;
+      return { model: ctx.manifest.models.llm, translate: version, language, voiceId, wordsPerSecond: rate };
+    }
     const { topic, sceneCount, aspect, shots, style, characters, timing, language, niche, nicheText, format, edit, localize, wordsPerSecond: frozen } = ctx.manifest.request;
     // (a language is part of the key only when one was asked for, so every earlier run keeps its key; the words a
     // second the run froze, or for a run made before that the voice's pace where it is not the narrators'; and a
@@ -176,8 +221,9 @@ export const scriptStage: Stage = {
     return { model: ctx.manifest.models.llm, topic, sceneCount, aspect, shots, style, characters, ...asked };
   },
   outputsFor: () => [paths.script],
-  estimateCostUsd: (ctx) => (ctx.manifest.request.timing ? timedScriptCost(ctx.prices, ctx.manifest.request.timing) : scriptCost(ctx.prices)),
+  estimateCostUsd: (ctx) => (ctx.manifest.request.timing && !ctx.manifest.request.versionOf ? timedScriptCost(ctx.prices, ctx.manifest.request.timing) : scriptCost(ctx.prices)),
   async run(ctx) {
+    if (ctx.manifest.request.versionOf) return translate(ctx);
     const { topic, sceneCount, aspect, shots, style, characters, timing, language, niche, nicheText, format, edit, localize, wordsPerSecond: frozen } = ctx.manifest.request;
     const voiceId = ctx.manifest.request.voiceId;
     const req: ScriptRequest = { topic, sceneCount, aspect, shots, style, characters, timing, language, voiceId, niche, nicheText, format, edit, localize, ...(frozen ? { wordsPerSecond: frozen } : {}) };

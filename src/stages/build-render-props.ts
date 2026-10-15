@@ -94,12 +94,15 @@ export function assembleRenderProps(m: Manifest, opts: RenderPropsOptions, parts
   const boundaries: Boundary[] = scenes.slice(1).map((scene, j) => {
     const k = j + 1;
     const seam = m.scenes[k].mode === 1 && !needsKeyframe(m, k);
-    const transition = seam ? "cut" : transitionInto(m, k);
+    // in a version the scene before a seam has another length than in its source, so it ends on another frame than
+    // the one the next clip was made from: a short dissolve instead of a cut that would jump (phase 8 spec §4)
+    const blend = seam && m.request.versionOf !== undefined;
+    const transition = blend ? "dissolve" : seam ? "cut" : transitionInto(m, k);
     return {
       frame: scene.from,
       kind: seam ? "seam" : "cut",
       transition,
-      halfWindow: seam ? 0 : halfWindowFor(transition, frames[k - 1], frames[k]),
+      halfWindow: seam && !blend ? 0 : halfWindowFor(transition, frames[k - 1], frames[k]),
     };
   });
 

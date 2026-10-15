@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { round4 } from "./cost.js";
-import { inputHash } from "./manifest/hash.js";
+import { fileSha256, inputHash } from "./manifest/hash.js";
+import { isInherited } from "./versions.js";
 import type { Manifest, StageName, StageRecord } from "./manifest/schema.js";
 import { saveManifest } from "./manifest/store.js";
 import type { RunContext, Stage, StageContext } from "./stages/types.js";
@@ -55,7 +56,26 @@ export function targets(stage: Stage, m: Manifest): Array<number | undefined> {
 
 export async function computeHash(ctx: StageContext, stage: Stage, scene?: number): Promise<string> {
   const nonce = scene === undefined ? 0 : (ctx.manifest.scenes[scene].nonces[stage.name] ?? 0);
-  return inputHash(stage.name, { nonce, inputs: await stage.inputsFor(ctx, scene) });
+  const inputs = isInherited(ctx.manifest, stage.name) ? await inheritedInputs(ctx, stage, scene) : await stage.inputsFor(ctx, scene);
+  return inputHash(stage.name, { nonce, inputs });
+}
+
+/** What a version's inherited stage is keyed on (phase 8 spec §4): the run it came from and the files it has from it. */
+async function inheritedInputs(ctx: StageContext, stage: Stage, scene?: number): Promise<unknown> {
+  const files = await Promise.all(stage.outputsFor(ctx.manifest, scene).map((p) => fileSha256(join(ctx.dir, p))));
+  return { inherited: ctx.manifest.request.versionOf!.runId, files };
+}
+
+/**
+ * Records a new version's inherited stages as done, for nothing, once their files are in place: what they bought
+ * was bought by the source, and is in the source's ledger.
+ */
+export async function sealInherited(ctx: StageContext, stages: Stage[]): Promise<void> {
+  for (const stage of stages.filter((s) => isInherited(ctx.manifest, s.name))) {
+    for (const scene of targets(stage, ctx.manifest)) {
+      setRecord(ctx.manifest, stage.name, scene, { status: "done", inputHash: await computeHash(ctx, stage, scene), costUsd: 0, finishedAt: new Date().toISOString() });
+    }
+  }
 }
 
 /** Cache hit: last attempt succeeded, inputs are unchanged and every output file still exists. */
@@ -85,10 +105,11 @@ export async function planRun(ctx: StageContext, stages: Stage[], forced = new S
   const items: WorkItem[] = [];
   for (const stage of stages) {
     for (const scene of targets(stage, ctx.manifest)) {
-      const upstream = stage.deps(ctx.manifest, scene).some((d) => willRun.has(key(d.stage, d.scene)));
+      // (what a version inherits follows nothing of the version's own: it is planned only when it is not there)
+      const upstream = !isInherited(ctx.manifest, stage.name) && stage.deps(ctx.manifest, scene).some((d) => willRun.has(key(d.stage, d.scene)));
       if (forced.has(stage.name) || upstream || !(await isFresh(ctx, stage, scene))) {
         willRun.add(key(stage.name, scene));
-        items.push({ stage: stage.name, scene, costUsd: stage.paid ? stage.estimateCostUsd(ctx, scene) : 0 });
+        items.push({ stage: stage.name, scene, costUsd: stage.paid && !isInherited(ctx.manifest, stage.name) ? stage.estimateCostUsd(ctx, scene) : 0 });
       }
     }
   }
@@ -106,6 +127,10 @@ export function formatPlan(plan: Plan, label: string): string {
 }
 
 async function execute(ctx: StageContext, stage: Stage, scene?: number): Promise<void> {
+  // a version never buys what its source bought: it stops instead (phase 8 spec §4)
+  if (isInherited(ctx.manifest, stage.name)) {
+    throw new Error(`${stage.name}${scene === undefined ? "" : ` of scene ${scene + 1}`} of this version is run ${ctx.manifest.request.versionOf!.runId}'s, and is never made again here: a file of it is missing or was asked for again. Make the version again from that run.`);
+  }
   const hash = await computeHash(ctx, stage, scene);
   ctx.log(`▶ ${stage.name}${scene === undefined ? "" : ` scene ${scene + 1}`}`);
   // A failed attempt for the same inputs may already have spent money (e.g. a charged job whose download
