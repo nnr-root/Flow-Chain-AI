@@ -14,12 +14,14 @@ const solid = "rounded-full bg-signal px-4 py-2 font-bold text-paper hover:bg-in
  */
 export function SiteHeader({ studio, account, sells, free = false }: { studio: boolean; account: HeaderAccount; sells: boolean; free?: boolean }) {
   return (
-    <header className="mx-auto flex w-full max-w-[84rem] items-center gap-5 px-6 pt-6 sm:gap-7 sm:px-10">
-      <Link href="/" className="display whitespace-nowrap text-[2.1rem] leading-none">Flow Chain</Link>
-      <nav aria-label="Site" className="ml-auto flex items-center gap-5 whitespace-nowrap text-[0.95rem] sm:gap-7">
+    <header className="mx-auto flex w-full max-w-[84rem] items-center gap-3 px-6 pt-6 sm:gap-7 sm:px-10">
+      {/* one line at any width: `.display` balances its text over lines, which `whitespace-nowrap` alone does not stop */}
+      <Link href="/" className="display shrink-0 whitespace-nowrap text-[1.05rem] leading-none [text-wrap:nowrap] min-[360px]:text-[1.2rem] min-[400px]:text-[1.45rem] sm:text-[2.1rem]">Flow Chain AI</Link>
+      <nav aria-label="Site" className="ml-auto flex items-center gap-3 whitespace-nowrap text-[0.95rem] min-[400px]:gap-5 sm:gap-7">
         {studio && (
           <>
-            <Link href="/" className={link}>Videos</Link>
+            {/* (on the narrowest phones the wordmark is the way to the videos: it goes to the same page) */}
+            <Link href="/" className={`hidden min-[400px]:inline ${link}`}>Videos</Link>
             {/* (a series is rows in the database: only a studio with accounts has them) */}
             {account && <Link href="/series" className={link}>Series</Link>}
             <Link href="/brand-kits" className={`hidden sm:inline ${link}`}>Brand kits</Link>

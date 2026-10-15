@@ -2,7 +2,7 @@ import { billingOn } from "@/lib/billing";
 import { accountsOnly, headerAccount } from "@/server/page";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Privacy — Flow Chain" };
+export const metadata = { title: "Privacy — Flow Chain AI" };
 
 /**
  * A place for the privacy policy, which the owner has yet to supply (Phase 4 spec §11). It says so, rather than
@@ -15,7 +15,7 @@ export default async function Page() {
     <>
       <main className="mx-auto max-w-[84rem] px-6 pb-10 pt-14 sm:px-10 lg:pt-20" data-testid="legal-pending">
         <h1 className="display text-[clamp(2.4rem,1.2rem+5vw,5rem)] leading-[0.92]">Privacy</h1>
-        <p className="mt-7 max-w-[38rem] text-[1.15rem] leading-[1.5]">The privacy policy is being written and is not published yet. What exists today: an account is an email address, and a password (stored only as a hash) unless you sign in with Google; the sentences you type, the videos made from them and the files you upload are kept with your account, and are handled for us by providers of hosting, storage, GPU computing and a language model, on our instructions; payments are made on Stripe’s pages, and Flow Chain never receives a card number; this site sets no advertising or tracking cookies.</p>
+        <p className="mt-7 max-w-[38rem] text-[1.15rem] leading-[1.5]">The privacy policy is being written and is not published yet. What exists today: an account is an email address, and a password (stored only as a hash) unless you sign in with Google; the sentences you type, the videos made from them and the files you upload are kept with your account, and are handled for us by providers of hosting, storage, GPU computing and a language model, on our instructions; payments are made on Stripe’s pages, and Flow Chain AI never receives a card number; this site sets no advertising or tracking cookies.</p>
       </main>
     </>
   );

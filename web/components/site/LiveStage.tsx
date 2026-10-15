@@ -147,7 +147,7 @@ export function LiveStage({ showcases, title, children }: { showcases: Showcase[
                 data-brand={props.brand !== null}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={`/showcase/${showcase.slug}/poster.jpg`} alt={`A frame of “${receipt.title}”, a video made with Flow Chain`} fetchPriority="high" className="absolute inset-0 h-full w-full object-cover" />
+                <img src={`/showcase/${showcase.slug}/poster.jpg`} alt={`A frame of “${receipt.title}”, a video made with Flow Chain AI`} fetchPriority="high" className="absolute inset-0 h-full w-full object-cover" />
                 {live && (
                   <motion.div key={showcase.slug} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35 }} className="absolute inset-0">
                     <ShowcasePlayer props={props} resolve={resolve} autoPlay={!still} handle={player} />
@@ -184,7 +184,7 @@ export function LiveStage({ showcases, title, children }: { showcases: Showcase[
       <form className="ruled mt-12" aria-label="Restyle this video" onSubmit={(e) => e.preventDefault()}>
         <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2">
           <p className="max-w-[44rem] text-[1.02rem] leading-snug">
-            The video above is not a recording. It is the real renderer, running in your browser on a video Flow Chain made: change how it is captioned and cut, and nothing is bought.
+            The video above is not a recording. It is the real renderer, running in your browser on a video Flow Chain AI made: change how it is captioned and cut, and nothing is bought.
           </p>
           <button type="button" onClick={() => setControls(madeControls(looks))} disabled={!changed} data-testid="restyle-reset" className="text-[0.95rem] underline underline-offset-4 disabled:opacity-40">
             Back to how it was made

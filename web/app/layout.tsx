@@ -10,8 +10,8 @@ import { montserrat, montserratDisplay } from "./typeface";
 import "./theme.css";
 
 export const metadata: Metadata = {
-  title: "Flow Chain — a finished short video from one sentence",
-  description: "Flow Chain writes the script, records the voice, generates the pictures and cuts a captioned short video to the words. You see the cost before anything is bought.",
+  title: "Flow Chain AI — a finished short video from one sentence",
+  description: "Flow Chain AI writes the script, records the voice, generates the pictures and cuts a captioned short video to the words. You see the cost before anything is bought.",
   icons: { icon: [{ url: "/icon.svg", type: "image/svg+xml" }, { url: "/favicon.ico", sizes: "48x48" }], apple: "/apple-touch-icon.png" },
 };
 

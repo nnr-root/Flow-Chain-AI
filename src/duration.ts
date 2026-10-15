@@ -13,7 +13,8 @@ import { unitsPerWord } from "./voice/words.js";
 
 /** The lengths a video can be asked for, in seconds: the usual lengths of a short, then whole minutes up to ten. */
 export const VIDEO_SECONDS = [5, 10, 15, 20, 30, 45, 60, 120, 180, 240, 300, 360, 420, 480, 540, 600] as const;
-export const DEFAULT_VIDEO_SECONDS = 30;
+// (a minute: the length most shorts are made at; the owner's choice, 2026-10-15)
+export const DEFAULT_VIDEO_SECONDS = 60;
 
 /**
  * How long one scene may be asked to stay, in seconds. Both ends are the clip model's: it makes clips of 33 to

@@ -103,7 +103,7 @@ export function Plans({ items, signedIn, plan, minutes = {} }: { items: Catalogu
       {items.length === 0 && <p className="text-graphite">Nothing is on sale yet.</p>}
       <p className="mt-14 max-w-[44rem] text-[0.95rem] text-graphite">
         Credits are what a video is made with: before one is made you are shown the most it can use, and that is the limit.
-        {topups.length > 0 ? " A plan's credits are spent before a top-up's." : ""} Payments are handled by Stripe; Flow Chain never sees your card.
+        {topups.length > 0 ? " A plan's credits are spent before a top-up's." : ""} Payments are handled by Stripe; Flow Chain AI never sees your card.
       </p>
     </div>
   );

@@ -6,7 +6,7 @@ export function SiteFooter({ sells, signedIn = false }: { sells: boolean; signed
     <footer className="mx-auto mt-28 w-full max-w-[84rem] px-6 pb-10 sm:px-10">
       <div className="ruled grid gap-x-10 gap-y-10 pt-10 text-[0.95rem] text-graphite sm:grid-cols-2 lg:grid-cols-[1.6fr_1fr_1fr_1fr]">
         <div>
-          <p className="display text-[1.4rem] leading-none text-ink">Flow Chain</p>
+          <p className="display text-[1.4rem] leading-none text-ink">Flow Chain AI</p>
           <p className="mt-3 max-w-[20rem]">A finished short video from one sentence, with the cost shown before anything is bought.</p>
         </div>
         <nav aria-label="Product">
@@ -41,7 +41,7 @@ export function SiteFooter({ sells, signedIn = false }: { sells: boolean; signed
           </ul>
         </nav>
       </div>
-      <p className="mt-10 text-[0.85rem] text-graphite">© {new Date().getFullYear()} Flow Chain</p>
+      <p className="mt-10 text-[0.85rem] text-graphite">© {new Date().getFullYear()} Flow Chain AI</p>
     </footer>
   );
 }

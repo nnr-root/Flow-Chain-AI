@@ -46,7 +46,7 @@ const questions = ({ used, sells, clipHeight }: Facts): Array<{ q: string; a: st
   ...(sells ? [
     {
       q: "Who sees my card?",
-      a: ["Stripe. You pay on Stripe's own page, and manage or cancel a plan on Stripe's own page; Flow Chain is told that a payment was made, and nothing about the card."],
+      a: ["Stripe. You pay on Stripe's own page, and manage or cancel a plan on Stripe's own page; Flow Chain AI is told that a payment was made, and nothing about the card."],
     },
     {
       q: "Can I get my money back?",

@@ -83,7 +83,7 @@ export default async function Page() {
       <main className="mx-auto max-w-[84rem] px-6 pb-4 sm:px-10">
         <LiveStage showcases={SHOWCASES} title={<h1 className="display mx-auto max-w-[62rem] text-display" data-claim={claim}><Spoken rest="finished" text={claim ? "A finished short video for about what others charge for the clips." : "Type a topic. Get a finished short video."} /></h1>}>
           <p className="mx-auto mt-5 max-w-[38rem] text-[1.12rem] leading-[1.5] text-graphite">
-            Flow Chain writes the script, records the voice, generates the pictures and cuts the video to the words.
+            Flow Chain AI writes the script, records the voice, generates the pictures and cuts the video to the words.
             You see what it will cost, and approve it, before anything is bought.
           </p>
           <TopicStart signedIn={signedIn} free={free} sells={sells} />
@@ -101,7 +101,7 @@ export default async function Page() {
           <FeatureStage showcase={branded} />
         </Part>
 
-        <Part id="shelf" title={`${inWords(SHOWCASES.length).replace(/^./, (c) => c.toUpperCase())} videos, and what each one cost`} sub="Nobody has reviewed Flow Chain yet, so here is the work itself, with the receipts.">
+        <Part id="shelf" title={`${inWords(SHOWCASES.length).replace(/^./, (c) => c.toUpperCase())} videos, and what each one cost`} sub="Nobody has reviewed Flow Chain AI yet, so here is the work itself, with the receipts.">
           <Shelf showcases={SHOWCASES} />
         </Part>
 

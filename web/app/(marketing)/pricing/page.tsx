@@ -9,7 +9,7 @@ import { catalogue } from "@/server/billing/catalogue";
 import { forUser, headerAccount } from "@/server/page";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Pricing — Flow Chain" };
+export const metadata = { title: "Pricing — Flow Chain AI" };
 
 /** What the studio sells, in the landing page's look. Anyone may read it; buying needs an account. Only in a studio that takes payments. */
 export default async function Page() {

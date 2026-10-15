@@ -529,7 +529,7 @@ test("a user sets up a series and has its first video started from it; another u
   await expect(page).toHaveURL(/\/series\/[0-9a-f-]{36}$/);
   const id = page.url().split("/").at(-1)!;
   await expect(page.getByTestId("series-title")).toHaveText("Greek myths");
-  await expect(page.getByText("Anime, about 30 seconds, 9:16")).toBeVisible();
+  await expect(page.getByText("Anime, about 1 minute, 9:16")).toBeVisible();
   // saving it bought nothing
   expect(await balance(A.email)).toBe(before);
   await namesNothing(page);

@@ -43,7 +43,8 @@ describe("what a draft holds", () => {
   const input = (durationSec: number, sceneSec: { min: number; max: number }) => NewVideo.parse({ topic: "t", durationSec, sceneSec });
 
   it("is the least there is for a short video, and more for one whose script is several answers", () => {
-    expect(draftCapUsd()).toBe(DRAFT_CAP_USD);
+    // (the form's default is a minute: a little more than the least)
+    expect(draftCapUsd()).toBe(draftCapUsd({ targetSec: 60, sceneSec: { min: 3, max: 5 } }));
     for (const sec of [5, 10, 15, 20, 30]) expect(draftCapUsd({ targetSec: sec, sceneSec: { min: 3, max: 5 } }), String(sec)).toBe(DRAFT_CAP_USD);
     const caps = VIDEO_SECONDS.map((sec) => draftCapUsd({ targetSec: sec, sceneSec: { min: 3, max: 5 } }));
     expect([...caps].sort((x, y) => x - y)).toEqual(caps);

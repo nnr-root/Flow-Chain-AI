@@ -31,6 +31,12 @@ const MADE_OF = [
  * The form a video starts from. `series`: the same choices are saved as a series instead of being spent on one
  * video: there is a name and a premise in place of a topic, and nothing is bought (phase 6 spec §3).
  */
+/** The two shapes a video can have, by the word a person knows each by, and where each is watched. */
+const SHAPES = [
+  { aspect: "9:16", name: "Vertical", where: "Shorts, Reels, TikTok" },
+  { aspect: "16:9", name: "Horizontal", where: "YouTube, the web" },
+] as const;
+
 export function NewVideoForm({ health: initialHealth, kits, tracks: initialTracks, presets, topic = "", series = false, voices = {}, voiceNames = {}, languages }: { health: StudioHealth; kits: KitSummary[]; tracks: Track[]; presets: PresetCard[]; topic?: string; series?: boolean; voices?: Partial<Record<SpeechLanguage, VoiceId[]>>; voiceNames?: Partial<Record<SpeechLanguage, Partial<Record<VoiceId, { label?: string; about?: string }>>>>; languages?: SpeechLanguage[] }) {
   const router = useRouter();
   const [health, setHealth] = useState(initialHealth);
@@ -128,12 +134,24 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
               <textarea data-testid="topic" required rows={2} maxLength={500} value={f.topic} onChange={(e) => set("topic", e.target.value)} placeholder="A lighthouse keeper's daughter takes over the light" />
             </Field>
           )}
-          <div className="grid gap-5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field label="Shape">
-              <select value={f.aspect} onChange={(e) => set("aspect", e.target.value)}>
-                <option value="9:16">9:16 (vertical)</option>
-                <option value="16:9">16:9 (wide)</option>
-              </select>
+              {/* the word a person knows the shape by first, its ratio beside it, and where it is watched */}
+              <div role="radiogroup" aria-label="Shape" className="grid grid-cols-2 gap-2">
+                {SHAPES.map((shape) => {
+                  const on = f.aspect === shape.aspect;
+                  return (
+                    <button key={shape.aspect} type="button" role="radio" aria-checked={on} data-testid={`shape-${shape.aspect}`} onClick={() => set("aspect", shape.aspect)}
+                      className={`flex items-center gap-3 rounded-[16px] bg-sheet px-3 py-2.5 text-left outline-offset-2 ${on ? "outline outline-[3px] outline-signal" : "hover:outline hover:outline-1 hover:outline-ink/40"}`}>
+                      <span aria-hidden className={`shrink-0 rounded-[4px] border-2 ${on ? "border-signal" : "border-graphite"} ${shape.aspect === "9:16" ? "h-7 w-4" : "h-4 w-7"}`} />
+                      <span className="min-w-0">
+                        <span className="block font-bold leading-tight"><span className={on ? "marked" : ""}>{shape.name}</span> <span className="text-[0.85rem] font-semibold text-graphite">{shape.aspect}</span></span>
+                        <span className="block text-[0.78rem] leading-snug text-graphite">{shape.where}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </Field>
             <Field label="Length" hint="About: a video is as long as its narration turns out.">
               <select data-testid="length" value={f.durationSec} onChange={(e) => set("durationSec", Number(e.target.value))}>
@@ -172,7 +190,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
       </Panel>
 
       <Panel title="Brand and sound">
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <Field label="Brand kit" hint="Logo, font, colours and characters. Create kits under Brand kits.">
             <select value={f.brandKit} onChange={(e) => set("brandKit", e.target.value)}>
               <option value="">None</option>
@@ -184,7 +202,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
               <option value="">None</option>
               {tracks.map((t) => <option key={t.id} value={t.id}>{t.name}{t.source === "upload" ? " (uploaded)" : ""}</option>)}
             </select>
-            <input type="file" accept=".mp3,audio/mpeg" aria-label="Upload an MP3" className="mt-2 text-[0.85rem]" onChange={(e) => void uploadMusic(e.target.files?.[0])} />
+            <input type="file" accept=".mp3,audio/mpeg" aria-label="Upload an MP3" className="mt-2 w-full max-w-full text-[0.85rem]" onChange={(e) => void uploadMusic(e.target.files?.[0])} />
           </Field>
           {f.music && (
             <Field label={`Music level (${Math.round(f.musicGain * 100)}%)`}>

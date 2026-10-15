@@ -202,7 +202,7 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     expect(await balance(a)).toBe(0.9945);
 
     // someone with less than that is told so before anything is queued
-    await grant(b, DRAFT_CAP_USD);
+    await grant(b, draftCapUsd());
     const short = await createDraft(as(bCookie, "/api/drafts", { json: input }), undefined);
     expect([short.status, await error(short)]).toEqual([402, "insufficient_credit"]);
     expect((await createDraft(as(bCookie, "/api/drafts", { json: { topic: "a fox" } }), undefined)).status).toBe(202);

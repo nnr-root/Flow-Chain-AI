@@ -2,7 +2,7 @@ import { billingOn } from "@/lib/billing";
 import { accountsOnly, headerAccount } from "@/server/page";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Terms — Flow Chain" };
+export const metadata = { title: "Terms — Flow Chain AI" };
 
 /**
  * A place for the terms of use, which the owner has yet to supply (Phase 4 spec §11). It says so, rather than

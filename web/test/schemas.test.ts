@@ -25,7 +25,7 @@ describe("the new-video form", () => {
 
   it("fills the pipeline's defaults", () => {
     expect(NewVideo.parse(base)).toMatchObject({
-      aspect: "9:16", durationSec: 30, sceneSec: { min: 3, max: 5 }, style: "auto", motion: "auto", brandKit: null, music: null, musicGain: 0.35,
+      aspect: "9:16", durationSec: 60, sceneSec: { min: 3, max: 5 }, style: "auto", motion: "auto", brandKit: null, music: null, musicGain: 0.35,
       hook: { mode: "auto" }, sfx: true, sfxGain: 0.6, captionStyle: "preset", transition: "auto",
     });
   });
@@ -50,7 +50,7 @@ describe("the new-video form", () => {
   it("becomes a `run --draft` command line, one option per field", () => {
     const minimal = draftArgs(NewVideo.parse(base), "20261006-120000-abcdef");
     expect(minimal).toEqual([
-      "run", "--draft", "--yes", "--run-id", "20261006-120000-abcdef", "--topic", "foxes", "--aspect", "9:16", "--duration", "30", "--scene-seconds", "3-5",
+      "run", "--draft", "--yes", "--run-id", "20261006-120000-abcdef", "--topic", "foxes", "--aspect", "9:16", "--duration", "60", "--scene-seconds", "3-5",
       "--language", "en", "--mode", "auto", "--clips", "480p", "--budget", "100", "--caption-style", "preset", "--transition", "auto",
       "--bgm-gain", "0.35", "--sfx-gain", "0.6",
     ]);

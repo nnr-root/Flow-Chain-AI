@@ -80,7 +80,7 @@ export function Calculator({ items, engine, others, asOf }: { items: CatalogueIt
               </thead>
               <tbody className="figures text-[0.9rem]">
                 <tr className="border-b border-hairline" data-testid="calc-row-ours">
-                  <th scope="row" className="py-3 pr-4 font-bold">Flow Chain</th>
+                  <th scope="row" className="py-3 pr-4 font-bold">Flow Chain AI</th>
                   <td className="py-3 pr-4">The finished video: script, voice, pictures, clips and the cut.</td>
                   <td className="py-3 pr-4 text-right">{usd(q.monthUsd)}</td>
                   <td className="py-3 text-right">{usd(q.perVideoUsd)}</td>

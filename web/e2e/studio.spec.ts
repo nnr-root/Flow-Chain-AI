@@ -106,14 +106,17 @@ test("a new video is asked for by its length, how long each scene stays and what
   await expect(lengths).toHaveCount(16);
   await expect(lengths.first()).toHaveText("5 seconds");
   await expect(lengths.last()).toHaveText("10 minutes");
-  await expect(page.getByTestId("length")).toHaveValue("30");
+  await expect(page.getByTestId("length")).toHaveValue("60");
+  // the shape is a word and its ratio: vertical, the one shorts are made in, unless said
+  await expect(page.getByTestId("shape-9:16")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("shape-16:9")).toContainText("Horizontal");
   await expect(page.getByLabel("Scenes", { exact: true })).toHaveCount(0);
   // A scene stays one length, or a range the script chooses within: which of the two is said outright, and the
   // lengths are the ones a clip can be. The page says how many scenes that makes.
   const kind = page.getByRole("radiogroup", { name: "Scenes of one length, or of a range" });
   await expect(kind.getByRole("radio", { name: "A range" })).toBeChecked();
   await expect(page.getByTestId("scene-length").getByRole("button", { pressed: true })).toHaveText(["3 s", "4 s", "5 s"]);
-  await expect(page.getByTestId("scene-count")).toHaveText("Scenes of 3 to 5 seconds, as the script sees fit: 6 to 10 scenes in all.");
+  await expect(page.getByTestId("scene-count")).toHaveText("Scenes of 3 to 5 seconds, as the script sees fit: 12 to 20 scenes in all.");
   // a press moves the end it is nearer to
   await page.getByTestId("scene-sec-2").click();
   await expect(page.getByTestId("scene-length").getByRole("button", { pressed: true })).toHaveText(["2 s", "3 s", "4 s", "5 s"]);
@@ -123,7 +126,7 @@ test("a new video is asked for by its length, how long each scene stays and what
   await kind.getByRole("radio", { name: "The same length" }).click();
   await expect(page.getByTestId("scene-length").getByRole("button", { pressed: true })).toHaveText(["4 s"]);
   await page.getByTestId("scene-sec-5").click();
-  await expect(page.getByTestId("scene-count")).toHaveText("Every scene about 5 seconds: 6 scenes in all.");
+  await expect(page.getByTestId("scene-count")).toHaveText("Every scene about 5 seconds: 12 scenes in all.");
   await page.getByTestId("length").selectOption("600");
   await expect(page.getByTestId("scene-count")).toContainText("120 scenes in all.");
   // a long script is several answers, and the button says what it may cost
@@ -253,4 +256,16 @@ test("an upload larger than the 10 MB the request interceptor would keep still a
     multipart: { file: { name: "x.mp3", mimeType: "audio/mpeg", buffer: Buffer.from("ID3x") } },
   });
   expect(foreign.status()).toBe(403);
+});
+
+test("the new-video page fits the narrowest phone: the name on one line, and nothing wider than the screen", async ({ page }) => {
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 700 });
+    await page.goto("/new");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth), String(width)).toBeLessThanOrEqual(width);
+    const name = page.getByRole("link", { name: "Flow Chain AI" });
+    const box = (await name.boundingBox())!;
+    // one line: no taller than the line of its own type
+    expect(box.height, String(width)).toBeLessThan(40);
+  }
 });

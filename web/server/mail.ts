@@ -19,12 +19,12 @@ export type Mail = { to: string; subject: string; text: string; link: string };
 
 const texts = {
   confirm: (link: string): Omit<Mail, "to" | "link"> => ({
-    subject: "Confirm your email address for Flow Chain",
-    text: `Open this link to confirm your email address and finish creating your Flow Chain account:\n\n${link}\n\nIt works for one day, in the browser you signed up with. If you did not sign up, ignore this email: nothing happens without the link.\n`,
+    subject: "Confirm your email address for Flow Chain AI",
+    text: `Open this link to confirm your email address and finish creating your Flow Chain AI account:\n\n${link}\n\nIt works for one day, in the browser you signed up with. If you did not sign up, ignore this email: nothing happens without the link.\n`,
   }),
   reset: (link: string): Omit<Mail, "to" | "link"> => ({
-    subject: "Choose a new password for Flow Chain",
-    text: `Open this link to choose a new password for your Flow Chain account:\n\n${link}\n\nIt works for one hour, in the browser you asked from. If you did not ask for it, ignore this email: your password stays as it is.\n`,
+    subject: "Choose a new password for Flow Chain AI",
+    text: `Open this link to choose a new password for your Flow Chain AI account:\n\n${link}\n\nIt works for one hour, in the browser you asked from. If you did not ask for it, ignore this email: your password stays as it is.\n`,
   }),
 };
 
