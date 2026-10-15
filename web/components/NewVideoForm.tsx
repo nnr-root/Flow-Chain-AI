@@ -14,6 +14,10 @@ import { SceneLength } from "./SceneLength";
 import { type StyleCard, StylePicker } from "./StylePicker";
 import { Button, ErrorNote, Field, Panel, Segmented } from "./ui";
 import { nicheById } from "@src/niches";
+import { FORMATS, formatClash } from "@src/formats";
+import { EDITS } from "@src/edits";
+import { AUDIENCE } from "@src/culture";
+import { LayerPicker } from "./LayerPicker";
 import { type NicheChoice, NichePicker } from "./NichePicker";
 import { VoicePicker } from "./VoicePicker";
 
@@ -50,6 +54,16 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
     name: "", premise: "",
   });
   const [niche, setNiche] = useState<NicheChoice>({ kind: "none" });
+  const [format, setFormat] = useState<string | undefined>(undefined);
+  const [edit, setEdit] = useState<string | undefined>(undefined);
+  const [localize, setLocalize] = useState(true);
+  // a niche of made-up stories cannot be told as a type of video that tells what is so (phase 8 spec §2)
+  const nicheKind = niche.kind === "known" ? nicheById(niche.id)?.kind : undefined;
+  const chooseNiche = (next: NicheChoice) => {
+    setNiche(next);
+    if (formatClash(format, next.kind === "known" ? nicheById(next.id)?.kind : undefined)) setFormat(undefined);
+  };
+  const audience = AUDIENCE[f.language];
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // with accounts a draft holds a little credit for the script
@@ -93,6 +107,9 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         language: f.language, voiceId: f.voiceId,
         // (a niche of one's own left empty is no niche)
         niche: niche.kind === "custom" ? (niche.text.trim() ? { kind: "custom", text: niche.text.trim() } : { kind: "none" }) : niche,
+        ...(format ? { format } : {}),
+        ...(edit ? { edit } : {}),
+        localize,
       };
       if (series) {
         const { id } = await sendJson<{ id: string }>("/api/series", { name: f.name, premise: f.premise, recipe: choices });
@@ -136,7 +153,11 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
             </>
           ) : null}
           <Field group label="Niche" hint="Optional. The script is written the way videos that hold their audience in it are.">
-            <NichePicker value={niche} onChange={setNiche} onExample={series ? undefined : (t) => set("topic", t)} />
+            <NichePicker value={niche} onChange={chooseNiche} onExample={series ? undefined : (t) => set("topic", t)} />
+          </Field>
+          <Field group label="Video type" hint="Optional. How it is told: how it opens, the shape it takes, how it is narrated. Goes with any niche.">
+            <LayerPicker name="Video type" value={format} onChange={setFormat} noneLabel="Any" noneAbout="Told the way its niche, or its topic, suits best."
+              options={FORMATS.map((t) => ({ id: t.id, label: t.label, about: t.about, ...(formatClash(t.id, nicheKind) ? { disabled: "Tells what is so: not for made-up stories" } : {}) }))} />
           </Field>
           {series ? null : (
             <Field label="Topic">
@@ -176,6 +197,11 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         <StylePicker styles={presets} value={f.style} onChange={(name) => set("style", name)} />
       </Panel>
 
+      <Panel title="Edit" aside={<span className="text-[0.85rem] text-graphite">how it moves and is cut</span>}>
+        <LayerPicker name="Edit" value={edit} onChange={setEdit} noneLabel="Plain" noneAbout="The camera and the cuts the script chooses, and the picture as it is drawn."
+          options={EDITS.map((e) => ({ id: e.id, label: e.label, about: e.about }))} />
+      </Panel>
+
       <Panel title="Made of">
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-3 text-[0.95rem]">
@@ -197,6 +223,15 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
       <Panel title="Language and voice">
         <VoicePicker voices={voices} names={voiceNames} languages={languages} language={f.language} voice={f.voiceId} onLanguage={(l) => set("language", l)} onVoice={(v) => set("voiceId", v)}
           suggested={niche.kind === "known" && nicheById(niche.id) ? { ids: nicheById(niche.id)!.voices, label: nicheById(niche.id)!.label } : undefined} />
+        {audience && (
+          <label className="mt-5 flex items-start gap-2.5 text-[0.95rem]">
+            <input type="checkbox" data-testid="localize" checked={localize} onChange={(e) => setLocalize(e.target.checked)} className="mt-1" />
+            <span>
+              Made for viewers in {audience}
+              <span className="block text-[0.85rem] text-graphite">Where the topic leaves it open, the people and places in it are theirs; real events and people stay as they are. Turn it off for a video you will also make in other languages.</span>
+            </span>
+          </label>
+        )}
       </Panel>
 
       <Panel title="Brand and sound">

@@ -263,6 +263,41 @@ describe("Remotion composition (real Chrome)", () => {
     expect(cr + cg + cb).toBeGreaterThan(10);
   });
 
+  it("lays an edit's finish over the picture: graded, darker in the corners, and nothing without one", async () => {
+    const dir = await tempDir();
+    await makeImage(join(dir, "grey.png"), { width: 192, height: 336, color: "#808080" });
+    await makeAudio(join(dir, "narration.wav"), [{ silence: 1 }]);
+    const files = { "grey.png": join(dir, "grey.png"), "narration.wav": join(dir, "narration.wav"), "Montserrat-ExtraBold.ttf": FONT };
+    const scenes: RenderProps["scenes"] = [{ kind: "still", src: "grey.png", camera: "zoom_in", from: 0, frames: 30 }];
+    const plain = join(dir, "plain.mp4");
+    const finished = join(dir, "finished.mp4");
+    await renderVideo({ props: baseProps({ totalFrames: 30, scenes }), files, workDir: join(dir, "r1"), out: plain });
+    // the archive edit's grade and vignette, without grain (grain is noise: it averages out, and proves nothing here)
+    const finish = { contrast: 1.05, saturate: 0.7, brightness: 1, sepia: 0.45, vignette: 0.5, grain: 0, scanlines: false };
+    await renderVideo({ props: baseProps({ totalFrames: 30, scenes, finish }), files, workDir: join(dir, "r2"), out: finished });
+    const [pr, , pb] = await avgRgb(plain, 15, "20:20:80:150");
+    const [fr, , fb] = await avgRgb(finished, 15, "20:20:80:150");
+    // the picture as it is: grey, the same in the middle and the corner
+    expect(Math.abs(pr - pb)).toBeLessThanOrEqual(3);
+    const [pc] = await avgRgb(plain, 15, "20:20:0:0");
+    expect(Math.abs(pc - pr)).toBeLessThanOrEqual(3);
+    // with the finish: warm (sepia) in the middle, and the corner darker than the middle
+    expect(fr - fb).toBeGreaterThan(10);
+    const [fc] = await avgRgb(finished, 15, "20:20:0:0");
+    expect(fr - fc).toBeGreaterThan(15);
+    // grain that moves from frame to frame, and a tape's lines: a row of the picture differs from the next
+    const taped = join(dir, "taped.mp4");
+    await renderVideo({ props: baseProps({ totalFrames: 30, scenes, finish: { ...finish, sepia: 0, vignette: 0, grain: 0.3, scanlines: true } }), files, workDir: join(dir, "r3"), out: taped });
+    expect(await countFrames(taped)).toBe(30);
+    // (six rows of the frame, each averaged across: the lines make some rows darker than others)
+    const rows = await execa("ffmpeg", ["-v", "error", "-i", taped, "-vf", "select=eq(n\\,10),format=rgb24,crop=180:6:0:100,scale=1:6:flags=area", "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "gray", "-"], { encoding: "buffer", stripFinalNewline: false });
+    const lines = [...(rows.stdout as Uint8Array)];
+    expect(lines).toHaveLength(6);
+    expect(Math.max(...lines) - Math.min(...lines)).toBeGreaterThan(8);
+    const spot = async (frame: number) => (await avgRgb(taped, frame, "4:4:60:60")).join(",");
+    expect(await spot(10)).not.toBe(await spot(11));
+  });
+
   it("renders every transition, each only inside its own window", async () => {
     const dir = await tempDir();
     const colors = ["red", "lime", "blue", "yellow", "cyan", "magenta", "white"];

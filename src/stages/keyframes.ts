@@ -1,3 +1,4 @@
+import { editById } from "../edits.js";
 import { imageProfileOf, takesReference } from "../image-profiles.js";
 import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
@@ -37,7 +38,7 @@ export const keyframesStage: Stage = {
     const reference = referenceFor(ctx.manifest, scene!);
     return {
       model: ctx.manifest.models.image,
-      prompt: imagePrompt(requireScript(ctx.manifest), scene!, effectivePreset(ctx.manifest)),
+      prompt: imagePrompt(requireScript(ctx.manifest), scene!, effectivePreset(ctx.manifest), editById(ctx.manifest.request.edit)),
       size: ctx.keyframeSize,
       seed: keyframeSeed(ctx.manifest, scene!),
       // only runs with a reference key on it, so every other run keeps its cache key
@@ -53,7 +54,7 @@ export const keyframesStage: Stage = {
   },
   async run(ctx, scene) {
     const i = scene!;
-    const prompt = imagePrompt(requireScript(ctx.manifest), i, effectivePreset(ctx.manifest));
+    const prompt = imagePrompt(requireScript(ctx.manifest), i, effectivePreset(ctx.manifest), editById(ctx.manifest.request.edit));
     const m = ctx.manifest;
     const left = m.scenes.filter((s) => s.idx >= i && needsKeyframe(m, s.idx)).length;
     const first = m.scenes.findIndex((s) => needsKeyframe(m, s.idx)) === i && referenceImageOf(m) !== paths.reference;

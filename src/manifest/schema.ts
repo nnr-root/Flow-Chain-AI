@@ -5,6 +5,8 @@ import { CaptionStyleName, Transition } from "../media/remotion/props.js";
 import { PresetName } from "../presets.js";
 import { ImageProfileId } from "../image-profiles.js";
 import { NICHE_IDS, NICHE_TEXT_MAX } from "../niches.js";
+import { FORMAT_IDS } from "../formats.js";
+import { EDIT_IDS } from "../edits.js";
 import { SPEECH_LANGUAGE_CODES } from "../voice/language.js";
 import { VideoProfileId } from "../video-profiles.js";
 
@@ -270,6 +272,19 @@ export const RunRequest = z.object({
   /** How its lines' silence is trimmed (phase 7 spec §22): 2 since 2026-10-15; absent on every run made before, trimmed as they were. */
   silence: z.literal(2).optional(),
   nicheText: z.string().trim().min(1).max(NICHE_TEXT_MAX).regex(/^[^\n\r]*$/).optional(),
+  /** The type of video (--format, phase 8 spec §2): how it is told. Absent on every run made before, and on one left to its niche. */
+  format: z.enum(FORMAT_IDS).optional(),
+  /**
+   * How it moves and is cut (--edit, phase 8 spec §3): the script frames for it, every picture and clip is asked for
+   * with its words, and the render cuts and finishes the frame its way. Absent = as every run made before.
+   */
+  edit: z.enum(EDIT_IDS).optional(),
+  /**
+   * Made for the audience of its one language (phase 8 spec §5): frozen when the run is made, true for a video in one
+   * language other than English, false for one that will be made in other languages too or that was asked not to.
+   * Absent on every run made before, which was not.
+   */
+  localize: z.boolean().optional(),
   /** Character bible (--characters or the brand kit's), enforced into styleBible.characters; frozen. */
   characters: z.string().trim().min(1).max(600).optional(),
   /** Flux seed shared by every keyframe of the run (plus the scene's reroll count); frozen. */

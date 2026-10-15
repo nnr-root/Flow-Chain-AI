@@ -7,10 +7,10 @@ import { kenBurnsTransform } from "../timeline.js";
 const FILL: React.CSSProperties = { width: "100%", height: "100%", objectFit: "cover" };
 
 /** Mode 2: a still keyframe moved by a Ken Burns camera (sub-pixel CSS transform, no oversampling needed). */
-export const KenBurns: React.FC<{ src: string; camera: CameraMove; frames: number }> = ({ src, camera, frames }) => {
+export const KenBurns: React.FC<{ src: string; camera: CameraMove; frames: number; pace?: number }> = ({ src, camera, frames, pace }) => {
   const frame = useCurrentFrame();
   const media = useMedia();
-  const t = kenBurnsTransform(camera, frame, frames);
+  const t = kenBurnsTransform(camera, frame, frames, pace);
   return (
     <AbsoluteFill style={{ overflow: "hidden" }}>
       <Img src={media(src)} style={{ ...FILL, transform: `scale(${t.scale}) translate(${t.xPct}%, ${t.yPct}%)` }} />
@@ -26,7 +26,7 @@ export const SceneVisual: React.FC<{ scene: SceneProps }> = ({ scene }) => {
       <OffthreadVideo src={media(scene.src)} muted style={FILL} />
     </AbsoluteFill>
   ) : (
-    <KenBurns src={scene.src} camera={scene.camera} frames={scene.frames} />
+    <KenBurns src={scene.src} camera={scene.camera} frames={scene.frames} pace={scene.pace} />
   );
 };
 

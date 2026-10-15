@@ -54,6 +54,8 @@ export const SceneProps = z.discriminatedUnion("kind", [
     kind: z.literal("still"),
     src: z.string(),
     camera: CameraMove,
+    /** How far the camera travels against the usual move (an edit's, phase 8 spec §3); absent = 1. */
+    pace: z.number().positive().max(2).optional(),
     from: z.number().int(),
     frames: z.number().int().positive(),
   }),
@@ -111,6 +113,18 @@ export type BrandProps = z.infer<typeof BrandProps>;
 export const SfxCue = z.object({ src: z.string(), frame: z.number().int().min(0), gain: z.number().min(0) });
 export type SfxCue = z.infer<typeof SfxCue>;
 
+/** What is laid over the picture, never over the captions (an edit's finish, phase 8 spec §3). */
+export const FinishProps = z.object({
+  contrast: z.number().min(0.5).max(1.5),
+  saturate: z.number().min(0).max(2),
+  brightness: z.number().min(0.5).max(1.5),
+  sepia: z.number().min(0).max(1),
+  vignette: z.number().min(0).max(1),
+  grain: z.number().min(0).max(1),
+  scanlines: z.boolean(),
+});
+export type FinishProps = z.infer<typeof FinishProps>;
+
 export const RenderProps = z.object({
   fps: z.number().int().positive(),
   width: z.number().int().positive(),
@@ -125,6 +139,8 @@ export const RenderProps = z.object({
   captions: z.object({ style: CaptionStyle, bottomPct: z.number(), pages: z.array(CaptionPage), lang: z.string().regex(/^[a-z]{2}$/).optional() }),
   /** null = no hook (no zoom, no title, no impact sound). The title uses `captions.style`. */
   hook: HookProps.nullable(),
+  /** Absent = the picture as it is (every run without an edit). */
+  finish: FinishProps.optional(),
   brand: BrandProps.nullable(),
   audio: z.object({
     narration: z.string(),

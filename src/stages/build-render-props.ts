@@ -1,3 +1,4 @@
+import { editById } from "../edits.js";
 import { extname, join } from "node:path";
 import type { Caption } from "@remotion/captions";
 import type { Size } from "../config.js";
@@ -50,6 +51,7 @@ export type RenderPropsOptions = {
  */
 export function buildRenderProps(m: Manifest, opts: RenderPropsOptions, captions: Caption[]): RenderInputs {
   const script = requireScript(m);
+  const edit = editById(m.request.edit);
   return assembleRenderProps(m, opts, {
     frames: sceneFrames(m, opts.fps),
     scene: (i, from, frames, publish) => {
@@ -60,6 +62,7 @@ export function buildRenderProps(m: Manifest, opts: RenderPropsOptions, captions
             kind: "still",
             src: publish(paths.keyframe(i), join(opts.dir, paths.keyframe(i))),
             camera: script.scenes[i].camera,
+            ...(edit && edit.stillMotion !== 1 ? { pace: edit.stillMotion } : {}),
             from,
             frames,
           };
@@ -110,6 +113,7 @@ export function assembleRenderProps(m: Manifest, opts: RenderPropsOptions, parts
       }
     : null;
 
+  const finish = editById(m.request.edit)?.finish;
   const style = captionStyleFor(m);
   // a brand font lives in the run directory; every other font is bundled
   const brandDir = opts.brandDir ?? opts.dir;
@@ -130,6 +134,7 @@ export function assembleRenderProps(m: Manifest, opts: RenderPropsOptions, parts
       boundaries,
       captions: { style, bottomPct: captionBottomPct(size.width, size.height), pages: captionPages(parts.captions), ...(m.request.language ? { lang: m.request.language } : {}) },
       hook,
+      ...(finish ? { finish } : {}),
       brand,
       audio: {
         narration: publish(parts.narration.rel, parts.narration.abs),

@@ -1,4 +1,7 @@
-import { NICHE_IDS, NICHE_TEXT_MAX } from "./niches.js";
+import { NICHE_IDS, NICHE_TEXT_MAX, nicheById } from "./niches.js";
+import { FORMAT_IDS, formatClash } from "./formats.js";
+import { EDIT_IDS } from "./edits.js";
+import { AUDIENCE } from "./culture.js";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomInt } from "node:crypto";
@@ -17,7 +20,7 @@ import {
 import { CaptionStyleName, Transition } from "./media/remotion/props.js";
 import { type Plan, planRun, RunAborted, runPipeline } from "./pipeline.js";
 import { PresetName } from "./presets.js";
-import { SPEECH_LANGUAGES } from "./voice/language.js";
+import { SPEECH_LANGUAGES, type SpeechLanguage } from "./voice/language.js";
 import { createProviders } from "./providers/factory.js";
 import { frozenModePrices, newRunProviders, newRunVoice } from "./providers/new-run.js";
 import { CLIP_QUALITIES, type ClipQuality } from "./video-profiles.js";
@@ -170,6 +173,9 @@ type RunFlags = {
   language?: string;
   niche?: string;
   nicheText?: string;
+  format?: string;
+  edit?: string;
+  localize?: boolean;
 };
 
 /** --pin-modes: one entry per scene, or a single value for every scene. */
@@ -210,6 +216,9 @@ program
   .addOption(new Option("--language <code>", "the language the video is told in (default: the script model's own choice)").choices(Object.keys(SPEECH_LANGUAGES)))
   .addOption(new Option("--niche <id>", "the kind of video: the script is written as videos in it are (phase 7 spec §19)").choices(NICHE_IDS).conflicts("nicheText"))
   .option("--niche-text <text>", `a niche in your own words, at most ${NICHE_TEXT_MAX} characters (instead of --niche)`)
+  .addOption(new Option("--format <id>", "the type of video: how it is told, whatever its niche (phase 8 spec §2)").choices(FORMAT_IDS))
+  .addOption(new Option("--edit <id>", "how it moves and is cut: camera, cuts and the finish over the picture (phase 8 spec §3)").choices(EDIT_IDS))
+  .option("--no-localize", "with --language: do not make the video for that language's viewers (for a video to be made in other languages too)")
   .option("--duration <seconds>", `about how long the video runs (${VIDEO_SECONDS.join(", ")}); the script decides the number of scenes`)
   .option("--scene-seconds <n|a-b>", `with --duration: how long each scene stays, one length or a range within ${SCENE_SECONDS.min}-${SCENE_SECONDS.max} (default ${DEFAULT_SCENE_SECONDS.min}-${DEFAULT_SCENE_SECONDS.max})`)
   .addOption(
@@ -244,6 +253,8 @@ program
   .action(async (o: RunFlags) => {
     const env = loadEnv();
     const { sceneCount, timing } = resolveShape(o);
+    const clash = formatClash(o.format, nicheById(o.niche)?.kind);
+    if (clash) throw new Error(`--format ${o.format} with --niche ${o.niche}: ${clash}`);
     const modes = resolveModes(o.mode, o.modes, sceneCount);
     const shots = resolveShots(o.shots, sceneCount);
     const budgetUsd = budget(o.budget, env);
@@ -259,6 +270,11 @@ program
       language: o.language,
       niche: o.niche,
       nicheText: o.nicheText,
+      format: o.format,
+      edit: o.edit,
+      // made for the viewers of its one language, frozen now (phase 8 spec §5): never for English, which names no one
+      // audience, nor for a video to be made in several languages
+      ...(o.language && AUDIENCE[o.language as SpeechLanguage] ? { localize: o.localize !== false } : {}),
       // the words a second its script is asked for, frozen now: a measurement made later changes no bought script
       ...(timing ? { wordsPerSecond: wordsPerSecond(o.language, o.voice ?? voice.voiceId) } : {}),
       // every new run's lines are trimmed so that no word is cut (phase 7 spec §22)

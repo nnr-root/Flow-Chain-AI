@@ -22,6 +22,14 @@ describe("what the worker agrees to run", () => {
     expect(withNiche({ kind: "none" })).not.toContain("--niche");
     expect(() => NewVideo.parse({ topic: "t", niche: { kind: "custom", text: "two\nlines" } })).toThrow();
     expect(() => NewVideo.parse({ topic: "t", niche: { kind: "known", id: "medicine" } })).toThrow();
+    // a type, an edit and a video not made for its language's viewers (phase 8 spec): each the one value it is
+    const layered = draftArgs(NewVideo.parse({ topic: "t", language: "ja", format: "countdown", edit: "retro", localize: false }), "20261006-120000-abc001");
+    expect(layered).toEqual(expect.arrayContaining(["--format", "countdown", "--edit", "retro", "--no-localize"]));
+    expect(refusal("runs", layered)).toBeUndefined();
+    expect(refusal("runs", [...layered, "--format", "pov"])).toBe("a draft may not repeat --format");
+    // made for its viewers unless asked not to, and nothing said of it then
+    expect(draftArgs(NewVideo.parse({ topic: "t", language: "ja" }), "x")).not.toContain("--no-localize");
+    expect(() => NewVideo.parse({ topic: "t", format: "vlog" })).toThrow();
     expect(refusal("runs", ["resume", "x", "--budget", "1", "--cap", "1"], "x")).toBeUndefined();
     expect(refusal("runs", ["resume", "x", "--budget", "1", "--cap", "1"])).toBeUndefined();
     expect(refusal("runs", ["reroll", "x", "--scene", "1", "--stage", "clips", "--budget", "1", "--cap", "1"])).toBeUndefined();

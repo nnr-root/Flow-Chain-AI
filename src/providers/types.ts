@@ -20,6 +20,12 @@ export type ScriptRequest = {
   /** The kind of video (phase 7 spec §19): a niche the studio knows, or one the user wrote. */
   niche?: string;
   nicheText?: string;
+  /** The type of video (phase 8 spec §2): how it is told, whatever its niche. */
+  format?: string;
+  /** How it moves and is cut (phase 8 spec §3): the script frames and cuts its scenes for it. */
+  edit?: string;
+  /** Made for the audience of its one language (phase 8 spec §5): who is in it where the topic leaves it open. */
+  localize?: boolean;
   /** The language to write what is said and shown as words in; absent = the model's own choice. */
   language?: SpeechLanguage;
   feedback?: string;

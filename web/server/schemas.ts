@@ -1,7 +1,9 @@
 import { join } from "node:path";
 import { loadBrandKit } from "@src/brand";
 import { Aspect } from "@src/config";
-import { NICHE_IDS, NICHE_TEXT_MAX } from "@src/niches";
+import { NICHE_IDS, NICHE_TEXT_MAX, nicheById } from "@src/niches";
+import { FORMAT_IDS, formatClash } from "@src/formats";
+import { EDIT_IDS } from "@src/edits";
 import { SPEECH_LANGUAGE_CODES, type VoiceId, VOICES } from "@src/voice/language";
 import { DEFAULT_SCENE_SECONDS, DEFAULT_VIDEO_SECONDS, SCENE_SECONDS, VIDEO_SECONDS } from "@src/duration";
 import { MAX_SCENES, MAX_SEED, Mode } from "@src/manifest/schema";
@@ -63,8 +65,17 @@ export const NewVideo = z.object({
     z.object({ kind: z.literal("known"), id: z.enum(NICHE_IDS) }),
     z.object({ kind: z.literal("custom"), text: z.string().trim().min(1).max(NICHE_TEXT_MAX).regex(/^[^\n\r]*$/, "one line") }),
   ]).default({ kind: "none" }),
+  /** The type of video (phase 8 spec §2): how it is told; absent = as its niche tells it. */
+  format: z.enum(FORMAT_IDS).optional(),
+  /** How it moves and is cut (phase 8 spec §3); absent = the studio's plain edit. */
+  edit: z.enum(EDIT_IDS).optional(),
   /** The language the video is told in: the script is written in it and the voice speaks in it. */
   language: z.enum(SPEECH_LANGUAGE_CODES).default("en"),
+  /**
+   * Made for that language's viewers (phase 8 spec §5): who is in it, where the topic leaves it open. Turned off for
+   * a video that will be made in other languages too; English has no one audience and is never made for one.
+   */
+  localize: z.boolean().default(true),
   /** One of the studio's voices; absent = the one the studio is set up with. */
   voiceId: z.enum(Object.keys(VOICES) as [VoiceId, ...VoiceId[]]).optional(),
   captionStyle: CaptionChoice.default("preset"),
@@ -113,7 +124,17 @@ export function draftArgs(input: NewVideo, runId: string): string[] {
   // (a form, or a series' recipe, from before niches has none)
   if (input.niche?.kind === "known") args.push("--niche", input.niche.id);
   if (input.niche?.kind === "custom") args.push("--niche-text", input.niche.text);
+  if (input.format) args.push("--format", input.format);
+  if (input.edit) args.push("--edit", input.edit);
+  // (a series' recipe from before this is read as made for its audience, as every new video is: phase 8 spec §5)
+  if (input.localize === false) args.push("--no-localize");
   return args;
+}
+
+/** Why the form's choices cannot go together, or null: a type that tells what is so cannot tell a made-up story. */
+export function formProblem(input: Pick<NewVideo, "format" | "niche">): string | null {
+  const clash = formatClash(input.format, input.niche?.kind === "known" ? nicheById(input.niche.id)?.kind : undefined);
+  return clash ? `format: ${clash}` : null;
 }
 
 /**

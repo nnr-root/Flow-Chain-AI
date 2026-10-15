@@ -129,6 +129,11 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
   politics and money products are left out on purpose: do not add a niche without its rules and their test.
 - **A style's name is not sent to the picture worker**: it uses it for nothing and refuses one it was not built
   knowing. Do not put it back.
+- **A video is built from four layers chosen apart** (phase 8 spec §1): a niche (what it is about, its rules of
+  truth), a type (`src/formats.ts`: how it is told), a style (how a picture is drawn) and an edit (`src/edits.ts`:
+  camera, cuts, a finish over the frame). The niche's rules always hold; a type decides the hook and shape; an edit's
+  words never name a medium or a colour. A video in one language other than English is made for its viewers
+  (`localize`, frozen per run, `src/culture.ts`), and never one that will be made in other languages too.
 - **A script of more than 90 seconds is written in parts** (an outline, then each part), each answer checked
   and saved with its charge (`manifest.scriptParts`), so a stopped run buys none again.
 
@@ -350,6 +355,7 @@ graphify god-nodes --top 20       # the hubs
 | Own database and sign-in, own voice, one GPU provider, unnamed engines | `2026-10-09-phase5-independence-design.md` |
 | A video's length, scene seconds, what it is made of; scripts written in parts | `2026-10-10-phase7-length-design.md` (built against fakes; no real script yet) |
 | Series and their schedule, publishing to a channel, credits, plans | `2026-10-10-phase6-series-autopublish-design.md` (built against stand-ins) |
+| Niche, video type, style and edit as four layers; versions in other languages; a video made for its audience | `2026-10-15-phase8-layers-languages-design.md` |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.
 

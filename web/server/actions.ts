@@ -9,7 +9,7 @@ import { cliJson, cliText, jobReady, type JobView, releaseJob, startJob, studioH
 import { requireManifest } from "./runs";
 import { multiTenant } from "./tenant";
 import { offeredLanguages, readyVoices } from "./voices";
-import { draftArgs, kitDir, type Look, modesArg, musicPath, type NewVideo, rerenderArgs } from "./schemas";
+import { draftArgs, formProblem, kitDir, type Look, modesArg, musicPath, type NewVideo, rerenderArgs } from "./schemas";
 
 /** The run has a job that is running or waiting its turn. */
 async function busy(runId: string): Promise<boolean> {
@@ -39,6 +39,8 @@ export async function createDraft(input: NewVideo, seriesId?: string): Promise<{
   if (input.voiceId && !readyVoices().includes(input.voiceId)) throw new ApiError("validation", `voiceId: the voice ${input.voiceId} is not ready yet`);
   // a language only the hosted voice speaks is not offered without it (phase 7 spec §17)
   if (input.language && !offeredLanguages().includes(input.language)) throw new ApiError("validation", `language: ${input.language} is not offered in this studio`);
+  const problem = formProblem(input);
+  if (problem) throw new ApiError("validation", problem);
   if (multiTenant()) {
     // the run is registered as the user's, and the script's cost is held from their credit, before anything is queued
     const runId = await newTenantRun(input.topic, seriesId);

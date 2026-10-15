@@ -218,12 +218,28 @@ test("a new video is asked for by its length, how long each scene stays and what
   await page.getByText("Niche", { exact: true }).click();
   await expect(page.getByTestId("niche-history")).toHaveAttribute("aria-checked", "true");
 
+  // A type of video and an edit (phase 8 spec): one of each, or none; a made-up story cannot be told as a
+  // documentary, and choosing one takes a documentary away
+  await page.getByTestId("video-type-documentary").click();
+  await expect(page.getByTestId("video-type-about")).toContainText("A real subject told in order");
+  await page.getByTestId("niche-scary-stories").click();
+  await expect(page.getByTestId("video-type-none")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("video-type-documentary")).toBeDisabled();
+  await page.getByTestId("niche-history").click();
+  await page.getByTestId("video-type-countdown").click();
+  await page.getByTestId("edit-archive").click();
+  await expect(page.getByTestId("edit-about")).toContainText("An old documentary");
+  // made for the viewers of the video's one language, unless it will be made in others too; never for English
+  await expect(page.getByTestId("localize")).toBeChecked();
+  await expect(page.getByText("Made for viewers in Turkey")).toBeVisible();
+  await page.getByTestId("localize").uncheck();
+
   await page.getByTestId("topic").fill("A lighthouse keeper's daughter takes over the light");
   const before = calls().length;
   await page.getByTestId("create-draft").click();
   await expect.poll(() => calls().slice(before).find((c) => c[0] === "run")).toBeTruthy();
   const sent = calls().slice(before).find((c) => c[0] === "run")!;
-  expect(sent).toEqual(expect.arrayContaining(["--duration", "60", "--scene-seconds", "3-5", "--pin-modes", "2", "--style", "film_noir", "--language", "tr", "--voice", "narrator-f", "--niche", "history"]));
+  expect(sent).toEqual(expect.arrayContaining(["--duration", "60", "--scene-seconds", "3-5", "--pin-modes", "2", "--style", "film_noir", "--language", "tr", "--voice", "narrator-f", "--niche", "history", "--format", "countdown", "--edit", "archive", "--no-localize"]));
   expect(sent).not.toContain("--scenes");
 });
 

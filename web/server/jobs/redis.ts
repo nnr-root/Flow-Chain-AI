@@ -45,8 +45,9 @@ const AMOUNT = /^\d+(\.\d+)?$/;
 const DRAFT_VALUED = new Set([
   "--topic", "--aspect", "--duration", "--scene-seconds", "--language", "--mode", "--clips", "--budget", "--caption-style", "--transition", "--bgm-gain", "--sfx-gain",
   "--style", "--pin-modes", "--brand", "--bgm", "--hook", "--characters", "--seed", "--voice", "--niche", "--niche-text",
+  "--format", "--edit",
 ]);
-const DRAFT_FLAGS = new Set(["--no-hook", "--no-sfx"]);
+const DRAFT_FLAGS = new Set(["--no-hook", "--no-sfx", "--no-localize"]);
 /** The kind of job each command is: the kind decides whether credit must be held, so it cannot be claimed freely. */
 const KIND_OF: Record<string, JobKind> = { run: "draft", resume: "generate", reroll: "reroll", rerender: "rerender" };
 

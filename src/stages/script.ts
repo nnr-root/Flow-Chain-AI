@@ -156,7 +156,7 @@ export const scriptStage: Stage = {
   paid: true,
   deps: () => [],
   inputsFor: async (ctx) => {
-    const { topic, sceneCount, aspect, shots, style, characters, timing, language, niche, nicheText, wordsPerSecond: frozen } = ctx.manifest.request;
+    const { topic, sceneCount, aspect, shots, style, characters, timing, language, niche, nicheText, format, edit, localize, wordsPerSecond: frozen } = ctx.manifest.request;
     // (a language is part of the key only when one was asked for, so every earlier run keeps its key; the words a
     // second the run froze, or for a run made before that the voice's pace where it is not the narrators'; and a
     // niche only when one was given)
@@ -166,6 +166,10 @@ export const scriptStage: Stage = {
       ...(frozen ? { wordsPerSecond: frozen } : pace !== 1 ? { pace } : {}),
       ...(niche ? { niche } : {}),
       ...(nicheText ? { nicheText } : {}),
+      // (and a type, an edit and an audience only when the run has them: phase 8 spec)
+      ...(format ? { format } : {}),
+      ...(edit ? { edit } : {}),
+      ...(localize ? { localize } : {}),
     };
     // a run asked for by its length is keyed on that: its number of scenes is the script's own answer
     if (timing) return { model: ctx.manifest.models.llm, topic, timing, aspect, shots, style, characters, ...asked };
@@ -174,9 +178,9 @@ export const scriptStage: Stage = {
   outputsFor: () => [paths.script],
   estimateCostUsd: (ctx) => (ctx.manifest.request.timing ? timedScriptCost(ctx.prices, ctx.manifest.request.timing) : scriptCost(ctx.prices)),
   async run(ctx) {
-    const { topic, sceneCount, aspect, shots, style, characters, timing, language, niche, nicheText, wordsPerSecond: frozen } = ctx.manifest.request;
+    const { topic, sceneCount, aspect, shots, style, characters, timing, language, niche, nicheText, format, edit, localize, wordsPerSecond: frozen } = ctx.manifest.request;
     const voiceId = ctx.manifest.request.voiceId;
-    const req: ScriptRequest = { topic, sceneCount, aspect, shots, style, characters, timing, language, voiceId, niche, nicheText, ...(frozen ? { wordsPerSecond: frozen } : {}) };
+    const req: ScriptRequest = { topic, sceneCount, aspect, shots, style, characters, timing, language, voiceId, niche, nicheText, format, edit, localize, ...(frozen ? { wordsPerSecond: frozen } : {}) };
     const partSec = timing ? scriptParts(timing.targetSec) : null;
     const script = timing && partSec
       ? await writeInParts(ctx, req, timing, partSec)

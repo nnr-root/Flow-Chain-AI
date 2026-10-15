@@ -1,3 +1,4 @@
+import { editById } from "../edits.js";
 import { fileSha256 } from "../manifest/hash.js";
 import type { Manifest } from "../manifest/schema.js";
 import { probeDuration } from "../media/ffmpeg.js";
@@ -52,7 +53,7 @@ export const clipsStage: Stage = {
     const base = {
       mode: 1,
       model: m.models.video,
-      prompt: motionPrompt(script, i, effectivePreset(m)),
+      prompt: motionPrompt(script, i, effectivePreset(m), editById(m.request.edit)),
       requestedSec: videoProfileOf(m.request.videoProfile).clipSec(requireAudio(m.scenes[i]).duration),
       // (only where the run chose a size: every earlier run's cache keys stay as they were)
       ...(videoProfileOf(m.request.videoProfile).clipHeight === 720 ? { height: 720 } : {}),
@@ -95,7 +96,7 @@ export const clipsStage: Stage = {
       prepare: async () => {
         // the chain image: the scene's own keyframe, or the seam frame of the previous clip
         const imagePath = needsKeyframe(m, i) ? abs(ctx, paths.keyframe(i)) : await writeSeam(ctx, i);
-        return ctx.providers.video.prepare({ imagePath, prompt: motionPrompt(script, i, effectivePreset(m)), durationSec: seconds, ...(profile.clipHeight ? { height: profile.clipHeight } : {}) });
+        return ctx.providers.video.prepare({ imagePath, prompt: motionPrompt(script, i, effectivePreset(m), editById(m.request.edit)), durationSec: seconds, ...(profile.clipHeight ? { height: profile.clipHeight } : {}) });
       },
       submit: (job, signal) => ctx.providers.video.submit(job, { signal }),
       wait: (id) => ctx.providers.video.wait(id, { timeoutMs: ctx.providers.video.waitMs ?? TIMEOUTS.video }),

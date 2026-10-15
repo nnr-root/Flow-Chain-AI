@@ -9,7 +9,7 @@ import { setSeriesPublishing } from "./channels";
 import { ApiError } from "./http";
 import type { JobView } from "./jobs";
 import { listRuns } from "./runs";
-import { Recipe } from "./schemas";
+import { formProblem, Recipe } from "./schemas";
 import { roots } from "./config";
 import { userDb, UUID } from "./tenant";
 
@@ -108,6 +108,9 @@ export async function getSeries(id: string): Promise<SeriesView> {
 
 export async function createSeries(input: NewSeries): Promise<{ id: string }> {
   accounts();
+  // (refused now, not at its first video: a series that stops on its own recipe has nothing to wait for)
+  const problem = formProblem(input.recipe);
+  if (problem) throw new ApiError("validation", problem);
   const { data, error } = await userDb().rpc("create_series", { p_name: input.name, p_premise: input.premise, p_recipe: input.recipe });
   if (error) throw refused("create_series", error.message);
   return { id: String(data) };

@@ -1,3 +1,4 @@
+import type { Edit } from "../edits.js";
 import type { Manifest, Script } from "../manifest/schema.js";
 import { sceneFrameCounts } from "../media/timeline.js";
 import type { StylePreset } from "../presets.js";
@@ -23,19 +24,25 @@ export function showsCharacter(script: Script, i: number): boolean {
  * A scene without the character is not told about them: a picture model given a description (and a portrait)
  * puts that person into a staircase or a lantern room that was meant to be empty (phase 5 spec §9.12).
  */
-export function imagePrompt(script: Script, i: number, preset: StylePreset | null): string {
+/**
+ * A scene's picture prompt. An edit's light and framing words come after the scene's own, so the subject still
+ * leads (phase 8 spec §3); a run without one is asked for exactly as before.
+ */
+export function imagePrompt(script: Script, i: number, preset: StylePreset | null, edit?: Edit): string {
   const b = script.styleBible;
   const scene = script.scenes[i].imagePrompt;
   const who = showsCharacter(script, i) ? `${b.characters}. ` : "";
   // the time and place, in every picture: a scene that only says "hands on a map" is drawn in today's sleeves otherwise
   const when = b.setting ? `Setting: ${b.setting}. ` : "";
-  if (!preset) return `${b.artStyle}. ${when}${who}Palette: ${b.palette}. ${scene}`;
-  return `${preset.imagePrefix}. ${when}${who}Palette: ${b.palette}. ${scene}. ${preset.imageSuffix}`;
+  const look = edit ? `. ${edit.picture}` : "";
+  if (!preset) return `${b.artStyle}. ${when}${who}Palette: ${b.palette}. ${scene}${look}`;
+  return `${preset.imagePrefix}. ${when}${who}Palette: ${b.palette}. ${scene}${look}. ${preset.imageSuffix}`;
 }
 
-export function motionPrompt(script: Script, i: number, preset: StylePreset | null): string {
+export function motionPrompt(script: Script, i: number, preset: StylePreset | null, edit?: Edit): string {
   const b = script.styleBible;
-  const motion = preset ? `${script.scenes[i].motionPrompt}. ${preset.motionKeywords}` : script.scenes[i].motionPrompt;
+  const own = edit ? `${script.scenes[i].motionPrompt}. ${edit.motion}` : script.scenes[i].motionPrompt;
+  const motion = preset ? `${own}. ${preset.motionKeywords}` : own;
   const who = showsCharacter(script, i) ? ` ${b.characters}.` : "";
   const when = b.setting ? ` Setting: ${b.setting}.` : "";
   return `${motion}. Keep style consistent: ${b.artStyle}.${when}${who}`;

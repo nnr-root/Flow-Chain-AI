@@ -1,6 +1,7 @@
 import type { Manifest } from "../manifest/schema.js";
 import type { CaptionStyle, Transition } from "../media/remotion/props.js";
 import { CAPTION_STYLES, SCRIPT_FACES } from "../media/remotion/styles.js";
+import { editById } from "../edits.js";
 import { PRESETS, type StylePreset } from "../presets.js";
 import { fontCovers } from "../voice/language.js";
 
@@ -48,6 +49,8 @@ export function transitionInto(m: Manifest, k: number): Transition {
   const option = m.request.render.transition;
   if (option !== "auto") return option;
   const suggested = m.script?.scenes[k]?.suggestedTransition;
-  if (suggested === undefined) return "fade";
-  return suggested === "zoom_transition" ? "zoom" : suggested;
+  const asked = suggested === undefined ? "fade" : suggested === "zoom_transition" ? "zoom" : suggested;
+  // an edit cuts its own way (phase 8 spec §3): what the script suggested is read as the kind of cut it wanted
+  const edit = editById(m.request.edit);
+  return edit ? edit.transitions[asked] : asked;
 }

@@ -1,4 +1,4 @@
-import type { CameraMove, CaptionPage, FrameRange, Transition } from "./props.js";
+import type { CameraMove, CaptionPage, FinishProps, FrameRange, Transition } from "./props.js";
 
 /*
  * Pure timing math for the composition. Components only apply what these functions return, so every
@@ -62,23 +62,25 @@ export type KenBurnsTransform = { scale: number; xPct: number; yPct: number };
  * the unscaled box, so the largest shift that keeps the frame covered at scale s is (s - 1) / (2s).
  * Pans keep Phase 1's meaning: pan_left moves the view to the left (the picture travels right).
  */
-export function kenBurnsTransform(camera: CameraMove, frame: number, frames: number): KenBurnsTransform {
+export function kenBurnsTransform(camera: CameraMove, frame: number, frames: number, pace = 1): KenBurnsTransform {
   const e = easeInOut(frame / Math.max(frames - 1, 1));
-  const max = ((MAX_ZOOM - 1) / (2 * MAX_ZOOM)) * 100;
+  // an edit's pace (phase 8 spec §3) moves the camera further or less far; 1 is the move every run had before
+  const zoom = 1 + (MAX_ZOOM - 1) * pace;
+  const max = ((zoom - 1) / (2 * zoom)) * 100;
   const travel = -max + 2 * max * e;
   switch (camera) {
     case "zoom_in":
-      return { scale: 1 + (MAX_ZOOM - 1) * e, xPct: 0, yPct: 0 };
+      return { scale: 1 + (zoom - 1) * e, xPct: 0, yPct: 0 };
     case "zoom_out":
-      return { scale: MAX_ZOOM - (MAX_ZOOM - 1) * e, xPct: 0, yPct: 0 };
+      return { scale: zoom - (zoom - 1) * e, xPct: 0, yPct: 0 };
     case "pan_left":
-      return { scale: MAX_ZOOM, xPct: travel, yPct: 0 };
+      return { scale: zoom, xPct: travel, yPct: 0 };
     case "pan_right":
-      return { scale: MAX_ZOOM, xPct: -travel, yPct: 0 };
+      return { scale: zoom, xPct: -travel, yPct: 0 };
     case "pan_up":
-      return { scale: MAX_ZOOM, xPct: 0, yPct: travel };
+      return { scale: zoom, xPct: 0, yPct: travel };
     case "pan_down":
-      return { scale: MAX_ZOOM, xPct: 0, yPct: -travel };
+      return { scale: zoom, xPct: 0, yPct: -travel };
   }
 }
 
@@ -218,3 +220,17 @@ export function fadeOutVolume(frame: number, totalFrames: number, fadeFrames: nu
   if (frame < start) return 1;
   return Math.max(0, (totalFrames - 1 - frame) / Math.max(fadeFrames - 1, 1));
 }
+
+/** The CSS filter of an edit's grade (phase 8 spec §3): only the amounts that change the picture. */
+export function finishFilter(f: FinishProps): string | undefined {
+  const parts = [
+    f.contrast !== 1 ? `contrast(${f.contrast})` : "",
+    f.saturate !== 1 ? `saturate(${f.saturate})` : "",
+    f.brightness !== 1 ? `brightness(${f.brightness})` : "",
+    f.sepia > 0 ? `sepia(${f.sepia})` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(" ") : undefined;
+}
+
+/** Where the grain's tile sits on a frame: it jumps every frame, the same way on every render of it. */
+export const grainOffset = (frame: number): { x: number; y: number } => ({ x: (frame * 73) % 256, y: (frame * 151) % 256 });
