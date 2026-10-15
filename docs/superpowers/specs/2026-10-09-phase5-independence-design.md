@@ -857,6 +857,10 @@ character) were not taken.
 has no `voices_write` permission, so none was added; `--hosted-add` writes the catalogue without adding unless a
 `publicOwnerId` is given. Parked: an added voice is kept for the notice its owner set should they withdraw it,
 and one used directly is not; give the key that permission and add the twenty-four (free).
+  **Resolved (2026-10-15):** the service copies a library voice into the account the first time the API speaks with
+  it ("copied" in the account's list). Every one of the catalogue's 382 voices was in the account after its sample
+  was made, with no add and no permission; the owner has since given the key `voices_write`, and
+  `make:voices -- --hosted-keep` (which adds whatever is not there yet, and is safe to run again) found nothing to add.
 
 **Samples and paces.** The forty-five samples (twelve in Turkish, thirty-three in English) were made in the
 hosted voices: $1.52 at the 0.30 rate, taken from the plan's characters. The paces in `VOICES` are now the hosted
