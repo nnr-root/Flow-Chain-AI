@@ -1,7 +1,7 @@
 import type { Aspect } from "../config.js";
 import type { Timing } from "../duration.js";
 import type { SpeechLanguage } from "../voice/language.js";
-import type { LlmOutline, Shot, WordTiming } from "../manifest/schema.js";
+import type { LlmOutline, Shot, StoredOutline, WordTiming } from "../manifest/schema.js";
 import type { PresetName } from "../presets.js";
 
 export type ScriptRequest = {
@@ -30,7 +30,7 @@ export type ScriptRequest = {
    */
   ask?:
     | { kind: "outline"; partSec: number[] }
-    | { kind: "part"; index: number; partSec: number[]; outline: LlmOutline; previous: string[] };
+    | { kind: "part"; index: number; partSec: number[]; outline: StoredOutline; previous: string[] };
 };
 export interface LlmProvider {
   /** Returns parsed JSON; the script stage validates it against the LlmScript schema. */

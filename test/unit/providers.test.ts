@@ -77,7 +77,9 @@ describe("gemini prompt and schema", () => {
     expect((scriptJsonSchema("outline", 10) as { properties: { parts: { maxItems?: number } } }).properties.parts.maxItems).toBe(10);
     expect(MAX_SCENES).toBeGreaterThan(36 * 9);
     // a long video's two kinds of answer have schemas of their own
-    expect(Object.keys((scriptJsonSchema("outline") as { properties: object }).properties)).toEqual(["title", "stylePreset", "styleBible", "hook", "parts"]);
+    expect(Object.keys((scriptJsonSchema("outline") as { properties: object }).properties)).toEqual(["title", "stylePreset", "styleBible", "hook", "parts", "hashtags"]);
+    // and the hashtags are the last thing of the whole one too, written once the video is (phase 7 spec §18)
+    expect(Object.keys((scriptJsonSchema("script") as { properties: object }).properties).at(-1)).toBe("hashtags");
     expect(Object.keys((scriptJsonSchema("part") as { properties: object }).properties)).toEqual(["scenes"]);
   });
 

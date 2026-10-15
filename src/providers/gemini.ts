@@ -64,6 +64,14 @@ const hookRule = (req: ScriptRequest): string =>
     ? `- hook: a punchy title of at most ${hookCap(req.language, wordsPerSecond(req.language, req.voiceId))} characters shown big over the first 3 seconds; tease the payoff without giving it away; no emojis, hashtags or quotes.`
     : HOOK_RULE;
 
+/**
+ * The hashtags a video is posted with (phase 7 spec §18): in its language and its own script, as the people who
+ * speak it tag such videos, from the subject's field to this video's own subject; none of the tags put on every
+ * video, which bring nobody who wants this one.
+ */
+const hashtagRule = (req: ScriptRequest): string =>
+  `- hashtags: exactly 5, to post the video with on Shorts, Reels and TikTok. Write them in ${req.language ? LANGUAGE_IN_ENGLISH[req.language] : "the language of the narration"}, in its own script and spelling, the way people who speak it tag videos like this one (not translated from English tags). Each starts with # and is one word, or words run together with no spaces or punctuation. Go from broad to specific: one or two for the field the subject belongs to, the rest for this video's own subject. No generic tags (#fyp, #foryou, #viral, #shorts, #trending, or the like), and no names of real people or brands unless the video is about them.`;
+
 const bibleRules = (req: ScriptRequest): string[] => [
   "- styleBible.artStyle: one visual style used by every scene (medium, lighting, lens, mood), matching the style preset.",
   req.characters
@@ -133,6 +141,7 @@ function wholePrompt(req: ScriptRequest): string {
     narrationRule(req),
     "- All narrations together read as one continuous script with a strong hook in scene 1.",
     hookRule(req),
+    hashtagRule(req),
     ...bibleRules(req),
     ...sceneRules(req),
     ...feedbackLines(req),
@@ -152,6 +161,7 @@ function outlinePrompt(req: ScriptRequest, partSec: number[]): string {
     ...languageRule(req, "the title, the hook and every part's summary"),
     "- title: the video's title.",
     hookRule(req),
+    hashtagRule(req),
     ...bibleRules(req),
     `- parts: exactly ${partSec.length}, in order. For each, summary: what that part tells, in one or two plain sentences, specific enough that someone else could write it.`,
     "- The parts together are one story with a direction: part 1 opens on the hook and makes a promise, each part adds something the ones before did not, and the last part pays the promise off. No part repeats another, and none is filler.",

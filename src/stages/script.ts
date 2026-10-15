@@ -6,6 +6,7 @@ import { layOutScenes } from "../manifest/store.js";
 import { PRESETS } from "../presets.js";
 import { voicePace } from "../voice/language.js";
 import { countUnits, hookCap, isUnspaced, lengthUnit, unitsPerWord } from "../voice/words.js";
+import { normalizeHashtags } from "../hashtags.js";
 import { TIMEOUTS, withRetry } from "../providers/retry.js";
 import type { ScriptRequest } from "../providers/types.js";
 import { outPath, paths } from "./paths.js";
@@ -82,7 +83,8 @@ export function validateScript(raw: unknown, sceneCount: number, timing?: Timing
     });
   }
   problems.push(...hookProblems(parsed.data.hook, language, voice));
-  return problems.length > 0 ? { ok: false, problems } : { ok: true, script: parsed.data };
+  // (hashtags are put right, never a reason to send an answer back: phase 7 spec §18)
+  return problems.length > 0 ? { ok: false, problems } : { ok: true, script: { ...parsed.data, hashtags: normalizeHashtags(parsed.data.hashtags) } };
 }
 
 /** A long video's outline: the right number of parts, and a hook that fits on the screen. */
@@ -91,7 +93,7 @@ export function validateOutline(raw: unknown, parts: number, language?: string, 
   if (!parsed.success) return { ok: false, problems: issues(parsed.error) };
   const problems = hookProblems(parsed.data.hook, language, voice);
   if (parsed.data.parts.length !== parts) problems.push(`expected exactly ${parts} parts, got ${parsed.data.parts.length}`);
-  return problems.length > 0 ? { ok: false, problems } : { ok: true, value: parsed.data };
+  return problems.length > 0 ? { ok: false, problems } : { ok: true, value: { ...parsed.data, hashtags: normalizeHashtags(parsed.data.hashtags) } };
 }
 
 /** One part of a long video: scenes that come to the part's own seconds. */
@@ -139,7 +141,7 @@ async function writeInParts(ctx: RunContext, req: ScriptRequest, timing: Timing,
   }
   // every part begins on a fresh picture: nothing of the part before is there to carry on from when it is written
   for (const part of kept.parts) part[0].shot = "cut";
-  return { title: outline.title, stylePreset: outline.stylePreset, styleBible: outline.styleBible, hook: outline.hook, scenes: kept.parts.flat() };
+  return { title: outline.title, stylePreset: outline.stylePreset, styleBible: outline.styleBible, hook: outline.hook, ...(outline.hashtags ? { hashtags: outline.hashtags } : {}), scenes: kept.parts.flat() } as LlmScript;
 }
 
 export const scriptStage: Stage = {

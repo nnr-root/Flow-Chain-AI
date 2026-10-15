@@ -45,6 +45,8 @@ export type RunStatus = {
   targetSec?: number;
   modes: Mode[] | "auto";
   title?: string;
+  /** What to post it with (phase 7 spec §18): absent until the script is written, and on scripts from before. */
+  hashtags?: string[];
   style: { name: string | null; source: "flag" | "auto" | "pending" | "none" };
   hook: string | null;
   render: Manifest["request"]["render"];
@@ -79,6 +81,7 @@ export function statusOf(m: Manifest): RunStatus {
     ...(r.timing ? { targetSec: r.timing.targetSec } : {}),
     modes: r.modes ?? "auto",
     title: m.script?.title,
+    ...(m.script?.hashtags?.length ? { hashtags: m.script.hashtags } : {}),
     style: preset
       ? { name: preset.name, source: r.style ? "flag" : "auto" }
       : { name: null, source: m.script ? "none" : "pending" },

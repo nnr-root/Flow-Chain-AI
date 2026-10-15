@@ -509,3 +509,24 @@ twelve characters at most, what two lines hold at its size, whatever the voice (
 narration stay worked out from the rate: they are speech.
 
 `make:voices` counted the samples it skipped as made in its last line; it counts only the ones it made now.
+
+## 18. Hashtags (owner's direction, 2026-10-15)
+
+The owner: let the script's model choose five hashtags too, in the video's language.
+
+- **Asked for with the script, last.** `hashtags` is the last field of the whole script's answer and of a long
+  video's outline: the model answers in schema order, and tags a video best once it has written what it tells.
+  Exactly five, in the video's language **and its own script** (Japanese in Japanese, Arabic in Arabic): the
+  platforms take hashtags in any script, and a video is found by the people who search in its language. Spelled as
+  people who speak it tag such videos, not translated from English tags. From the subject's field to this video's
+  own subject. None of the tags put on every video (#fyp, #viral, #shorts…), and no real person or brand unless the
+  video is about them.
+- **Put right, never sent back** (`src/hashtags.ts`): every answer is paid for, and a hashtag is the easiest part
+  of one to mend. Each becomes `#` and one run of letters, marks or digits (spaces and punctuation end a hashtag on
+  every platform; the combining marks of Devanagari stay), generic ones and repeats are dropped, and at most five
+  are kept in the order sent.
+- **Kept as optional** (`Script.hashtags`, and an outline kept by a run: `StoredOutline`): every run made before
+  loads as it was. Required in the answer only.
+- **Shown and used.** The run page shows them under the topic with a button that copies them all; `status` prints
+  them; a post to YouTube has them in its description, with `#Shorts`, and the same words without the sign as its
+  tags. What is posted is put right once more from the manifest: it goes out under the user's name.

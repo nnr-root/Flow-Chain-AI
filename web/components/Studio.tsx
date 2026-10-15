@@ -198,6 +198,7 @@ export function Studio({ initial, initialLog, kits, publishing = false }: { init
           <StateBadge state={state} />
         </div>
         {status && <p className="text-[0.95rem] text-graphite">{status.topic}</p>}
+        {status?.hashtags && <Hashtags tags={status.hashtags} />}
         {preview ? (
           <>
             {preview.draft && (
@@ -465,5 +466,24 @@ function SceneRow({ scene, picture, draft, canReroll, busy, onMode, onReroll }: 
       )}
       </div>
     </li>
+  );
+}
+
+/** The hashtags the script was written with, to post the video with: copied all at once, as they are pasted. */
+function Hashtags({ tags }: { tags: string[] }) {
+  const [copied, setCopied] = useState(false);
+  const copy = () => {
+    void navigator.clipboard?.writeText(tags.join(" ")).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <div data-testid="hashtags" className="flex flex-wrap items-center gap-1.5">
+      {tags.map((t) => <span key={t} className="rounded-full bg-wash px-2.5 py-1 text-[0.82rem]">{t}</span>)}
+      <button type="button" onClick={copy} data-testid="copy-hashtags" className="rounded-full px-2.5 py-1 text-[0.82rem] font-bold text-graphite underline-offset-2 hover:text-ink hover:underline">
+        {copied ? "Copied" : "Copy"}
+      </button>
+    </div>
   );
 }

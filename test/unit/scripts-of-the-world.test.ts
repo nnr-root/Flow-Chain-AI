@@ -13,6 +13,7 @@ import { fontCovers, OWN_VOICE_LANGUAGES, SPEECH_LANGUAGES } from "../../src/voi
 import { countUnits, isRightToLeft, lengthUnit, splitWords, wordJoiner } from "../../src/voice/words.js";
 import { wordsPerSecond } from "../../src/duration.js";
 import { fakeScript } from "../fakes/providers.js";
+import { normalizeHashtags } from "../../src/hashtags.js";
 
 // Phase 7 spec §17: languages written without spaces, right to left, and in scripts of their own.
 
@@ -134,3 +135,22 @@ describe("the voice model a language is spoken by", () => {
 });
 
 const SPEECH_LANGUAGE_CODES_RTL = () => Object.keys(SPEECH_LANGUAGES).filter((l) => isRightToLeft(l));
+
+describe("the hashtags a video is posted with (phase 7 spec §18)", () => {
+  it("are five, each a # and one run of letters, none generic and none twice, in the order sent", () => {
+    expect(normalizeHashtags(["#history", "Roman Empire", "#history", "#FYP", "#roman_legions", "#300", "#ancientrome", "#caesar", "#extra"])).toEqual(["#history", "#RomanEmpire", "#roman_legions", "#ancientrome", "#caesar"]);
+    expect(normalizeHashtags(["#Tarih!", "#keşfet", "#tarih", "#Osmanlı İmparatorluğu"])).toEqual(["#Tarih", "#Osmanlıİmparatorluğu"]);
+  });
+
+  it("keep the letters and marks of every script", () => {
+    expect(normalizeHashtags(["#歴史", "#日本の歴史", "#تاريخ", "#इतिहास", "#역사"])).toEqual(["#歴史", "#日本の歴史", "#تاريخ", "#इतिहास", "#역사"]);
+  });
+
+  it("are asked for in the video's language and its own script, and put right rather than sent back", () => {
+    const base = { topic: "t", aspect: "9:16", sceneCount: 3, voiceId: "narrator-m" } as const;
+    expect(buildScriptPrompt({ ...base, language: "ja" })).toMatch(/hashtags: exactly 5[^\n]*in Japanese, in its own script/);
+    const s = fakeScript(3);
+    const checked = validateScript({ ...s, hashtags: ["fyp", "#wildlife", "wild life", "#Wildlife"] }, 3);
+    expect(checked.ok && checked.script.hashtags).toEqual(["#wildlife"]);
+  });
+});

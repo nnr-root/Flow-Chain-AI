@@ -28,6 +28,7 @@ export function fakeScript(sceneCount: number, opts: FakeScriptOptions = {}) {
     title: "Fake run",
     stylePreset: opts.stylePreset ?? "cinematic_history",
     hook: opts.hook ?? "Foxes never sleep",
+    hashtags: ["#wildlife", "#foxes", "#redfox", "#nightanimals", "#animalfacts"],
     styleBible: { artStyle: "flat test pattern", characters: "a red fox", palette: "teal, orange" },
     scenes: Array.from({ length: sceneCount }, (_, i) => ({
       narration: `Scene ${i + 1} says hello. Then it pauses and continues.`,

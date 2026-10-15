@@ -76,8 +76,16 @@ export const Script = z.object({
   scenes: z.array(SceneSpec).min(1).max(MAX_SCENES),
   /** The hook title (2.3); optional when stored, so scripts written before 2.3 still load. */
   hook: z.string().optional(),
+  /** Five hashtags to post it with, in its language (phase 7 spec §18); absent on scripts written before them. */
+  hashtags: z.array(z.string()).optional(),
 });
 export type Script = z.infer<typeof Script>;
+
+const hashtags = z
+  .array(z.string())
+  .min(1)
+  .max(10)
+  .describe("Exactly 5 hashtags to post the video with, each starting with #, in the video's language");
 
 /** Gemini's answer (sent as the response schema): the fields added since are required. */
 export const LlmSceneSpec = SceneSpec.extend({ actionLevel, suggestedTransition, showsCharacter });
@@ -87,6 +95,7 @@ export const LlmScript = Script.extend({
   hook: z
     .string()
     .describe("2-6 punchy words shown as a big title in the first 3 seconds; tease the payoff without giving it away"),
+  hashtags,
 });
 export type LlmScript = z.infer<typeof LlmScript>;
 
@@ -100,8 +109,13 @@ export const LlmOutline = z.object({
   styleBible: Script.shape.styleBible,
   hook: LlmScript.shape.hook,
   parts: z.array(z.object({ summary: z.string().describe("What this part of the video tells, in one or two sentences") })).min(1).max(20),
+  // (last: the model answers in this order, and tags a video best once it has said what the video tells)
+  hashtags,
 });
 export type LlmOutline = z.infer<typeof LlmOutline>;
+/** An outline as a run keeps it: one kept before hashtags were asked for has none, and still loads. */
+export const StoredOutline = LlmOutline.extend({ hashtags: LlmOutline.shape.hashtags.optional() });
+export type StoredOutline = z.infer<typeof StoredOutline>;
 export const LlmPart = z.object({ scenes: z.array(LlmSceneSpec).min(1).max(60) });
 export type LlmPart = z.infer<typeof LlmPart>;
 
@@ -291,6 +305,6 @@ export const Manifest = z.object({
    * `inputHash` stands for. Each is saved with its charge, so continuing a stopped run buys none of them again.
    * Gone once the script is whole.
    */
-  scriptParts: z.object({ inputHash: z.string(), outline: LlmOutline.optional(), parts: z.array(LlmPart.shape.scenes) }).optional(),
+  scriptParts: z.object({ inputHash: z.string(), outline: StoredOutline.optional(), parts: z.array(LlmPart.shape.scenes) }).optional(),
 });
 export type Manifest = z.infer<typeof Manifest>;

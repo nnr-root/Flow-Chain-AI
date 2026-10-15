@@ -2,6 +2,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { Db } from "@src/db/client";
+import { normalizeHashtags } from "@src/hashtags";
 import { runFolder } from "../server/jobs/run-cli";
 import { UUID } from "../server/tenant";
 import { open, seal, vaultReady } from "./vault";
@@ -75,19 +76,28 @@ export function publisher(db: Db, asUser: <T>(userId: string, work: () => Promis
   }
 
   /** What a run is called and about, from its own manifest. */
-  const about = (runId: string): { title: string; topic: string } => {
+  const about = (runId: string): { title: string; topic: string; hashtags: string[] } => {
     try {
-      const m = JSON.parse(readFileSync(join(runFolder(runId), "manifest.json"), "utf8")) as { script?: { title?: unknown }; request?: { topic?: unknown } };
-      return { title: typeof m.script?.title === "string" ? m.script.title : "", topic: typeof m.request?.topic === "string" ? m.request.topic : "" };
+      const m = JSON.parse(readFileSync(join(runFolder(runId), "manifest.json"), "utf8")) as { script?: { title?: unknown; hashtags?: unknown }; request?: { topic?: unknown } };
+      // (the script's hashtags, put right once more: the manifest is a file, and what is posted goes out under the user's name)
+      const hashtags = Array.isArray(m.script?.hashtags) ? normalizeHashtags(m.script.hashtags.filter((t): t is string => typeof t === "string")) : [];
+      return { title: typeof m.script?.title === "string" ? m.script.title : "", topic: typeof m.request?.topic === "string" ? m.request.topic : "", hashtags };
     } catch {
-      return { title: "", topic: "" };
+      return { title: "", topic: "", hashtags: [] };
     }
   };
 
-  async function upload(access: string, file: string, title: string): Promise<string> {
+  async function upload(access: string, file: string, title: string, hashtags: string[]): Promise<string> {
     const meta = {
-      // a title is at most 100 characters there, and may carry neither of these two signs
-      snippet: { title: (title || "Untitled").replace(/[<>]/g, "").slice(0, 100), description: "#Shorts", categoryId: "22" },
+      // a title is at most 100 characters there, and may carry neither of these two signs. The description is the
+      // video's hashtags (phase 7 spec §18) and the one that tells the platform it is a short; its tags are the
+      // same words without the sign.
+      snippet: {
+        title: (title || "Untitled").replace(/[<>]/g, "").slice(0, 100),
+        description: [...hashtags, "#Shorts"].join(" "),
+        ...(hashtags.length ? { tags: hashtags.map((t) => t.slice(1)) } : {}),
+        categoryId: "22",
+      },
       // (made with generated pictures and voice: said to the platform, as its rules ask)
       status: { privacyStatus: "public", selfDeclaredMadeForKids: false, containsSyntheticMedia: true },
     };
@@ -147,11 +157,11 @@ export function publisher(db: Db, asUser: <T>(userId: string, work: () => Promis
       ]);
       const c = channel.data as { user_id: string; token: Buffer } | null;
       if (!c || c.user_id !== p.user_id || (run.data as { user_id: string } | null)?.user_id !== p.user_id) throw new PublishRefused("The channel is no longer connected. Connect it again on your account page.");
-      const { file, title } = await asUser(p.user_id, async () => ({ file: join(runFolder(p.run_id), "final.mp4"), title: about(p.run_id).title }));
+      const { file, title, hashtags } = await asUser(p.user_id, async () => ({ file: join(runFolder(p.run_id), "final.mp4"), ...about(p.run_id) }));
       if (!existsSync(file)) throw new PublishRefused("This video is not finished, so there is nothing to publish yet.");
       const got = await token({ grant_type: "refresh_token", refresh_token: open(Buffer.from(c.token), p.user_id) });
       if (typeof got.access_token !== "string") throw new PublishRefused("The channel could not be reached. Try again in a moment.");
-      const videoId = await upload(got.access_token, file, title);
+      const videoId = await upload(got.access_token, file, title, hashtags);
       await record("posted", { id: videoId });
       log(`worker: posted ${p.run_id} to a channel of ${p.user_id}`);
       return "posted";

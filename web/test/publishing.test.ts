@@ -160,6 +160,9 @@ describe.skipIf(!supa || !hasRedisServer())("publishing to a user's own channel"
     expect(youtube.uploads).toHaveLength(1);
     expect(youtube.uploads[0]).toMatchObject({ bytes: 4096 });
     expect(youtube.uploads[0].meta.snippet?.title).toBe(finishedManifest(runId).script!.title);
+    // posted with the hashtags its script was written with (phase 7 spec §18), and the one that says it is a short
+    expect(youtube.uploads[0].meta.snippet?.description).toBe("#wildlife #foxes #redfox #nightanimals #animalfacts #Shorts");
+    expect((youtube.uploads[0].meta.snippet as { tags?: string[] }).tags).toEqual(["wildlife", "foxes", "redfox", "nightanimals", "animalfacts"]);
     expect(youtube.uploads[0].meta.status).toMatchObject({ privacyStatus: "public", selfDeclaredMadeForKids: false });
     expect(youtube.tokens.at(-1)).toMatchObject({ grant_type: "refresh_token", client_secret: "yt-secret" });
     expect(youtube.tokens.at(-1)!.refresh_token).toMatch(/^rt-code-/);
