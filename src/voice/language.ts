@@ -89,15 +89,15 @@ const OWN_VOICES = {
   "narrator-m": { label: "Narrator (male)", suits: "A plain, even voice for any video" },
   "narrator-f": { label: "Narrator (female)", suits: "A plain, even voice for any video" },
   storyteller: { label: "Storyteller", suits: "Fables, history, legends and stories told slowly" },
-  documentary: { label: "Documentary", suits: "Nature, science and history that want some weight", pace: 0.95 },
+  documentary: { label: "Documentary", suits: "Nature, science and history that want some weight" },
   trailer: { label: "Trailer", suits: "True crime, horror, epics and anything dramatic" },
-  host: { label: "Host", suits: "Fast facts, countdowns, tech and anything with energy", pace: 1.05 },
+  host: { label: "Host", suits: "Fast facts, countdowns, tech and anything with energy" },
   explainer: { label: "Explainer", suits: "How-to, money, business and step-by-step guides" },
-  anchor: { label: "Anchor", suits: "News, reports and facts told straight", pace: 0.95 },
+  anchor: { label: "Anchor", suits: "News, reports and facts told straight" },
   upbeat: { label: "Upbeat", suits: "Fun facts, food, lifestyle and light-hearted videos" },
   calm: { label: "Calm", suits: "Wellness, sleep, nature and gentle stories" },
-  mystery: { label: "Mystery", suits: "Unsolved cases, secrets and the strange" },
-  storybook: { label: "Storybook", suits: "Children's stories, fables and cartoons", pace: 0.94 },
+  mystery: { label: "Mystery", suits: "Unsolved cases, secrets and the strange", pace: 0.95 },
+  storybook: { label: "Storybook", suits: "Children's stories, fables and cartoons", pace: 0.93 },
 } as const;
 
 /**

@@ -1,5 +1,5 @@
 {
-  "madeOn": "2026-10-12",
+  "madeOn": "2026-10-15",
   "samples": {
     "adam": {
       "en": {
@@ -14,6 +14,10 @@
       }
     },
     "anchor": {
+      "ar": {
+        "seconds": 7.57,
+        "words": 14
+      },
       "bg": {
         "seconds": 7.34,
         "words": 19
@@ -66,6 +70,10 @@
         "seconds": 10.91,
         "words": 16
       },
+      "ms": {
+        "seconds": 7.57,
+        "words": 19
+      },
       "nl": {
         "seconds": 13.47,
         "words": 21
@@ -82,6 +90,10 @@
         "seconds": 7.43,
         "words": 19
       },
+      "ro": {
+        "seconds": 6.92,
+        "words": 21
+      },
       "ru": {
         "seconds": 9.1,
         "words": 18
@@ -89,6 +101,10 @@
       "sk": {
         "seconds": 11.33,
         "words": 18
+      },
+      "sv": {
+        "seconds": 8.22,
+        "words": 20
       },
       "tl": {
         "seconds": 10.17,
@@ -105,6 +121,10 @@
       "vi": {
         "seconds": 6.92,
         "words": 30
+      },
+      "zh": {
+        "seconds": 8.92,
+        "words": 35
       }
     },
     "bella": {
@@ -132,6 +152,10 @@
       }
     },
     "calm": {
+      "ar": {
+        "seconds": 7.24,
+        "words": 14
+      },
       "bg": {
         "seconds": 6.22,
         "words": 19
@@ -216,6 +240,10 @@
         "seconds": 6.46,
         "words": 19
       },
+      "ro": {
+        "seconds": 6.59,
+        "words": 21
+      },
       "ru": {
         "seconds": 8.31,
         "words": 18
@@ -223,6 +251,10 @@
       "sk": {
         "seconds": 7.94,
         "words": 18
+      },
+      "sv": {
+        "seconds": 6.59,
+        "words": 20
       },
       "tl": {
         "seconds": 10.17,
@@ -239,6 +271,10 @@
       "vi": {
         "seconds": 9.15,
         "words": 30
+      },
+      "zh": {
+        "seconds": 8.03,
+        "words": 35
       }
     },
     "charlie": {
@@ -260,6 +296,10 @@
       }
     },
     "documentary": {
+      "ar": {
+        "seconds": 7.06,
+        "words": 14
+      },
       "bg": {
         "seconds": 7.94,
         "words": 19
@@ -324,6 +364,10 @@
         "seconds": 8.45,
         "words": 16
       },
+      "ms": {
+        "seconds": 9.06,
+        "words": 19
+      },
       "nl": {
         "seconds": 7.24,
         "words": 21
@@ -340,6 +384,10 @@
         "seconds": 7.89,
         "words": 19
       },
+      "ro": {
+        "seconds": 6.59,
+        "words": 21
+      },
       "ru": {
         "seconds": 7.62,
         "words": 18
@@ -347,6 +395,10 @@
       "sk": {
         "seconds": 6.97,
         "words": 18
+      },
+      "sv": {
+        "seconds": 7.01,
+        "words": 20
       },
       "tl": {
         "seconds": 9.89,
@@ -363,6 +415,10 @@
       "vi": {
         "seconds": 7.38,
         "words": 30
+      },
+      "zh": {
+        "seconds": 7.85,
+        "words": 35
       }
     },
     "eric": {
@@ -372,6 +428,10 @@
       }
     },
     "explainer": {
+      "ar": {
+        "seconds": 7.66,
+        "words": 14
+      },
       "bg": {
         "seconds": 7.66,
         "words": 19
@@ -420,6 +480,10 @@
         "seconds": 13.79,
         "words": 16
       },
+      "ms": {
+        "seconds": 9.2,
+        "words": 19
+      },
       "nl": {
         "seconds": 6.55,
         "words": 21
@@ -432,9 +496,17 @@
         "seconds": 8.78,
         "words": 19
       },
+      "ro": {
+        "seconds": 6.22,
+        "words": 21
+      },
       "ru": {
         "seconds": 7.85,
         "words": 18
+      },
+      "sv": {
+        "seconds": 6.27,
+        "words": 20
       },
       "tl": {
         "seconds": 9.06,
@@ -444,9 +516,17 @@
         "seconds": 8.41,
         "words": 17
       },
+      "uk": {
+        "seconds": 8.68,
+        "words": 17
+      },
       "vi": {
         "seconds": 6.97,
         "words": 30
+      },
+      "zh": {
+        "seconds": 8.54,
+        "words": 35
       }
     },
     "george": {
@@ -462,6 +542,10 @@
       }
     },
     "host": {
+      "ar": {
+        "seconds": 7.01,
+        "words": 14
+      },
       "bg": {
         "seconds": 7.76,
         "words": 19
@@ -526,6 +610,10 @@
         "seconds": 8.22,
         "words": 16
       },
+      "ms": {
+        "seconds": 7.76,
+        "words": 19
+      },
       "nl": {
         "seconds": 7.15,
         "words": 21
@@ -542,6 +630,10 @@
         "seconds": 6.92,
         "words": 19
       },
+      "ro": {
+        "seconds": 8.31,
+        "words": 21
+      },
       "ru": {
         "seconds": 8.87,
         "words": 18
@@ -549,6 +641,10 @@
       "sk": {
         "seconds": 7.62,
         "words": 18
+      },
+      "sv": {
+        "seconds": 6.64,
+        "words": 20
       },
       "tl": {
         "seconds": 8.27,
@@ -565,6 +661,10 @@
       "vi": {
         "seconds": 6.92,
         "words": 30
+      },
+      "zh": {
+        "seconds": 8.17,
+        "words": 35
       }
     },
     "jessica": {
@@ -686,6 +786,10 @@
         "seconds": 9.38,
         "words": 19
       },
+      "ro": {
+        "seconds": 8.03,
+        "words": 21
+      },
       "ru": {
         "seconds": 6.97,
         "words": 18
@@ -693,6 +797,10 @@
       "sk": {
         "seconds": 6.83,
         "words": 18
+      },
+      "sv": {
+        "seconds": 6.69,
+        "words": 20
       },
       "tl": {
         "seconds": 11.8,
@@ -709,9 +817,17 @@
       "vi": {
         "seconds": 12.17,
         "words": 30
+      },
+      "zh": {
+        "seconds": 10.73,
+        "words": 35
       }
     },
     "narrator-f": {
+      "ar": {
+        "seconds": 8.64,
+        "words": 14
+      },
       "bg": {
         "seconds": 7.24,
         "words": 19
@@ -776,6 +892,10 @@
         "seconds": 8.73,
         "words": 16
       },
+      "ms": {
+        "seconds": 8.08,
+        "words": 19
+      },
       "nl": {
         "seconds": 7.2,
         "words": 21
@@ -792,6 +912,10 @@
         "seconds": 7.76,
         "words": 19
       },
+      "ro": {
+        "seconds": 6.87,
+        "words": 21
+      },
       "ru": {
         "seconds": 7.76,
         "words": 18
@@ -799,6 +923,10 @@
       "sk": {
         "seconds": 7.15,
         "words": 18
+      },
+      "sv": {
+        "seconds": 8.03,
+        "words": 20
       },
       "tl": {
         "seconds": 10.03,
@@ -808,12 +936,24 @@
         "seconds": 6.64,
         "words": 17
       },
+      "uk": {
+        "seconds": 9.61,
+        "words": 17
+      },
       "vi": {
         "seconds": 7.29,
         "words": 30
+      },
+      "zh": {
+        "seconds": 7.24,
+        "words": 35
       }
     },
     "narrator-m": {
+      "ar": {
+        "seconds": 6.83,
+        "words": 14
+      },
       "bg": {
         "seconds": 7.38,
         "words": 19
@@ -878,6 +1018,10 @@
         "seconds": 6.55,
         "words": 16
       },
+      "ms": {
+        "seconds": 7.43,
+        "words": 19
+      },
       "nl": {
         "seconds": 6.64,
         "words": 21
@@ -894,6 +1038,10 @@
         "seconds": 7.57,
         "words": 19
       },
+      "ro": {
+        "seconds": 6.59,
+        "words": 21
+      },
       "ru": {
         "seconds": 6.92,
         "words": 18
@@ -901,6 +1049,10 @@
       "sk": {
         "seconds": 6.73,
         "words": 18
+      },
+      "sv": {
+        "seconds": 6.59,
+        "words": 20
       },
       "tl": {
         "seconds": 11.15,
@@ -910,9 +1062,17 @@
         "seconds": 7.62,
         "words": 17
       },
+      "uk": {
+        "seconds": 8.41,
+        "words": 17
+      },
       "vi": {
         "seconds": 12.21,
         "words": 30
+      },
+      "zh": {
+        "seconds": 8.96,
+        "words": 35
       }
     },
     "river": {
@@ -1034,6 +1194,10 @@
         "seconds": 12.63,
         "words": 18
       },
+      "sv": {
+        "seconds": 14.86,
+        "words": 20
+      },
       "tl": {
         "seconds": 9.98,
         "words": 19
@@ -1049,6 +1213,10 @@
       "vi": {
         "seconds": 9.47,
         "words": 30
+      },
+      "zh": {
+        "seconds": 7.71,
+        "words": 35
       }
     },
     "storyteller": {
@@ -1140,6 +1308,10 @@
         "seconds": 6.78,
         "words": 19
       },
+      "ro": {
+        "seconds": 6.92,
+        "words": 21
+      },
       "ru": {
         "seconds": 8.08,
         "words": 18
@@ -1147,6 +1319,10 @@
       "sk": {
         "seconds": 10.22,
         "words": 18
+      },
+      "sv": {
+        "seconds": 6.13,
+        "words": 20
       },
       "tl": {
         "seconds": 10.45,
@@ -1163,6 +1339,10 @@
       "vi": {
         "seconds": 7.01,
         "words": 30
+      },
+      "zh": {
+        "seconds": 9.29,
+        "words": 35
       }
     },
     "trailer": {
@@ -1254,6 +1434,10 @@
         "seconds": 7.62,
         "words": 19
       },
+      "ro": {
+        "seconds": 7.89,
+        "words": 21
+      },
       "ru": {
         "seconds": 8.17,
         "words": 18
@@ -1261,6 +1445,10 @@
       "sk": {
         "seconds": 6.87,
         "words": 18
+      },
+      "sv": {
+        "seconds": 6.59,
+        "words": 20
       },
       "tl": {
         "seconds": 10.22,
@@ -1277,9 +1465,17 @@
       "vi": {
         "seconds": 6.73,
         "words": 30
+      },
+      "zh": {
+        "seconds": 8.17,
+        "words": 35
       }
     },
     "upbeat": {
+      "ar": {
+        "seconds": 6.69,
+        "words": 14
+      },
       "bg": {
         "seconds": 7.01,
         "words": 19
@@ -1336,6 +1532,10 @@
         "seconds": 9.52,
         "words": 16
       },
+      "ms": {
+        "seconds": 10.68,
+        "words": 19
+      },
       "nl": {
         "seconds": 6.87,
         "words": 21
@@ -1352,6 +1552,10 @@
         "seconds": 6.41,
         "words": 19
       },
+      "ro": {
+        "seconds": 5.9,
+        "words": 21
+      },
       "ru": {
         "seconds": 10.4,
         "words": 18
@@ -1359,6 +1563,10 @@
       "sk": {
         "seconds": 7.15,
         "words": 18
+      },
+      "sv": {
+        "seconds": 6.97,
+        "words": 20
       },
       "tl": {
         "seconds": 11.1,
@@ -1375,6 +1583,10 @@
       "vi": {
         "seconds": 6.08,
         "words": 30
+      },
+      "zh": {
+        "seconds": 9.1,
+        "words": 35
       }
     },
     "will": {

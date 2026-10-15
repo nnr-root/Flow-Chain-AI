@@ -52,5 +52,9 @@ export function unitsPerWord(language: string | undefined, rate: number): number
   return isUnspaced(language) ? rate / 2.4 : 1;
 }
 
-/** The most a hook may have: six words, or the characters that say as much in a language without spaces. */
-export const hookCap = (language: string | undefined, rate: number): number => Math.round(6 * unitsPerWord(language, rate));
+/**
+ * The most a hook may have: six words, or in a language without spaces twelve characters. The hook is a title on
+ * the screen, not speech: what limits it is how much fits on two lines at its size, not how fast a voice speaks (a
+ * cap worked out from the voice's rate came to eight characters of Chinese, which turned down ordinary titles).
+ */
+export const hookCap = (language: string | undefined, _rate?: number): number => (isUnspaced(language) ? 12 : 6);

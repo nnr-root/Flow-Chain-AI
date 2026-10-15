@@ -42,7 +42,7 @@ export const WORDS_PER_SECOND = 2.4;
 // figure times 0.75)
 // (Chinese and Japanese are counted in characters, not words: `countUnits`; their figures are characters a second)
 const WORDS_PER_SECOND_IN: Record<string, number> = {
-  en: WORDS_PER_SECOND, tr: 1.7, es: 2.1, fr: 2.1, de: 1.7, it: 1.9, pt: 1.8, nl: 2.2, pl: 1.8, ru: 1.7, sv: 2.0, da: 1.9, no: 2.0, fi: 1.4, el: 1.6, id: 1.1, ms: 1.6, tl: 1.3, vi: 2.3, bg: 1.8, ro: 2.0, cs: 1.4, hr: 1.6, sk: 1.8, uk: 1.8, hu: 1.6, ja: 3.0, zh: 4.2, ko: 1.5, hi: 2.3, ar: 1.8,
+  en: WORDS_PER_SECOND, tr: 1.7, es: 2.1, fr: 2.1, de: 1.7, it: 1.9, pt: 1.8, nl: 2.2, pl: 1.8, ru: 1.7, sv: 2.0, da: 1.9, no: 2.0, fi: 1.4, el: 1.6, id: 1.1, ms: 1.7, tl: 1.3, vi: 2.3, bg: 1.8, ro: 2.2, cs: 1.4, hr: 1.6, sk: 1.8, uk: 1.3, hu: 1.6, ja: 3.0, zh: 3.1, ko: 1.5, hi: 2.3, ar: 1.3,
 };
 export const wordsPerSecond = (language?: string, voice?: string): number =>
   Math.round((WORDS_PER_SECOND_IN[language ?? "en"] ?? WORDS_PER_SECOND) * voicePace(voice) * 100) / 100;

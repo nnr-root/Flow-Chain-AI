@@ -370,13 +370,12 @@ async function main(): Promise<void> {
   const listed: Listed = existsSync(LIST) ? (JSON.parse(readFileSync(LIST, "utf8")) as Listed) : { madeOn: null, samples: {} };
   let usd = 0;
   const failed: string[] = [];
-  let asked_ = 0;
+  let made = 0;
   for (const language of languages) {
     for (const voice of readyVoices(hosted)) {
       // A hosted voice is heard in the languages it has a voice chosen in, and the narrators in every language
       // (the form offers them where no voice is native, in their English voice).
       if (hosted && !hostedLanguages(voice).includes(language) && !(BUILT_IN_VOICES as readonly string[]).includes(voice)) continue;
-      asked_++;
       const text = SAMPLE_LINES[language];
       // a sample that is there is not bought again (delete it from the list, or say --again, to make it again)
       if (!again && listed.samples[voice]?.[language] && existsSync(join(outDir, `${voice}.${language}.mp3`))) continue;
@@ -392,6 +391,7 @@ async function main(): Promise<void> {
         const words = countUnits(text, language);
         (listed.samples[voice] ??= {})[language] = { seconds, words };
         usd += said.costUsd ?? 0;
+        made++;
         console.log(`${language} ${voice}: ${seconds} s for ${words} words (${(words / seconds).toFixed(2)} a second)`);
       } catch (err) {
         failed.push(`${language} ${voice}`);
@@ -402,7 +402,8 @@ async function main(): Promise<void> {
       await writeFile(LIST, `${JSON.stringify(listed, null, 2)}\n`);
     }
   }
-  console.log(`${asked_ - failed.length} sample(s) made for about $${usd.toFixed(4)}${failed.length > 0 ? `; not made: ${failed.join(", ")}` : ""}.`);
+  // (the ones that were there already are not counted: they were not made)
+  console.log(`${made} sample(s) made for about $${usd.toFixed(4)}${failed.length > 0 ? `; not made: ${failed.join(", ")}` : ""}.`);
 }
 
 // (imported by a test for the lines alone: only run as a command does it buy anything)

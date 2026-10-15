@@ -169,7 +169,7 @@ test("a new video is asked for by its length, how long each scene stays and what
   }
   await expect(page.getByTestId("voices-not-native")).toHaveCount(0);
   // these languages have twelve voices native to them, each with its sample (phase 7 spec §17; a few have nine to eleven)
-  for (const lang of ["pt", "ja", "hi", "ko"]) {
+  for (const lang of ["pt", "ja", "ar", "zh"]) {
     await page.getByTestId("language").selectOption(lang);
     await expect(page.getByTestId("voices-not-native")).toHaveCount(0);
     await expect(page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio")).toHaveCount(12);

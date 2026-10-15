@@ -169,15 +169,5 @@ describe("a script in a language that was asked for", () => {
   });
 });
 
-/** The hosted voices whose samples were not made before the account ran out of characters (2026-10-12). */
-const SAMPLES_NOT_MADE = [
-  "storybook.zh", "storybook.sv", "trailer.zh", "trailer.sv", "trailer.ro", "mystery.zh",
-  "mystery.sv", "mystery.ro", "storyteller.zh", "storyteller.sv", "storyteller.ro", "calm.ar",
-  "calm.zh", "calm.sv", "calm.ro", "upbeat.ar", "upbeat.zh", "upbeat.sv",
-  "upbeat.ro", "upbeat.ms", "host.ar", "host.zh", "host.sv", "host.ro",
-  "host.ms", "anchor.ar", "anchor.zh", "anchor.sv", "anchor.ro", "anchor.ms",
-  "documentary.ar", "documentary.zh", "documentary.sv", "documentary.ro", "documentary.ms", "explainer.ar",
-  "explainer.zh", "explainer.uk", "explainer.sv", "explainer.ro", "explainer.ms", "narrator-f.ar",
-  "narrator-f.zh", "narrator-f.uk", "narrator-f.sv", "narrator-f.ro", "narrator-f.ms", "narrator-m.ar",
-  "narrator-m.zh", "narrator-m.uk", "narrator-m.sv", "narrator-m.ro", "narrator-m.ms",
-];
+/** The hosted voices whose samples are not made yet (the account ran out on 2026-10-12; made on 2026-10-15). */
+const SAMPLES_NOT_MADE: string[] = [];

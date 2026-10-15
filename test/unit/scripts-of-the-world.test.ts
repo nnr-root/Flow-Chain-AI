@@ -48,7 +48,7 @@ describe("words in a language without spaces", () => {
     expect(timingProblems([{ narration: scene }, { narration: scene }, { narration: scene }], 12, { min: 4, max: 4 }, "the script", rate, "zh")).toEqual([]);
     const counted = timingProblems([{ narration: scene }, { narration: scene }, { narration: scene }], 12, { min: 4, max: 4 }, "the script", rate);
     expect(counted.join(" ")).toMatch(/has 1 words/);
-    // a hook of twenty-five characters is too long for the screen; one of eight is not
+    // a hook of twenty-five characters is too long for the screen; one of nine is not (twelve at most)
     const script = (hook: string) => {
       const s = fakeScript(3);
       return { ...s, hook, scenes: s.scenes.map((x) => ({ ...x, narration: scene })) };

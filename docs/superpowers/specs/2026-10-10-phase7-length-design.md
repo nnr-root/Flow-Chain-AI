@@ -435,7 +435,7 @@ in `eleven_turbo_v2_5`, which speaks them and is told the language. Filipino is 
 - **Length in characters.** A script's length, a scene's limit, the hook's and the prompt's are counted in
   characters (letters and digits, not punctuation): a model asked for "about 80 words" of Chinese cannot be relied
   on, and a writer of it counts characters. Words a second become characters a second. The limits written in words
-  (sixteen a scene, six for the hook) are the characters that say as much, by the voice's rate against 2.4.
+  (sixteen a scene) are the characters that say as much, by the voice's rate against 2.4; the hook's is twelve characters (§17.7).
   Spaced languages are untouched, prompts included.
 - **Words for captions** are found by the word segmenter Node and every browser carry (`Intl.Segmenter`), the
   punctuation after a word kept on it: in the hosted voice's alignment (character times mapped onto segments), in a
@@ -496,3 +496,16 @@ paces measured again from them.
   until the plan is upgraded, a video's narration is refused the same way.
 - The narrators' samples in Swedish and Malay were the own voice's; they were deleted rather than shown as the
   hosted narrators'.
+
+### 17.7 The samples made (2026-10-15)
+
+The owner moved the account to the Starter plan, and the fifty-three samples were made (about 4,800 characters):
+every voice in every language now has one, and `SAMPLES_NOT_MADE` is empty. From them: Chinese is 3.1 characters a
+second (the estimate was 4.2), Arabic and Ukrainian 1.3 words a second (1.8), Romanian 2.2, Malay 1.7.
+
+With Chinese measured, a hook limit worked out from the voice's rate came to eight characters and turned down an
+ordinary nine-character title. The hook is a title on the screen, not speech: in Chinese and Japanese it is now
+twelve characters at most, what two lines hold at its size, whatever the voice (`hookCap`). The limits of a scene's
+narration stay worked out from the rate: they are speech.
+
+`make:voices` counted the samples it skipped as made in its last line; it counts only the ones it made now.
