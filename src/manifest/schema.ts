@@ -267,6 +267,8 @@ export const RunRequest = z.object({
    * work it out from the code as they always did.
    */
   wordsPerSecond: z.number().positive().max(20).optional(),
+  /** How its lines' silence is trimmed (phase 7 spec §22): 2 since 2026-10-15; absent on every run made before, trimmed as they were. */
+  silence: z.literal(2).optional(),
   nicheText: z.string().trim().min(1).max(NICHE_TEXT_MAX).regex(/^[^\n\r]*$/).optional(),
   /** Character bible (--characters or the brand kit's), enforced into styleBible.characters; frozen. */
   characters: z.string().trim().min(1).max(600).optional(),

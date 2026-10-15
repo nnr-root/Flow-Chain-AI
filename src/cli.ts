@@ -261,6 +261,8 @@ program
       nicheText: o.nicheText,
       // the words a second its script is asked for, frozen now: a measurement made later changes no bought script
       ...(timing ? { wordsPerSecond: wordsPerSecond(o.language, o.voice ?? voice.voiceId) } : {}),
+      // every new run's lines are trimmed so that no word is cut (phase 7 spec §22)
+      silence: 2,
       modes,
       // auto runs freeze the budget and price table their mode rules use; a later --budget only changes when to ask
       modeBudgetUsd: modes ? undefined : budgetUsd,

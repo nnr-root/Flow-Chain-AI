@@ -7,13 +7,14 @@ export async function tempDir(prefix = "flowchain-test-"): Promise<string> {
   return mkdtemp(join(tmpdir(), prefix));
 }
 
-export type AudioPart = { tone: number; freq?: number } | { silence: number };
+/** `db`: the tone that much quieter (a sentence trailing off is 30 to 40 dB under its loudest). */
+export type AudioPart = { tone: number; freq?: number; db?: number } | { silence: number };
 
 /** 48 kHz mono audio made of tones and silences; codec chosen by extension (.wav / .mp3). */
 export async function makeAudio(path: string, parts: AudioPart[]): Promise<void> {
   const inputs = parts.flatMap((p) =>
     "tone" in p
-      ? ["-f", "lavfi", "-i", `sine=f=${p.freq ?? 440}:d=${p.tone}:sample_rate=48000`]
+      ? ["-f", "lavfi", "-i", `sine=f=${p.freq ?? 440}:d=${p.tone}:sample_rate=48000${p.db !== undefined ? `,volume=${p.db}dB` : ""}`]
       : ["-f", "lavfi", "-i", `anullsrc=r=48000:cl=mono:d=${p.silence}`],
   );
   const labels = parts.map((_, i) => `[${i}:a]`).join("");

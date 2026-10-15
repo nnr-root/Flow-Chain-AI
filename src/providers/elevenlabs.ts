@@ -49,9 +49,10 @@ export function wordsFromAlignment(a: Alignment, language?: string): WordTiming[
       const first = at[s.index + s.segment.indexOf(word)];
       const last = at[s.index + s.segment.indexOf(word) + word.length - 1];
       const timed = { text: word, start: a.character_start_times_seconds[first], end: a.character_end_times_seconds[last] };
+      // (punctuation is kept on the word before it, whose end stays its last sound's: a full stop's time is the pause)
       if (!s.isWordLike && words.length > 0) {
         const prev = words[words.length - 1];
-        words[words.length - 1] = { ...prev, text: prev.text + word, end: timed.end };
+        words[words.length - 1] = { ...prev, text: prev.text + word };
       } else words.push(timed);
     }
     return words;
@@ -60,15 +61,21 @@ export function wordsFromAlignment(a: Alignment, language?: string): WordTiming[
   let text = "";
   let start = 0;
   let end = 0;
+  // A word ends when its last letter does: the time the service gives a full stop or a comma is the pause after it,
+  // and a word that took that in would keep the pause from being trimmed, or (worse) be cut where it was thought over.
+  const letter = /[\p{L}\p{M}\p{N}]/u;
   a.characters.forEach((ch, i) => {
     if (/\s/.test(ch)) {
       if (text) words.push({ text, start, end });
       text = "";
       return;
     }
-    if (!text) start = a.character_start_times_seconds[i];
+    if (!text) {
+      start = a.character_start_times_seconds[i];
+      end = a.character_end_times_seconds[i];
+    }
     text += ch;
-    end = a.character_end_times_seconds[i];
+    if (letter.test(ch)) end = a.character_end_times_seconds[i];
   });
   if (text) words.push({ text, start, end });
   return words;

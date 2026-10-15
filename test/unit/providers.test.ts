@@ -105,6 +105,17 @@ describe("the hosted voice (phase 5 spec §11)", () => {
       return new Response(JSON.stringify({ audio_base64: Buffer.from("MP3").toString("base64"), alignment, normalized_alignment: null }), { status: 200 });
     }) as typeof fetch;
 
+  it("ends a word with its last letter, not the pause its punctuation stands for", () => {
+    const chars = [..."Go now."];
+    // the full stop is given half a second: the pause before the line ends
+    const starts = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6];
+    const ends = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1.1];
+    expect(wordsFromAlignment({ characters: chars, character_start_times_seconds: starts, character_end_times_seconds: ends })).toEqual([
+      { text: "Go", start: 0, end: 0.2 },
+      { text: "now.", start: 0.3, end: 0.6 },
+    ]);
+  });
+
   it("builds words from character alignment", () => {
     expect(wordsFromAlignment(alignment)).toEqual([
       { text: "Hi", start: 0, end: 0.2 },

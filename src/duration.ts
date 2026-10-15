@@ -26,11 +26,12 @@ export const SCENE_SECONDS = { min: 2, max: 5 } as const;
 export const DEFAULT_SCENE_SECONDS: SceneSeconds = { min: 3, max: 5 };
 
 /**
- * How a sample's speech, pauses taken out, compares with the speech of a video in the same voice (phase 7 spec §20):
- * a video's lines carry the breath and the short gaps a line has. Measured on 2026-10-15 in three videos and their
- * voices' samples: 0.791 (English), 0.786 (Turkish), 0.824 (Japanese).
+ * How a sample's speech, pauses taken out, compares with the speech of a video in the same voice (phase 7 spec §20,
+ * §22): a video's lines carry the breath and the short gaps a line has. Measured on 2026-10-15 in two eleven_v3
+ * videos, their lines trimmed as runs are now (no word cut): 0.781 (Turkish), 0.734 (Japanese). (Before the trimming
+ * was mended, on multilingual v2 videos whose last syllables it cut, it had come to 0.80.)
  */
-export const SPEECH_TO_VIDEO = 0.8;
+export const SPEECH_TO_VIDEO = 0.76;
 
 /**
  * Words a language is spoken at in a video, a second (characters in Chinese and Japanese: `countUnits`): its

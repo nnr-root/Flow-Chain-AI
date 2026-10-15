@@ -642,3 +642,34 @@ could draw.
   name), a scene prompt that names something plainly modern sends the answer back, saying which scene, what and why.
   Only plainly modern words are looked for: a suit of armour, drinking glasses, a folding screen and the camera of a
   shot are not.
+
+## 22. No word cut at the end of a line (owner: "urgent", 2026-10-15)
+
+The owner: at the end of a sentence, sometimes part of the last word, sometimes all of it, is not heard.
+
+**Found.** Every line is trimmed of its silence (`silence` stage) before the video is fitted to it. Silence was
+anything under -30 dBFS for 0.2 seconds, with 0.08 seconds kept. A sentence ends softer than it goes, and in the
+eleven_v3 videos the last syllable fell under -30 dBFS: the stretch to the end of the file was taken for trailing
+silence and cut. Measured on the two v3 videos: almost every line ended while it was still heard (16 to 36 dB under its
+peak), and up to 0.78 seconds of speech was gone (Japanese scene 1). The multilingual v2 video's lines were not cut:
+that model leaves 0.4 to 0.9 seconds of real silence after a line. A voice recorded quieter than the others (the Dutch
+Calm sample peaks at -29 dBFS) had whole words under the old threshold.
+
+**Mended** (`SILENCE_PARAMS_2`, frozen per run as `request.silence: 2`; a run made before keeps how it was trimmed, so
+its audio, and the clips fitted to it, never change):
+- silence is 45 dB under the line's own loudest sound, not a fixed level;
+- no cut enters a word: the line's words (from the hosted voice's own timings) and 60 ms after each are taken out of
+  every silence (`outsideWords`). A word now ends with its last letter: the time the service gives a full stop is the
+  pause after it, which a word that included it would have kept from being trimmed;
+- every cut fades over 5 ms, and a line's very end over 40 ms.
+On the Japanese video's lines, trimmed again: nothing of the speech is cut, 3.3 seconds that had been are back.
+
+**What is not ours to mend.** eleven_v3 stops a line on its last sound rather than after it: no silence follows, and
+the last syllable's decay is about a tenth of a second short (the file ends 29 to 35 dB under its peak). A pause tag
+(`[short pause]`) after the line gave two seconds of silence in Japanese and none in Turkish; an ellipsis, the reverse;
+both together cut a Japanese line at -8 dB. Neither is used (a tag would also be read into the captions); the 40 ms
+fade at the end keeps the stop from sounding like a cut. If it is still heard, the choice is multilingual v2's clean
+endings against v3's expression.
+
+**And the rate.** `SPEECH_TO_VIDEO` had been worked out on videos whose ends were cut; with the trimming mended, on the
+two v3 videos it is 0.781 and 0.734: 0.76.

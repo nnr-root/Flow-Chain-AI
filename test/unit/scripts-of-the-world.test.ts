@@ -88,7 +88,8 @@ describe("captions in every language", () => {
     const text = "伟大的故事。";
     const chars = [...text];
     const words = wordsFromAlignment({ characters: chars, character_start_times_seconds: chars.map((_, i) => i * 0.25), character_end_times_seconds: chars.map((_, i) => i * 0.25 + 0.25) }, "zh");
-    expect(words).toEqual([{ text: "伟大", start: 0, end: 0.5 }, { text: "的", start: 0.5, end: 0.75 }, { text: "故事。", start: 0.75, end: 1.5 }]);
+    // (a word ends with its last letter: the full stop's time is the pause after it)
+    expect(words).toEqual([{ text: "伟大", start: 0, end: 0.5 }, { text: "的", start: 0.5, end: 0.75 }, { text: "故事。", start: 0.75, end: 1.25 }]);
   });
 
   it("put a title of a language without spaces on lines without them", () => {
