@@ -36,10 +36,10 @@ describe("words in a language without spaces", () => {
     expect([lengthUnit("zh"), lengthUnit("ja"), lengthUnit("ko"), lengthUnit("ar"), lengthUnit()]).toEqual(["characters", "characters", "words", "words", "words"]);
     const base = { topic: "t", aspect: "9:16", sceneCount: 3, voiceId: "narrator-m", timing: { targetSec: 30, sceneSec: { min: 3, max: 5 } } } as const;
     const zh = buildScriptPrompt({ ...base, language: "zh" });
-    expect(zh).toContain(`about ${Math.round(30 * wordsPerSecond("zh"))} characters`);
+    expect(zh).toContain(`about ${Math.round(30 * wordsPerSecond("zh", "narrator-m"))} characters`);
     expect(zh).toMatch(/hook: a punchy title of at most \d+ characters/);
     // and a spaced language is told in words, as before
-    expect(buildScriptPrompt({ ...base, language: "tr" })).toContain("about 51 words");
+    expect(buildScriptPrompt({ ...base, language: "tr" })).toContain(`about ${Math.round(30 * wordsPerSecond("tr", "narrator-m"))} words`);
   });
 
   it("are what a script's length is checked by, against limits that say as much as the words would", () => {

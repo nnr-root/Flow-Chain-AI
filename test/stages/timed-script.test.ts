@@ -38,25 +38,25 @@ const inParts = (req: ScriptRequest, scenesOf: (index: number) => number[] = () 
 
 describe("the words and scenes a length comes to", () => {
   it("accepts a script that is about as long as asked, in scenes of about the length asked", () => {
-    expect(timingProblems(timedScript(Array(7).fill(10)).scenes, 30, { min: 3, max: 5 })).toEqual([]);
+    expect(timingProblems(timedScript(Array(7).fill(10)).scenes, 30, { min: 3, max: 5 }, "the script", 2.4)).toEqual([]);
     // wider than what the model is told: a scene two words over or under
-    expect(timingProblems(timedScript([14, 13, 12, 10, 8, 8, 6]).scenes, 30, { min: 3, max: 5 })).toEqual([]);
-    expect(validateScript(timedScript(Array(7).fill(10)), 8, HALF_MINUTE).ok).toBe(true);
+    expect(timingProblems(timedScript([14, 13, 12, 10, 8, 8, 6]).scenes, 30, { min: 3, max: 5 }, "the script", 2.4)).toEqual([]);
+    expect(validateScript(timedScript(Array(7).fill(10)), 8, HALF_MINUTE, undefined, undefined, 2.4).ok).toBe(true);
   });
 
   it("says what is wrong with one that is not, in words the model can act on", () => {
-    expect(timingProblems(timedScript(Array(3).fill(12)).scenes, 30, { min: 3, max: 5 })).toEqual([
+    expect(timingProblems(timedScript(Array(3).fill(12)).scenes, 30, { min: 3, max: 5 }, "the script", 2.4)).toEqual([
       "the script has 3 scenes; it must have between 6 and 10",
       "the narrations of the script have 36 words in all; 30 seconds of speech are about 72 (between 61 and 83)",
     ]);
     // a scene or two outside what was asked is let through: the words are what the length is checked by
-    expect(timingProblems(timedScript([14, 14, 14, 14, 14]).scenes, 30, { min: 3, max: 5 })).toEqual([]);
-    expect(timingProblems(timedScript([10, 10, 10, 10, 10, 10, 3, 17]).scenes, 30, { min: 3, max: 5 })).toEqual([
+    expect(timingProblems(timedScript([14, 14, 14, 14, 14]).scenes, 30, { min: 3, max: 5 }, "the script", 2.4)).toEqual([]);
+    expect(timingProblems(timedScript([10, 10, 10, 10, 10, 10, 3, 17]).scenes, 30, { min: 3, max: 5 }, "the script", 2.4)).toEqual([
       "scene 7 narration has 3 words; a scene of 3-5 seconds has 7 to 12",
       "scene 8 narration has 17 words (max 16)",
     ]);
     // one length for every scene
-    expect(timingProblems(timedScript(Array(6).fill(8)).scenes, 30, { min: 5, max: 5 })).toEqual([
+    expect(timingProblems(timedScript(Array(6).fill(8)).scenes, 30, { min: 5, max: 5 }, "the script", 2.4)).toEqual([
       "scene 1 narration has 8 words; a scene of 5 seconds has 11 to 13", "scene 2 narration has 8 words; a scene of 5 seconds has 11 to 13",
       "scene 3 narration has 8 words; a scene of 5 seconds has 11 to 13", "scene 4 narration has 8 words; a scene of 5 seconds has 11 to 13",
       "scene 5 narration has 8 words; a scene of 5 seconds has 11 to 13", "scene 6 narration has 8 words; a scene of 5 seconds has 11 to 13",

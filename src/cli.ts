@@ -8,7 +8,7 @@ import { type BrandKit, installBrand, installReference, loadBrandKit } from "./b
 import { FONTS_DIR, SFX_DIR } from "./assets.js";
 import { type Env, FPS, keyframeSize, loadEnv, loadPrices, outputSize } from "./config.js";
 import { formatChecks, runDoctor } from "./doctor.js";
-import { DEFAULT_SCENE_SECONDS, SCENE_SECONDS, VIDEO_SECONDS } from "./duration.js";
+import { DEFAULT_SCENE_SECONDS, SCENE_SECONDS, VIDEO_SECONDS, wordsPerSecond } from "./duration.js";
 import { type Manifest, MAX_SEED, type Models, RunRequest, StageName } from "./manifest/schema.js";
 import {
   createManifest, loadManifest, newRunId, resolveModes, resolveShots, saveManifest, withRunLock,
@@ -259,6 +259,8 @@ program
       language: o.language,
       niche: o.niche,
       nicheText: o.nicheText,
+      // the words a second its script is asked for, frozen now: a measurement made later changes no bought script
+      ...(timing ? { wordsPerSecond: wordsPerSecond(o.language, o.voice ?? voice.voiceId) } : {}),
       modes,
       // auto runs freeze the budget and price table their mode rules use; a later --budget only changes when to ask
       modeBudgetUsd: modes ? undefined : budgetUsd,

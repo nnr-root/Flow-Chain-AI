@@ -15,6 +15,10 @@
  * key needs the voices_write permission. Safe to run again: a voice already in the account is left. Buys nothing;
  * changes the account: the owner's click.
  *
+ * npm run make:voices -- --measure: measures every sample's speech, pauses taken out, and writes src/voice/rates.ts:
+ * each language's rate (its narrators') and each voice's pace against them in each language (phase 7 spec §20).
+ * Free: it reads the samples on disk. Run it after samples are made.
+ *
  * npm run make:voices -- --design [<language> …]: makes every voice in every language natively (see `design`),
  * on the studio's voice engine, and keeps the clips in assets/voices/ and their samples on the form. **It buys
  * speech** (a few takes a voice and language) and sets the endpoint to four workers while it runs.
@@ -387,7 +391,61 @@ async function hostedKeep(env: Env): Promise<void> {
   console.log(`${added} voice(s) added to the account${unknown.length ? `; not found in the library lists: ${unknown.join(", ")}` : ""}`);
 }
 
+/**
+ * How long a sample speaks, its pauses taken out: what a video's lines are once their silence is trimmed. Silence is
+ * what is 35 dB under the sample's own loudest: some voices are recorded far quieter than others (a whispering one
+ * peaked at -29 dB), and a fixed threshold took most of their speech for silence.
+ */
+async function speechSeconds(file: string): Promise<number> {
+  const probe = await execa("ffmpeg", ["-hide_banner", "-nostats", "-i", file, "-af", "volumedetect", "-f", "null", "-"], { reject: false });
+  const peak = Number(/max_volume: (-?[\d.]+) dB/.exec(String(probe.stderr))?.[1] ?? 0);
+  const { stdout } = await execa("ffmpeg", ["-v", "error", "-i", file, "-af", `silenceremove=stop_periods=-1:stop_duration=0.15:stop_threshold=${Math.round(peak - 35)}dB`, "-ac", "1", "-ar", "16000", "-f", "f32le", "-"], { encoding: "buffer" });
+  return Buffer.from(stdout).byteLength / 4 / 16000;
+}
+
+/** Writes src/voice/rates.ts from the samples (see the head of this file). */
+async function measure(): Promise<void> {
+  const listed = existsSync(LIST) ? (JSON.parse(readFileSync(LIST, "utf8")) as Listed) : { madeOn: null, samples: {} };
+  const rate: Record<string, Record<string, number>> = {};
+  for (const [voice, by] of Object.entries(listed.samples)) {
+    for (const language of Object.keys(by ?? {}) as SpeechLanguage[]) {
+      const file = join("web/public/voices", `${voice}.${language}.mp3`);
+      if (!existsSync(file) || !SAMPLE_LINES[language]) continue;
+      (rate[voice] ??= {})[language] = countUnits(SAMPLE_LINES[language], language) / (await speechSeconds(file));
+    }
+  }
+  const round = (n: number) => Math.round(n * 100) / 100;
+  const narrators: Record<string, number> = {};
+  for (const language of Object.keys(SPEECH_LANGUAGES)) {
+    const [m, f] = [rate["narrator-m"]?.[language], rate["narrator-f"]?.[language]];
+    if (m && f) narrators[language] = round((m + f) / 2);
+  }
+  const pace: Record<string, Record<string, number>> = {};
+  for (const [voice, by] of Object.entries(rate)) {
+    for (const [language, r] of Object.entries(by)) {
+      const p = narrators[language] ? round(r / narrators[language]) : 1;
+      // (within a twentieth of the narrators is the narrators' pace)
+      if (Math.abs(p - 1) >= 0.05) (pace[voice] ??= {})[language] = p;
+    }
+  }
+  const body = [
+    `// Written by \`npm run make:voices -- --measure\` on ${new Date().toISOString().slice(0, 10)} from the samples in web/public/voices`,
+    "// (phase 7 spec §20). Do not edit by hand: make the samples again and measure.",
+    "",
+    "/** The narrators' speech in each language, pauses taken out: words a second (characters in Chinese and Japanese). */",
+    `export const SPEECH_RATE: Readonly<Record<string, number>> = ${JSON.stringify(narrators)};`,
+    "",
+    "/** How fast each voice speaks against the narrators, language by language, where it differs by a twentieth or more. */",
+    `export const VOICE_PACE: Readonly<Record<string, Readonly<Record<string, number>>>> = ${JSON.stringify(pace)};`,
+    "",
+  ].join("\n");
+  await writeFile("src/voice/rates.ts", body);
+  console.log(`rates of ${Object.keys(narrators).length} languages and the paces of ${Object.keys(pace).length} voices written to src/voice/rates.ts`);
+}
+
 async function main(): Promise<void> {
+  // (measuring reads only the samples: it needs no key)
+  if (process.argv[2] === "--measure") return measure();
   process.loadEnvFile(".env");
   const env = loadEnv();
   if (process.argv[2] === "--design") return design(env, process.argv.slice(3));

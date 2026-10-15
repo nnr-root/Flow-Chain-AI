@@ -33,8 +33,8 @@ export function mostEntries(req: ScriptRequest): number {
 const seconds = (r: { min: number; max: number }): string => (r.min === r.max ? `about ${r.min}` : `${r.min} to ${r.max}`);
 
 /** What a stretch of a video asked for by its length must come to: its words, and the scenes it may be told in. */
-function lengthRules(what: string, sec: number, sceneSec: { min: number; max: number }, language?: string, voice?: string): string[] {
-  const rate = wordsPerSecond(language, voice);
+function lengthRules(what: string, sec: number, sceneSec: { min: number; max: number }, language?: string, voice?: string, frozen?: number): string[] {
+  const rate = frozen ?? wordsPerSecond(language, voice);
   const words = sceneWords(sceneSec, rate, maxSceneUnits(language, rate));
   const scenes = sceneBounds(sec, sceneSec);
   // (in Chinese and Japanese, counted in characters: phase 7 spec §17)
@@ -64,7 +64,7 @@ const HOOK_RULE = "- hook: 2-6 punchy words shown as a big title over the first 
 /** The hook's rule: in words, or in a language without spaces in characters (`hookCap`). */
 const hookRule = (req: ScriptRequest): string =>
   isUnspaced(req.language)
-    ? `- hook: a punchy title of at most ${hookCap(req.language, wordsPerSecond(req.language, req.voiceId))} characters shown big over the first 3 seconds; tease the payoff without giving it away; no emojis, hashtags or quotes.`
+    ? `- hook: a punchy title of at most ${hookCap(req.language)} characters shown big over the first 3 seconds; tease the payoff without giving it away; no emojis, hashtags or quotes.`
     : HOOK_RULE;
 
 /**
@@ -110,7 +110,7 @@ function sceneRules(req: ScriptRequest): string[] {
 }
 
 const narrationRule = (req: ScriptRequest): string => {
-  const rate = wordsPerSecond(req.language, req.voiceId);
+  const rate = req.wordsPerSecond ?? wordsPerSecond(req.language, req.voiceId);
   const most = maxSceneUnits(req.language, rate);
   const unit = lengthUnit(req.language);
   const k = unitsPerWord(req.language, rate);
@@ -173,7 +173,7 @@ const withGap = (lines: string[]): string[] => (lines.length ? ["", ...lines] : 
 function wholePrompt(req: ScriptRequest): string {
   return [
     `You are writing a faceless short-form video about: "${req.topic}".`,
-    ...(req.timing ? lengthRules("the video", req.timing.targetSec, req.timing.sceneSec, req.language, req.voiceId) : [`Return exactly ${req.sceneCount} scenes.`]),
+    ...(req.timing ? lengthRules("the video", req.timing.targetSec, req.timing.sceneSec, req.language, req.voiceId, req.wordsPerSecond) : [`Return exactly ${req.sceneCount} scenes.`]),
     ...withGap(nicheRules(req)),
     "",
     ...presetRules(req),
@@ -225,7 +225,7 @@ function partPrompt(req: ScriptRequest, ask: Extract<NonNullable<ScriptRequest["
     ...outline.parts.map((p, i) => `${i + 1}. ${p.summary}`),
     "",
     `Write only part ${index + 1}: its scenes, in order.`,
-    ...lengthRules("this part", partSec[index], sceneSec, req.language, req.voiceId),
+    ...lengthRules("this part", partSec[index], sceneSec, req.language, req.voiceId, req.wordsPerSecond),
     first
       ? "- This is the opening: scene 1 is a strong hook."
       : `- This part carries straight on from the end of part ${index}, whose last lines were: ${previous.map((n) => `"${n}"`).join(" ")} Do not greet, do not introduce the topic again, and do not repeat what an earlier part has told.`,

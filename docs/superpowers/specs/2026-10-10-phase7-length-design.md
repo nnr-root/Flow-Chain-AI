@@ -588,3 +588,36 @@ psychology", medical misinformation in health).
 
 - No script has been written in a niche by the real model yet (a draft buys the script: the owner's click).
 - The niches are in English on the form, as the whole studio is.
+
+## 20. Rates measured from the samples, and frozen with each run (2026-10-15)
+
+The first two videos made in niches (a Turkish one in History and a Japanese one in Scary stories, each asked for
+30 seconds) came out at 24.3 and 13.2 seconds. The scripts were as long as they were asked to be; the voices spoke
+faster than the studio thought:
+
+| | Words (or characters) a second asked for | In the video |
+|---|---|---|
+| English, Frederick (the measured video of phase 6 §17) | 2.4 | 2.96 |
+| Turkish, Documentary | 1.7 | 1.98 |
+| Japanese, Mystery | 2.85 | 5.76 |
+
+English's 2.4 had been measured on the studio's own voice, and every other language worked out from it through the
+samples' lengths, pauses and all; and a voice's pace was one figure for all its languages, when each of the studio's
+voices is a different person in each language (the Japanese Mystery speaks a fifth faster than the Japanese
+narrators).
+
+- **Measured, not worked out** (`make:voices -- --measure`, free): every sample's speech with its pauses taken out
+  (silence being 35 dB under the sample's own loudest: some voices are recorded far quieter than others, and a fixed
+  threshold took a whispering voice's speech for silence and made it nearly three times as fast). It writes
+  `src/voice/rates.ts`: each language's narrators' speech rate, and each voice's pace against them **in each
+  language** where it differs by a twentieth or more.
+- **Speech to video:** in the three videos, a video's rate was 0.791, 0.786 and 0.824 of its voice's sample speech
+  (a video's lines carry breath and short gaps): `SPEECH_TO_VIDEO = 0.80`. A language's rate is its narrators'
+  speech times that, times the voice's pace in it. English is 3.0 now; Turkish with Documentary 2.0; Japanese with
+  Mystery 5.6: within a few hundredths of the three videos.
+- **Frozen with the run** (`request.wordsPerSecond`, set by the CLI for a run asked for by its length): the script is
+  asked for, checked against and keyed on that figure, so a measurement made later never changes a script already
+  bought or sends a draft's script to be bought again. A run made before it works the figure out as it always did.
+- The tests' runs are frozen at 2.4 (`TEST_WORDS_PER_SECOND`): their arithmetic is about the mechanism; the tests of
+  the figures themselves derive them from `rates.ts`.
+- **Parked:** the two videos were made with the old figures and are short; making them again is a paid run.

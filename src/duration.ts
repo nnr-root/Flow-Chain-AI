@@ -1,5 +1,6 @@
 import { type LlmRates, round4, scriptCost } from "./cost.js";
 import { voicePace } from "./voice/language.js";
+import { SPEECH_RATE } from "./voice/rates.js";
 import { unitsPerWord } from "./voice/words.js";
 
 /*
@@ -25,28 +26,28 @@ export const SCENE_SECONDS = { min: 2, max: 5 } as const;
 export const DEFAULT_SCENE_SECONDS: SceneSeconds = { min: 3, max: 5 };
 
 /**
- * Words the studio's own voice speaks in a second, pauses trimmed. Measured on the first two videos made by
- * their length on the real engines (2026-10-10): 443 words in 182.9 seconds over 35 scenes, 2.42. (Seven earlier
- * videos of four scenes each had averaged 2.7, and with that both new ones came out long: 34 seconds for 30,
- * 149 for 120.) It is what turns seconds into the words a script is asked for; measure it again if videos
- * drift from their length.
+ * How a sample's speech, pauses taken out, compares with the speech of a video in the same voice (phase 7 spec §20):
+ * a video's lines carry the breath and the short gaps a line has. Measured on 2026-10-15 in three videos and their
+ * voices' samples: 0.791 (English), 0.786 (Turkish), 0.824 (Japanese).
  */
-export const WORDS_PER_SECOND = 2.4;
+export const SPEECH_TO_VIDEO = 0.8;
 
 /**
- * The same for the other languages a video can be asked for in. Only English was measured in videos. The
- * others are English scaled by how the same two sentences, said by the same two voices as the samples on the
- * form, compare with the English ones in words a second (`web/content/voice-samples.json`, phase 7 spec §14):
- * an estimate that carries each language's word length and pace, to be measured again with its first videos.
+ * Words a language is spoken at in a video, a second (characters in Chinese and Japanese: `countUnits`): its
+ * narrators' measured speech (`SPEECH_RATE`, written by `make:voices -- --measure`) times `SPEECH_TO_VIDEO`. It is what
+ * turns seconds into the words a script is asked for. (Before 2026-10-15 English was 2.4, measured on the studio's own
+ * voice, and the others were worked out from it: videos in the hosted voice came out a fifth short in English and
+ * Turkish and half short in Japanese.)
  */
-// (samples of 2026-10-10: English 3.23 words a second there against 2.42 in videos, so each is its sample's
-// figure times 0.75)
-// (Chinese and Japanese are counted in characters, not words: `countUnits`; their figures are characters a second)
-const WORDS_PER_SECOND_IN: Record<string, number> = {
-  en: WORDS_PER_SECOND, tr: 1.7, es: 2.1, fr: 2.1, de: 1.7, it: 1.9, pt: 1.8, nl: 2.2, pl: 1.8, ru: 1.7, sv: 2.0, da: 1.9, no: 2.0, fi: 1.4, el: 1.6, id: 1.1, ms: 1.7, tl: 1.3, vi: 2.3, bg: 1.8, ro: 2.2, cs: 1.4, hr: 1.6, sk: 1.8, uk: 1.3, hu: 1.6, ja: 3.0, zh: 3.1, ko: 1.5, hi: 2.3, ar: 1.3,
-};
+const videoRate = (language: string): number => Math.round((SPEECH_RATE[language] ?? SPEECH_RATE.en) * SPEECH_TO_VIDEO * 100) / 100;
+export const WORDS_PER_SECOND = videoRate("en");
+
+/**
+ * The words a second a video in a language and a voice is asked for: the language's, times how much faster or slower
+ * that voice speaks in it than its narrators (`voicePace`). A run freezes it (`request.wordsPerSecond`) when it is made.
+ */
 export const wordsPerSecond = (language?: string, voice?: string): number =>
-  Math.round((WORDS_PER_SECOND_IN[language ?? "en"] ?? WORDS_PER_SECOND) * voicePace(voice) * 100) / 100;
+  Math.round(videoRate(language ?? "en") * voicePace(voice, language) * 100) / 100;
 
 /** The most words one scene's narration may ever have (the script's own limit; about six seconds of speech). */
 const MAX_SCENE_WORDS = 16;

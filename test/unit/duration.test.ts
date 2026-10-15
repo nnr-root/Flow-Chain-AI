@@ -3,8 +3,9 @@ import { Prices } from "../../src/config.js";
 import { scriptCost } from "../../src/cost.js";
 import {
   DEFAULT_SCENE_SECONDS, DEFAULT_VIDEO_SECONDS, expectedScenes, lengthInWords, parseDuration, parseSceneSeconds, SCENE_SECONDS, sceneBounds,
-  sceneWords, typicalSceneWords, scriptAnswerCost, scriptAnswers, scriptParts, timedScriptCost, totalWords, VIDEO_SECONDS, wordsTolerance,
+  sceneWords, SPEECH_TO_VIDEO, typicalSceneWords, scriptAnswerCost, scriptAnswers, scriptParts, timedScriptCost, totalWords, VIDEO_SECONDS, WORDS_PER_SECOND, wordsPerSecond, wordsTolerance,
 } from "../../src/duration.js";
+import { SPEECH_RATE } from "../../src/voice/rates.js";
 import { MAX_NARRATION_WORDS, MAX_SCENES } from "../../src/manifest/schema.js";
 import { VIDEO_PROFILES } from "../../src/video-profiles.js";
 
@@ -46,15 +47,20 @@ describe("a video asked for by its length", () => {
   });
 
   it("turns seconds into the words a script is asked for, by how fast the voice speaks", () => {
-    expect(totalWords(30)).toBe(72);
-    expect(typicalSceneWords({ min: 3, max: 5 })).toBe(10);
-    expect(sceneWords({ min: 3, max: 5 })).toEqual({ min: 7, max: 12 });
+    // (at 2.4 words a second, for the arithmetic)
+    expect(totalWords(30, 2.4)).toBe(72);
+    expect(typicalSceneWords({ min: 3, max: 5 }, 2.4)).toBe(10);
+    expect(sceneWords({ min: 3, max: 5 }, 2.4)).toEqual({ min: 7, max: 12 });
     // one exact length is given a word either way
-    expect(sceneWords({ min: 5, max: 5 })).toEqual({ min: 11, max: 13 });
-    expect(sceneWords({ min: 2, max: 2 })).toEqual({ min: 3, max: 6 });
+    expect(sceneWords({ min: 5, max: 5 }, 2.4)).toEqual({ min: 11, max: 13 });
+    expect(sceneWords({ min: 2, max: 2 }, 2.4)).toEqual({ min: 3, max: 6 });
+    // never more than a scene's narration may have, at the rate English is measured at
     for (let min = SCENE_SECONDS.min; min <= SCENE_SECONDS.max; min++) {
       for (let max = min; max <= SCENE_SECONDS.max; max++) expect(sceneWords({ min, max }).max).toBeLessThanOrEqual(MAX_NARRATION_WORDS);
     }
+    // the rate is the narrators' measured speech in a video's terms (phase 7 spec §20)
+    expect(WORDS_PER_SECOND).toBe(Math.round(SPEECH_RATE.en * SPEECH_TO_VIDEO * 100) / 100);
+    expect(wordsPerSecond("en")).toBe(WORDS_PER_SECOND);
     expect([wordsTolerance(14), wordsTolerance(81), wordsTolerance(162)]).toEqual([3, 13, 25]);
   });
 

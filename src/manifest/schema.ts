@@ -251,6 +251,12 @@ export const RunRequest = z.object({
    * wrote (--niche-text). The script is written as videos in it are. Absent on every run made before.
    */
   niche: z.enum(NICHE_IDS).optional(),
+  /**
+   * The words a second its script is asked for (phase 7 spec §20): frozen when the run is made, from its language and
+   * voice, so that a measurement made later does not change a script already bought. Absent on earlier runs, which
+   * work it out from the code as they always did.
+   */
+  wordsPerSecond: z.number().positive().max(20).optional(),
   nicheText: z.string().trim().min(1).max(NICHE_TEXT_MAX).regex(/^[^\n\r]*$/).optional(),
   /** Character bible (--characters or the brand kit's), enforced into styleBible.characters; frozen. */
   characters: z.string().trim().min(1).max(600).optional(),

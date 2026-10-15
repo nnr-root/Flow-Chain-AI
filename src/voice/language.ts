@@ -1,3 +1,4 @@
+import { VOICE_PACE } from "./rates.js";
 /*
  * Which language a script is in, as far as the voice needs to know (phase 5 spec §6.1): a voice has a
  * reference clip per language it was recorded in, and speaks best from the one in the script's own language.
@@ -77,9 +78,8 @@ export const fontCovers = (file: string, language: SpeechLanguage): boolean => !
 
 /**
  * The studio's own voices, by the id the voice worker knows them by (a test holds this list to the worker's own
- * files). `label`: what a person is shown. `suits`: the videos the voice was made for. `pace`: how fast it speaks
- * against the narrators, from its samples in the languages it has them in (absent: within a twentieth of them),
- * which are the hosted voice's since phase 5 spec §11 (the own voice's paces were not kept: they are for its fallback); a script
+ * files). `label`: what a person is shown. `suits`: the videos the voice was made for. How fast each speaks is
+ * measured per language (`voicePace`); a script
  * for a slower voice is asked for fewer words, or its video would run long (phase 7 spec §15). The two narrators are
  * plain, even voices for anything; the others were each designed from a description of who speaks and how
  * (`scripts/design-voices.py`), and what is said of them here is what was asked for: how one sounds is for the
@@ -96,8 +96,8 @@ const OWN_VOICES = {
   anchor: { label: "Anchor", suits: "News, reports and facts told straight" },
   upbeat: { label: "Upbeat", suits: "Fun facts, food, lifestyle and light-hearted videos" },
   calm: { label: "Calm", suits: "Wellness, sleep, nature and gentle stories" },
-  mystery: { label: "Mystery", suits: "Unsolved cases, secrets and the strange", pace: 0.95 },
-  storybook: { label: "Storybook", suits: "Children's stories, fables and cartoons", pace: 0.93 },
+  mystery: { label: "Mystery", suits: "Unsolved cases, secrets and the strange" },
+  storybook: { label: "Storybook", suits: "Children's stories, fables and cartoons" },
 } as const;
 
 /**
@@ -109,22 +109,22 @@ const HOSTED_ONLY_VOICES = {
   adam: { label: "Adam", suits: "Firm and bright: motivation, bold facts and ads" },
   brian: { label: "Brian", suits: "Deep and comforting: narration and documentaries" },
   george: { label: "George", suits: "A warm British storyteller: stories and history" },
-  bill: { label: "Bill", suits: "Wise and mature: stories, history and life lessons", pace: 0.77 },
-  daniel: { label: "Daniel", suits: "A steady British broadcaster: news and reports", pace: 0.89 },
-  eric: { label: "Eric", suits: "Smooth and trustworthy: business and money", pace: 1.13 },
-  roger: { label: "Roger", suits: "Laid-back and resonant: casual talk and podcasts", pace: 1.05 },
-  chris: { label: "Chris", suits: "Down to earth: reviews, vlogs and everyday stories", pace: 1.12 },
+  bill: { label: "Bill", suits: "Wise and mature: stories, history and life lessons" },
+  daniel: { label: "Daniel", suits: "A steady British broadcaster: news and reports" },
+  eric: { label: "Eric", suits: "Smooth and trustworthy: business and money" },
+  roger: { label: "Roger", suits: "Laid-back and resonant: casual talk and podcasts" },
+  chris: { label: "Chris", suits: "Down to earth: reviews, vlogs and everyday stories" },
   will: { label: "Will", suits: "A relaxed optimist: easygoing, friendly videos" },
   liam: { label: "Liam", suits: "Young and energetic: social media and tech" },
-  charlie: { label: "Charlie", suits: "Confident and Australian: energetic facts and sport", pace: 0.92 },
-  callum: { label: "Callum", suits: "Gravelly, with an edge: mystery, villains and games", pace: 0.89 },
+  charlie: { label: "Charlie", suits: "Confident and Australian: energetic facts and sport" },
+  callum: { label: "Callum", suits: "Gravelly, with an edge: mystery, villains and games" },
   harry: { label: "Harry", suits: "Fierce and animated: action, battles and games" },
-  river: { label: "River", suits: "Relaxed and neutral: anything informative", pace: 1.05 },
+  river: { label: "River", suits: "Relaxed and neutral: anything informative" },
   sarah: { label: "Sarah", suits: "Confident and warm: explainers and news" },
-  alice: { label: "Alice", suits: "A clear British educator: how-to and learning", pace: 0.89 },
+  alice: { label: "Alice", suits: "A clear British educator: how-to and learning" },
   matilda: { label: "Matilda", suits: "A professional alto: business and explainers" },
   bella: { label: "Bella", suits: "Bright and professional: education and ads" },
-  lily: { label: "Lily", suits: "Velvety and British: drama and narration", pace: 0.93 },
+  lily: { label: "Lily", suits: "Velvety and British: drama and narration" },
   jessica: { label: "Jessica", suits: "Playful and bright: fun facts, trends and lifestyle" },
   laura: { label: "Laura", suits: "Sunny and quirky: lifestyle and light-hearted videos" },
 } as const;
@@ -164,9 +164,13 @@ export const VOICE_DESIGNS: Record<OwnVoiceId, { sex: "m" | "f"; description: st
   storybook: { sex: "f", description: "A young woman with a very high, sing-song, cartoon-like voice, wide-eyed and theatrical, playful, lively pace" },
 };
 
-/** How fast a voice speaks against the narrators (1 for the narrators and any voice not on the list). */
-export function voicePace(voice?: string): number {
-  const v = voice ? (VOICES as Record<string, { pace?: number }>)[voice] : undefined;
-  return v?.pace ?? 1;
+/**
+ * How fast a voice speaks against the narrators in a language (1 for the narrators, and for a voice within a twentieth
+ * of them): each of the studio's voices is a different person in each language (phase 5 spec §11), so its pace is the
+ * language's own, measured from its sample (`VOICE_PACE`, phase 7 spec §20). A script for a faster voice is asked for
+ * more words, or its video would run short.
+ */
+export function voicePace(voice?: string, language?: string): number {
+  return (voice && VOICE_PACE[voice]?.[language ?? "en"]) || 1;
 }
 

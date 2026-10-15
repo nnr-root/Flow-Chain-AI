@@ -30,6 +30,9 @@ export type TestContextOptions = {
 };
 
 /** A run in a temp dir with fake providers and small output sizes so media steps stay fast. */
+/** The words a second the tests' runs asked for by their length are frozen at. */
+export const TEST_WORDS_PER_SECOND = 2.4;
+
 export async function makeTestContext(opts: TestContextOptions = {}) {
   const modes = opts.modes === "auto" ? undefined : (opts.modes ?? [1, 1]);
   const sceneCount = opts.timing ? expectedScenes(opts.timing) : (modes?.length ?? opts.sceneCount ?? 3);
@@ -53,6 +56,8 @@ export async function makeTestContext(opts: TestContextOptions = {}) {
       aspect: "9:16",
       sceneCount,
       timing: opts.timing,
+      // (a run asked for by its length freezes its words a second: the tests' runs at 2.4, what their numbers are worked from)
+      ...(opts.timing ? { wordsPerSecond: TEST_WORDS_PER_SECOND } : {}),
       modes: opts.timing && modes ? Array.from({ length: sceneCount }, () => modes[0]) : modes,
       modeBudgetUsd: modes ? undefined : (opts.budgetUsd ?? 3),
       modePrices: modes ? undefined : Prices.parse({}),

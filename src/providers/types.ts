@@ -15,6 +15,8 @@ export type ScriptRequest = {
   characters?: string;
   /** The voice that will say it, where it speaks slower or faster than the narrators (fewer or more words). */
   voiceId?: string;
+  /** The words a second the script is asked for, as the run froze it; absent = worked out from the language and voice. */
+  wordsPerSecond?: number;
   /** The kind of video (phase 7 spec §19): a niche the studio knows, or one the user wrote. */
   niche?: string;
   nicheText?: string;

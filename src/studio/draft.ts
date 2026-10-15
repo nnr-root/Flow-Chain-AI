@@ -16,15 +16,15 @@ import { countUnits, isUnspaced, splitWords } from "../voice/words.js";
 export const DRAFT_SEC_PER_CHAR = 0.055;
 export const DRAFT_MIN_SCENE_SEC = 1;
 
-export function estimateNarrationSec(narration: string, language?: string): number {
+export function estimateNarrationSec(narration: string, language?: string, rate?: number): number {
   // a character of Chinese or Japanese is a syllable or more, not a letter: those are timed at their voice's rate
-  const sec = isUnspaced(language) ? countUnits(narration, language) / wordsPerSecond(language) : narration.trim().length * DRAFT_SEC_PER_CHAR;
+  const sec = isUnspaced(language) ? countUnits(narration, language) / (rate ?? wordsPerSecond(language)) : narration.trim().length * DRAFT_SEC_PER_CHAR;
   return Math.max(DRAFT_MIN_SCENE_SEC, Math.round(sec * 100) / 100);
 }
 
 /** Estimated length of every scene of a scripted run. */
 export function draftDurations(m: Manifest): number[] {
-  return requireScript(m).scenes.map((s) => estimateNarrationSec(s.narration, m.request.language));
+  return requireScript(m).scenes.map((s) => estimateNarrationSec(s.narration, m.request.language, m.request.wordsPerSecond));
 }
 
 /** The narration's words on the video's clock, each given a share of its scene's estimated length by its letters. */
