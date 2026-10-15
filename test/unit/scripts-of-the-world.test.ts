@@ -14,7 +14,7 @@ import { countUnits, isRightToLeft, lengthUnit, splitWords, wordJoiner } from ".
 import { wordsPerSecond } from "../../src/duration.js";
 import { fakeScript } from "../fakes/providers.js";
 import { normalizeHashtags } from "../../src/hashtags.js";
-import { anachronisms, isPast } from "../../src/anachronism.js";
+import { anachronisms, handMotions, isPast } from "../../src/anachronism.js";
 
 // Phase 7 spec §17: languages written without spaces, right to left, and in scripts of their own.
 
@@ -181,5 +181,26 @@ describe("nothing of a later time in a video set in the past (phase 7 spec §21)
     const p = buildScriptPrompt({ topic: "t", aspect: "9:16", sceneCount: 3 });
     expect(p).toContain("- styleBible.setting: the one time and place the whole video is set in");
     expect(p).toMatch(/A person, or any part of one \(hands, arms, a silhouette\), is described with what they wear there/);
+  });
+});
+
+describe("what a generated clip gets wrong (phase 7 spec §23)", () => {
+  it("sends back a clip asking for a moving hand, and says why", () => {
+    const s = fakeScript(2);
+    s.scenes[1].motionPrompt = "A slow push-in as the shadow reaches toward her shoulder";
+    const checked = validateScript(s, 2);
+    expect(checked.ok ? "" : checked.problems.join(" ")).toMatch(/scene 2 motionPrompt has "reaches": generated clips get moving hands wrong/);
+    for (const bad of ["She points at the map", "A hand rises from the water", "He waves goodbye", "Fingers tap the table"]) expect(handMotions([{ motionPrompt: bad }]), bad).toHaveLength(1);
+    // motion that is not a hand's is what a clip should have
+    for (const fine of ["A slow push-in as the black smoke silhouette drifts closer", "The camera pans left as her hair moves in the wind", "Waves roll onto the shore"]) {
+      expect(handMotions([{ motionPrompt: fine }]), fine).toEqual([]);
+    }
+  });
+
+  it("asks for a figure that is not a person to be described whole, its hands too, and named so in its motion", () => {
+    const p = buildScriptPrompt({ topic: "t", aspect: "9:16", sceneCount: 3 });
+    expect(p).toContain("its colour all over, its hands too");
+    expect(p).toContain("named by what it is made of");
+    expect(p).toContain("Nobody reaches, grabs, points, waves, claps or gestures");
   });
 });

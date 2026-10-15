@@ -28,3 +28,19 @@ export function anachronisms(scenes: ReadonlyArray<{ imagePrompt: string; motion
   });
   return problems;
 }
+
+/*
+ * Motion a generated clip gets wrong (phase 7 spec §23). The clip model draws hands and fingers badly when they
+ * move, and turns a figure "shifting closer" into an arm reaching out, skin-coloured on a shadow. Its negative prompt
+ * does nothing at the guidance it runs at (cfg 1, for speed), so the motion is kept out of what it is asked for.
+ * A word with another sense is looked for only in the hand's ("waves goodbye", not the waves of the sea).
+ */
+const HAND_MOTION = /\b(reach(es|ed|ing)?|grab(s|bed|bing)?|grasp(s|ed|ing)?|clutch(es|ed|ing)?|snatch(es|ed|ing)?|point(s|ed|ing)? (at|to|toward)|wav(es|ed|ing) (goodbye|hello|at|to|his|her|their|a hand)|gestur(e|es|ed|ing)|clap(s|ped|ping)?|beckon(s|ed|ing)?|fingers?|hands? (move|moves|moving|reach|reaches|reaching|rise|rises|lift|lifts))\b/i;
+
+/** Each motion prompt that asks for a moving hand, as a problem the model can act on. */
+export function handMotions(scenes: ReadonlyArray<{ motionPrompt: string }>, first = 1): string[] {
+  return scenes.flatMap((s, i) => {
+    const found = HAND_MOTION.exec(s.motionPrompt);
+    return found ? [`scene ${i + first} motionPrompt has "${found[0]}": generated clips get moving hands wrong. Keep hands still or out of the frame, and give the scene a camera move and slow, simple motion instead`] : [];
+  });
+}

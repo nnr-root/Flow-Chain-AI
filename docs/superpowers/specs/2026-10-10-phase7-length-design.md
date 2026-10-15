@@ -673,3 +673,21 @@ endings against v3's expression.
 
 **And the rate.** `SPEECH_TO_VIDEO` had been worked out on videos whose ends were cut; with the trimming mended, on the
 two v3 videos it is 0.781 and 0.734: 0.76.
+
+## 23. Hands, and figures that are not people (owner's direction, 2026-10-15)
+
+The owner, on the Japanese video's last second: the shadow figure's hand reaches out oddly, and it is skin-coloured,
+when the figure is a shadow. The scene asked for "a pitch-black human-shaped shadow" behind the nurse and, for its
+clip, "the dark shadow behind her subtly shifts closer": the clip model made the shifting an arm reaching out, and,
+told nothing of its hand, gave it skin.
+
+- **The clip model's negative prompt cannot help.** It already names "extra fingers, poorly drawn hands", but the
+  clips are made at guidance 1 (the four-step Lightning LoRA, for speed), where a negative prompt has no effect.
+  Raising it doubles every clip's time and cost. So what is asked for has to keep these out.
+- **Moving hands are not asked for:** nobody reaches, grabs, points, waves, claps or gestures in a clip, and no hand
+  moves in the frame; the camera, light, smoke, water, cloth and hair carry the motion. `handMotions` sends back a
+  script whose motion prompts ask for one, in the hand's sense only (not the waves of the sea).
+- **A figure that is not an ordinary person** (a ghost, a shadow figure, a creature) is described whole every time
+  it appears, its hands too ("a featureless silhouette of pure black smoke, with no skin, face or fingers"), and named
+  by what it is made of in its motion ("the black smoke silhouette drifts closer"), so the clip keeps it so; it
+  drifts, looms, appears or fades, and never reaches or touches.

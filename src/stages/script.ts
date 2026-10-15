@@ -7,7 +7,7 @@ import { PRESETS } from "../presets.js";
 import { voicePace } from "../voice/language.js";
 import { countUnits, hookCap, isUnspaced, lengthUnit, unitsPerWord } from "../voice/words.js";
 import { normalizeHashtags } from "../hashtags.js";
-import { anachronisms } from "../anachronism.js";
+import { anachronisms, handMotions } from "../anachronism.js";
 import { TIMEOUTS, withRetry } from "../providers/retry.js";
 import type { ScriptRequest } from "../providers/types.js";
 import { outPath, paths } from "./paths.js";
@@ -87,6 +87,8 @@ export function validateScript(raw: unknown, sceneCount: number, timing?: Timing
   problems.push(...hookProblems(parsed.data.hook, language));
   // nothing of a later time in a video set in the past (phase 7 spec §21)
   problems.push(...anachronisms(parsed.data.scenes, parsed.data.styleBible.setting));
+  // and no moving hands in a clip (phase 7 spec §23)
+  problems.push(...handMotions(parsed.data.scenes));
   // (hashtags are put right, never a reason to send an answer back: phase 7 spec §18)
   return problems.length > 0 ? { ok: false, problems } : { ok: true, script: { ...parsed.data, hashtags: normalizeHashtags(parsed.data.hashtags) } };
 }
@@ -104,7 +106,7 @@ export function validateOutline(raw: unknown, parts: number, language?: string):
 export function validatePart(raw: unknown, index: number, sec: number, sceneSec: SceneSeconds, language?: string, voice?: string, frozen?: number, setting?: string): Checked<LlmPart["scenes"]> {
   const parsed = LlmPart.safeParse(raw);
   if (!parsed.success) return { ok: false, problems: issues(parsed.error) };
-  const problems = [...timingProblems(parsed.data.scenes, sec, sceneSec, `part ${index + 1}`, frozen ?? wordsPerSecond(language, voice), language), ...anachronisms(parsed.data.scenes, setting)];
+  const problems = [...timingProblems(parsed.data.scenes, sec, sceneSec, `part ${index + 1}`, frozen ?? wordsPerSecond(language, voice), language), ...anachronisms(parsed.data.scenes, setting), ...handMotions(parsed.data.scenes)];
   return problems.length > 0 ? { ok: false, problems } : { ok: true, value: parsed.data.scenes };
 }
 
