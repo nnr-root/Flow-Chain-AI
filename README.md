@@ -370,15 +370,14 @@ nothing below exists and credit is granted by hand as before.
 - **What is sold.** `billing/plans.json` lists the plans, each with its monthly price, the cost it covers
   (`creditUsd`, in dollars of what videos cost you) and the minutes of fully generated video it is built around.
   A customer is never shown those dollars: they see **credits**, 2,000 to a dollar of cost (`CREDITS_PER_USD` in
-  `web/lib/credit.ts`). The defaults are Starter $39 for 8,000 credits, Creator $99 for 24,000 and Pro $199 for
-  70,000 a month: 5, 15 and 45 minutes of video in which every scene moves (measured at $0.141 for four scenes
-  with the studio's own voice; $0.226 with the hosted voice at its dearest, which is what the plans are sized for:
-  phase 6 spec §16). `yearlyMonths: 10` sells each plan by the year as well, for the price of
+  `web/lib/credit.ts`). The defaults are Starter $39 for 9,000 credits, Creator $99 for 27,000 and Pro $199 for
+  80,000 a month: 5, 15 and 45 minutes of video in which every scene moves, with a fifth to spare (measured on
+  2026-10-15 at $0.245 for four scenes spoken by the hosted voice: phase 6 spec §17). `yearlyMonths: 10` sells each plan by the year as well, for the price of
   ten months; its credits still come every month (the worker grants each month's on its day), and what is left
   of a month does not carry over. Nothing is sold once: `topups` is empty (the
-  studio can still sell top-ups if you list some). What is left of a plan's price after its cost is yours: 90%,
-  88% and 82% before Stripe's fee, the server and the hosted voice's subscription (phase 6 spec §13 has the market
-  these prices were set against, §16 the credits).
+  studio can still sell top-ups if you list some). What is left of a plan's price after its cost is yours: 88%,
+  86% and 80% before Stripe's fee, the server and the hosted voice's subscription (phase 6 spec §13 has the market
+  these prices were set against, §17 the credits).
   In your own studio without accounts, amounts stay in dollars: that is your bill.
 - **Two kinds of credit.** A plan's credit is for its month, however the plan is paid: what is left when the
   next month begins expires, and so does what is left when the plan ends. Credit you grant (and a

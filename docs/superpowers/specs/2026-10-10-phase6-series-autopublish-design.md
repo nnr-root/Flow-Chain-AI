@@ -551,3 +551,39 @@ By the year (ten months' price for twelve months' credits): $342 of $390, $846 o
 85%, 79%). Each plan is still cheaper per credit than the one before. Before Stripe's fee, the server and the
 hosted voice's monthly subscription. The prices reach Stripe when the owner runs `npm run stripe:setup` (it
 archives the old prices and makes these); until then the old ones are on sale.
+
+## 17. The cost measured with the hosted voice, and the plans' credits (owner's direction, 2026-10-15)
+
+The owner: measure again with the hosted voice and set the prices by it. The video §12 measured was made again,
+the same request (four scenes, every one a moving clip, 480p, cinematic history, the male narrator, English), now
+spoken by the hosted voice: run `20261015-101855-ccc5f8`, 19.2 seconds.
+
+| | Script | Voice | Portrait | Pictures | Clips | Clip worker's start | All |
+|---|---|---|---|---|---|---|---|
+| §12 (own voice, 2026-10-10) | $0.0055 | $0.0164 | $0.0131 | $0.0062 | $0.0998 | (in the clips) | $0.141 |
+| Now (hosted voice) | $0.0055 | $0.1026 | $0.0140 | $0.0062 | $0.0893 | $0.0275 | **$0.2451** |
+
+The start of the clip worker could not learn its cost and was kept at what was expected (`abandonedUsd`), as it is
+charged to a run: it is in the figure. **$0.735 a minute** by the page's own arithmetic (five seconds a scene), against
+$0.68 worked out in phase 5 §11.3. `measured.json` holds it now, with no other voice to price it at.
+
+**The plans keep their prices and 5, 15 and 45 minutes, with a fifth to spare again.** At $4, $12 and $35 the
+measured cost covered 5.4, 16.3 and 47.6 minutes: six to nine percent to spare, against the sixth §12 kept for
+starts that take longer and scenes made again. The credits are now:
+
+| | Price | Credits a month | Covers (worked out) | Left if all are used | After Stripe's fee | After the fee, the voice at the Creator plan's rate |
+|---|---|---|---|---|---|---|
+| Starter | $39 | 9,000 ($4.50) | 6 minutes | 88.5% | 84.8% | 86.1% |
+| Creator | $99 | 27,000 ($13.50) | 18 minutes | 86.4% | 83.2% | 84.7% |
+| Pro | $199 | 80,000 ($40) | 54 minutes | 79.9% | 76.8% | 79.1% |
+
+By the year (ten months' price, twelve months' credits): 86.2%, 83.6% and 75.9% if every credit is used, 83.2%,
+80.7% and 73.0% after the fee. Each plan is still cheaper per credit than the one before.
+
+- **What a credit costs the studio is less than what it is charged at.** A line is charged at `ttsPer1kChars`, 0.30
+  a thousand characters, the dearest the hosted voice is sold at; the Creator plan's characters are 0.22 and the Pro
+  plan's 0.198. At the Creator rate the measured video costs $0.2177, not $0.2451: the last column.
+- **Not in these figures:** the hosted voice's subscription (a fixed monthly cost: the Starter plan the owner is on
+  is $5 for 30,000 characters, about half an hour of narration; a studio with customers needs Creator or Pro), the
+  server, and credits a customer does not use, which expire with the month and are all margin.
+- The new prices reach Stripe with `npm run stripe:setup` (the owner's click).

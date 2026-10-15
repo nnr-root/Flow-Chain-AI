@@ -1,16 +1,11 @@
 {
   "fullyGenerated": {
-    "what": "A four-scene video in which every scene is a moving clip, at the standard clip size, made on the studio's own endpoints",
+    "what": "A four-scene video in which every scene is a moving clip, at the standard clip size, spoken by the hosted voice",
     "scenes": 4,
-    "usd": 0.141,
-    "measuredOn": "2026-10-10",
-    "source": "docs/superpowers/specs/2026-10-09-phase5-independence-design.md §9.16 (the second of its two runs, 20261010-095524-bf1f9b: $0.0164 of it was the voice, for 339 characters)",
-    "voiceUsd": 0.0164,
-    "narrationChars": 339
-  },
-  "voice": {
-    "usdPer1kChars": 0.3,
-    "checkedOn": "2026-10-11",
-    "source": "the hosted voice's dearest price by the character (its smallest plan's characters beyond what it includes), and what the three runs it spoke in October were charged (0.30 per thousand characters): docs/superpowers/specs/2026-10-09-phase5-independence-design.md §10"
+    "usd": 0.2451,
+    "measuredOn": "2026-10-15",
+    "source": "docs/superpowers/specs/2026-10-10-phase6-series-autopublish-design.md §17 (run 20261015-101855-ccc5f8: $0.2176 in its ledger and $0.0275 for the clip worker's start, whose cost was kept at what was expected; $0.1026 of it the voice, for 342 characters)",
+    "voiceUsd": 0.1026,
+    "narrationChars": 342
   }
 }

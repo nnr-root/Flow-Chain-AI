@@ -171,7 +171,7 @@ describe("npm run stripe:setup", () => {
     expect([...stripe.prices.values()].filter((p) => p.active).map((p) => p.metadata.key).sort()).toEqual(["creator", "creator-yearly", "pro", "pro-yearly", "starter", "starter-yearly"]);
     // by the year: billed once a year, and only the monthly plans can be switched between in Stripe's portal
     const yearly = [...stripe.prices.values()].find((p) => p.active && p.metadata.key === "pro-yearly")!;
-    expect([yearly.recurring, yearly.unit_amount, yearly.metadata]).toEqual([{ interval: "year" }, 199000, { studio: "flowchain", key: "pro-yearly", credit_usd: "35", plan: "pro", minutes: "45" }]);
+    expect([yearly.recurring, yearly.unit_amount, yearly.metadata]).toEqual([{ interval: "year" }, 199000, { studio: "flowchain", key: "pro-yearly", credit_usd: "40", plan: "pro", minutes: "45" }]);
     expect(Object.keys(stripe.portalConfigurations[0].features.subscription_update.products)).toHaveLength(3);
 
     const before = writes();
