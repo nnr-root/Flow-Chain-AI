@@ -279,7 +279,7 @@ Once, by hand:
 
 1. An SMTP service for the two emails the studio sends (the link that confirms an address, the link to choose
    a new password): put `SMTP_URL` (for example `smtps://user:password@smtp.example.com`) and `MAIL_FROM`
-   (`Flow Chain <hello@yourdomain>`) in `.env`. Setup refuses accounts without them: an address nobody
+   (`Flow Chain AI <hello@yourdomain>`) in `.env`. Setup refuses accounts without them: an address nobody
    confirmed is nobody's.
 2. Optional, for "Continue with Google": a Google OAuth client whose redirect URI is
    `https://<your studio>/auth/callback`; put `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` in `.env`. Without
