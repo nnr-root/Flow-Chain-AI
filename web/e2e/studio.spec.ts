@@ -152,6 +152,17 @@ test("a new video is asked for by its length, how long each scene stays and what
   await expect(page.getByTestId("voice-mystery")).toContainText("Unsolved cases");
   await expect(page.getByTestId("about-mystery")).toHaveText("Male, American, middle aged");
   await expect(page.getByTestId("voice-adam")).toContainText("Adam");
+  // the voice chosen is shown on top; the list is filtered by sex and found by name or kind of video
+  await expect(page.getByTestId("voice-chosen")).toContainText("Frederick");
+  const radios = page.getByRole("radiogroup", { name: "Voice" }).getByRole("radio");
+  await page.getByTestId("voices-female").click();
+  for (const about of await page.locator('[data-testid^="about-"]').allTextContents()) expect(about).toMatch(/^Female/);
+  await page.getByTestId("voices-all").click();
+  await page.getByTestId("voices-search").fill("unsolved");
+  await expect(radios).toHaveCount(1);
+  await expect(radios.first()).toContainText("Ian");
+  await page.getByTestId("voices-search").fill("");
+  await expect(radios).toHaveCount(33);
   await page.getByTestId("language").selectOption("es");
   const sample = page.waitForRequest((r) => r.url().endsWith("/voices/narrator-f.es.mp3"));
   await page.getByTestId("listen-narrator-f").click();

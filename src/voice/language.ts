@@ -130,6 +130,8 @@ const HOSTED_ONLY_VOICES = {
 } as const;
 
 export const VOICES = { ...OWN_VOICES, ...HOSTED_ONLY_VOICES } as const;
+/** The hosted voice's best-known voices: the form shows them apart from the studio's own, under their own heading. */
+export const WELL_KNOWN_VOICE_IDS = Object.keys(HOSTED_ONLY_VOICES) as Array<keyof typeof HOSTED_ONLY_VOICES>;
 /** The voices the studio's own voice can speak: the ones it has, or can design, a clip of. */
 export type OwnVoiceId = keyof typeof OWN_VOICES;
 export const OWN_VOICE_IDS = Object.keys(OWN_VOICES) as OwnVoiceId[];
