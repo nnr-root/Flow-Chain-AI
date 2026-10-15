@@ -123,6 +123,10 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
   voice that plays each, per language, is in `assets/voices/elevenlabs.json`, and the one resolved is part of a
   line's cache key. Its key is the worker's alone. Never clone another service's voices: a reference clip needs a
   recorded consent.
+- **A video may be in a niche** (`request.niche` or `nicheText`; phase 7 spec §19, `src/niches.ts`): the script is
+  written as videos in it are. Every niche that tells what is so carries `FACT_RULES`, every made-up one
+  `FICTION_RULES`; a niche of the user's own is quoted as theirs, never read as instructions. Health, religion,
+  politics and money products are left out on purpose: do not add a niche without its rules and their test.
 - **A style's name is not sent to the picture worker**: it uses it for nothing and refuses one it was not built
   knowing. Do not put it back.
 - **A script of more than 90 seconds is written in parts** (an outline, then each part), each answer checked

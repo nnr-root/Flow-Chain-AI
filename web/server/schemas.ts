@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { loadBrandKit } from "@src/brand";
 import { Aspect } from "@src/config";
+import { NICHE_IDS, NICHE_TEXT_MAX } from "@src/niches";
 import { SPEECH_LANGUAGE_CODES, type VoiceId, VOICES } from "@src/voice/language";
 import { DEFAULT_SCENE_SECONDS, DEFAULT_VIDEO_SECONDS, SCENE_SECONDS, VIDEO_SECONDS } from "@src/duration";
 import { MAX_SCENES, MAX_SEED, Mode } from "@src/manifest/schema";
@@ -53,6 +54,15 @@ export const NewVideo = z.object({
   sfxGain: Gain.default(0.6),
   characters: z.string().trim().max(600).optional(),
   seed: z.number().int().min(0).max(MAX_SEED).optional(),
+  /**
+   * The kind of video (phase 7 spec §19): one of the studio's niches, one in the user's own words, or none. The
+   * words are a description, quoted to the script's model as the user's, never read as instructions.
+   */
+  niche: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("none") }),
+    z.object({ kind: z.literal("known"), id: z.enum(NICHE_IDS) }),
+    z.object({ kind: z.literal("custom"), text: z.string().trim().min(1).max(NICHE_TEXT_MAX).regex(/^[^\n\r]*$/, "one line") }),
+  ]).default({ kind: "none" }),
   /** The language the video is told in: the script is written in it and the voice speaks in it. */
   language: z.enum(SPEECH_LANGUAGE_CODES).default("en"),
   /** One of the studio's voices; absent = the one the studio is set up with. */
@@ -100,6 +110,9 @@ export function draftArgs(input: NewVideo, runId: string): string[] {
   if (input.characters) args.push("--characters", input.characters);
   if (input.seed !== undefined) args.push("--seed", String(input.seed));
   if (input.voiceId) args.push("--voice", input.voiceId);
+  // (a form, or a series' recipe, from before niches has none)
+  if (input.niche?.kind === "known") args.push("--niche", input.niche.id);
+  if (input.niche?.kind === "custom") args.push("--niche-text", input.niche.text);
   return args;
 }
 

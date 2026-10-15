@@ -47,6 +47,8 @@ export type SeriesView = {
   durationSec: number;
   /** How long each scene of them stays, in seconds. */
   sceneSec: { min: number; max: number };
+  /** What its niche is called, as the form shows it (phase 7 spec §19): absent without one. */
+  niche?: string;
   createdAt: string;
   /** Its schedule, which is its owner's approval to make videos by itself (phase 6 spec §15). */
   cadence: Cadence;

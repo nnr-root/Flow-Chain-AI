@@ -57,7 +57,7 @@ const Tags = ({ about }: { about?: string }) =>
  * first; the hosted service's best-known ones are a group of their own. A language no voice is native to yet is
  * offered the narrators, and says they are not.
  */
-export function VoicePicker({ voices: native, names = {}, languages = Object.keys(SPEECH_LANGUAGES) as SpeechLanguage[], language, voice, onLanguage, onVoice }: { voices: Partial<Record<SpeechLanguage, VoiceId[]>>; names?: Names; languages?: SpeechLanguage[]; language: SpeechLanguage; voice: VoiceId; onLanguage: (l: SpeechLanguage) => void; onVoice: (v: VoiceId) => void }) {
+export function VoicePicker({ voices: native, names = {}, languages = Object.keys(SPEECH_LANGUAGES) as SpeechLanguage[], language, voice, onLanguage, onVoice, suggested }: { voices: Partial<Record<SpeechLanguage, VoiceId[]>>; names?: Names; languages?: SpeechLanguage[]; language: SpeechLanguage; voice: VoiceId; onLanguage: (l: SpeechLanguage) => void; onVoice: (v: VoiceId) => void; suggested?: { ids: readonly VoiceId[]; label: string } }) {
   // the voices made in this language; where none is yet, the narrators, said not to be native
   const voices = native[language]?.length ? native[language]! : (["narrator-m", "narrator-f"] as VoiceId[]);
   const notNative = !native[language]?.length;
@@ -186,6 +186,8 @@ export function VoicePicker({ voices: native, names = {}, languages = Object.key
                         <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           <span className="font-bold"><span className={on ? "marked" : ""}>{title(id)}</span></span>
                           {about(id) && <span className="text-[0.78rem] text-graphite" data-testid={`about-${id}`}>{about(id)}</span>}
+                          {/* the voices the niche chosen is usually told in (phase 7 spec §19) */}
+                          {suggested?.ids.includes(id) && <span data-testid={`suits-${id}`} className="rounded-full border border-hairline px-2 py-[0.05rem] text-[0.72rem] font-bold">Suits {suggested.label}</span>}
                         </span>
                         <span className="block truncate text-[0.82rem] leading-snug text-graphite">{VOICES[id].suits}</span>
                       </span>

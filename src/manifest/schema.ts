@@ -4,6 +4,7 @@ import { Aspect, Prices } from "../config.js";
 import { CaptionStyleName, Transition } from "../media/remotion/props.js";
 import { PresetName } from "../presets.js";
 import { ImageProfileId } from "../image-profiles.js";
+import { NICHE_IDS, NICHE_TEXT_MAX } from "../niches.js";
 import { SPEECH_LANGUAGE_CODES } from "../voice/language.js";
 import { VideoProfileId } from "../video-profiles.js";
 
@@ -245,6 +246,12 @@ export const RunRequest = z.object({
   language: z.enum(SPEECH_LANGUAGE_CODES).optional(),
   /** Forced style preset (--style); absent = Gemini picks one. */
   style: PresetName.optional(),
+  /**
+   * The kind of video it is (phase 7 spec §19): one of the niches the studio knows (--niche), or one the user
+   * wrote (--niche-text). The script is written as videos in it are. Absent on every run made before.
+   */
+  niche: z.enum(NICHE_IDS).optional(),
+  nicheText: z.string().trim().min(1).max(NICHE_TEXT_MAX).regex(/^[^\n\r]*$/).optional(),
   /** Character bible (--characters or the brand kit's), enforced into styleBible.characters; frozen. */
   characters: z.string().trim().min(1).max(600).optional(),
   /** Flux seed shared by every keyframe of the run (plus the scene's reroll count); frozen. */

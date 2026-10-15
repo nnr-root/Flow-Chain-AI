@@ -13,6 +13,8 @@ import type { KitSummary, Track } from "@/server/library";
 import { SceneLength } from "./SceneLength";
 import { type StyleCard, StylePicker } from "./StylePicker";
 import { Button, ErrorNote, Field, Panel, Segmented } from "./ui";
+import { nicheById } from "@src/niches";
+import { type NicheChoice, NichePicker } from "./NichePicker";
 import { VoicePicker } from "./VoicePicker";
 
 export type PresetCard = StyleCard;
@@ -47,6 +49,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
     sfx: true, sfxGain: 0.6, characters: "", seed: "", language: "en" as SpeechLanguage, voiceId: "narrator-m" as VoiceId, captionStyle: "preset", transition: "auto",
     name: "", premise: "",
   });
+  const [niche, setNiche] = useState<NicheChoice>({ kind: "none" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // with accounts a draft holds a little credit for the script
@@ -88,6 +91,8 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         ...(f.characters.trim() ? { characters: f.characters } : {}),
         ...(f.seed.trim() ? { seed: Number(f.seed) } : {}),
         language: f.language, voiceId: f.voiceId,
+        // (a niche of one's own left empty is no niche)
+        niche: niche.kind === "custom" ? (niche.text.trim() ? { kind: "custom", text: niche.text.trim() } : { kind: "none" }) : niche,
       };
       if (series) {
         const { id } = await sendJson<{ id: string }>("/api/series", { name: f.name, premise: f.premise, recipe: choices });
@@ -129,13 +134,17 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
                 <textarea data-testid="series-premise" required rows={2} maxLength={300} value={f.premise} onChange={(e) => set("premise", e.target.value)} placeholder="Greek myths, one god or hero at a time, told as a short dramatic story" />
               </Field>
             </>
-          ) : (
+          ) : null}
+          <Field group label="Niche" hint="Optional. The script is written the way videos that hold their audience in it are.">
+            <NichePicker value={niche} onChange={setNiche} onExample={series ? undefined : (t) => set("topic", t)} />
+          </Field>
+          {series ? null : (
             <Field label="Topic">
               <textarea data-testid="topic" required rows={2} maxLength={500} value={f.topic} onChange={(e) => set("topic", e.target.value)} placeholder="A lighthouse keeper's daughter takes over the light" />
             </Field>
           )}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <Field label="Shape">
+            <Field group label="Shape">
               {/* the word a person knows the shape by first, its ratio beside it, and where it is watched */}
               <div role="radiogroup" aria-label="Shape" className="grid grid-cols-2 gap-2">
                 {SHAPES.map((shape) => {
@@ -186,7 +195,8 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
       </Panel>
 
       <Panel title="Language and voice">
-        <VoicePicker voices={voices} names={voiceNames} languages={languages} language={f.language} voice={f.voiceId} onLanguage={(l) => set("language", l)} onVoice={(v) => set("voiceId", v)} />
+        <VoicePicker voices={voices} names={voiceNames} languages={languages} language={f.language} voice={f.voiceId} onLanguage={(l) => set("language", l)} onVoice={(v) => set("voiceId", v)}
+          suggested={niche.kind === "known" && nicheById(niche.id) ? { ids: nicheById(niche.id)!.voices, label: nicheById(niche.id)!.label } : undefined} />
       </Panel>
 
       <Panel title="Brand and sound">

@@ -530,3 +530,61 @@ The owner: let the script's model choose five hashtags too, in the video's langu
 - **Shown and used.** The run page shows them under the topic with a button that copies them all; `status` prints
   them; a post to YouTube has them in its description, with `#Shorts`, and the same words without the sign as its
   tags. What is posted is put right once more from the manifest: it goes out under the user's name.
+
+## 19. Niches (owner's direction, 2026-10-15)
+
+The owner: beside the style, a niche: the trending ones, taken apart, and what makes each work put into the script's
+prompt, "very, very carefully"; never required, and one can be written by the user.
+
+### 19.1 What was read (2026-10-15)
+
+The niche lists and analyses of faceless short channels: NexLev's and Kineclip's rankings of Shorts niches for 2026,
+EasyViral's and FlowShorts' of TikTok niches, ShortsFaceless's analysis of a hundred viral faceless shorts, and
+Syllaby's and VirVid's hook and script structures. Read together: the niches that grow are horror and scary stories,
+true crime, history, did-you-know facts, psychology, motivation, money, and space and science; a short is decided in
+its first two or three seconds; the shape that holds is hook, promise, context, payoff, close; and each niche has its
+own hook (a surprising true detail in history, tension in horror, a concrete number in money) and its own risks
+(personal financial advice, harm to victims and named people in true crime, teaching manipulation in "dark
+psychology", medical misinformation in health).
+
+### 19.2 What is built (`src/niches.ts`)
+
+- **Fifteen niches**, each with what its audience comes for (`promise`), how its first line works (`hook`), the
+  shape of a video in it (`arc`), how it is told (`voice`), what it must and must not do (`rules`), three topics to
+  start from, the styles its videos are usually made in and the studio's voices that suit it. Scary stories, true
+  crime, history, myths and legends, did-you-know, space and science, psychology, motivation, money basics, tech
+  explained, unsolved mysteries, animals and nature, what-if, places and cultures, stories with a lesson.
+- **Two kinds.** A niche that tells what is so carries `FACT_RULES` (only what could be checked; nothing invented;
+  disputes and legends said to be so; no words put in a real person's mouth, nothing that would harm a living person
+  if wrong). A made-up one carries `FICTION_RULES` (invented people, never presented as real, no gore, nothing
+  sexual, no cruelty to children or animals). A test holds every niche to its kind's rules.
+- **Each niche's own risks**, written as rules: money is education, never a stock or coin to buy, never promised
+  returns, risk said; true crime prefers settled and non-violent cases, names no one guilty who was not convicted and
+  describes no violence; psychology keeps to replicated findings, never diagnoses, and explains manipulation only to
+  resist it; motivation attributes no quote it cannot and never belittles anxiety or rest; tech explains how things
+  work and never dated news; mysteries give the ordinary explanation fairly and stay away from vaccines, elections and
+  tragedies with living families; myths and places never mock a culture or a religion.
+- **Left out on purpose:** health and medicine, religion, politics and news, crypto and trading, and advice for
+  children. There a wrong short video does harm, and no rule written here makes a model reliably right. Someone who
+  wants such a channel can write it as their own niche, and it is then held to the rules below.
+- **A niche of the user's own** (one line, at most 120 characters, `--niche-text`) is quoted to the model as how the
+  user describes their channel, «in guillemets», with the sentence that it is a description and not an instruction
+  and changes no rule; and it is held to `FACT_RULES`, the fiction rules if it is stories, no advice to an
+  individual, nothing hateful, nothing that shows how to harm, and no product, coin or person promoted.
+- **In the prompt:** the niche's block follows the length rules, in the whole script, the outline and every part (a
+  long video's middle parts keep its voice and rules and leave out its hook and shape, which are the opening's). When
+  the style is left to the script, the niche's usual styles are named; a chosen style is kept to.
+- **The run** keeps `request.niche` or `request.nicheText` (`--niche`, `--niche-text`, never both); the script's key
+  has them only when they are set, so every earlier run keeps its key. The worker's check of a draft's command takes
+  both options, each with one value.
+- **The form** offers the niches as a row of names (one row to scroll on a phone), "Any" by default and "My own…"
+  for a line of one's own; a niche shows what its videos are, whether they are true or made up, and its three topics,
+  any of which a press puts in the topic. The voices that suit it are marked "Suits <niche>" in the voice list. A
+  series keeps its niche with the rest of the form, and its page names it.
+- `Field` has a `group` form: a set of buttons under a title is a group named by it, not a `<label>`, under which a
+  press on the title was a press on the first button (the shape's buttons had this too).
+
+### 19.3 Not done, and parked
+
+- No script has been written in a niche by the real model yet (a draft buys the script: the owner's click).
+- The niches are in English on the form, as the whole studio is.

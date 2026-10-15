@@ -204,12 +204,26 @@ test("a new video is asked for by its length, how long each scene stays and what
   await expect(page.getByRole("radiogroup", { name: "Clip quality" })).toHaveCount(0);
   if (process.env.E2E_SHOT) await page.screenshot({ path: process.env.E2E_SHOT, fullPage: true });
 
+  // A niche (phase 7 spec §19): what its videos are, topics to start from, and the voices that suit it. None is
+  // needed; one of one's own is a line.
+  await page.getByTestId("niche-custom").click();
+  await expect(page.getByTestId("niche-text")).toBeVisible();
+  await page.getByTestId("niche-history").click();
+  await expect(page.getByTestId("niche-text")).toHaveCount(0);
+  await expect(page.getByTestId("niche-about")).toContainText("True things only");
+  await page.getByTestId("niche-example").first().click();
+  await expect(page.getByTestId("topic")).toHaveValue("The war that lasted 38 minutes");
+  await expect(page.getByTestId("suits-documentary")).toHaveText("Suits History");
+  // (pressing a group's title is not pressing its first button)
+  await page.getByText("Niche", { exact: true }).click();
+  await expect(page.getByTestId("niche-history")).toHaveAttribute("aria-checked", "true");
+
   await page.getByTestId("topic").fill("A lighthouse keeper's daughter takes over the light");
   const before = calls().length;
   await page.getByTestId("create-draft").click();
   await expect.poll(() => calls().slice(before).find((c) => c[0] === "run")).toBeTruthy();
   const sent = calls().slice(before).find((c) => c[0] === "run")!;
-  expect(sent).toEqual(expect.arrayContaining(["--duration", "60", "--scene-seconds", "3-5", "--pin-modes", "2", "--style", "film_noir", "--language", "tr", "--voice", "narrator-f"]));
+  expect(sent).toEqual(expect.arrayContaining(["--duration", "60", "--scene-seconds", "3-5", "--pin-modes", "2", "--style", "film_noir", "--language", "tr", "--voice", "narrator-f", "--niche", "history"]));
   expect(sent).not.toContain("--scenes");
 });
 

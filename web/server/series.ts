@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { z } from "zod";
 import { DEFAULT_SCENE_SECONDS, DEFAULT_VIDEO_SECONDS } from "@src/duration";
+import { nicheById } from "@src/niches";
 import { multiTenant } from "@/lib/accounts";
 import { type Cadence, CADENCES, episodeTopic, type SeriesView } from "@/lib/series";
 import { createDraft } from "./actions";
@@ -63,6 +64,8 @@ function view(row: Row, episodes: SeriesView["episodes"], monthUsd: number): Ser
     active: row.status === "active", pausedReason: row.paused_reason, nextDueAt: row.next_due_at,
     channelId: row.channel_id, reviewFirst: row.review_first,
     style: recipe.success ? recipe.data.style : "auto", aspect: recipe.success ? recipe.data.aspect : "9:16", durationSec: recipe.success ? recipe.data.durationSec : DEFAULT_VIDEO_SECONDS, sceneSec: recipe.success ? recipe.data.sceneSec : DEFAULT_SCENE_SECONDS,
+    ...(recipe.success && recipe.data.niche.kind === "known" ? { niche: nicheById(recipe.data.niche.id)?.label } : {}),
+    ...(recipe.success && recipe.data.niche.kind === "custom" ? { niche: recipe.data.niche.text } : {}),
   };
 }
 

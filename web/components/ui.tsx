@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { useId } from "react";
 
 /*
  * A run's state, in the site's own terms: the highlighter is on what is happening now, a plain outline on what
@@ -46,7 +47,21 @@ export function Panel({ title, children, aside }: { title: string; children: Rea
   );
 }
 
-export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+/**
+ * A labelled form field. `group`: the field is a set of buttons, not one control. It is then not a <label>, which
+ * would make a press on its title a press on its first button, but a group named by its title.
+ */
+export function Field({ label, hint, children, group = false }: { label: string; hint?: string; children: ReactNode; group?: boolean }) {
+  const id = useId();
+  if (group) {
+    return (
+      <div role="group" aria-labelledby={id} className="block text-[0.95rem]">
+        <span id={id} className="mb-1.5 block font-bold">{label}</span>
+        {children}
+        {hint && <span className="mt-1.5 block text-[0.85rem] text-graphite">{hint}</span>}
+      </div>
+    );
+  }
   return (
     <label className="block text-[0.95rem]">
       <span className="mb-1.5 block font-bold">{label}</span>

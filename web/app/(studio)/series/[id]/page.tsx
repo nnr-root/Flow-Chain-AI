@@ -37,7 +37,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <p className="text-[0.95rem]"><Link href="/series" className="text-graphite underline underline-offset-4 hover:text-ink">Your series</Link></p>
         <h1 className="display mt-3 text-[clamp(2.4rem,1.6rem+3vw,3.8rem)] leading-[0.95]" data-testid="series-title">{series.name}</h1>
         <p className="mt-4 max-w-[40rem] text-[1.1rem] text-graphite">{series.premise}</p>
-        <p className="note mt-4 text-[0.95rem]">{look}, about {lengthInWords(series.durationSec)}, {series.aspect}</p>
+        <p className="note mt-4 text-[0.95rem]">{series.niche ? `${series.niche}, ` : ""}{look}, about {lengthInWords(series.durationSec)}, {series.aspect}</p>
       </div>
       <SeriesActions id={series.id} name={series.name} episodes={series.episodes.length} holdUsd={draftCapUsd({ targetSec: series.durationSec, sceneSec: series.sceneSec })} />
       <SeriesSchedule series={series} />

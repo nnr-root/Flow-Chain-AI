@@ -44,7 +44,7 @@ const AMOUNT = /^\d+(\.\d+)?$/;
 /** What a draft's command may carry after `run --draft --yes --run-id <id>`: each at most once, in any order. */
 const DRAFT_VALUED = new Set([
   "--topic", "--aspect", "--duration", "--scene-seconds", "--language", "--mode", "--clips", "--budget", "--caption-style", "--transition", "--bgm-gain", "--sfx-gain",
-  "--style", "--pin-modes", "--brand", "--bgm", "--hook", "--characters", "--seed", "--voice",
+  "--style", "--pin-modes", "--brand", "--bgm", "--hook", "--characters", "--seed", "--voice", "--niche", "--niche-text",
 ]);
 const DRAFT_FLAGS = new Set(["--no-hook", "--no-sfx"]);
 /** The kind of job each command is: the kind decides whether credit must be held, so it cannot be claimed freely. */

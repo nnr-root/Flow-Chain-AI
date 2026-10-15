@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { commandKind, refusal } from "@/server/jobs/redis";
-import { draftArgs, rerenderArgs } from "@/server/schemas";
+import { draftArgs, NewVideo, rerenderArgs } from "@/server/schemas";
 
 describe("what the worker agrees to run", () => {
   it("runs exactly the commands the studio sends", () => {
@@ -14,6 +14,14 @@ describe("what the worker agrees to run", () => {
     expect(refusal("runs", [...draft, "--scenes", "4"])).toBeTruthy();
     expect(refusal("runs", [...draft, "--duration", "600"])).toBeTruthy();
     expect(refusal("runs", draft, "20261006-120000-abc001")).toBeUndefined();
+    // a niche (phase 7 spec §19): one the studio knows, or one in the user's words, as the one value it is
+    const withNiche = (niche: object) => draftArgs({ ...(NewVideo.parse({ topic: "t", niche })) }, "20261006-120000-abc001");
+    expect(withNiche({ kind: "known", id: "history" })).toEqual(expect.arrayContaining(["--niche", "history"]));
+    expect(withNiche({ kind: "custom", text: "Cozy cat facts --budget 9" })).toEqual(expect.arrayContaining(["--niche-text", "Cozy cat facts --budget 9"]));
+    for (const niche of [{ kind: "known", id: "history" }, { kind: "custom", text: "--cap 5" }]) expect(refusal("runs", withNiche(niche)), JSON.stringify(niche)).toBeUndefined();
+    expect(withNiche({ kind: "none" })).not.toContain("--niche");
+    expect(() => NewVideo.parse({ topic: "t", niche: { kind: "custom", text: "two\nlines" } })).toThrow();
+    expect(() => NewVideo.parse({ topic: "t", niche: { kind: "known", id: "medicine" } })).toThrow();
     expect(refusal("runs", ["resume", "x", "--budget", "1", "--cap", "1"], "x")).toBeUndefined();
     expect(refusal("runs", ["resume", "x", "--budget", "1", "--cap", "1"])).toBeUndefined();
     expect(refusal("runs", ["reroll", "x", "--scene", "1", "--stage", "clips", "--budget", "1", "--cap", "1"])).toBeUndefined();

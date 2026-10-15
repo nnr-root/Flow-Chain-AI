@@ -1,3 +1,4 @@
+import { NICHE_IDS, NICHE_TEXT_MAX } from "./niches.js";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { randomInt } from "node:crypto";
@@ -167,6 +168,8 @@ type RunFlags = {
   duration?: string;
   sceneSeconds?: string;
   language?: string;
+  niche?: string;
+  nicheText?: string;
 };
 
 /** --pin-modes: one entry per scene, or a single value for every scene. */
@@ -205,6 +208,8 @@ program
   .addOption(new Option("--aspect <ratio>", "output aspect ratio").choices(["9:16", "16:9"]).default("9:16"))
   .option("--scenes <n>", "number of scenes (1-12; default 4), for a run asked for by its scenes")
   .addOption(new Option("--language <code>", "the language the video is told in (default: the script model's own choice)").choices(Object.keys(SPEECH_LANGUAGES)))
+  .addOption(new Option("--niche <id>", "the kind of video: the script is written as videos in it are (phase 7 spec §19)").choices(NICHE_IDS).conflicts("nicheText"))
+  .option("--niche-text <text>", `a niche in your own words, at most ${NICHE_TEXT_MAX} characters (instead of --niche)`)
   .option("--duration <seconds>", `about how long the video runs (${VIDEO_SECONDS.join(", ")}); the script decides the number of scenes`)
   .option("--scene-seconds <n|a-b>", `with --duration: how long each scene stays, one length or a range within ${SCENE_SECONDS.min}-${SCENE_SECONDS.max} (default ${DEFAULT_SCENE_SECONDS.min}-${DEFAULT_SCENE_SECONDS.max})`)
   .addOption(
@@ -252,6 +257,8 @@ program
       sceneCount,
       timing,
       language: o.language,
+      niche: o.niche,
+      nicheText: o.nicheText,
       modes,
       // auto runs freeze the budget and price table their mode rules use; a later --budget only changes when to ask
       modeBudgetUsd: modes ? undefined : budgetUsd,
