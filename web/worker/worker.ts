@@ -248,7 +248,12 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     // A run folder has its manifest only once it has everything else (a restore fetches it last), so a manifest
     // here means the run is whole. Without one the run must come from the bucket, and if it cannot, the job does
     // not start: the pipeline would take what is missing for work to be done, and paid for, again.
-    if (data.kind !== "draft" && !existsSync(join(dir, "manifest.json"))) await restoreFolder(bucket, keys.run(data.userId, data.runId), dir);
+    // A version (phase 8 spec §4.1) is a new run made from another of the same user's: that one must be whole here,
+    // under this user's own key (its id was checked to be a run id, so it names no path), and the new one has nothing yet.
+    if (data.args[0] === "translate") {
+      const source = data.args[1];
+      if (!existsSync(join(runFolder(source), "manifest.json"))) await restoreFolder(bucket, keys.run(data.userId, source), runFolder(source));
+    } else if (data.kind !== "draft" && !existsSync(join(dir, "manifest.json"))) await restoreFolder(bucket, keys.run(data.userId, data.runId), dir);
     // kits and tracks are a convenience here: with the bucket away a job that needs none of them still runs
     for (const [prefix, to] of [[keys.brandKits(data.userId), roots().brandKits], [keys.music(data.userId), roots().uploads]] as const) {
       await restoreFolder(bucket, prefix, to).catch((err: Error) => log(`worker: could not fetch ${prefix} (${err.message}); carrying on with what is on disk`));

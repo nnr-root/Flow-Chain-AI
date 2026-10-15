@@ -6,6 +6,7 @@ import { shownLog } from "@/server/jobs";
 import { listKits } from "@/server/library";
 import { forUser } from "@/server/page";
 import { readRun } from "@/server/runs";
+import { nativeVoices, offeredLanguages, voiceNames } from "@/server/voices";
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,9 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
       if (err instanceof ApiError && err.code === "not_found") return null;
       throw err;
     });
-    return run && { run, log: await shownLog(id), kits: await listKits() };
+    // what a version in another language may be in, and spoken by (phase 8 spec §4)
+    return run && { run, log: await shownLog(id), kits: await listKits(), versions: { languages: offeredLanguages(), voices: nativeVoices(), names: voiceNames() } };
   });
   if (!data) notFound();
-  return <Studio initial={data.run} initialLog={data.log} kits={data.kits} publishing={publishingOn()} />;
+  return <Studio initial={data.run} initialLog={data.log} kits={data.kits} publishing={publishingOn()} versions={data.versions} />;
 }

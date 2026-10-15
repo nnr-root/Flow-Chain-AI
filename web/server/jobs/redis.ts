@@ -49,7 +49,12 @@ const DRAFT_VALUED = new Set([
 ]);
 const DRAFT_FLAGS = new Set(["--no-hook", "--no-sfx", "--no-localize"]);
 /** The kind of job each command is: the kind decides whether credit must be held, so it cannot be claimed freely. */
-const KIND_OF: Record<string, JobKind> = { run: "draft", resume: "generate", reroll: "reroll", rerender: "rerender" };
+// (a version in another language spends as a generation does, on its own new run: phase 8 spec §4.1)
+const KIND_OF: Record<string, JobKind> = { run: "draft", resume: "generate", reroll: "reroll", rerender: "rerender", translate: "generate" };
+/** A run's id as the CLI makes it: a source named by a job can never be a path. */
+const RUN_ID = /^\d{8}-\d{6}-[0-9a-f]{6}$/;
+const LANGUAGE = /^[a-z]{2}$/;
+const VOICE = /^[a-z0-9][a-z0-9-]{0,40}$/;
 
 /** The kind of job a command is, or undefined for something that is no job command. Never taken from the job's own word. */
 export const commandKind = (args: unknown): JobKind | undefined =>
@@ -86,6 +91,15 @@ export function refusal(queue: keyof typeof QUEUES, args: unknown, runId?: strin
     if (runId !== undefined && list[1] !== runId) return other;
     const ok = list.length === 6 && list[2] === "--budget" && list[4] === "--cap" && AMOUNT.test(list[3]) && list[3] === list[5];
     return ok ? undefined : '"resume" must be: resume <run> --budget <usd> --cap <the same usd>';
+  }
+  if (command === "translate") {
+    if (list.includes("--yes")) return '"translate" may not be started with --yes';
+    const ok =
+      list.length === 12 && RUN_ID.test(list[1]) && list[2] === "--language" && LANGUAGE.test(list[3]) && list[4] === "--voice" && VOICE.test(list[5]) &&
+      list[6] === "--run-id" && RUN_ID.test(list[7]) && list[7] !== list[1] && list[8] === "--budget" && list[10] === "--cap" && AMOUNT.test(list[9]) && list[9] === list[11];
+    if (!ok) return '"translate" must be: translate <run> --language <code> --voice <id> --run-id <new run> --budget <usd> --cap <the same usd>';
+    // the job is the new run's: the run it is made from is only read
+    return runId !== undefined && list[7] !== runId ? other : undefined;
   }
   if (command === "reroll") {
     if (list.includes("--yes")) return '"reroll" may not be started with --yes';

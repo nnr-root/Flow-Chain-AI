@@ -39,6 +39,26 @@ describe("what the worker agrees to run", () => {
     expect(refusal("quick", rerenderArgs("x", { captionStyle: "mrbeast" }, "look"))).toBeUndefined();
   });
 
+  it("runs a version in another language only in the exact shape the studio sends, for the job's own new run", () => {
+    const [source, fresh] = ["20261006-120000-abc001", "20261006-120000-abc002"];
+    const ok = ["translate", source, "--language", "tr", "--voice", "narrator-m", "--run-id", fresh, "--budget", "0.03", "--cap", "0.03"];
+    expect(commandKind(ok)).toBe("generate");
+    expect(refusal("runs", ok, fresh, "generate")).toBeUndefined();
+    // the job's run is the new one; the source is only read, and is a run id, never a path
+    expect(refusal("runs", ok, source, "generate")).toBe("the command is for another run than the job");
+    for (const bad of [
+      [...ok, "--yes"],
+      ok.map((a) => (a === source ? "../other-user/20261006-120000-abc001" : a)),
+      ok.map((a, i) => (i === 7 ? source : a)),
+      ok.map((a, i) => (i === 11 ? "9" : a)),
+      ok.map((a, i) => (i === 3 ? "../x" : a)),
+      ok.map((a, i) => (i === 5 ? "--cap" : a)),
+      ok.slice(0, 10),
+    ]) expect(refusal("runs", bad, fresh, "generate"), JSON.stringify(bad)).toBeTruthy();
+    // and it is a job that spends: never a free one
+    expect(refusal("runs", ok, fresh, "rerender")).toBe('a rerender job may not run "translate"');
+  });
+
   it("refuses a full run, an unasked spend and anything that is not the studio's", () => {
     expect(refusal("runs", ["run", "--topic", "t", "--yes"])).toBe("a run may only be started as a draft");
     expect(refusal("runs", ["resume", "x", "--yes"])).toBe('"resume" may not be started with --yes');

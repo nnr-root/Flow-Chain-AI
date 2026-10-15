@@ -54,6 +54,26 @@ test("a finished run plays in the Player, a look change previews at once, and Ap
   expect(errors).toEqual([]);
 });
 
+test("a finished video can be made in another language: priced first, then started as a new video at that price", async ({ page }) => {
+  writeFileSync(join(runs, "_plan-translate.json"), JSON.stringify({ items: [{ stage: "script", scene: null, costUsd: 0.01 }], totalUsd: 0.05, capUsd: 0.12 }));
+  await page.goto(`/runs/${DONE_ID}`);
+  const panel = page.getByTestId("other-languages");
+  await expect(panel).toBeVisible();
+  // not the language it is already in
+  await expect(page.getByTestId("version-language").locator("option[value=en]")).toHaveCount(0);
+  await page.getByTestId("version-language").selectOption("tr");
+  await expect(page.getByTestId("make-version")).toHaveText("Make it in Türkçe, up to $0.12");
+  await expect.poll(calls).toContainEqual(expect.arrayContaining(["plan", DONE_ID, "--json", "--translate", "tr"]));
+  await page.getByTestId("make-version").click();
+  await expect(page).not.toHaveURL(new RegExp(`/runs/${DONE_ID}$`));
+  const made = calls().find((c) => c[0] === "translate")!;
+  expect(made.slice(0, 4)).toEqual(["translate", DONE_ID, "--language", "tr"]);
+  expect(made.slice(-4)).toEqual(["--budget", "0.12", "--cap", "0.12"]);
+  // the version's page says where it is from
+  await expect(page.getByTestId("version-of")).toContainText("In Türkçe");
+  await expect(page.getByTestId("other-languages")).toHaveCount(0);
+});
+
 test("a draft previews with placeholders, shows the new price after a scene is pinned and generates capped at it", async ({ page }) => {
   await page.goto(`/runs/${DRAFT_ID}`);
   await expect(page.locator("[data-state=draft]")).toBeVisible();

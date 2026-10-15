@@ -19,7 +19,7 @@ import {
 } from "./manifest/store.js";
 import { CaptionStyleName, Transition } from "./media/remotion/props.js";
 import { type Plan, planRun, RunAborted, runPipeline, sealInherited } from "./pipeline.js";
-import { copySourceFiles, versionManifest, versionProblem } from "./versions.js";
+import { copySourceFiles, versionCapUsd, versionManifest, versionProblem } from "./versions.js";
 import { PresetName } from "./presets.js";
 import { LANGUAGE_IN_ENGLISH, SPEECH_LANGUAGES, type SpeechLanguage } from "./voice/language.js";
 import { createProviders } from "./providers/factory.js";
@@ -31,7 +31,7 @@ import { bumpNonce, REROLLABLE } from "./reroll.js";
 import { STAGES } from "./stages/index.js";
 import type { StageContext } from "./stages/types.js";
 import { formatStatus } from "./status.js";
-import { planningCopy, planQuery, RUN_ID, runDraft } from "./studio/commands.js";
+import { planJson, planningCopy, planQuery, RUN_ID, runDraft } from "./studio/commands.js";
 import { parseModeOverrides, setDraftModes } from "./studio/draft.js";
 import { statusOf } from "./studio/status.js";
 
@@ -484,9 +484,27 @@ program
   .addOption(new Option("--from <stage>", "as if this stage and every later one were re-run").choices(StageName.options))
   .option("--reroll <scene:stage>", "as if this scene's stage were regenerated, e.g. 2:clips")
   .option("--modes <list>", "drafts: as if these modes were pinned, e.g. auto,1,2,auto")
+  .addOption(new Option("--translate <code>", "what a version of the run in this language would cost (phase 8 spec §4), and what it holds").choices(Object.keys(SPEECH_LANGUAGES)))
+  .option("--voice <id>", "with --translate: the version's voice (default: the run's own)")
   .option("--json", "print the plan as JSON")
-  .action(async (runId: string, o: { from?: StageName; reroll?: string; modes?: string; json?: boolean }) => {
+  .action(async (runId: string, o: { from?: StageName; reroll?: string; modes?: string; translate?: string; voice?: string; json?: boolean }) => {
     const dir = runDir(runId);
+    if (o.translate) {
+      const source = await loadManifest(dir);
+      const language = o.translate as SpeechLanguage;
+      const problem = versionProblem(source, language);
+      if (problem) throw new Error(problem);
+      const env = loadEnv();
+      const manifest = versionManifest(source, { runId: "version", language, voiceId: o.voice ?? source.request.voiceId, ttsModel: newRunVoice(env, language).model, llmModel: env.GEMINI_MODEL });
+      // planned against the source's own files, which the version would have: nothing is written anywhere
+      const ctx = contextFor(dir, manifest, noPaidProviders(), null);
+      await sealInherited(ctx, STAGES);
+      const plan = planJson(await planRun(ctx, STAGES));
+      const held = { ...plan, capUsd: versionCapUsd(plan.items) };
+      if (o.json) console.log(JSON.stringify(held));
+      else console.log(`a version in ${LANGUAGE_IN_ENGLISH[language]}: estimated $${plan.totalUsd.toFixed(2)}, held up to $${held.capUsd.toFixed(2)}`);
+      return;
+    }
     // a copy: pins and reroll nonces are only tried out here, never saved
     const manifest = planningCopy(await loadManifest(dir));
     const [scene, stage] = (o.reroll ?? "").split(":");

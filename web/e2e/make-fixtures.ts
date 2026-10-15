@@ -71,6 +71,11 @@ finished.scenes[0].fitted = { path: "fitted/scene_01.mp4", frames: 45, plan: { k
 finished.scenes[1].fitted = { path: "fitted/scene_02.mp4", frames: 30, plan: { kind: "trim" } };
 for (const i of [0, 1]) for (const stage of ["keyframes", "clips", "fit"] as const) if (stage !== "keyframes" || i === 0) finished.scenes[i].stages[stage] = done;
 finished.scenes[2].stages.keyframes = done;
+// what it was made from: a version in another language is made of these (phase 8 spec §4)
+finished.request.language = "en";
+finished.scenes[0].keyframe = { path: "images/keyframe_01.png", seed: 1, sourceUrl: "fixture" };
+finished.scenes[2].keyframe = { path: "images/keyframe_03.png", seed: 1, sourceUrl: "fixture" };
+for (const i of [0, 1]) finished.scenes[i].clip = { path: `clips/clip_0${i + 1}.mp4`, duration: 2 };
 for (const stage of ["modes", "captions", "render"] as const) finished.runStages[stage] = done;
 finished.final = { path: "final.mp4", duration: 4.5, chain: "chain.png" };
 finished.ledger.push({ stage: "tts", scene: 0, usd: 0.02, at: done.finishedAt }, { stage: "clips", scene: 0, usd: 0.06, at: done.finishedAt });

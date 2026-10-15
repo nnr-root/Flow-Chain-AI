@@ -35,18 +35,28 @@ export function versionProblem(source: Manifest, language: SpeechLanguage): stri
 }
 
 /**
- * The files a version is not given: everything made from the source's narration, which the version makes anew
- * in its own language. Everything else (pictures, clips, a brand's files, the portrait) is copied as it is.
+ * What a version is given of its source's folder: the pictures (the portrait among them), the clips, and a brand's
+ * files. Nothing else: what was made from the source's narration is made anew in the version's language, and a
+ * job's own files (its record, its log) are the folder's owner's, never copied into another run.
  */
-const OWN = new Set(["manifest.json", "manifest.json.tmp", ".lock", "script.json", "audio", "fitted", "frames", "render", "captions.json", "video.mp4", "narration.wav", "final.mp4", "chain.png"]);
+const KEPT = ["images", "clips", "brand"];
 
-/** Copies what a version keeps from its source's folder into its own. */
 export async function copySourceFiles(sourceDir: string, dir: string): Promise<void> {
   await mkdir(dir, { recursive: true });
   for (const entry of await readdir(sourceDir)) {
-    if (OWN.has(entry) || entry.startsWith(".")) continue;
-    await cp(join(sourceDir, entry), join(dir, entry), { recursive: true });
+    if (KEPT.includes(entry)) await cp(join(sourceDir, entry), join(dir, entry), { recursive: true });
   }
+}
+
+/**
+ * What a version holds of its owner's credit, from its plan: the translation as if it were sent back once and bought
+ * again (an answer is paid for either way), and the voice with half again for a language that takes more letters to
+ * say the same. What is not spent comes back when the job is settled.
+ */
+export function versionCapUsd(items: ReadonlyArray<{ stage: StageName; costUsd: number }>): number {
+  const script = items.filter((i) => i.stage === "script").reduce((sum, i) => sum + i.costUsd, 0);
+  const rest = items.filter((i) => i.stage !== "script").reduce((sum, i) => sum + i.costUsd, 0);
+  return Math.round((2 * script + 1.5 * rest + 0.005) * 10_000) / 10_000;
 }
 
 export type VersionOptions = { runId: string; language: SpeechLanguage; voiceId: string; ttsModel: string; llmModel: string; now?: Date };

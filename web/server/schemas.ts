@@ -205,5 +205,8 @@ const Usd = z.number().min(0).max(1000);
 export const PlanBody = z.object({ reroll: Reroll.optional(), modes: z.array(Mode.nullable()).optional() }).strict();
 export const GenerateBody = z.object({ approvedUsd: Usd }).strict();
 export const RerollBody = Reroll.extend({ approvedUsd: Usd }).strict();
+/** A version of a run in another language (phase 8 spec §4.1): the language, a voice of it, and what was approved. */
+export const VersionAsk = z.object({ language: z.enum(SPEECH_LANGUAGE_CODES), voiceId: z.enum(Object.keys(VOICES) as [VoiceId, ...VoiceId[]]).optional() }).strict();
+export const VersionBody = VersionAsk.extend({ approvedUsd: Usd }).strict();
 export const RerenderBody = z.object({ look: Look.default({}) }).strict();
 export const PropsBody = z.object({ look: Look.default({}) }).strict();

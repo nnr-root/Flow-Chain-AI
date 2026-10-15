@@ -19,6 +19,8 @@ import { POST as rerender } from "@/app/api/runs/[id]/rerender/route";
 import { POST as reroll } from "@/app/api/runs/[id]/reroll/route";
 import { GET as run } from "@/app/api/runs/[id]/route";
 import { POST as unlock } from "@/app/api/runs/[id]/unlock/route";
+import { POST as makeVersion } from "@/app/api/runs/[id]/versions/route";
+import { POST as versionPrice } from "@/app/api/runs/[id]/versions/price/route";
 import { decodeLookToken, encodeLookToken } from "@/lib/look-token";
 import { readJob } from "@/server/jobs";
 import { calls, draftManifest, finishedManifest, nextRunId, params, request, saveRun, stub, until, useStudio, withKeys } from "./helpers";
@@ -254,6 +256,38 @@ describe("pricing and paid actions", () => {
     expect((await reroll(request(`/api/runs/${id}/reroll`, { json: { scene: 2, stage: "fit", approvedUsd: 1 } }), params({ id }))).status).toBe(400);
   });
 
+  it("a version in another language is priced by the CLI, then made as a new run at most at what was approved", async () => {
+    const id = nextRunId();
+    const m = finishedManifest(id);
+    m.request.language = "en";
+    m.request.voiceId = "narrator-m";
+    m.scenes.forEach((s, i) => {
+      s.keyframe = { path: `images/keyframe_0${i + 1}.png`, seed: 1, sourceUrl: "x" };
+      if (s.mode === 1) s.clip = { path: `clips/clip_0${i + 1}.mp4`, duration: 2 };
+    });
+    await saveRun(studio, m);
+    await stub(studio, "_plan-translate.json", { items: [{ stage: "script", scene: null, costUsd: 0.01 }], totalUsd: 0.01, capUsd: 0.03 });
+    const priced = await versionPrice(request(`/api/runs/${id}/versions/price`, { json: { language: "tr" } }), params({ id }));
+    expect(await priced.json()).toMatchObject({ totalUsd: 0.01, capUsd: 0.03 });
+    expect((await calls(studio)).at(-1)).toEqual(["plan", id, "--json", "--translate", "tr", "--voice", "narrator-m"]);
+    // what was shown must still be what it holds
+    expect(await error(await makeVersion(request(`/api/runs/${id}/versions`, { json: { language: "tr", approvedUsd: 0.02 } }), params({ id })))).toMatchObject({ code: "estimate_changed" });
+    const made = await makeVersion(request(`/api/runs/${id}/versions`, { json: { language: "tr", approvedUsd: 0.03 } }), params({ id }));
+    expect(made.status).toBe(202);
+    const { runId } = await made.json();
+    expect(runId).toMatch(RUN_ID);
+    expect(runId).not.toBe(id);
+    await jobDone(runId);
+    expect((await calls(studio)).at(-1)).toEqual(["translate", id, "--language", "tr", "--voice", "narrator-m", "--run-id", runId, "--budget", "0.03", "--cap", "0.03"]);
+    // the language it is already in, one not offered, and a run made for one audience start nothing
+    expect(await error(await versionPrice(request(`/api/runs/${id}/versions/price`, { json: { language: "en" } }), params({ id })))).toMatchObject({ code: "validation" });
+    m.request.language = "tr";
+    m.request.localize = true;
+    await saveRun(studio, m);
+    expect(await error(await versionPrice(request(`/api/runs/${id}/versions/price`, { json: { language: "de" } }), params({ id })))).toMatchObject({ code: "validation", message: expect.stringContaining("made for viewers in Turkey") });
+    expect((await versionPrice(request(`/api/runs/${nextRunId()}/versions/price`, { json: { language: "de" } }), params({ id: nextRunId() }))).status).toBe(404);
+  });
+
   it("rerender starts the free re-render with the look's flags", async () => {
     const id = nextRunId();
     await saveRun(studio, finishedManifest(id));
@@ -319,10 +353,10 @@ describe("pricing and paid actions", () => {
 
 describe("every route", () => {
   /** The POSTs that only read (a preview's props, a price): the one place a handler other than GET may be `write: false`. */
-  const READ_POSTS = ["runs/[id]/props/route.ts", "runs/[id]/plan/route.ts"];
+  const READ_POSTS = ["runs/[id]/props/route.ts", "runs/[id]/plan/route.ts", "runs/[id]/versions/price/route.ts"];
   const api = resolve("web/app/api");
 
-  it("that is not a GET demands the studio's own origin, except the two POSTs that only read", async () => {
+  it("that is not a GET demands the studio's own origin, except the POSTs that only read", async () => {
     const files = (await readdir(api, { recursive: true })).filter((f) => f.endsWith("route.ts")).map((f) => f.split("\\").join("/")).sort();
     expect(files.length).toBeGreaterThanOrEqual(18);
     for (const read of READ_POSTS) expect(files).toContain(read);

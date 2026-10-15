@@ -8,7 +8,9 @@ import { round4 } from "@/lib/credit";
 import { cliJson, cliText, jobReady, type JobView, releaseJob, startJob, studioHealthRaw, viewJob } from "./jobs";
 import { requireManifest } from "./runs";
 import { multiTenant } from "./tenant";
-import { offeredLanguages, readyVoices } from "./voices";
+import { nativeVoices, offeredLanguages, readyVoices } from "./voices";
+import { versionProblem } from "@src/versions";
+import type { SpeechLanguage } from "@src/voice/language";
 import { draftArgs, formProblem, kitDir, type Look, modesArg, musicPath, type NewVideo, rerenderArgs } from "./schemas";
 
 /** The run has a job that is running or waiting its turn. */
@@ -136,4 +138,47 @@ export async function rerender(runId: string, look: Look): Promise<JobView> {
   await requireManifest(runId);
   if (look.brandKit && !existsSync(kitDir(look.brandKit))) throw new ApiError("validation", `brandKit: no kit "${look.brandKit}"`);
   return startJob(runId, "rerender", rerenderArgs(runId, look), 0);
+}
+
+/** A version's language and voice as asked for (phase 8 spec §4.1). */
+export type VersionAsk = { language: SpeechLanguage; voiceId?: string };
+
+/** What may stop a version before anything is asked of the CLI: the run, the language, the voice. */
+async function checkVersion(sourceId: string, ask: VersionAsk): Promise<string> {
+  const source = await requireManifest(sourceId);
+  const problem = versionProblem(source, ask.language);
+  if (problem) throw new ApiError("validation", problem.replace(/^run \S+ /, "this video ").replace(/ \(--no-localize\)$/, ""));
+  if (!offeredLanguages().includes(ask.language)) throw new ApiError("validation", `language: ${ask.language} is not offered in this studio`);
+  // the voice it is asked in, or the run's own: one that speaks the new language as its own
+  const voice = ask.voiceId ?? source.request.voiceId;
+  if (!(nativeVoices()[ask.language] ?? []).includes(voice as never)) throw new ApiError("validation", `voiceId: that voice does not speak ${ask.language}; choose one of the language's own`);
+  return voice;
+}
+
+export type VersionPrice = PlanJson & { capUsd: number };
+
+/** What a version would cost and what it holds, from the CLI's own planner; nothing is made. */
+export async function versionPrice(sourceId: string, ask: VersionAsk): Promise<VersionPrice> {
+  const voice = await checkVersion(sourceId, ask);
+  return cliJson<VersionPrice>(["plan", sourceId, "--json", "--translate", ask.language, "--voice", voice]);
+}
+
+/**
+ * Makes a run in another language: a new run, with the source's pictures and clips, and its own narration, voice
+ * and captions. What it holds is what its owner was shown, checked again here: a different figure starts nothing.
+ */
+export async function createVersion(sourceId: string, ask: VersionAsk & { approvedUsd: number }): Promise<{ runId: string; job: JobView }> {
+  const voice = await checkVersion(sourceId, ask);
+  const price = await cliJson<VersionPrice>(["plan", sourceId, "--json", "--translate", ask.language, "--voice", voice]);
+  if (typeof price.capUsd !== "number" || !Number.isFinite(price.capUsd)) throw new ApiError("internal", "the CLI's plan has no total, so nothing was started");
+  const approved = round4(ask.approvedUsd);
+  if (price.capUsd > approved) {
+    throw new ApiError("estimate_changed", "the estimate changed since it was shown", "check the new estimate and confirm again", { totalUsd: price.capUsd });
+  }
+  const source = await requireManifest(sourceId);
+  const runId = multiTenant() ? await newTenantRun(source.request.topic) : newRunId();
+  const cap = String(price.capUsd);
+  // no --yes: the cap is the most it may spend, and a plan above it stops the CLI instead of spending
+  const args = ["translate", sourceId, "--language", ask.language, "--voice", voice, "--run-id", runId, "--budget", cap, "--cap", cap];
+  return { runId, job: await startPaid(runId, "generate", args, price.capUsd) };
 }

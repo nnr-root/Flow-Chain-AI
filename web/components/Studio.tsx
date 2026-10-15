@@ -14,6 +14,8 @@ import type { KitSummary } from "@/server/library";
 import type { JobView } from "@/server/jobs";
 import type { RunView } from "@/server/runs";
 import { RunPublish } from "./Publishing";
+import { OtherLanguages, type VersionChoices } from "./OtherLanguages";
+import { SPEECH_LANGUAGES, type SpeechLanguage } from "@src/voice/language";
 import { StudioPlayer, type StudioPlayerHandle } from "./StudioPlayer";
 import { Button, ErrorNote, Field, Panel, Segmented, StateBadge } from "./ui";
 
@@ -32,7 +34,7 @@ const REROLLS: Array<{ stage: string; label: string }> = [
   { stage: "clips", label: "clip" },
 ];
 
-export function Studio({ initial, initialLog, kits, publishing = false }: { initial: RunView; initialLog: string[]; kits: KitSummary[]; publishing?: boolean }) {
+export function Studio({ initial, initialLog, kits, publishing = false, versions }: { initial: RunView; initialLog: string[]; kits: KitSummary[]; publishing?: boolean; versions?: VersionChoices }) {
   const id = initial.runId;
   const [view, setView] = useState(initial);
   const [log, setLog] = useState(initialLog);
@@ -198,6 +200,11 @@ export function Studio({ initial, initialLog, kits, publishing = false }: { init
           <StateBadge state={state} />
         </div>
         {status && <p className="text-[0.95rem] text-graphite">{status.topic}</p>}
+        {status?.versionOf && (
+          <p className="text-[0.88rem] text-graphite" data-testid="version-of">
+            {status.language ? `In ${SPEECH_LANGUAGES[status.language as SpeechLanguage] ?? status.language}, ` : ""}made from the pictures of <a className="underline" href={`/runs/${status.versionOf}`}>the original video</a>.
+          </p>
+        )}
         {status?.hashtags && <Hashtags tags={status.hashtags} />}
         {preview ? (
           <>
@@ -272,6 +279,13 @@ export function Studio({ initial, initialLog, kits, publishing = false }: { init
         {/* a finished video, in a studio that publishes: to one of its owner's own channels */}
         {publishing && state === "done" && <RunPublish runId={id} />}
 
+        {/* (a version, or a video made for one language's viewers, has no versions of its own: phase 8 spec §4) */}
+        {versions && status && state === "done" && !status.versionOf && !status.localized && (
+          <Panel title="Other languages">
+            <OtherLanguages runId={id} from={status.language} voice={status.voiceId} choices={versions} />
+          </Panel>
+        )}
+
         {status && scripted && (
           <Panel title="Scenes">
             <ul>
@@ -282,6 +296,7 @@ export function Studio({ initial, initialLog, kits, publishing = false }: { init
                   picture={pictureOf(id, s, mediaKey)}
                   draft={state === "draft"}
                   canReroll={!working && (state === "done" || RESUMABLE.includes(state))}
+                  version={Boolean(status.versionOf)}
                   busy={busy}
                   onMode={(mode) => setMode(s.scene, mode)}
                   onReroll={(stage, label) => askReroll(s.scene, stage, label)}
@@ -419,8 +434,8 @@ function pictureOf(runId: string, scene: SceneStatus, version: string): string |
 }
 
 /** A scene as a panel of the board: its picture in a drawn frame, its line, and in red pencil what it is and how long it runs. */
-function SceneRow({ scene, picture, draft, canReroll, busy, onMode, onReroll }: {
-  scene: SceneStatus; picture: string | null; draft: boolean; canReroll: boolean; busy: boolean;
+function SceneRow({ scene, picture, draft, canReroll, version = false, busy, onMode, onReroll }: {
+  scene: SceneStatus; picture: string | null; draft: boolean; canReroll: boolean; version?: boolean; busy: boolean;
   onMode: (mode: Mode) => void; onReroll: (stage: string, label: string) => void;
 }) {
   const has = (stage: string) => scene.steps.some((s) => s.stage === stage);
@@ -458,10 +473,11 @@ function SceneRow({ scene, picture, draft, canReroll, busy, onMode, onReroll }: 
       <p className="mt-1 text-[0.85rem] text-graphite">{scene.imagePrompt}</p>
       {canReroll && (
         <div className="mt-2 flex flex-wrap gap-2">
-          {REROLLS.filter((r) => has(r.stage)).map((r) => (
+          {/* (a version's pictures and clips are its original's: only its voice is its own) */}
+          {REROLLS.filter((r) => has(r.stage) && (!version || r.stage === "tts")).map((r) => (
             <Button key={r.stage} className="!px-2 !py-1 !text-[0.85rem]" disabled={busy} onClick={() => onReroll(r.stage, r.label)}>New {r.label}</Button>
           ))}
-          {has("reference") && <Button className="!px-2 !py-1 !text-[0.85rem]" disabled={busy} onClick={() => onReroll("reference", "character portrait")}>New portrait</Button>}
+          {has("reference") && !version && <Button className="!px-2 !py-1 !text-[0.85rem]" disabled={busy} onClick={() => onReroll("reference", "character portrait")}>New portrait</Button>}
         </div>
       )}
       </div>

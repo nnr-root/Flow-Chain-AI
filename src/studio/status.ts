@@ -63,6 +63,13 @@ export type RunStatus = {
   spendUsd: number;
   ledger: LedgerEntry[];
   final?: Manifest["final"];
+  /** The language it is told in, where one was asked for, and the studio's voice that speaks it. */
+  language?: string;
+  voiceId: string;
+  /** Made for that language's viewers (phase 8 spec §5): such a video has no versions in other languages. */
+  localized?: true;
+  /** The run this one is a version of, in another language (phase 8 spec §4). */
+  versionOf?: string;
 };
 
 const step = (stage: StageName, r?: StageRecord): StepStatus =>
@@ -86,6 +93,10 @@ export function statusOf(m: Manifest): RunStatus {
       ? { name: preset.name, source: r.style ? "flag" : "auto" }
       : { name: null, source: m.script ? "none" : "pending" },
     hook: hookTextFor(m),
+    ...(r.language ? { language: r.language } : {}),
+    voiceId: r.voiceId,
+    ...(r.localize ? { localized: true as const } : {}),
+    ...(r.versionOf ? { versionOf: r.versionOf.runId } : {}),
     render: r.render,
     characters: r.characters,
     seed: r.seed,

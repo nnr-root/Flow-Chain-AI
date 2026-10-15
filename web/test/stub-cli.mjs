@@ -12,7 +12,7 @@ const readJson = (file, fallback) => (existsSync(join(runs, file)) ? JSON.parse(
 
 if (command === "plan") {
   // _plan.json: what continuing costs; _plan-modes.json / _plan-reroll.json: what the tried-out variant costs
-  const file = args.includes("--reroll") ? "_plan-reroll.json" : args.includes("--modes") ? "_plan-modes.json" : "_plan.json";
+  const file = args.includes("--reroll") ? "_plan-reroll.json" : args.includes("--modes") ? "_plan-modes.json" : args.includes("--translate") ? "_plan-translate.json" : "_plan.json";
   console.log(JSON.stringify(readJson(file, readJson("_plan.json", { items: [], totalUsd: 0 }))));
 } else if (command === "draft-modes") {
   console.log(JSON.stringify({ modes: [], reasons: [], estimatedUsd: 0 }));
@@ -24,6 +24,15 @@ if (command === "plan") {
     mkdirSync(join(runs, id), { recursive: true });
     writeFileSync(join(runs, id, "manifest.json"), JSON.stringify({ ...manifest, runId: id }));
   }
+  console.log(`Run ${id}`);
+} else if (command === "translate") {
+  // a version (phase 8 spec §4): the new run's manifest is its source's, in the new language
+  const id = flag("--run-id");
+  const source = JSON.parse(readFileSync(join(runs, args[1], "manifest.json"), "utf8"));
+  mkdirSync(join(runs, id), { recursive: true });
+  const request = { ...source.request, language: flag("--language"), voiceId: flag("--voice"), versionOf: { runId: args[1], title: "t", hook: "h", narrations: ["n"], seconds: [1] } };
+  const spent = readJson("_behave.json", {}).spendUsd;
+  writeFileSync(join(runs, id, "manifest.json"), JSON.stringify({ ...source, runId: id, request, ledger: spent ? [{ stage: "tts", scene: 0, usd: spent, at: new Date().toISOString() }] : [] }));
   console.log(`Run ${id}`);
 } else {
   // resume, reroll, rerender: wait if asked (so a test can observe "running"), then end as asked

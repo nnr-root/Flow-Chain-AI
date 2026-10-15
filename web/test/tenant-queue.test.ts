@@ -10,6 +10,7 @@ import { GET as runs } from "@/app/api/runs/route";
 import { GET as file } from "@/app/api/runs/[id]/files/[...path]/route";
 import { GET as run } from "@/app/api/runs/[id]/route";
 import { POST as generate } from "@/app/api/runs/[id]/generate/route";
+import { POST as makeVersion } from "@/app/api/runs/[id]/versions/route";
 import { DELETE as stop } from "@/app/api/runs/[id]/job/route";
 import { GET as viewRun } from "@/app/api/runs/[id]/route";
 import { POST as rerender } from "@/app/api/runs/[id]/rerender/route";
@@ -416,6 +417,36 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
       await until(async () => (await openReservations()) === 0);
       // only the new spend is charged: what the run had cost before is on record in the database, not on the lost disk
       expect(Math.round((before - (await balance(a))) * 10_000) / 10_000).toBe(0.1);
+    });
+
+    it("makes a version of the owner's own run as a new run of theirs, holds what was shown and settles what it spent", async () => {
+      await worker();
+      await grant(a, 2);
+      const id = await ownRun(a, (runId) => {
+        const m = finishedManifest(runId);
+        m.request.language = "en";
+        m.request.voiceId = "narrator-m";
+        m.scenes.forEach((s, i) => {
+          s.keyframe = { path: `images/keyframe_0${i + 1}.png`, seed: 1, sourceUrl: "x" };
+          if (s.mode === 1) s.clip = { path: `clips/clip_0${i + 1}.mp4`, duration: 2 };
+        });
+        return m;
+      });
+      await writeFile(join(folder(a), "_plan-translate.json"), JSON.stringify({ items: [], totalUsd: 0.1, capUsd: 0.25 }));
+      await behave(a, { spendUsd: 0.08 });
+      // nobody else can price or make one of it
+      await writeFile(join(folder(b), "_plan-translate.json"), JSON.stringify({ items: [], totalUsd: 0.1, capUsd: 0.25 }));
+      expect((await makeVersion(as(bCookie, `/api/runs/${id}/versions`, { json: { language: "tr", approvedUsd: 0.25 } }), params({ id }))).status).toBe(404);
+      const before = await balance(a);
+      const made = await makeVersion(as(aCookie, `/api/runs/${id}/versions`, { json: { language: "tr", approvedUsd: 0.25 } }), params({ id }));
+      expect(made.status).toBe(202);
+      const { runId } = (await made.json()) as { runId: string };
+      // the new run is the owner's, in the database, and the job held exactly what was shown
+      expect((await a.client.from("runs").select("id").eq("id", runId)).data).toHaveLength(1);
+      await until(async () => (await openReservations()) === 0);
+      expect(Math.round((before - (await balance(a))) * 10_000) / 10_000).toBe(0.08);
+      expect((await jobCalls(a)).at(-1)).toEqual(["translate", id, "--language", "tr", "--voice", "narrator-m", "--run-id", runId, "--budget", "0.25", "--cap", "0.25"]);
+      expect(JSON.parse(await readFile(join(folder(a), runId, "manifest.json"), "utf8")).request.versionOf.runId).toBe(id);
     });
 
     it("serves a file this disk lacks by a short-lived link to the owner's own copy", async () => {

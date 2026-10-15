@@ -1,6 +1,6 @@
 # Phase 8: the layers of a video, its languages, and its audience
 
-Date: 2026-10-15. Status: §1–§3 and §5 built; §4 built for the CLI (§4.1 says what the studio adds); §6 is a trial
+Date: 2026-10-15. Status: §1–§3 and §5 built; §4 built, in the CLI and the studio (§4.1); §6 is a trial
 still to run (it spends, so it waits for the owner's click).
 
 The owner asked for seven things on 2026-10-15. Two were fixes and are recorded in the phase 7 spec: the silence
@@ -201,19 +201,37 @@ source run and a version with stand-ins and checks:
 - a resume finds nothing to do;
 - a deleted clip stops the run instead of buying it.
 
-### 4.1 In the studio (next)
+### 4.1 In the studio (built 2026-10-16)
 
-The CLI command is the whole mechanism. The studio needs four more things:
+A finished run's page has an "Other languages" panel. It appears only when the run is done, is not a version, and
+was not made for one audience. The panel has a language (any the studio offers, other than the run's own), a voice
+of that language (the run's own where the language has it), the price, and one button. Behind it:
 
-1. **A job.** A paid job `translate <source> --language <l> --voice <v> --run-id <new> --budget <usd> --cap <usd>`,
-   checked to exactly that shape by `refusal()`:
-   - the source id matches `RUN_ID`, so it can never name a path;
-   - the new id is the job's own run.
-2. **The worker.** Before such a job, the worker brings the *source* run from the bucket, under the user's own key.
-3. **The hold.** The credit held is the translation plus the voice for the source's narration, with room for a longer
-   language. The run settles at what it spent.
-4. **The run page.** A run that can have versions gets "Make it in another language" (a language and a voice). A
-   version's page names its source and offers no reroll of what it inherited.
+- **Price.** `plan <run> --json --translate <l> --voice <v>` is the CLI's own planner, run against the source's
+  files with the version's manifest in memory. Nothing is written. It answers what the version would cost and what
+  it holds (`versionCapUsd`):
+  - the translation twice, since an answer is paid for whether or not it is sent back;
+  - the voice and a half, for a language that takes more letters to say the same;
+  - what is not spent comes back when the job is settled.
+- **Job.** `POST /api/runs/<id>/versions` checks the price again against what the user was shown (a higher figure
+  is `estimate_changed` and starts nothing). It then makes a new run of the user's (`newTenantRun`) and starts a
+  paid `generate` job on it:
+  `translate <source> --language <l> --voice <v> --run-id <new> --budget <cap> --cap <cap>`.
+  `refusal()` holds the job to exactly that shape:
+  - both ids are run ids, so they are never paths, and they differ;
+  - the job is the new run's;
+  - no `--yes`.
+- **Worker.** Before such a job, the worker brings the source from the bucket under the job's user's own key. A
+  source of someone else's is not there to bring, so the job fails before anything is bought.
+- **The version's page** says it was made from the original and links to it. It offers no new picture, clip or
+  portrait (only a new voice for a line), and no versions of its own.
+
+Tests:
+
+- the route test prices, refuses a lower approval, and starts the exact command;
+- the queue test runs it with accounts and a bucket: another user gets 404, the new run is the owner's, and exactly
+  what was spent is charged;
+- the browser test goes from the panel to the new video's page.
 
 ## 5. Made for its language's viewers
 
