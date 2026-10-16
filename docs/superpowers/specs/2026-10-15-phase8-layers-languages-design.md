@@ -1,7 +1,7 @@
 # Phase 8: the layers of a video, its languages, and its audience
 
-Date: 2026-10-15. Status: §1–§3 and §5 built; §4 built, in the CLI and the studio (§4.1); §6 is a trial
-still to run (it spends, so it waits for the owner's click).
+Date: 2026-10-15. Status: §1–§5 built; §6 tried (upscaling measured and built as §8; speaking characters parked,
+§6.2); §8 built, not yet deployed.
 
 The owner asked for seven things on 2026-10-15. Two were fixes and are recorded in the phase 7 spec: the silence
 trim that cut the last word (§22) and the hands of a shadow figure (§23). This spec covers the other five:
@@ -319,6 +319,38 @@ What the pictures show:
 - Two things stand regardless of the outcome:
   - its audio encoder is English wav2vec2, so lip sync in other languages is to be seen, not assumed;
   - a speaking scene is still a new kind of scene (§6).
+
+### 6.2 Speech to video, second try (owner's click, 2026-10-16): no result
+
+**What was run.** The same pod and method, with a prebuilt flash-attn for torch 2.8 / CUDA 12.8 added, and only the
+speaking portrait.
+
+**What came back.** Nothing: no video, no timings and no log. The local script removed the pod at its 65-minute
+limit (HTTP 204), after 69 minutes on the A100 ($2.06). Speech to video has cost $3.14 in all and produced nothing
+to look at.
+
+**Why the pod did not remove itself.**
+
+- Its 60-minute watchdog sent the script a TERM signal.
+- Bash defers a trap until the program running in the foreground ends, and that program was the model.
+- So the trap that uploads the log and removes the pod never ran.
+- The local backstop is what held the cost. It worked as it was meant to: no pod is left.
+- **What a next trial must do differently:**
+  - upload its log every few minutes, not only at the end;
+  - have its watchdog stop the whole process group.
+
+**What can be said.** At 704×1024 with its default steps, S2V did not finish a 4-second line within about 50
+minutes of an A100 after its download. Either it is that slow on one card, or it stalled; the missing log cannot
+tell which.
+
+**Ruling: speaking characters are parked.** Several reasons together:
+
+- the unknown time and cost;
+- its English audio encoder;
+- it needs a new kind of scene first (§6).
+
+A third try is not worth it until one of those changes: a faster distilled S2V, or the owner asking for on-screen
+speakers.
 
 ## 7. What the first real video showed (2026-10-16)
 
