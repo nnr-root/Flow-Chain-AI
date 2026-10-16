@@ -76,6 +76,7 @@ export const FORMATS: readonly VideoFormat[] = [
     rules: [
       "Exactly the number of items the hook promised, each one different from the others. As many items as the length gives room for: about one for every two or three scenes.",
       "In a niche of what is so, every item is real and the reason given for it is true.",
+      'Items from different times or places are each shown in their own: styleBible.setting begins "Several times and places:".',
     ],
   },
   {

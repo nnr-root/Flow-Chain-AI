@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { anachronisms, isMoving } from "../../src/anachronism.js";
 import { AUDIENCE, cultureRules } from "../../src/culture.js";
 import { EDIT_IDS, EDITS, editById } from "../../src/edits.js";
 import { FORMAT_IDS, FORMATS, formatById, formatClash } from "../../src/formats.js";
@@ -215,3 +216,25 @@ describe("the layers together (spec §1)", () => {
     for (const n of NICHES) for (const f of FORMATS) if (!formatClash(f.id, n.kind)) for (const e of EDITS) expect(() => buildScriptPrompt({ ...base, niche: n.id, format: f.id, edit: e.id })).not.toThrow();
   });
 });
+
+describe("a video that moves between times and places (spec §7)", () => {
+  it("is told to say so in its setting and to name each scene's own year and place, never one room for all", () => {
+    const p = buildScriptPrompt({ ...base, format: "countdown" });
+    expect(p).toContain('begin it with "Several times and places:"');
+    expect(p).toContain("every imagePrompt names its own year and place in its first words");
+    expect(p).toContain("Never put such a video in one room or one place that none of its events happened in");
+    expect(p).toContain('styleBible.setting begins "Several times and places:"');
+  });
+
+  it("holds each scene to the time its own picture names", () => {
+    const setting = "Several times and places: Zanzibar 1896, Honduras 1969";
+    const scenes = [
+      { imagePrompt: "Zanzibar harbour, 1896: a palace under bombardment, sailors in white", motionPrompt: "smoke drifts, a car waits" },
+      { imagePrompt: "Honduras, 1969: soldiers beside a truck on a dirt road", motionPrompt: "dust rises" },
+    ];
+    expect(anachronisms(scenes, setting)).toEqual([expect.stringMatching(/^scene 1 motionPrompt shows "car", which does not belong to the time this scene names/)]);
+    expect(isMoving(setting)).toBe(true);
+    expect(isMoving("Constantinople, spring 1453")).toBe(false);
+  });
+});
+

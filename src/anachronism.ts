@@ -17,13 +17,24 @@ export function isPast(setting: string): boolean {
 const MODERN = /\b(business suits?|three-piece suits?|blazers?|neckties?|tuxedos?|wristwatch(es)?|sunglasses|eyeglasses|smartphones?|mobile phones?|telephones?|laptops?|computers?|televisions?|tv screens?|cars?|trucks?|plastic|zippers?|jeans|t-shirts?|sneakers|hoodies?|electric (lights?|lamps?)|light ?bulbs?|neon|asphalt|airplanes?|helicopters?|microphones?)\b/i;
 
 /** For a script set in the past: each scene prompt naming something plainly modern, as a problem the model can act on. */
+/**
+ * A video that moves between times and places (a list of wars across centuries) says so at the start of its setting
+ * (phase 8 spec §7), and each of its scenes names its own: each is then held to the time its own picture names.
+ */
+export const MOVING = /^\s*several times and places\b/i;
+export const isMoving = (setting: string | undefined): boolean => setting !== undefined && MOVING.test(setting);
+
 export function anachronisms(scenes: ReadonlyArray<{ imagePrompt: string; motionPrompt: string }>, setting: string | undefined, first = 1): string[] {
-  if (!setting || !isPast(setting)) return [];
+  if (!setting) return [];
+  const moving = isMoving(setting);
+  if (!moving && !isPast(setting)) return [];
   const problems: string[] = [];
   scenes.forEach((s, i) => {
+    // (a scene of a video that moves is in the past only if its own picture says so)
+    if (moving && !isPast(s.imagePrompt)) return;
     for (const field of ["imagePrompt", "motionPrompt"] as const) {
       const found = MODERN.exec(s[field]);
-      if (found) problems.push(`scene ${i + first} ${field} shows "${found[0]}", which does not belong to the setting (${setting}): describe what people and things there really were`);
+      if (found) problems.push(`scene ${i + first} ${field} shows "${found[0]}", which does not belong to ${moving ? "the time this scene names" : `the setting (${setting})`}: describe what people and things there really were`);
     }
   });
   return problems;

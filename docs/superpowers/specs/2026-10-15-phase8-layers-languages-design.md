@@ -283,3 +283,39 @@ What exists in the open as of 2026-10:
 - Whether speaking characters are worth the new scene kind.
 
 Nothing of this is built until the trial has been looked at.
+
+## 7. What the first real video showed (2026-10-16)
+
+The owner approved a real test, made with the real script model, voice and pictures:
+
+- **The video:** "Tarihin en kısa beş savaşı" in Turkish, history × Top list × Cinematic, 30 seconds, not made for
+  one audience. Run `20261016-074446-67058f`: $0.14, 25.6 s.
+- **Its English version:** run `20261016-075113-4f5eff`: $0.14, 28.9 s.
+
+**What worked.**
+
+- **The type.** The script counted down as the type asks: "Beş… Dört… Üç… İki… Ve bir numara", the number said at the
+  start of each item, number one last.
+- **The facts.** Indo-Pakistani War 13 days, Petrich 10 days, Six-Day War 132 hours, Football War 100 hours,
+  Anglo-Zanzibar 38 minutes: all right.
+- **The edit.** The cuts are dissolves, and the vignette and grade are on the picture.
+- **The version.** It bought one translation and seven lines of voice, and no picture. Its lines kept each scene's
+  ideas in that scene, and its hook and hashtags were written in English, not translated.
+
+**What was wrong, and is fixed.** Every scene was the same vaulted archive room. The setting rule asked for "the one
+time and place the whole video is set in". A list of five wars from five places and decades has none, so the model
+chose a room none of them happened in. Now:
+
+- A video that moves between times or places begins its setting with "Several times and places:" and names them.
+- Each of its imagePrompts names its own year and place first.
+- The Top list type says so for items from different times.
+- The anachronism check holds each scene of such a video to the year its own picture names
+  (`isMoving` in `src/anachronism.ts`).
+
+**Noted, not changed.**
+
+- **The video ran short.** It was 25.6 s against 30. The script chose "low" action for every scene, so all seven are
+  stills: a list told over still pictures has nothing in it that runs long.
+- **The English version ran longer.** The English lines came out up to 1.6 s longer than the Turkish scene they
+  replace. Numbers said in full ("one hundred thirty-two hours") are long in English. A still takes any length.
+  A clip slows a quarter and then holds its last frame (§4).
