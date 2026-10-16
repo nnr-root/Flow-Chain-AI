@@ -5,7 +5,7 @@ import { GeminiLlm } from "./gemini.js";
 import { parseModelId } from "./model-id.js";
 import { R2 } from "./r2.js";
 import { RunpodClient } from "./runpod.js";
-import { type RunpodDeps, RunpodImage, RunpodVideo } from "./runpod-providers.js";
+import { type RunpodDeps, RunpodImage, RunpodUpscale, RunpodVideo } from "./runpod-providers.js";
 import { NonRetryableError } from "./retry.js";
 import { RunpodTts } from "./runpod-voice.js";
 import type { ImageProvider, Providers, QueuedProvider, TtsProvider, VideoProvider } from "./types.js";
@@ -68,10 +68,13 @@ export function createProviders(env: Env, models: Models, prices: Prices): Provi
               );
             },
           };
+  // full HD only where the run asked for it (phase 8 spec §8), on the endpoint it was made with
+  const upscaleRef = models.upscale ? parseModelId(models.upscale) : undefined;
   return {
     llm: new GeminiLlm(env.GEMINI_API_KEY, models.llm),
     tts,
     image,
     video,
+    ...(upscaleRef ? { upscale: upscaleRef.provider === "retired" ? retired("full HD clips", upscaleRef.model) : new RunpodUpscale(runpodDeps(), upscaleRef) } : {}),
   };
 }

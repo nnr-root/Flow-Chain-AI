@@ -36,9 +36,15 @@ describe("reads", () => {
     const text = await res.text();
     expect(JSON.parse(text)).toEqual({
       missing: ["RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"],
+      fullHd: false,
       queue: { mode: "local" },
     });
     expect(text).not.toContain("secret");
+    // full HD is offered once its worker is set up (phase 8 spec §8), and still without saying where
+    await writeFile(join(studio.root, ".env"), "RUNPOD_UPSCALE_ENDPOINT=secret-u\n");
+    const hd = await (await health(request("/api/health"), undefined)).text();
+    expect(JSON.parse(hd).fullHd).toBe(true);
+    expect(hd).not.toContain("secret");
   });
 
   it("lists runs and shows one with its state, status and log tail", async () => {

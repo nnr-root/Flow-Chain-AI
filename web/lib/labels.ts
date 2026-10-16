@@ -30,6 +30,7 @@ export const STAGE_LABELS: Record<string, string> = {
   modes: "Clip or still",
   keyframes: "Picture",
   clips: "Clip",
+  upscale: "Full HD",
   fit: "Fitted to the voice",
   captions: "Captions",
   render: "Final cut",

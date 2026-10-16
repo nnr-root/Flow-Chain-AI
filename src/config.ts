@@ -33,6 +33,8 @@ const Env = z.object({
   ELEVENLABS_MODEL: z.string().regex(/^[a-z0-9_]{1,60}$/).default("eleven_v3"),
   /** The studio's own voice (phase 5 spec §6.1): where new runs are spoken without the hosted voice's key. */
   RUNPOD_VOICE_ENDPOINT: z.string().min(1).optional(),
+  /** The upscaling worker (phase 8 spec §8): full HD is offered only where it is set. */
+  RUNPOD_UPSCALE_ENDPOINT: z.string().min(1).optional(),
   /** Which of the voice worker's voices new runs use. */
   FLOWCHAIN_VOICE: z.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/).default("narrator-m"),
   R2_ACCOUNT_ID: z.string().min(1).optional(),
@@ -81,6 +83,9 @@ export const Prices = z.strictObject({
   runpodPortraitSec: z.number().optional(),
   runpodPictureColdStartSec: z.number().optional(),
   runpodClip720SecPerFrame: z.number().optional(),
+  runpodUpscaleUsdPerSec: z.number().optional(),
+  runpodUpscaleSecPerClipSec: z.number().optional(),
+  runpodUpscaleColdStartSec: z.number().optional(),
 });
 export type Prices = z.infer<typeof Prices>;
 
@@ -113,6 +118,11 @@ export function runpodRates(p: Prices) {
     pictureColdStartSec: p.runpodPictureColdStartSec ?? 60,
     // 720p clips on the same card: 157 s for 65 frames (§9.9)
     clip720SecPerFrame: p.runpodClip720SecPerFrame ?? 2.5,
+    // full HD (phase 8 spec §8): SeedVR2 took 35-40 GPU seconds for each second of a 480p clip on an A100, warm
+    // (the trial of 2026-10-16); the endpoint's own card and rate replace these once it is measured there
+    upscaleUsdPerSec: p.runpodUpscaleUsdPerSec ?? 0.000306,
+    upscaleSecPerClipSec: p.runpodUpscaleSecPerClipSec ?? 40,
+    upscaleColdStartSec: p.runpodUpscaleColdStartSec ?? 90,
   };
 }
 

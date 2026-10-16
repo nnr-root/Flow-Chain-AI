@@ -8,7 +8,7 @@ import { videoProfileOf } from "../video-profiles.js";
 import { isDraft } from "./draft.js";
 
 export const RUN_STAGES: StageName[] = ["script", "modes", "captions", "render"];
-export const SCENE_STAGES: StageName[] = ["reference", "tts", "silence", "keyframes", "clips", "fit"];
+export const SCENE_STAGES: StageName[] = ["reference", "tts", "silence", "keyframes", "clips", "upscale", "fit"];
 
 /** The stages a scene actually has: keyframes only where it needs one, clips and fit only for Mode 1. */
 export function sceneStagesShown(m: Manifest, idx: number): StageName[] {
@@ -16,7 +16,8 @@ export function sceneStagesShown(m: Manifest, idx: number): StageName[] {
     (s) =>
       (s !== "reference" || referenceApplies(m, idx)) &&
       (s !== "keyframes" || needsKeyframe(m, idx)) &&
-      ((s !== "clips" && s !== "fit") || m.scenes[idx].mode === 1),
+      ((s !== "clips" && s !== "fit") || m.scenes[idx].mode === 1) &&
+      (s !== "upscale" || (m.request.upscale === true && m.scenes[idx].mode === 1)),
   );
 }
 

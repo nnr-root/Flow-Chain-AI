@@ -8,7 +8,7 @@ import { parseModelId, runpodModelId } from "../../src/providers/model-id.js";
 import type { R2 } from "../../src/providers/r2.js";
 import { NonRetryableError, UnusableResultError } from "../../src/providers/retry.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
-import { clipFrames, clipSize, RunpodImage, RunpodVideo, type RunpodDeps } from "../../src/providers/runpod-providers.js";
+import { clipFrames, clipSize, RunpodImage, RunpodUpscale, RunpodVideo, type RunpodDeps } from "../../src/providers/runpod-providers.js";
 import { FakeRunpodApi } from "../fakes/runpod.js";
 import { makeImage, tempDir } from "../helpers/media.js";
 
@@ -91,6 +91,19 @@ describe("RunPod request shapes", () => {
     expect(typeof tall.input.image).toBe("string");
     const wide = await video.prepare({ imagePath: join(dir, "wide.png"), prompt: "m", durationSec: 33 / 16 });
     expect(wide.input).toMatchObject({ frames: 33, width: 832, height: 480 });
+  });
+
+  it("sends a clip to be upscaled inside the request, with the short side asked for (phase 8 spec §8)", async () => {
+    const dir = await tempDir();
+    await writeFile(join(dir, "clip.mp4"), Buffer.from("mp4-bytes"));
+    const up = new RunpodUpscale(deps(new FakeRunpodApi(() => [])), { ...target, workflow: "upscale-seedvr2" });
+    const job = await up.prepare({ videoPath: join(dir, "clip.mp4"), short: 1080 });
+    expect(job.input).toEqual({ task: "upscale", workflow: "upscale-seedvr2@1", video: Buffer.from("mp4-bytes").toString("base64"), short: 1080 });
+    const api = new FakeRunpodApi(() => [{ status: "COMPLETED", output: { url: "https://r2/hd.mp4" }, executionTime: 200_000 }]);
+    const billed = new RunpodUpscale(deps(api), { ...target, endpointId: "ep-u", workflow: "upscale-seedvr2" });
+    const id = await billed.submit({ input: {} }, { signal: new AbortController().signal });
+    expect(api.runs[0].policy).toEqual({ executionTimeout: 900_000, ttl: 3_600_000 });
+    expect(await billed.wait(id, { timeoutMs: 60_000 })).toMatchObject({ url: "https://r2/hd.mp4", costUsd: 0.0612 }); // 200 s x $0.000306/s
   });
 
   it("accepts only 4k+1 frames between 33 and 81", () => {

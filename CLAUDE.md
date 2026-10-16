@@ -49,6 +49,7 @@ read the one for the area you are changing before changing it (table at the end)
 | `src/db/client.ts`, `src/auth/` | the one client for the studio's Postgres (`Db`), and password hashing |
 | `workers/` | the clip worker (Python, a ComfyUI graph for Wan 2.2 at 480p and 720p; text encoder and VAE in its image, the rest on the volume) |
 | `worker-picture/` | the picture worker (Python, FLUX.2 klein 4B through diffusers; weights on the network volume) |
+| `worker-upscale/` | the upscaling worker for full HD (Python: SeedVR2 3B; weights inside its image; phase 8 spec §8) |
 | `src/providers/elevenlabs.ts`, `src/voice/hosted.ts`, `assets/voices/elevenlabs.json` | the hosted voice, and which of its voices plays each of the studio's voices in each language |
 | `worker-voice/`, `src/voice/`, `src/providers/runpod-voice.ts` | the studio's own voice worker (Python: VoxCPM2 + Whisper; the fallback), laying a script's words over what was heard, the provider |
 | `deploy/` | Compose file, Dockerfiles, Caddy files for the server |

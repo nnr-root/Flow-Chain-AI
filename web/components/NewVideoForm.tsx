@@ -212,8 +212,13 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
           {f.motion !== "stills" && (
             <div className="flex flex-wrap items-center gap-3 text-[0.95rem]">
               <span>Moving clips in</span>
-              <Segmented label="Clip quality" value={f.clips} onChange={(v) => set("clips", v)} options={[{ value: "480p", label: "Standard" }, { value: "720p", label: "HD (720p)" }]} />
-              <span className="text-[0.85rem] text-graphite">HD clips are sharper and cost about twice as much; the draft shows the price before anything is made.</span>
+              <Segmented label="Clip quality" value={f.clips} onChange={(v) => set("clips", v)}
+                options={[{ value: "480p", label: "Standard" }, { value: "720p", label: "HD (720p)" }, ...(health.fullHd ? [{ value: "1080p", label: "Full HD (1080p)" }] : [])]} />
+              <span className="text-[0.85rem] text-graphite" data-testid="clips-note">
+                {f.clips === "1080p"
+                  ? "Every clip is sharpened to 1080p after it is made: the sharpest, at about four times the cost of a standard clip."
+                  : "HD clips are sharper and cost about twice as much."}{" "}The draft shows the price before anything is made.
+              </span>
             </div>
           )}
           {missing.length > 0 && <ErrorNote>{missing[0] === NOT_READY ? "The studio is not ready to make videos yet. Please try again later." : `Not set in .env: ${missing.join(", ")}. Add them in the repository's .env file.`}</ErrorNote>}

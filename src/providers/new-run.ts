@@ -20,6 +20,13 @@ export function newRunProviders(env: Env, clips: ClipQuality = "480p"): NewRunPr
   };
 }
 
+/** The endpoint a new run in full HD has its clips upscaled on (phase 8 spec §8). */
+export function newRunUpscale(env: Env): string {
+  if (!env.RUNPOD_UPSCALE_ENDPOINT) throw new Error("full HD is not set up in this studio: RUNPOD_UPSCALE_ENDPOINT is not set (npm run runpod:deploy)");
+  const { upscale } = RUNPOD_WORKFLOWS;
+  return runpodModelId(env.RUNPOD_UPSCALE_ENDPOINT, upscale.workflow, upscale.version);
+}
+
 /**
  * The price table an auto run freezes for its mode rules, with the GPU rates materialised, so a later change to
  * their defaults or to prices.json cannot change what the run plans.

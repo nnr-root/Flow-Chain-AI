@@ -73,11 +73,16 @@ const VOICE_NEEDS = ["ELEVENLABS_API_KEY", "RUNPOD_VOICE_ENDPOINT"] as const;
 export type Health = {
   /** Names of the settings a new run needs that are not set. */
   missing: string[];
+  /** Whether full HD (upscaled clips, phase 8 spec §8) can be offered: its endpoint is set. */
+  fullHd?: boolean;
 };
 
 /** Whether a new run could be made, checked without any network call. */
 export function health(): Health {
   const env = pipelineEnv();
   const unset = (names: readonly string[]) => names.filter((n) => !env[n]?.trim());
-  return { missing: [...unset(NEEDS), ...(unset(VOICE_NEEDS).length === VOICE_NEEDS.length ? [`${VOICE_NEEDS[0]} (or ${VOICE_NEEDS[1]})`] : [])] };
+  return {
+    missing: [...unset(NEEDS), ...(unset(VOICE_NEEDS).length === VOICE_NEEDS.length ? [`${VOICE_NEEDS[0]} (or ${VOICE_NEEDS[1]})`] : [])],
+    fullHd: Boolean(env.RUNPOD_UPSCALE_ENDPOINT?.trim()),
+  };
 }

@@ -18,7 +18,9 @@ describe("the new-video form", () => {
     for (const style of PresetName.options) expect(NewVideo.parse({ ...base, style }).style).toBe(style);
     for (const captionStyle of [...CaptionStyleName.options, "preset"]) expect(NewVideo.safeParse({ ...base, captionStyle }).success).toBe(true);
     for (const transition of [...Transition.options, "auto"]) expect(NewVideo.safeParse({ ...base, transition }).success).toBe(true);
-    for (const bad of [{ aspect: "1:1" }, { style: "noir" }, { captionStyle: "comic" }, { transition: "wipe" }, { durationSec: 25 }, { durationSec: 660 }, { durationSec: 0 }, { sceneSec: { min: 1, max: 5 } }, { sceneSec: { min: 3, max: 6 } }, { sceneSec: { min: 5, max: 3 } }, { sceneSec: { min: 2.5, max: 4 } }, { clips: "1080p" }, { topic: " " }, { topic: undefined }]) {
+    // clips at 480p or 720p, or full HD: 480p upscaled (phase 8 spec §8)
+    for (const clips of ["480p", "720p", "1080p"]) expect(NewVideo.parse({ ...base, clips }).clips).toBe(clips);
+    for (const bad of [{ aspect: "1:1" }, { style: "noir" }, { captionStyle: "comic" }, { transition: "wipe" }, { durationSec: 25 }, { durationSec: 660 }, { durationSec: 0 }, { sceneSec: { min: 1, max: 5 } }, { sceneSec: { min: 3, max: 6 } }, { sceneSec: { min: 5, max: 3 } }, { sceneSec: { min: 2.5, max: 4 } }, { clips: "2160p" }, { topic: " " }, { topic: undefined }]) {
       expect(NewVideo.safeParse({ ...base, ...bad }).success).toBe(false);
     }
   });

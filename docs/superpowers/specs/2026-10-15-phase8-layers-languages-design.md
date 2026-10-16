@@ -355,3 +355,51 @@ chose a room none of them happened in. Now:
 - **The English version ran longer.** The English lines came out up to 1.6 s longer than the Turkish scene they
   replace. Numbers said in full ("one hundred thirty-two hours") are long in English. A still takes any length.
   A clip slows a quarter and then holds its last frame (§4).
+
+## 8. Full HD: upscaled clips as a paid choice (built 2026-10-16, not yet deployed)
+
+The owner chose, after §6.1, to offer upscaling as a paid HD choice. The choice is called **Full HD (1080p)** and
+sits beside Standard and HD (720p) in the new-video form. Each moving clip is made at 480p, as a standard one is,
+then upscaled to 1080p before it is fitted. Stills are not upscaled: a still is moved over a picture that is sharp
+already.
+
+**The pipeline.**
+
+- `--upscale` freezes `request.upscale: true` and `models.upscale` (the endpoint).
+- A paid per-scene stage `upscale` runs between `clips` and `fit` (`src/stages/upscale.ts`):
+  - it applies only to a Mode 1 scene of such a run;
+  - it is keyed on the clip file itself, so a clip made again is upscaled again, and nothing else is;
+  - the fit then plays `clips/clip_NN.hd.mp4` and is keyed on that file;
+  - a run without it keeps every key it had.
+- A version (§4) inherits the upscaled clips like the rest.
+- **Price.** It is the GPU seconds the trial measured for each second of clip (40, A100, warm), at the endpoint's
+  rate, plus one worker start for the run's first. The table's defaults are replaced once the endpoint is measured
+  on its own card.
+  - **Why it lives in the stage file:** `src/cost.ts` is imported by the browser, through `duration.ts`, and must
+    not reach the config.
+
+**The worker** (`worker-upscale/`).
+
+- It runs SeedVR2 3B (fp16) through the program's own `inference_cli.py`, pinned to v2.5.24, which is what the
+  trial ran. Settings: batch 33, overlap 4, full HD decoded in tiles.
+- **Why 3B:** it fits the 24 GB cards the endpoints use, and in the trial it was close to 7B.
+- **Its weights are in its image**, downloaded at a pinned revision and checked by SHA-256 at build:
+  - the network volume holds the clip and picture models, and has no room left;
+  - a worker reads the weights at every start, which its own disk does fastest.
+- Its endpoint reads no volume, so it may run in any data centre with a 24 GB card.
+- **Contract:** `{task: "upscale", workflow: "upscale-seedvr2@1", video: <base64 mp4 ≤ 9 MB>, short: 720|1080}`.
+- The image is built by the `upscale` job of `worker-image.yml`. `npm run runpod:deploy` makes its template and
+  endpoint and writes `RUNPOD_UPSCALE_ENDPOINT`; `-- --no-upscale` leaves them out.
+
+**The studio.**
+
+- The health answer says `fullHd: true` once that setting is there, without saying what it is. The form offers the
+  choice only then.
+- A draft asking for it in a studio without it is refused before anything is held.
+- The command line it sends is `--clips 480p --upscale`.
+
+**Not yet true.**
+
+- The worker has not run on RunPod. Building its image (on the next push) and the deploy are both owner's clicks,
+  and so is a first full HD video to measure its real seconds and cost on a 24 GB card.
+- Until then the choice does not appear: without the endpoint, `fullHd` is false.

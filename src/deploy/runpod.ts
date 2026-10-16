@@ -10,6 +10,9 @@ export const NAMES = {
   pictureTemplate: "flowchain-picture",
   keyframe: "flowchain-keyframe",
   clip: "flowchain-clip",
+  /** full HD (phase 8 spec §8): its own image, with its model inside, and no volume */
+  upscaleTemplate: "flowchain-upscale",
+  upscale: "flowchain-upscale",
 } as const;
 
 /** Volumes this studio used before, by name: `removeRetiredVolumes` deletes them once nothing reads from them. */
@@ -26,6 +29,9 @@ export type DeployConfig = {
   volumeGb: number;
   keyframeGpus: string[];
   clipGpus: string[];
+  /** The upscaling worker's image (phase 8 spec §8); absent = no full HD endpoint is made or changed. */
+  upscaleImage?: string;
+  upscaleGpus?: string[];
   r2: { accountId: string; bucket: string; accessKeyId: string; secretAccessKey: string };
 };
 
@@ -37,6 +43,8 @@ export const DEFAULTS = {
   keyframeGpus: ["NVIDIA GeForce RTX 4090"],
   // 24 GB: Wan 2.2 fp8 loads one expert at a time; no 48 GB card was in stock in the volume's data centre (spec §16)
   clipGpus: ["NVIDIA GeForce RTX 4090"],
+  // 24 GB: SeedVR2's 3B model fits with full HD decoded in tiles; it reads no volume, so any data centre will do
+  upscaleGpus: ["NVIDIA GeForce RTX 4090", "NVIDIA RTX A5000", "NVIDIA GeForce RTX 3090"],
   /** Network volume storage, $ per GB per month (RunPod standard tier). */
   volumeUsdPerGbMonth: 0.07,
 };
@@ -105,7 +113,7 @@ function findByName(list: Resource[], kind: Kind, name: string): Resource | unde
 
 export type Step = { what: string; name: string; action: "create" | "update" };
 
-type Existing = { volume?: Resource; template?: Resource; pictureTemplate?: Resource; keyframe?: Resource; clip?: Resource };
+type Existing = { volume?: Resource; template?: Resource; pictureTemplate?: Resource; keyframe?: Resource; clip?: Resource; upscaleTemplate?: Resource; upscale?: Resource };
 
 /** What RunPod already has for our four resources (matched by name); throws when a name is ambiguous. Read-only. */
 async function lookupExisting(rest: RunpodRest): Promise<Existing> {
@@ -120,11 +128,13 @@ async function lookupExisting(rest: RunpodRest): Promise<Existing> {
     pictureTemplate: findByName(templates, "templates", NAMES.pictureTemplate),
     keyframe: findByName(endpoints, "endpoints", NAMES.keyframe),
     clip: findByName(endpoints, "endpoints", NAMES.clip),
+    upscaleTemplate: findByName(templates, "templates", NAMES.upscaleTemplate),
+    upscale: findByName(endpoints, "endpoints", NAMES.upscale),
   };
 }
 
 /** What a deploy will do, given what already exists (matched by name). */
-export async function planDeploy(rest: RunpodRest): Promise<Step[]> {
+export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean } = {}): Promise<Step[]> {
   const found = await lookupExisting(rest);
   const step = (what: string, existing: Resource | undefined, name: string): Step => ({
     what,
@@ -137,11 +147,12 @@ export async function planDeploy(rest: RunpodRest): Promise<Step[]> {
     step("template", found.pictureTemplate, NAMES.pictureTemplate),
     step("endpoint", found.keyframe, NAMES.keyframe),
     step("endpoint", found.clip, NAMES.clip),
+    ...(opts.upscale ? [step("template", found.upscaleTemplate, NAMES.upscaleTemplate), step("endpoint", found.upscale, NAMES.upscale)] : []),
   ];
 }
 
 /** `movedVolume`: an endpoint that existed was reading from another volume until now. */
-export type Deployed = { volumeId: string; templateId: string; keyframeEndpointId: string; clipEndpointId: string; movedVolume: boolean };
+export type Deployed = { volumeId: string; templateId: string; keyframeEndpointId: string; clipEndpointId: string; upscaleEndpointId?: string; movedVolume: boolean };
 
 async function upsert(
   rest: RunpodRest,
@@ -225,7 +236,15 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
   const movedVolume = [existing.keyframe, existing.clip].some(
     (e) => (e?.networkVolumeId !== undefined && e.networkVolumeId !== volume.id) || e?.networkVolumeIds?.some((id) => id !== volume.id),
   );
-  return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id, movedVolume };
+  // full HD (phase 8 spec §8): its model is in its image, so it reads no volume and may run in any data centre
+  let upscaleEndpointId: string | undefined;
+  if (cfg.upscaleImage) {
+    const upscaleBody = { imageName: cfg.upscaleImage, containerDiskInGb: 30, env };
+    const upscaleTemplate = await upsert(rest, "templates", existing.upscaleTemplate, NAMES.upscaleTemplate, { ...upscaleBody, isServerless: true }, upscaleBody);
+    const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(upscaleTemplate.id, cfg.upscaleGpus ?? DEFAULTS.upscaleGpus, 900_000, { minCudaVersion: "12.8" });
+    upscaleEndpointId = (await upsert(rest, "endpoints", existing.upscale, NAMES.upscale, anywhere, anywhere)).id;
+  }
+  return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id, ...(upscaleEndpointId ? { upscaleEndpointId } : {}), movedVolume };
 }
 
 /**
@@ -371,6 +390,9 @@ export type VoiceDeployConfig = { image: string; gpus: string[] };
 
 /** The image tag for a tree hash of `worker-voice/`; the workflow pushes the same tag. */
 export const voiceImageTag = (treeHash: string): string => `v-${treeHash.slice(0, 12)}`;
+/** And for `worker-upscale/`. */
+export const upscaleImageTag = (treeHash: string): string => `u-${treeHash.slice(0, 12)}`;
+
 /** And for `worker-picture/`. */
 export const pictureImageTag = (treeHash: string): string => `p-${treeHash.slice(0, 12)}`;
 

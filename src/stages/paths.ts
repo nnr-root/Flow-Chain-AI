@@ -19,6 +19,8 @@ export const paths = {
   lastFrame: (i: number) => `frames/last_${n(i)}.png`,
   /** The last frame fitted clip i shows; the chain image of a continuing scene i+1. */
   seam: (i: number) => `frames/seam_${n(i)}.png`,
+  /** Clip i upscaled to full HD (phase 8 spec §8). */
+  upscaled: (i: number) => `clips/clip_${n(i)}.hd.mp4`,
   fitted: (i: number) => `fitted/scene_${n(i)}.mp4`,
   captions: "captions.json",
   /** Render working folder: staged public files and the Remotion bundle (recreated per render). */

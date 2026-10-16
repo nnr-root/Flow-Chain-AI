@@ -47,7 +47,7 @@ const DRAFT_VALUED = new Set([
   "--style", "--pin-modes", "--brand", "--bgm", "--hook", "--characters", "--seed", "--voice", "--niche", "--niche-text",
   "--format", "--edit",
 ]);
-const DRAFT_FLAGS = new Set(["--no-hook", "--no-sfx", "--no-localize"]);
+const DRAFT_FLAGS = new Set(["--no-hook", "--no-sfx", "--no-localize", "--upscale"]);
 /** The kind of job each command is: the kind decides whether credit must be held, so it cannot be claimed freely. */
 // (a version in another language spends as a generation does, on its own new run: phase 8 spec §4.1)
 const KIND_OF: Record<string, JobKind> = { run: "draft", resume: "generate", reroll: "reroll", rerender: "rerender", translate: "generate" };

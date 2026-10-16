@@ -96,6 +96,25 @@ describe("runpod deploy", () => {
     expect([...secrets].sort()).toEqual(["flowchain_r2_access_key_id", "flowchain_r2_secret_access_key"]);
   });
 
+  it("makes the full HD endpoint only when its image is given: its own template, no volume, any data centre (phase 8 spec §8)", async () => {
+    const without = fakeRest();
+    expect((await applyDeploy(without.rest, cfg, () => {})).upscaleEndpointId).toBeUndefined();
+    expect(without.store.endpoints.map((e) => e.name)).not.toContain(NAMES.upscale);
+    expect((await planDeploy(without.rest)).map((s) => s.name)).not.toContain(NAMES.upscale);
+
+    const { rest, store } = fakeRest();
+    const deployed = await applyDeploy(rest, { ...cfg, upscaleImage: "ghcr.io/me/flowchain-upscale:u-1" }, () => {});
+    const up = store.endpoints.find((e) => e.name === NAMES.upscale)!;
+    expect(deployed.upscaleEndpointId).toBe(up.id);
+    expect(store.templates.find((t) => t.id === up.templateId)).toMatchObject({ name: NAMES.upscaleTemplate, imageName: "ghcr.io/me/flowchain-upscale:u-1" });
+    expect(up).toMatchObject({ gpuTypeIds: DEFAULTS.upscaleGpus, workersMin: 0, workersMax: 1, flashboot: false, minCudaVersion: "12.8" });
+    for (const field of ["networkVolumeId", "networkVolumeIds", "dataCenterIds"]) expect(up).not.toHaveProperty(field);
+    // a second deploy changes it in place
+    await applyDeploy(rest, { ...cfg, upscaleImage: "ghcr.io/me/flowchain-upscale:u-2" }, () => {});
+    expect(store.endpoints.filter((e) => e.name === NAMES.upscale)).toHaveLength(1);
+    expect((await planDeploy(rest, { upscale: true })).find((s) => s.name === NAMES.upscale)?.action).toBe("update");
+  });
+
   it("updates instead of duplicating on a second run, and keeps existing secrets", async () => {
     const { rest, store } = fakeRest();
     const first = await applyDeploy(rest, cfg, () => {});

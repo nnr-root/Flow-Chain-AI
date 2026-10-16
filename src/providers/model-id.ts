@@ -27,4 +27,5 @@ export const RUNPOD_WORKFLOWS = {
   keyframe: { workflow: "keyframe-klein", version: 1 },
   clip: { workflow: "clip-wan22-480p", version: 1 },
   voice: { workflow: "voice-voxcpm2", version: 1 },
+  upscale: { workflow: "upscale-seedvr2", version: 1 },
 } as const;

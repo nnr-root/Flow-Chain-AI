@@ -17,7 +17,7 @@ import { LANGUAGE_IN_ENGLISH, type SpeechLanguage } from "./voice/language.js";
  * version's narration changes: keyed on them, every clip would be bought again. They are keyed on the source and
  * their files instead (`inheritedInputs`), and refuse to run.
  */
-export const INHERITED: readonly StageName[] = ["modes", "reference", "keyframes", "clips"];
+export const INHERITED: readonly StageName[] = ["modes", "reference", "keyframes", "clips", "upscale"];
 
 export const isInherited = (m: Manifest, stage: StageName): boolean => m.request.versionOf !== undefined && INHERITED.includes(stage);
 
@@ -29,7 +29,7 @@ export function versionProblem(source: Manifest, language: SpeechLanguage): stri
   if (r.localize) return `run ${source.runId} was made for viewers in ${AUDIENCE[r.language!] ?? r.language}; a video to be made in other languages is made without that (--no-localize)`;
   if (r.language === language) return `run ${source.runId} is already in ${LANGUAGE_IN_ENGLISH[language]}`;
   if (!source.script) return `run ${source.runId} has no script yet`;
-  const unmade = source.scenes.some((s) => !s.audio || (s.mode === 1 && !s.clip) || (needsKeyframe(source, s.idx) && !s.keyframe));
+  const unmade = source.scenes.some((s) => !s.audio || (s.mode === 1 && !s.clip) || (s.mode === 1 && r.upscale && !s.upscaled) || (needsKeyframe(source, s.idx) && !s.keyframe));
   if (unmade) return `run ${source.runId} is not made yet: its pictures and clips are what a version is made of`;
   return null;
 }
@@ -97,6 +97,7 @@ export function versionManifest(source: Manifest, o: VersionOptions): Manifest {
     jobs: {},
     ...(x.keyframe ? { keyframe: x.keyframe } : {}),
     ...(x.clip ? { clip: x.clip } : {}),
+    ...(x.upscaled ? { upscaled: x.upscaled } : {}),
   }));
   return {
     schemaVersion: source.schemaVersion,

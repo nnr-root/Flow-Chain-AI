@@ -30,6 +30,12 @@ describe("what the worker agrees to run", () => {
     // made for its viewers unless asked not to, and nothing said of it then
     expect(draftArgs(NewVideo.parse({ topic: "t", language: "ja" }), "x")).not.toContain("--no-localize");
     expect(() => NewVideo.parse({ topic: "t", format: "vlog" })).toThrow();
+    // full HD (phase 8 spec §8) is a 480p clip upscaled: the one flag it adds is one a draft may carry
+    const hd = draftArgs(NewVideo.parse({ topic: "t", clips: "1080p" }), "20261006-120000-abc001");
+    expect(hd).toEqual(expect.arrayContaining(["--clips", "480p", "--upscale"]));
+    expect(hd).not.toContain("1080p");
+    expect(refusal("runs", hd)).toBeUndefined();
+    expect(draftArgs(NewVideo.parse({ topic: "t", clips: "720p" }), "x")).not.toContain("--upscale");
     expect(refusal("runs", ["resume", "x", "--budget", "1", "--cap", "1"], "x")).toBeUndefined();
     expect(refusal("runs", ["resume", "x", "--budget", "1", "--cap", "1"])).toBeUndefined();
     expect(refusal("runs", ["reroll", "x", "--scene", "1", "--stage", "clips", "--budget", "1", "--cap", "1"])).toBeUndefined();

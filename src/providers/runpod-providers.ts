@@ -4,7 +4,7 @@ import type { R2 } from "./r2.js";
 import { NonRetryableError, UnusableResultError } from "./retry.js";
 import type { RunpodClient, RunpodJob, RunpodPolicy } from "./runpod.js";
 import type {
-  ImageOutput, ImageProvider, ImageRequest, PreparedJob, SubmitOptions, VideoOutput, VideoProvider, VideoRequest,
+  ImageOutput, ImageProvider, ImageRequest, PreparedJob, SubmitOptions, UpscaleProvider, UpscaleRequest, VideoOutput, VideoProvider, VideoRequest,
   WaitOptions,
 } from "./types.js";
 
@@ -236,5 +236,28 @@ export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> impleme
       if (now() >= deadline) throw new NonRetryableError(`RunPod warm-up ${jobId} is still ${job.status}`);
       await sleep(pollMs);
     }
+  }
+}
+
+/**
+ * Clips upscaled to full HD by the SeedVR2 worker (phase 8 spec §8). The clip goes inside the request, as a picture
+ * does: a 480p clip of a few seconds is one or two megabytes, well under what a request may carry.
+ */
+export class RunpodUpscale extends RunpodQueued<UpscaleRequest, VideoOutput> implements UpscaleProvider {
+  constructor(deps: RunpodDeps, target: Target) {
+    // (measured at about 200 GPU seconds for a 5-second clip: a quarter of an hour leaves room for a cold start)
+    super(deps, target, { executionTimeout: 900_000, ttl: 3_600_000 }, 25 * 60_000, "mp4");
+  }
+
+  protected async input(req: UpscaleRequest) {
+    return { task: "upscale", video: (await readFile(req.videoPath)).toString("base64"), short: req.short };
+  }
+
+  protected usdPerSec() {
+    return this.deps.rates.upscaleUsdPerSec;
+  }
+
+  protected output(_jobId: string, out: { url: string }, costUsd: number | undefined): VideoOutput {
+    return { url: out.url, ...(costUsd === undefined ? {} : { costUsd }) };
   }
 }

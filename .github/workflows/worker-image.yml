@@ -3,7 +3,7 @@ name: worker-image
 on:
   push:
     branches: [main]
-    paths: ["workers/**", "worker-voice/**", "worker-picture/**", ".github/workflows/worker-image.yml"]
+    paths: ["workers/**", "worker-voice/**", "worker-picture/**", "worker-upscale/**", ".github/workflows/worker-image.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -83,6 +83,32 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: worker-picture
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ steps.name.outputs.image }}:latest
+            ${{ steps.name.outputs.image }}:${{ steps.tree.outputs.tag }}
+
+  # The upscaling worker (phase 8 spec §8): its own image, with its model inside, tagged by the content of worker-upscale/.
+  upscale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: tree
+        run: echo "tag=u-$(git rev-parse HEAD:worker-upscale | cut -c1-12)" >> "$GITHUB_OUTPUT"
+      - uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          tool-cache: true
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/flowchain-upscale" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: worker-upscale
           platforms: linux/amd64
           push: true
           tags: |

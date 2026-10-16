@@ -5,9 +5,10 @@ import type { ActionLevel, Camera, SuggestedTransition } from "../../src/manifes
 import type { PresetName } from "../../src/presets.js";
 import { UnusableResultError } from "../../src/providers/retry.js";
 import type {
-  ImageOutput, ImageProvider, ImageRequest, LlmProvider, PreparedJob, ScriptRequest, SpeakRequest, SubmitOptions,
+  ImageOutput, ImageProvider, ImageRequest, LlmProvider, PreparedJob, ScriptRequest, SpeakRequest, SubmitOptions, UpscaleProvider, UpscaleRequest,
   TtsProvider, VideoOutput, VideoProvider, VideoRequest, WaitOptions,
 } from "../../src/providers/types.js";
+import { ffmpeg } from "../../src/media/ffmpeg.js";
 import { makeAudio, makeImage, makeVideo } from "../helpers/media.js";
 
 export type Shot = "continue" | "cut";
@@ -194,6 +195,15 @@ export class FakeVideo extends FakeQueue<VideoRequest, VideoOutput> implements V
   protected async render(req: VideoRequest, n: number, path: (name: string) => string) {
     const file = path(`vid_${n}.mp4`);
     await makeVideo(file, { seconds: req.durationSec, fps: 24, width: 180, height: 320, flat: (n * 53) % 200 });
+    return { out: { url: pathToFileURL(file).href }, file };
+  }
+}
+
+/** Full HD (phase 8 spec §8): the clip it is given, scaled up to the short side asked for. */
+export class FakeUpscale extends FakeQueue<UpscaleRequest, VideoOutput> implements UpscaleProvider {
+  protected async render(req: UpscaleRequest, n: number, path: (name: string) => string) {
+    const file = path(`hd_${n}.mp4`);
+    await ffmpeg(["-i", req.videoPath, "-vf", `scale=-2:${req.short}`, "-pix_fmt", "yuv420p", file]);
     return { out: { url: pathToFileURL(file).href }, file };
   }
 }

@@ -17,3 +17,4 @@ export const requireTts = (s: SceneState) => need(s, "tts", "voiceover");
 export const requireAudio = (s: SceneState) => need(s, "audio", "trimmed audio");
 export const requireClip = (s: SceneState) => need(s, "clip", "clip");
 export const requireFitted = (s: SceneState) => need(s, "fitted", "fitted clip");
+export const requireUpscaled = (s: SceneState) => need(s, "upscaled", "full HD clip");

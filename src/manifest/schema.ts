@@ -22,7 +22,7 @@ export const MAX_HOOK_WORDS = 6;
 // fal's Flux seed is a signed 32-bit integer; every seed it has returned is below 2^31.
 export const MAX_SEED = 2 ** 31 - 1;
 
-export const StageName = z.enum(["script", "reference", "tts", "silence", "modes", "keyframes", "clips", "fit", "captions", "render"]);
+export const StageName = z.enum(["script", "reference", "tts", "silence", "modes", "keyframes", "clips", "upscale", "fit", "captions", "render"]);
 export type StageName = z.infer<typeof StageName>;
 
 export const Mode = z.union([z.literal(1), z.literal(2)]);
@@ -209,6 +209,8 @@ export const SceneState = z.object({
       requestedSec: z.number().positive().optional(),
     })
     .optional(),
+  /** The clip upscaled to full HD (phase 8 spec §8): what the fit plays where the run asked for it. */
+  upscaled: z.object({ path: z.string(), sourceUrl: z.string().optional(), duration: z.number() }).optional(),
   fitted: z.object({ path: z.string(), frames: z.number().int(), plan: FitPlan }).optional(),
 });
 export type SceneState = z.infer<typeof SceneState>;
@@ -295,6 +297,8 @@ export const RunRequest = z.object({
    * Absent on every run made before, which was not.
    */
   localize: z.boolean().optional(),
+  /** Full HD (--upscale, phase 8 spec §8): every clip is upscaled to 1080p before it is fitted. Frozen; absent = as made. */
+  upscale: z.literal(true).optional(),
   /**
    * The run is a version of another in a new language (phase 8 spec §4): its pictures and clips are that run's, and
    * what is said in it is a translation of what was said there (`title`, `hook`, `narrations`), each scene written to
@@ -326,7 +330,8 @@ export const RunRequest = z.object({
 });
 export type RunRequest = z.infer<typeof RunRequest>;
 
-export const Models = z.object({ llm: z.string(), tts: z.string(), image: z.string(), video: z.string() });
+/** `upscale`: the endpoint a run that asked for full HD has its clips upscaled on (phase 8 spec §8); absent on every other run. */
+export const Models = z.object({ llm: z.string(), tts: z.string(), image: z.string(), video: z.string(), upscale: z.string().optional() });
 export type Models = z.infer<typeof Models>;
 
 export const LedgerEntry = z.object({

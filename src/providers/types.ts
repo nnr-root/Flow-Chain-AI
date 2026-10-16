@@ -116,4 +116,9 @@ export type VideoProvider = QueuedProvider<VideoRequest, VideoOutput> & {
   warmCost?(requestId: string, opts: WaitOptions): Promise<number>;
 };
 
-export type Providers = { llm: LlmProvider; tts: TtsProvider; image: ImageProvider; video: VideoProvider };
+/** A clip to upscale (phase 8 spec §8): the file, and the height of the short side to make it. */
+export type UpscaleRequest = { videoPath: string; short: number };
+export type UpscaleProvider = QueuedProvider<UpscaleRequest, VideoOutput>;
+
+/** `upscale`: only for a run that asked for full HD. */
+export type Providers = { llm: LlmProvider; tts: TtsProvider; image: ImageProvider; video: VideoProvider; upscale?: UpscaleProvider };

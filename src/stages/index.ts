@@ -9,6 +9,7 @@ import { scriptStage } from "./script.js";
 import { silenceStage } from "./silence.js";
 import type { Stage } from "./types.js";
 import { ttsStage } from "./tts.js";
+import { upscaleStage } from "./upscale.js";
 
 /**
  * Pipeline order. Audio stages come before any visual stage: audio drives timing (spec §3). The portrait comes
@@ -23,6 +24,7 @@ export const STAGES: Stage[] = [
   referenceStage,
   keyframesStage,
   clipsStage,
+  upscaleStage,
   fitStage,
   captionsStage,
   renderStage,

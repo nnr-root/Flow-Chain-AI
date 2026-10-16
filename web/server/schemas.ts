@@ -43,7 +43,7 @@ export const NewVideo = z.object({
    */
   motion: z.enum(["auto", "clips", "stills"]).default("auto"),
   /** The size moving clips are generated at; 720p costs about twice as much. */
-  clips: z.enum(["480p", "720p"]).default("480p"),
+  clips: z.enum(["480p", "720p", "1080p"]).default("480p"),
   brandKit: Slug.nullable().default(null),
   music: MusicId.nullable().default(null),
   musicGain: Gain.default(0.35),
@@ -107,7 +107,8 @@ export function draftArgs(input: NewVideo, runId: string): string[] {
   const args = [
     "run", "--draft", "--yes", "--run-id", runId, "--topic", input.topic, "--aspect", input.aspect,
     "--duration", String(input.durationSec), "--scene-seconds", input.sceneSec.min === input.sceneSec.max ? String(input.sceneSec.min) : `${input.sceneSec.min}-${input.sceneSec.max}`,
-    "--language", input.language, "--mode", "auto", "--clips", input.clips, "--budget", String(NO_BUDGET_USD),
+    // (full HD is a 480p clip upscaled: phase 8 spec §8)
+    "--language", input.language, "--mode", "auto", "--clips", input.clips === "1080p" ? "480p" : input.clips, "--budget", String(NO_BUDGET_USD),
     "--caption-style", input.captionStyle, "--transition", input.transition,
     "--bgm-gain", String(input.musicGain), "--sfx-gain", String(input.sfxGain),
   ];
@@ -128,6 +129,7 @@ export function draftArgs(input: NewVideo, runId: string): string[] {
   if (input.edit) args.push("--edit", input.edit);
   // (a series' recipe from before this is read as made for its audience, as every new video is: phase 8 spec §5)
   if (input.localize === false) args.push("--no-localize");
+  if (input.clips === "1080p") args.push("--upscale");
   return args;
 }
 
