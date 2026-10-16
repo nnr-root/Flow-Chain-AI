@@ -79,7 +79,10 @@ describe("a run in full HD", () => {
 
   it("is priced from the GPU seconds measured for each second of clip, and the worker's start once", () => {
     const p = Prices.parse({});
-    expect(upscaleCost(p, 5)).toBeCloseTo(5 * 40 * 0.000306, 4);
-    expect(upscaleCost(p, 5, true)).toBeCloseTo((5 * 40 + 90) * 0.000306, 4);
+    expect(upscaleCost(p, 5)).toBeCloseTo(5 * 110 * 0.000306, 4);
+    expect(upscaleCost(p, 5, true)).toBeCloseTo((5 * 110 + 20) * 0.000306, 4);
+    // what the endpoint really billed on 2026-10-16: $0.1072 for a clip of 3.28 s, $0.141 for one of 4.28 s
+    expect(Math.abs(upscaleCost(p, 3.28125) - 0.1072)).toBeLessThan(0.005);
+    expect(Math.abs(upscaleCost(p, 4.28125) - 0.141)).toBeLessThan(0.005);
   });
 });

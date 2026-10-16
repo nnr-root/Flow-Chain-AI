@@ -118,11 +118,12 @@ export function runpodRates(p: Prices) {
     pictureColdStartSec: p.runpodPictureColdStartSec ?? 60,
     // 720p clips on the same card: 157 s for 65 frames (§9.9)
     clip720SecPerFrame: p.runpodClip720SecPerFrame ?? 2.5,
-    // full HD (phase 8 spec §8): SeedVR2 took 35-40 GPU seconds for each second of a 480p clip on an A100, warm
-    // (the trial of 2026-10-16); the endpoint's own card and rate replace these once it is measured there
+    // full HD (phase 8 spec §8.2): measured on the endpoint's own 24 GB card on 2026-10-16, 107-108 GPU seconds for
+    // each second of a 480p clip in batches of 21 and tiles (the A100 of the trial took 40, in batches of 33). The
+    // first clip of a run cost no more than the others: what a start costs is not in the billed time
     upscaleUsdPerSec: p.runpodUpscaleUsdPerSec ?? 0.000306,
-    upscaleSecPerClipSec: p.runpodUpscaleSecPerClipSec ?? 40,
-    upscaleColdStartSec: p.runpodUpscaleColdStartSec ?? 90,
+    upscaleSecPerClipSec: p.runpodUpscaleSecPerClipSec ?? 110,
+    upscaleColdStartSec: p.runpodUpscaleColdStartSec ?? 20,
   };
 }
 

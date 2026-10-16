@@ -453,3 +453,36 @@ trial's settings had only ever run on an A100's 80 GB.
 
 The video waits for the new image. What it bought is kept, and a resume buys only the upscales.
 
+### 8.2 It works, and costs what was measured (2026-10-16, owner's clicks)
+
+**What was run.** The new image was deployed. Scene 1's full HD clip was rerolled, since its failed request would
+otherwise be polled forever (the reason `upscale` became rerollable), and the run was finished: final.mp4 at
+1080×1920, 22.2 s. Side by side with the 480p clip, feathers and the eye are plainly sharper.
+
+**What it cost.** The endpoint billed $0.1072 for each 3.28 s clip and $0.141 for each 4.28 s one:
+
+- 107–108 GPU seconds for each second of clip, at batches of 21 in tiles on the 24 GB card;
+- the trial's A100 took 40, in batches of 33;
+- the first clip cost no more than the others.
+
+The five upscales came to $0.62 against an estimate of $0.26, and the whole video to $0.92.
+
+**What that broke.** The command's cap was $0.35:
+
+- A cap is checked against estimates; what a provider bills is what is recorded.
+- With the rate a third of the real one, a command went well past what was approved.
+- In a studio with accounts that is a customer charged about 2.5 times the figure they approved. `settle` charges the
+  real amount (phase 3.3 spec: "a provider may charge slightly past a cap"), and this was not slight.
+
+**What was changed.**
+
+- The price table now has the measured rate: 110 s per second of clip, 20 s for a start. A test holds it to the two
+  bills.
+- The form says full HD costs about six times a standard clip (the clip and its upscale, against the clip alone).
+
+**What stands.**
+
+- **Price.** At this rate a 4-second clip costs about $0.03 to make and $0.13 to upscale.
+- **When an estimate goes wrong, the customer pays.** Any new kind of paid step must be measured on its own
+  endpoint before it is offered.
+
