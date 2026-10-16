@@ -48,9 +48,14 @@ export type ScriptRequest = {
      */
     | { kind: "translate"; source: { title: string; hook: string; narrations: string[] }; seconds: number[]; from?: SpeechLanguage };
 };
+/** Pictures to look at before they are used (phase 8 spec §9): what they should show, and the files. */
+export type InspectRequest = { images: string[]; expected: string };
+
 export interface LlmProvider {
   /** Returns parsed JSON; the script stage validates it against the LlmScript schema. */
   generateScript(req: ScriptRequest): Promise<unknown>;
+  /** Looks at pictures for what a picture model gets wrong; parsed JSON `{ ok, problems }`. Optional: without it nothing is looked at. */
+  inspect?(req: InspectRequest): Promise<unknown>;
 }
 
 /** `language`: the script's, where it is known (the studio's own voice picks its reference clip by it). */

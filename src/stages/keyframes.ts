@@ -7,11 +7,12 @@ import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
 import { referenceFor, referenceImageOf } from "./reference.js";
 import { warmClipsEarly } from "./warmup.js";
+import { inspect, MAX_REMAKES, noteRemake, remakeOf } from "./inspect.js";
 import { fileSha256 } from "../manifest/hash.js";
 import { requireScript } from "./require.js";
 import { MAX_SEED, type Manifest } from "../manifest/schema.js";
 import type { Stage } from "./types.js";
-import { autoModeDeps, imagePrompt, needsKeyframe } from "./visual.js";
+import { autoModeDeps, expectedOf, imagePrompt, needsKeyframe } from "./visual.js";
 
 /**
  * The Flux seed for scene i: the run's shared seed plus that scene's keyframe reroll count, so scenes share a
@@ -59,27 +60,39 @@ export const keyframesStage: Stage = {
     const left = m.scenes.filter((s) => s.idx >= i && needsKeyframe(m, s.idx)).length;
     const first = m.scenes.findIndex((s) => needsKeyframe(m, s.idx)) === i && referenceImageOf(m) !== paths.reference;
     await warmClipsEarly(ctx, left, first);
-    const result = await runProviderJob(ctx, i, "keyframes", {
-      label: `keyframe scene ${i + 1}`,
-      costUsd: imageProfileOf(ctx.manifest.request.imageProfile).keyframeUsd(ctx.prices, ctx.keyframeSize),
-      prepare: () => {
-        const reference = referenceFor(ctx.manifest, i);
-        return ctx.providers.image.prepare({
-          prompt,
-          ...ctx.keyframeSize,
-          seed: keyframeSeed(ctx.manifest, i),
-          preset: effectivePreset(ctx.manifest)?.name,
-          referenceImagePath: reference === undefined ? undefined : abs(ctx, reference),
-        });
-      },
-      submit: (job, signal) => ctx.providers.image.submit(job, { signal }),
-      wait: (id) => ctx.providers.image.wait(id, { timeoutMs: ctx.providers.image.waitMs ?? TIMEOUTS.image }),
-      waitMs: ctx.providers.image.waitMs ?? TIMEOUTS.image,
-      submitTimeoutMs: ctx.providers.image.submitMs,
-    });
-    await download(result.url, await outPath(ctx, paths.keyframe(i)));
-    // the run has its own copy now: the one the worker uploaded is taken out of the bucket
-    await result.remove?.();
-    ctx.manifest.scenes[i].keyframe = { path: paths.keyframe(i), seed: result.seed, sourceUrl: result.url };
+    // each picture is looked at before a clip is made from it, and made again with another seed when it is
+    // malformed (phase 8 spec §9); a remake is its own job, so a stopped run carries on from it
+    for (let remake = remakeOf(ctx, i, "keyframes"); ; remake++) {
+      const base = keyframeSeed(ctx.manifest, i);
+      const seed = remake === 0 || base === undefined ? base : (base + remake * 104_729) % (MAX_SEED + 1);
+      const result = await runProviderJob({ ...ctx, inputHash: remake === 0 ? ctx.inputHash : `${ctx.inputHash}#${remake}` }, i, "keyframes", {
+        label: `keyframe scene ${i + 1}${remake ? ` (made again, ${remake})` : ""}`,
+        costUsd: imageProfileOf(ctx.manifest.request.imageProfile).keyframeUsd(ctx.prices, ctx.keyframeSize),
+        prepare: () => {
+          const reference = referenceFor(ctx.manifest, i);
+          return ctx.providers.image.prepare({
+            prompt,
+            ...ctx.keyframeSize,
+            seed: remake === 0 ? keyframeSeed(ctx.manifest, i) : seed,
+            preset: effectivePreset(ctx.manifest)?.name,
+            referenceImagePath: reference === undefined ? undefined : abs(ctx, reference),
+          });
+        },
+        submit: (job, signal) => ctx.providers.image.submit(job, { signal }),
+        wait: (id) => ctx.providers.image.wait(id, { timeoutMs: ctx.providers.image.waitMs ?? TIMEOUTS.image }),
+        waitMs: ctx.providers.image.waitMs ?? TIMEOUTS.image,
+        submitTimeoutMs: ctx.providers.image.submitMs,
+      });
+      const file = await outPath(ctx, paths.keyframe(i));
+      await download(result.url, file);
+      // the run has its own copy now: the one the worker uploaded is taken out of the bucket
+      await result.remove?.();
+      ctx.manifest.scenes[i].keyframe = { path: paths.keyframe(i), seed: result.seed, sourceUrl: result.url };
+      if (remake >= (MAX_REMAKES.keyframes ?? 0)) break;
+      const verdict = await inspect(ctx, [file], expectedOf(requireScript(m), i));
+      if (verdict.ok) break;
+      ctx.log(`keyframe scene ${i + 1} is malformed (${verdict.problems.join("; ")}): making it again`);
+      await noteRemake(ctx, i, "keyframes", remake + 1);
+    }
   },
 };

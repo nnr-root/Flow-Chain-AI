@@ -39,6 +39,12 @@ export function imagePrompt(script: Script, i: number, preset: StylePreset | nul
   return `${preset.imagePrefix}. ${when}${who}Palette: ${b.palette}. ${scene}${look}. ${preset.imageSuffix}`;
 }
 
+/** What a scene's picture should show, in plain words, for the look at it (phase 8 spec §9). */
+export function expectedOf(script: Script, i: number): string {
+  const who = showsCharacter(script, i) ? `${script.styleBible.characters} ` : "";
+  return `${who}${script.scenes[i].imagePrompt}`.trim();
+}
+
 export function motionPrompt(script: Script, i: number, preset: StylePreset | null, edit?: Edit): string {
   const b = script.styleBible;
   const own = edit ? `${script.scenes[i].motionPrompt}. ${edit.motion}` : script.scenes[i].motionPrompt;

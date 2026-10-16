@@ -24,8 +24,14 @@ const hasCharacters = (m: Manifest): boolean => {
  * (every run made before 2.4) has no target and never plans it.
  */
 export function referenceApplies(m: Manifest, scene: number): boolean {
-  return scene === 0 && takesReference(m.request.imageProfile) && !m.request.referenceImage && hasCharacters(m) && someoneAppears(m);
+  return scene === 0 && takesReference(m.request.imageProfile) && !m.request.referenceImage && hasCharacters(m) && someoneAppears(m) && !isAnimal(m);
 }
+
+/**
+ * A real kind of animal is drawn from its description alone (phase 8 spec §9): its kind is its look, and a picture
+ * conditioned on a portrait of it standing drew it diving with the portrait's head as a second one.
+ */
+const isAnimal = (m: Manifest): boolean => m.script?.styleBible.characterKind === "animal";
 
 /** A script whose every scene is without the character needs no portrait. Before the script exists, assume one does. */
 const someoneAppears = (m: Manifest): boolean => !m.script || m.script.scenes.some((_s, i) => showsCharacter(m.script!, i));
@@ -51,6 +57,13 @@ function portraitPrompt(m: Manifest): string {
   // every scene (phase 5 spec §9.12). Its portrait is asked for first and bare, with the look after it.
   // (the portrait is what every scene's person is drawn from: their clothes belong to the video's time and place)
   const when = script.styleBible.setting ? `Their clothes belong to this time and place: ${script.styleBible.setting}. ` : "";
+  // a made-up figure is not a person: it is asked for whole, in its own shape, with nothing of a person's pose
+  if (script.styleBible.characterKind === "other") {
+    return (
+      `Reference picture of ${script.styleBible.characters}, the whole figure in a calm natural pose, seen from the front, ` +
+      `exactly as described and nothing more. Nothing else in the frame. Plain light grey studio backdrop, soft even light. ${look}.${finish}`
+    );
+  }
   if (m.request.imageProfile === "runpod-klein@1") {
     return (
       `Character reference portrait of ${script.styleBible.characters}. ${when}` +

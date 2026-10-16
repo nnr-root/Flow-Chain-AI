@@ -51,7 +51,7 @@ export const FORMATS: readonly VideoFormat[] = [
     about: "How or why something works, step by step",
     goesWith: "fact",
     hook: "Open on the question the viewer has wondered about, or on the surprising fact that raises it.",
-    arc: "The question, the everyday picture of it, how it works one step a scene, one plain comparison that makes it click, and the answer in one line at the end.",
+    arc: "The question, the everyday picture of it, how it works one step a scene (each step following from the last), one plain comparison that makes it click, and the last line answering the question in so many words.",
     delivery: "A clear, friendly teacher talking to one person; every term said in plain words the first time it is used.",
     rules: [...FACT_RULES, "Simplify without saying anything false: a comparison is called a comparison."],
   },

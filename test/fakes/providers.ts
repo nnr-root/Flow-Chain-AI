@@ -5,7 +5,7 @@ import type { ActionLevel, Camera, SuggestedTransition } from "../../src/manifes
 import type { PresetName } from "../../src/presets.js";
 import { UnusableResultError } from "../../src/providers/retry.js";
 import type {
-  ImageOutput, ImageProvider, ImageRequest, LlmProvider, PreparedJob, ScriptRequest, SpeakRequest, SubmitOptions, UpscaleProvider, UpscaleRequest,
+  ImageOutput, ImageProvider, ImageRequest, InspectRequest, LlmProvider, PreparedJob, ScriptRequest, SpeakRequest, SubmitOptions, UpscaleProvider, UpscaleRequest,
   TtsProvider, VideoOutput, VideoProvider, VideoRequest, WaitOptions,
 } from "../../src/providers/types.js";
 import { ffmpeg } from "../../src/media/ffmpeg.js";
@@ -14,6 +14,7 @@ import { makeAudio, makeImage, makeVideo } from "../helpers/media.js";
 export type Shot = "continue" | "cut";
 
 export type FakeScriptOptions = {
+  characterKind?: "people" | "animal" | "other" | "none";
   shots?: Shot[];
   cameras?: Camera[];
   actionLevels?: ActionLevel[];
@@ -30,7 +31,8 @@ export function fakeScript(sceneCount: number, opts: FakeScriptOptions = {}) {
     stylePreset: opts.stylePreset ?? "cinematic_history",
     hook: opts.hook ?? "Foxes never sleep",
     hashtags: ["#wildlife", "#foxes", "#redfox", "#nightanimals", "#animalfacts"],
-    styleBible: { artStyle: "flat test pattern", characters: "a red fox", palette: "teal, orange", setting: "a snowy forest at night, the present day" },
+    // ("people", so the stand-in's character is drawn from a portrait as every earlier test expects)
+    styleBible: { artStyle: "flat test pattern", characters: "a red fox", palette: "teal, orange", setting: "a snowy forest at night, the present day", characterKind: opts.characterKind ?? "people" },
     scenes: Array.from({ length: sceneCount }, (_, i) => ({
       narration: `Scene ${i + 1} says hello. Then it pauses and continues.`,
       imagePrompt: `image ${i + 1}`,
@@ -68,6 +70,8 @@ export function timedScript(wordCounts: number[], opts: FakeScriptOptions = {}) 
 
 export class FakeLlm implements LlmProvider {
   calls: ScriptRequest[] = [];
+  /** The look at pictures (phase 8 spec §9): absent, like a provider without one, unless a test gives it. */
+  inspect?: (req: InspectRequest) => Promise<unknown>;
   constructor(private readonly respond: (req: ScriptRequest, callNo: number) => unknown) {}
   async generateScript(req: ScriptRequest): Promise<unknown> {
     this.calls.push(req);

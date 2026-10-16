@@ -13,7 +13,8 @@ import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireAudio, requireClip, requireScript } from "./require.js";
 import type { Dep, Stage, StageContext } from "./types.js";
-import { autoModeDeps, motionPrompt, needsKeyframe, sceneFrames } from "./visual.js";
+import { autoModeDeps, expectedOf, motionPrompt, needsKeyframe, sceneFrames } from "./visual.js";
+import { clipFrames, inspect, MAX_REMAKES, noteRemake, remakeOf } from "./inspect.js";
 
 /**
  * Writes the seam frame of clip i-1 (the last frame its fitted version shows, spec §4.7) and returns its
@@ -90,22 +91,33 @@ export const clipsStage: Stage = {
     const seconds = profile.clipSec(requireAudio(state).duration);
     // the worker's early start (asked for while the pictures were made) is paid for with the first clip after it
     await settleWarmup(ctx);
-    const result = await runProviderJob(ctx, i, "clips", {
-      label: `clip scene ${i + 1}`,
-      costUsd: profile.costUsd(ctx.prices, seconds),
-      prepare: async () => {
-        // the chain image: the scene's own keyframe, or the seam frame of the previous clip
-        const imagePath = needsKeyframe(m, i) ? abs(ctx, paths.keyframe(i)) : await writeSeam(ctx, i);
-        return ctx.providers.video.prepare({ imagePath, prompt: motionPrompt(script, i, effectivePreset(m), editById(m.request.edit)), durationSec: seconds, ...(profile.clipHeight ? { height: profile.clipHeight } : {}) });
-      },
-      submit: (job, signal) => ctx.providers.video.submit(job, { signal }),
-      wait: (id) => ctx.providers.video.wait(id, { timeoutMs: ctx.providers.video.waitMs ?? TIMEOUTS.video }),
-      waitMs: ctx.providers.video.waitMs ?? TIMEOUTS.video,
-      submitTimeoutMs: ctx.providers.video.submitMs,
-    });
-    await download(result.url, out);
-    // the run has its own copy now: the one the worker uploaded is taken out of the bucket
-    await result.remove?.();
-    state.clip = { path: paths.clip(i), sourceUrl: result.url, duration: await probeDuration(out), requestedSec: seconds };
+    // each clip is looked at before it is fitted, upscaled or carried on from, and made again once when it is
+    // malformed (phase 8 spec §9): the clip worker picks a new seed for every job
+    for (let remake = remakeOf(ctx, i, "clips"); ; remake++) {
+      const jobCtx = { ...ctx, inputHash: remake === 0 ? ctx.inputHash : `${ctx.inputHash}#${remake}` };
+      const result = await runProviderJob(jobCtx, i, "clips", {
+        label: `clip scene ${i + 1}${remake ? ` (made again, ${remake})` : ""}`,
+        costUsd: profile.costUsd(ctx.prices, seconds),
+        prepare: async () => {
+          // the chain image: the scene's own keyframe, or the seam frame of the previous clip
+          const imagePath = needsKeyframe(m, i) ? abs(ctx, paths.keyframe(i)) : await writeSeam(ctx, i);
+          return ctx.providers.video.prepare({ imagePath, prompt: motionPrompt(script, i, effectivePreset(m), editById(m.request.edit)), durationSec: seconds, ...(profile.clipHeight ? { height: profile.clipHeight } : {}) });
+        },
+        submit: (job, signal) => ctx.providers.video.submit(job, { signal }),
+        wait: (id) => ctx.providers.video.wait(id, { timeoutMs: ctx.providers.video.waitMs ?? TIMEOUTS.video }),
+        waitMs: ctx.providers.video.waitMs ?? TIMEOUTS.video,
+        submitTimeoutMs: ctx.providers.video.submitMs,
+      });
+      await download(result.url, out);
+      // the run has its own copy now: the one the worker uploaded is taken out of the bucket
+      await result.remove?.();
+      state.clip = { path: paths.clip(i), sourceUrl: result.url, duration: await probeDuration(out), requestedSec: seconds };
+      if (remake >= (MAX_REMAKES.clips ?? 0)) break;
+      const look = await clipFrames(out, abs(ctx, `frames/look_${i + 1}`));
+      const verdict = await inspect(ctx, look.files, expectedOf(script, i)).finally(look.done);
+      if (verdict.ok) break;
+      ctx.log(`clip scene ${i + 1} is malformed (${verdict.problems.join("; ")}): making it again`);
+      await noteRemake(ctx, i, "clips", remake + 1);
+    }
   },
 };

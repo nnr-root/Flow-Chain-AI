@@ -81,6 +81,13 @@ export const Script = z.object({
      * as they were.
      */
     setting: z.string().optional(),
+    /**
+     * What the recurring characters are (phase 8 spec §9): "people", "animal" (a real kind of animal) or "other" (a
+     * made-up figure, a creature, a robot), or "none". A portrait is drawn for people and made-up figures only, and
+     * never in a person's words for anything else: asked for "arms relaxed at the sides" a falcon was given hands.
+     * Absent on scripts written before it, which are drawn as they were.
+     */
+    characterKind: z.enum(["people", "animal", "other", "none"]).optional(),
   }),
   scenes: z.array(SceneSpec).min(1).max(MAX_SCENES),
   /** The hook title (2.3); optional when stored, so scripts written before 2.3 still load. */
@@ -100,6 +107,7 @@ const hashtags = z
 export const LlmSceneSpec = SceneSpec.extend({ actionLevel, suggestedTransition, showsCharacter });
 const LlmStyleBible = Script.shape.styleBible.extend({
   setting: z.string().describe("The one time and place every picture shows, with what people there wear and use and how it is lit, in English"),
+  characterKind: z.enum(["people", "animal", "other", "none"]).describe("What the recurring characters are: people, a real kind of animal, something else (a made-up creature, a robot, a figure), or none"),
 });
 export const LlmScript = Script.extend({
   stylePreset: PresetName.describe("The style preset that best fits the topic"),
@@ -195,6 +203,11 @@ export const SceneState = z.object({
    * their records are gone from `jobs`, so their cost is kept here. Absent on older runs and on most scenes.
    */
   abandonedUsd: z.number().optional(),
+  /**
+   * How many times a picture or clip was made again because the look at it found it malformed (phase 8 spec §9),
+   * for the inputs it was made for: a stopped run carries on from there instead of buying the first one again.
+   */
+  remade: z.partialRecord(StageName, z.object({ inputHash: z.string(), count: z.number().int().min(1) })).optional(),
   tts: z.object({ raw: z.string(), words: z.array(WordTiming) }).optional(),
   audio: z
     .object({ path: z.string(), duration: z.number(), words: z.array(WordTiming), removedSec: z.number() })

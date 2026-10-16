@@ -486,3 +486,59 @@ The five upscales came to $0.62 against an estimate of $0.26, and the whole vide
 - **When an estimate goes wrong, the customer pays.** Any new kind of paid step must be measured on its own
   endpoint before it is offered.
 
+
+## 9. A falcon with two heads (2026-10-16)
+
+The owner watched the full HD video (§8.2) and found the falcon misshapen: two heads, three or four legs and wings.
+The narration was strange too. A look at each step showed where the faults came from.
+
+**The portrait.** The run made a character portrait, which every picture of the character is drawn from, in a
+person's words: "waist-up, arms relaxed at the sides, empty hands", and "their clothes belong to this time". The
+falcon came back with human hands holding a white card.
+
+**The pictures.** Scene 2's picture had two heads before any clip was made: the portrait's head, seen from the
+front, and the head of the diving bird drawn from it. Scene 5's had a beak at both ends. The poses asked for were
+the ones a picture model draws worst: "wings tightly tucked", "from above, hurtling downward", a macro of a nostril.
+
+**The clips.** Made from those pictures, with wings beating, they grew what the pictures had and more. The full HD
+upscale then made every fault sharper, at the highest price in the video.
+
+**The words.** Five lines, each its own fact:
+
+> How can a peregrine falcon dive at 300 km/h? / It folds its wings tight… / Special bony cones inside its nostrils…
+> / Clear protective eyelids… / Shaped like a living jet fighter, it is nature's fastest predator.
+
+The question was never answered, and nothing led from one line to the next. It sounded like a list read out.
+
+**What changed.**
+
+- **The script says what its characters are** (`styleBible.characterKind`: people, animal, other, none).
+  - A real kind of animal gets no portrait: its kind is its look, and drawing it from a standing portrait doubled
+    its head.
+  - A made-up figure's portrait asks for the whole figure in its own shape, with nothing of a person's pose or
+    clothes.
+  - A person's is as it was.
+  - A script written before has no kind and is drawn as it was.
+- **An animal is posed simply.** It is drawn whole, one of it, from the side or at three-quarters: standing,
+  perched, walking or gliding. It is never folded, tucked or twisted, never from straight above or below, and never
+  as a close-up of one part; the narration may still be about the part. In a clip its wings do not beat and its legs
+  do not run; the camera, light, clouds or water carry the motion.
+- **The narration is one spoken piece.**
+  - Each line follows from the last (because, so, that is why).
+  - It uses everyday words, not a textbook's.
+  - A first line that asks a question is answered by the last.
+  - The explainer type says so in its arc too.
+- **Every picture and clip is looked at before what follows from it is bought** (`src/stages/inspect.ts`).
+  - The script's model is shown the picture, or three frames of the clip, and what it should show.
+  - It is asked only about faults a viewer sees at a glance: too many or too few heads, limbs, wings or eyes; bodies
+    grown together; human hands on an animal; one thing shown as two; writing. Never about taste.
+  - A malformed picture is made again with a new seed, twice at most. A clip is made again once; the clip worker
+    picks a new seed for every job.
+  - Each remake is its own job, recorded before it is bought (`SceneState.remade`), so a stopped run carries on
+    from it.
+  - The last allowed remake is used as it is.
+  - A look costs a tenth of a cent and is charged to the stage.
+  - A look that cannot be had passes the picture: a checker that is down does not stop a paid run.
+
+**Not yet known.** How often the checker catches what the owner saw, or flags what is fine, has only been tried
+against stand-ins. The falcon video is to be made again to find out (owner's click).

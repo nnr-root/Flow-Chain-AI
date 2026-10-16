@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { lengthInWords, maxSceneUnits, sceneBounds, sceneWords, totalWords, translationWords, typicalSceneWords, wordsPerSecond } from "../duration.js";
@@ -9,7 +10,7 @@ import { cultureRules } from "../culture.js";
 import { LANGUAGE_IN_ENGLISH } from "../voice/language.js";
 import { LlmOutline, LlmPart, LlmScript, LlmTranslation, MAX_COUNTED_SCENES, MAX_NARRATION_WORDS } from "../manifest/schema.js";
 import { PRESETS } from "../presets.js";
-import type { LlmProvider, ScriptRequest } from "./types.js";
+import type { InspectRequest, LlmProvider, ScriptRequest } from "./types.js";
 
 /** Gemini's responseJsonSchema takes plain JSON Schema; drop the draft marker zod adds. */
 export function scriptJsonSchema(kind: "script" | "outline" | "part" | "translate" = "script", most: number = MAX_COUNTED_SCENES): Record<string, unknown> {
@@ -85,6 +86,7 @@ const bibleRules = (req: ScriptRequest): string[] => [
     ? `- styleBible.characters: use exactly: "${req.characters}". Refer to these characters consistently in every scene they appear in.`
     : '- styleBible.characters: a precise, reusable description of every recurring character (age, clothing, hair, colors), or "none".',
   "- styleBible.palette: 3-5 dominant colors, as plain colour names.",
+  '- styleBible.characterKind: "people" if the recurring characters are people, "animal" if they are a real kind of animal, "other" for anything else (a made-up creature, a robot, a figure of smoke), "none" if there are none.',
   "- styleBible.setting: the one time and place the whole video is set in (one that moves between times or places: see the next rule), and what belongs to it: what people there wear, what they use, what buildings and light there are (for example \"Constantinople, spring 1453: Ottoman soldiers in kaftans and turbans and Byzantine defenders in mail; wooden galleys, torches and oil lamps, parchment and quills\"). It is added to every picture, so it must be true of every scene. A video set today says so (\"the present day\") and what is around; a made-up story gives its own time and place.",
   "- styleBible.setting, for a video that moves between times or places (a list of events from different centuries, a story of several eras): begin it with \"Several times and places:\" and name them in a few words (for example \"Several times and places: Zanzibar 1896, Honduras 1969, the Sinai 1967\"). Then every imagePrompt names its own year and place in its first words, and everything in it belongs there. Never put such a video in one room or one place that none of its events happened in.",
 ];
@@ -101,6 +103,8 @@ function sceneRules(req: ScriptRequest): string[] {
     "- imagePrompt, how to write it: one or two plain sentences that a painter could work from. Name one clear main subject and what it is doing, where it is, how close the camera is (close-up, medium shot or wide shot) and from where it looks, and the light or time of day. Only things that can be seen: no feelings, ideas, metaphors, sounds or story. Say what is in the frame, never what is absent from it. Every scene's frame must differ from the one before it in subject, distance or angle.",
     "- In every imagePrompt and motionPrompt, everything belongs to the setting's time and place (in a video that moves between them, the scene's own). A person, or any part of one (hands, arms, a silhouette), is described with what they wear there. Nothing from a later time: not a suit, a necktie, a buttoned shirt, a wristwatch, glasses, printed paper, electric light, plastic, a vehicle or a screen in a time before them.",
     "- Anything that is not an ordinary person (a ghost, a shadow figure, a creature, a statue come alive) is described in full every time it appears: what it is made of and its colour all over, its hands too (for example \"a featureless silhouette of pure black smoke, with no skin, face or fingers\"). In a motionPrompt it is named by what it is made of (\"the black smoke silhouette drifts closer\"), so the clip keeps it so, and it drifts, looms, appears or fades; it never reaches or touches.",
+    "- An animal is drawn whole, one of it, in a simple natural pose seen from the side or at three-quarters: standing, perched, walking, or gliding with its wings spread. Never folded, tucked, curled or twisted, never from straight above or below, never in a crowd of its own kind, and never in extreme close-up of one part (a picture model draws such poses with extra heads, legs or wings). Say a fact about one part of it in the narration and show the whole animal.",
+    "- In a motionPrompt an animal glides, walks slowly or turns its head; wings do not beat and legs do not run. The camera, the light, the clouds or the water carry the motion.",
     "- showsCharacter: true only when a recurring character is visible in the scene's frame, and then the imagePrompt says what they are doing; false for a scene of a place, an object or a detail, whose imagePrompt must not mention them.",
     `- motionPrompt: camera movement plus subject motion during the scene in one or two sentences, physically plausible for ${clip}.`,
     "- motionPrompt, how to write it: one camera move (for example a slow push-in, a pan left, an orbit, a tilt up, or a static camera) and one or two simple motions of things already in the frame. Nothing new enters the frame, nothing changes place or shape, and nobody speaks to the camera. Do not describe how anything looks.",
@@ -214,6 +218,13 @@ const layerRules = (req: ScriptRequest, part = false, edit = true): string[] => 
   ...withGap(audienceRules(req)),
 ];
 
+/**
+ * How the narrations hang together (phase 8 spec §9): a short video told as a list of facts, each line its own
+ * sentence about something new, sounded like a list read out, and its opening question was never answered.
+ */
+const FLOW_RULE =
+  "- It is one spoken piece, not a list of facts read out: each line follows from the one before it and leads to the next (because, so, that is why, and then, but), the way a person tells it to a friend. Use plain everyday words, not the words of a textbook. If the first line asks a question, the last line answers it in plain words.";
+
 const feedbackLines = (req: ScriptRequest): string[] => (req.feedback ? ["", "Your previous answer was rejected for these reasons. Fix them:", req.feedback] : []);
 
 /** A block of lines with a blank line before it, or nothing. */
@@ -232,6 +243,7 @@ function wholePrompt(req: ScriptRequest): string {
     ...languageRule(req, "the title, the hook and every narration"),
     narrationRule(req),
     "- All narrations together read as one continuous script with a strong hook in scene 1.",
+    FLOW_RULE,
     hookRule(req),
     hashtagRule(req),
     ...bibleRules(req),
@@ -293,6 +305,7 @@ function partPrompt(req: ScriptRequest, ask: Extract<NonNullable<ScriptRequest["
     ...languageRule(req, "every narration"),
     narrationRule(req),
     "- The narrations of this part read as one continuous script.",
+    FLOW_RULE,
     ...sceneRules(req),
     ...feedbackLines(req),
   ].join("\n");
@@ -337,6 +350,28 @@ export function buildScriptPrompt(req: ScriptRequest): string {
   return wholePrompt(req);
 }
 
+/**
+ * What a picture is looked at for before it is used (phase 8 spec §9): the faults a picture or clip model makes and
+ * a viewer sees at a glance. Not taste: a style, a colour or a framing is never a fault.
+ */
+export function inspectPrompt(req: InspectRequest): string {
+  return [
+    `These ${req.images.length === 1 ? "is a picture" : `are ${req.images.length} frames of one clip`} made by a generator for a short video. It should show: ${req.expected}`,
+    "Look only for these faults, which a viewer would notice at a glance:",
+    "- a body with too many or too few heads, legs, arms, wings, tails or eyes; two bodies grown into one; a head where a tail or a body part should be",
+    "- human hands, arms or a human face on an animal or a creature; hands or fingers that are malformed",
+    "- something the description says is one, shown as two or more",
+    "- writing, letters or a watermark",
+    "Style, colour, framing, lighting and small details are never faults. ok is false only for a fault from this list; problems names each in a few words.",
+  ].join("\n");
+}
+
+const INSPECT_SCHEMA = {
+  type: "object",
+  properties: { problems: { type: "array", items: { type: "string" } }, ok: { type: "boolean" } },
+  required: ["problems", "ok"],
+};
+
 export class GeminiLlm implements LlmProvider {
   private readonly ai: GoogleGenAI;
 
@@ -352,6 +387,18 @@ export class GeminiLlm implements LlmProvider {
       model: this.model,
       contents: buildScriptPrompt(req),
       config: { responseMimeType: "application/json", responseJsonSchema: scriptJsonSchema(req.ask?.kind ?? "script", mostEntries(req)), temperature: 0.9 },
+    });
+    const text = res.text;
+    if (!text) throw new Error("Gemini returned an empty response");
+    return JSON.parse(text);
+  }
+
+  async inspect(req: InspectRequest): Promise<unknown> {
+    const images = await Promise.all(req.images.map(async (path) => ({ inlineData: { mimeType: "image/png", data: (await readFile(path)).toString("base64") } })));
+    const res = await this.ai.models.generateContent({
+      model: this.model,
+      contents: [{ role: "user", parts: [{ text: inspectPrompt(req) }, ...images] }],
+      config: { responseMimeType: "application/json", responseJsonSchema: INSPECT_SCHEMA, temperature: 0 },
     });
     const text = res.text;
     if (!text) throw new Error("Gemini returned an empty response");
