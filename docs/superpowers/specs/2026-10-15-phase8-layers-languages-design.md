@@ -284,6 +284,42 @@ What exists in the open as of 2026-10:
 
 Nothing of this is built until the trial has been looked at.
 
+### 6.1 The trial, run 2026-10-16 (owner's click)
+
+**Setup.** One temporary pod (A100 80GB PCIe, $1.79/h, `runpod/pytorch:1.4.0-cu1281-torch280-ubuntu2204`):
+
+- Inputs went in by presigned links and results came back the same way.
+- The pod removed itself at the end (a trap, and a 95-minute watchdog). The local script removed it again and
+  found it gone.
+- It ran for 36 minutes, about $1.08, plus $0.015 for the portrait.
+- The scripts are kept out of the repository (`.superpowers/trial/`). They were a one-off.
+
+**Upscaling (SeedVR2, the command-line `inference_cli.py`, batch 33, temporal overlap 4).** Three clips from the
+2026-10-15 runs (480×832, 4.4–5.4 s, 105–129 frames) became 1080×1872:
+
+| | 3B (fp16) | 7B (fp16) |
+|---|---|---|
+| seconds per clip, warm | 174–209 | 196–238 |
+| first clip, with the model's download | 314 | 391 |
+| A100 cost per clip, warm | ≈ $0.09–0.10 | ≈ $0.10–0.12 |
+
+What the pictures show:
+
+- The gain is plain at full size: chain links, bark, cloth and faces come out sharp where the 480p clip is soft.
+- 7B is a little more natural than 3B, which over-sharpens slightly.
+- **The cost is the catch.** One upscale costs about three times what the clip it upscales cost to make. It is a
+  premium choice ("HD") rather than every video's.
+
+**Speech to video (Wan 2.2 S2V-14B, official `generate.py`).**
+
+- It downloaded in 203 s, loaded, and failed on its first step with an assertion inside its attention.
+- The S2V model calls flash-attention directly, with no fallback, and the trial left flash-attn out to save its
+  hour-long build.
+- **Next try:** install a prebuilt flash-attn wheel for torch 2.8 / CUDA 12.8 / Python 3.11 (about $1 more).
+- Two things stand regardless of the outcome:
+  - its audio encoder is English wav2vec2, so lip sync in other languages is to be seen, not assumed;
+  - a speaking scene is still a new kind of scene (§6).
+
 ## 7. What the first real video showed (2026-10-16)
 
 The owner approved a real test, made with the real script model, voice and pictures:
