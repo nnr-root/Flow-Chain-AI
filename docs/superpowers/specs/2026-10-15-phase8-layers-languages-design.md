@@ -435,3 +435,21 @@ already.
 - The worker has not run on RunPod. Building its image (on the next push) and the deploy are both owner's clicks,
   and so is a first full HD video to measure its real seconds and cost on a 24 GB card.
 - Until then the choice does not appear: without the endpoint, `fullHd` is false.
+
+### 8.1 The first live full HD video (2026-10-16, owner's clicks)
+
+**Deployed.** The upscale image was built and deployed: template and endpoint `flowchain-upscale`, on a 24 GB card,
+reading no volume.
+
+**The first video** was run `20261016-130129-c0ec7c` ("How a peregrine falcon dives…", 20 s, every scene a clip,
+cap $0.65). It bought its script, voice, portrait, pictures and five clips ($0.29). Its first upscale then ran out of
+memory in SeedVR2's VAE on the RTX 4090: 14 GB allocated, 2 GB more asked of 23.6 GB. That failure cost $0.014. The
+trial's settings had only ever run on an A100's 80 GB.
+
+**The change.**
+
+- batches of 21 frames instead of 33;
+- the VAE encodes and decodes in 768-pixel tiles.
+
+The video waits for the new image. What it bought is kept, and a resume buys only the upscales.
+

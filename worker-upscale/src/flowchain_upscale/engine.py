@@ -3,9 +3,12 @@
 import subprocess
 
 CLI = "/seedvr2/inference_cli.py"
-# frames per batch (4n+1): a 480p clip of up to 81 frames goes in one or two batches, blended where they meet
-BATCH = 33
+# frames per batch (4n+1), blended where batches meet. 33 ran on an A100's 80 GB in the trial; on the endpoint's 24 GB
+# card it ran out of memory in the VAE on the first live clip (2026-10-16), so batches are smaller there, and the
+# VAE encodes and decodes a full HD frame in tiles
+BATCH = 21
 OVERLAP = 4
+TILE = 768
 
 
 def command(src, out, short, model_dir, dit, python="python"):
@@ -18,8 +21,8 @@ def command(src, out, short, model_dir, dit, python="python"):
         "--resolution", str(short),
         "--batch_size", str(BATCH),
         "--temporal_overlap", str(OVERLAP),
-        # (on a 24 GB card the decode of a full HD batch is done in tiles)
-        "--vae_decode_tiled",
+        "--vae_encode_tiled", "--vae_encode_tile_size", str(TILE),
+        "--vae_decode_tiled", "--vae_decode_tile_size", str(TILE),
     ]
 
 

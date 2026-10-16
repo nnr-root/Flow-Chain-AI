@@ -33,7 +33,7 @@ def test_runs_seedvr2_as_the_trial_measured_it():
     cmd = engine.command("/tmp/a.mp4", "/tmp/b.mp4", 1080, "/models/seedvr2", weights.DIT)
     assert cmd[1:3] == [engine.CLI, "/tmp/a.mp4"]
     joined = " ".join(cmd)
-    for part in ["--resolution 1080", "--batch_size 33", "--temporal_overlap 4", "--dit_model seedvr2_ema_3b_fp16.safetensors", "--model_dir /models/seedvr2", "--output /tmp/b.mp4"]:
+    for part in ["--resolution 1080", "--batch_size 21", "--temporal_overlap 4", "--vae_encode_tiled", "--vae_decode_tiled", "--vae_decode_tile_size 768", "--dit_model seedvr2_ema_3b_fp16.safetensors", "--model_dir /models/seedvr2", "--output /tmp/b.mp4"]:
         assert part in joined
 
 
