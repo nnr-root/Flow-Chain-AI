@@ -32,6 +32,8 @@ const REROLLS: Array<{ stage: string; label: string }> = [
   { stage: "tts", label: "voice" },
   { stage: "keyframes", label: "picture" },
   { stage: "clips", label: "clip" },
+  // (shown only where the scene has the step: a moving clip of a run in full HD)
+  { stage: "upscale", label: "full HD clip" },
 ];
 
 export function Studio({ initial, initialLog, kits, publishing = false, versions }: { initial: RunView; initialLog: string[]; kits: KitSummary[]; publishing?: boolean; versions?: VersionChoices }) {

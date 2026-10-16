@@ -1,8 +1,10 @@
 import type { Manifest } from "./manifest/schema.js";
 import { referenceApplies } from "./stages/reference.js";
+import { isUpscaled } from "./stages/upscale.js";
 import { needsKeyframe } from "./stages/visual.js";
 
-export const REROLLABLE = ["tts", "keyframes", "clips", "reference"] as const;
+// (a full HD clip too, phase 8 spec §8: a failed upscale is kept for its inputs, and only a new nonce asks again)
+export const REROLLABLE = ["tts", "keyframes", "clips", "upscale", "reference"] as const;
 export type RerollStage = (typeof REROLLABLE)[number];
 
 /**
@@ -22,6 +24,9 @@ export function bumpNonce(m: Manifest, sceneNumber: number, stage: string): void
       `scene ${sceneNumber} is Mode 2: it has no clip (the keyframe is animated at render time), so rerolling ` +
         `clips would change nothing; use --stage keyframes for a new image`,
     );
+  }
+  if (stage === "upscale" && !isUpscaled(m, idx)) {
+    throw new Error(`scene ${sceneNumber} has no full HD clip: only a moving clip of a run made in full HD is upscaled`);
   }
   if (stage === "keyframes" && !needsKeyframe(m, idx)) {
     throw new Error(`scene ${sceneNumber} continues from the previous clip and has no keyframe; reroll its clips instead`);

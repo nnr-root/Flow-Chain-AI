@@ -55,6 +55,20 @@ describe("a run in full HD", () => {
     expect(upscale.submits).toHaveLength(3);
   });
 
+  it("asks again, after a failed upscale, only when that scene's upscale is rerolled", async () => {
+    const { ctx, upscale } = await hdRun();
+    upscale.unusable = (r) => r.videoPath.endsWith("clip_01.mp4");
+    await expect(runPipeline(ctx, STAGES, auto)).rejects.toThrow(/full HD scene 1/);
+    // the failed request is kept: a resume asks for the same one, never a new one
+    upscale.unusable = undefined;
+    const asked = upscale.submits.length;
+    expect(() => bumpNonce(ctx.manifest, 3, "upscale")).toThrow(/no full HD clip/);
+    bumpNonce(ctx.manifest, 1, "upscale");
+    await runPipeline(ctx, STAGES, auto);
+    expect(upscale.submits.length).toBe(asked + 2);
+    expect(ctx.manifest.scenes[0].upscaled).toBeDefined();
+  });
+
   it("is a step only a run that asked for it has, keyed so that no earlier run's fit changes", async () => {
     const { ctx } = await makeTestContext({ modes: [1, 1] });
     expect(upscaleStage.appliesTo!(ctx.manifest, 0)).toBe(false);
