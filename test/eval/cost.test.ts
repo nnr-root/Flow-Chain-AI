@@ -23,9 +23,18 @@ describe("the eval's arguments", () => {
     expect(parseArgs(["--cap", "2"])).toEqual({ cap: 2, repeats: 3, cases: null, judge: true, saveBaseline: false });
   });
   it("take the options", () => {
-    expect(parseArgs(["--cap", "1", "--repeats", "5", "--cases", "a,b", "--no-judge", "--save-baseline"])).toEqual({ cap: 1, repeats: 5, cases: ["a", "b"], judge: false, saveBaseline: true });
+    expect(parseArgs(["--cap", "1", "--repeats", "5", "--cases", "a,b", "--no-judge"])).toEqual({ cap: 1, repeats: 5, cases: ["a", "b"], judge: false, saveBaseline: false });
   });
   it("refuse fewer repeats than a spread needs when saving a baseline", () => {
     expect(parseArgs(["--cap", "1", "--repeats", "2", "--save-baseline"])).toEqual({ error: "a baseline needs --repeats 3 or more, so its spread means something" });
+  });
+  it("refuse to save a baseline from a subset of the cases", () => {
+    expect(parseArgs(["--cap", "1", "--cases", "a", "--save-baseline"])).toEqual({ error: "a baseline needs every case: drop --cases" });
+  });
+  it("refuse to save a baseline without the judge", () => {
+    expect(parseArgs(["--cap", "1", "--no-judge", "--save-baseline"])).toEqual({ error: "a baseline needs the judge: drop --no-judge" });
+  });
+  it("accept a baseline of every case, judged, with three repeats", () => {
+    expect(parseArgs(["--cap", "1", "--repeats", "3", "--save-baseline"])).toEqual({ cap: 1, repeats: 3, cases: null, judge: true, saveBaseline: true });
   });
 });

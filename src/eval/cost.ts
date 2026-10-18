@@ -36,5 +36,7 @@ export function parseArgs(argv: readonly string[]): EvalArgs | { error: string }
   if (!Number.isInteger(repeats) || repeats < 1) return { error: "--repeats must be a whole number, 1 or more" };
   const saveBaseline = argv.includes("--save-baseline");
   if (saveBaseline && repeats < 3) return { error: "a baseline needs --repeats 3 or more, so its spread means something" };
+  if (saveBaseline && value("--cases") !== undefined) return { error: "a baseline needs every case: drop --cases" };
+  if (saveBaseline && argv.includes("--no-judge")) return { error: "a baseline needs the judge: drop --no-judge" };
   return { cap, repeats, cases: value("--cases")?.split(",").filter(Boolean) ?? null, judge: !argv.includes("--no-judge"), saveBaseline };
 }

@@ -31,4 +31,16 @@ describe("an eval run", () => {
     expect(out.runs).toHaveLength(1);
     expect(out.metrics["judge:flow"]).toBeUndefined();
   });
+
+  it("keeps the runs already paid for when a call fails", async () => {
+    let calls = 0;
+    const llm = new FakeLlm((req) => {
+      if (++calls === 2) throw new Error("network down");
+      return fakeScript(req.sceneCount);
+    });
+    const out = await runEval({ llm, judge: null, cases: one, repeats: 3, capUsd: 5, prices });
+    expect(out.runs).toHaveLength(1);
+    expect(out.aborted).toContain("network down");
+    expect(out.stoppedByCap).toBe(false);
+  });
 });

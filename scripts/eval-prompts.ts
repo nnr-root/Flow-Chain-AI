@@ -52,6 +52,7 @@ async function main(): Promise<void> {
 
   const out = await runEval({ llm, judge, cases, repeats: args.repeats, capUsd: args.cap, prices });
   if (out.stoppedByCap) console.warn("stopped at the cap: the last repeat is incomplete, so this run is not a baseline");
+  if (out.aborted) console.warn(`cut short by an error (${out.aborted}): the runs so far are written below, and this run is not a baseline`);
 
   const dir = join("eval-out", PROMPT_VERSION);
   await mkdir(dir, { recursive: true });
@@ -68,7 +69,7 @@ async function main(): Promise<void> {
   console.log(text);
   console.log(`spent about $${out.spentUsd.toFixed(4)} by the estimate; outputs in ${dir}/`);
 
-  if (args.saveBaseline && !out.stoppedByCap) {
+  if (args.saveBaseline && !out.stoppedByCap && !out.aborted) {
     const next: Baseline = { promptVersion: PROMPT_VERSION, judgeModel: env.GEMINI_MODEL, repeats: args.repeats, metrics: out.metrics };
     await mkdir("test/eval", { recursive: true });
     await writeFile(BASELINE, `${JSON.stringify(next, null, 2)}\n`);

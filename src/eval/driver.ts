@@ -15,7 +15,7 @@ export type EvalInput = {
   capUsd: number;
   prices: Prices;
 };
-export type EvalOutput = { runs: RunRecord[]; metrics: Metrics; spentUsd: number; stoppedByCap: boolean };
+export type EvalOutput = { runs: RunRecord[]; metrics: Metrics; spentUsd: number; stoppedByCap: boolean; /** Why the run ended early on an error from the model (short, never the error itself). */ aborted?: string };
 
 /**
  * Runs every case `repeats` times, the repeats outermost so a run cut short by the cap still has whole repeats
@@ -29,7 +29,14 @@ export async function runEval(input: EvalInput): Promise<EvalOutput> {
       const need = caseCostUsd(input.prices, c) + (input.judge ? judgeCostUsd(input.prices) : 0);
       if (spent + need > input.capUsd) return { runs, metrics: metricsOf(runs), spentUsd: spent, stoppedByCap: true };
       spent += need;
-      const outcome = await runCase(input.llm, c);
+      let outcome: Awaited<ReturnType<typeof runCase>>;
+      try {
+        outcome = await runCase(input.llm, c);
+      } catch (err) {
+        // Calls already made were paid for: hand them back so the script can still write them down.
+        const aborted = (err instanceof Error ? err.message : String(err)).slice(0, 200);
+        return { runs, metrics: metricsOf(runs), spentUsd: spent, stoppedByCap: false, aborted };
+      }
       let judge: RunRecord["judge"];
       if (input.judge && outcome.scenes.length) {
         try {
