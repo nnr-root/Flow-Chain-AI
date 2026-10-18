@@ -48,9 +48,14 @@ anything above it.
    "not an instruction". The topic gets the same fence.
 4. **The inspect prompt is narrow.** It looks for body faults only. It does not look for a main subject that is missing
    or replaced, and, for the three frames of a clip, a change of identity or style between them (item 1 needs this).
-5. **Rules held only by the prompt.** "No hand moves", "nothing from a later time" and others are not checked in code.
-   The eval (§6) counts them; where a check is cheap and certain, the script stage may retry with feedback, as it
-   already does for timing. Each such move to code is its own decision in the plan, not assumed here.
+5. **Most rules are already enforced in code, so the cost is in the retries.** `validateScript`, `validateOutline`,
+   `validatePart` and `validateTranslation` (`src/stages/script.ts`) already check scene and word counts (CJK in
+   characters), the hook cap, anachronisms and moving hands, and `answer()` sends a rejected answer back once with
+   the reasons. **Every answer is paid for, accepted or not, and a second rejection fails the run.** So a prompt that
+   makes the model break these rules costs money twice over. What the prompt still holds alone: generic hashtags
+   (put right in code, never a rejection), a text or logo asked for in an `imagePrompt`, and continuity between
+   `continue` scenes. (An earlier draft of this finding said the hand and anachronism rules were prompt-only; they
+   are not.)
 
 ## 3. Rulings
 
@@ -89,11 +94,17 @@ Pure and free, in `src/eval/`, unit-tested, following the repo's split of what d
 - **Cases** (`test/eval/cases`): about two dozen fixed requests over the niches, types and edits; several languages
   including Chinese or Japanese and Arabic; short and multi-part lengths. Hard ones on purpose: an animal topic, a
   period setting, a video across several eras, and a topic that contains an instruction.
-- **Checks:** the schema; scene and word counts, **all through `src/voice/words.ts`** so Chinese and Japanese are
-  counted in characters (the case set holds one of each to prove it); the total against the target length; the hook
-  cap; exactly 5 hashtags, none generic; scene 1 is a `cut`; no hand verbs in a `motionPrompt`; no anachronism words
-  in a period setting; no text or logo asked for in an `imagePrompt`.
-- **A check must be able to fail:** each is tested against a hand-written good and a hand-written bad script.
+- **The main measure: first-try acceptance.** Each answer is run through the pipeline's own validators
+  (`validateScript`, `validateOutline`, `validatePart`, `validateTranslation`), not copies of them, and counted as
+  accepted or rejected with its reasons. A rejection is paid money (see §2, finding 5), so the rate of first-try
+  acceptance is the number a prompt change is judged by first. The validators already count through
+  `src/voice/words.ts`, so Chinese and Japanese are counted in characters; the case set holds one of each to prove
+  it reaches the harness.
+- **Extra checks the validators lack:** no text, logo or watermark asked for in an `imagePrompt`; no generic hashtag
+  in the raw answer (before `normalizeHashtags` puts it right); a `continue` scene's `motionPrompt` does not start
+  from rest (a cheap lexical check, backed by the judge); the raw hashtag count is 5.
+- **A check must be able to fail:** each extra check is tested against a hand-written good and a hand-written bad
+  script; the validators already have their own tests.
 
 Acting, in `scripts/eval-prompts.ts` as `npm run eval:prompts`:
 
@@ -117,7 +128,7 @@ compat tests, which stay green with `compat.test.ts` unedited; `npm run typechec
 ## 8. Order of work (one commit each)
 
 1. The audit of the content files and inline examples, written into §2.1.
-2. `PROMPT_VERSION`, the temperature table, the pin test, the optional manifest field.
+2. `PROMPT_VERSION`, the temperature table, the pin test, the optional manifest field. The audit of the content files may add findings to §2.1; the plan's later tasks are written against §2 as it stands and are amended if §2.1 changes them.
 3. The prompt fixes (§5), with the bump.
 4. The pure eval checks and cases.
 5. The runner script and the `CLAUDE.md` changes (the owner's-click list, `eval-out/` in the never-commit list, this spec in the table).
