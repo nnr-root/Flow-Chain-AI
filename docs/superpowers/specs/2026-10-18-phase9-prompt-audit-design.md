@@ -102,7 +102,7 @@ move them. A `fix`, `shorten` or `remove` row has its own task in the plan (Task
 
 ## 4. Prompt versions
 
-- `PROMPT_VERSION`: a dated constant exported from `src/providers/gemini.ts`, for example `"2026-10-18.1"`. It is
+- `PROMPT_VERSION`: a dated constant exported from `src/providers/prompt-version.ts` (`src/providers/gemini.ts` imports it and exposes it as `promptVersion` on `GeminiLlm`), for example `"2026-10-18.1"`. It is
   bumped by hand whenever any prompt text changes **or any imported content file changes** (`niches.ts`,
   `formats.ts`, `edits.ts`, `culture.ts`, `presets.ts`, and the text `visual.ts` adds), or the temperature table
   changes. Each bump has a one-line entry in the changelog at the end of this spec.
