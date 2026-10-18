@@ -6,7 +6,7 @@ export const CRITERIA = ["paintable", "plausible", "continuity", "flow", "fit"] 
 
 const score = z.number().min(1).max(5);
 export const JudgeAnswer = z.object({
-  scores: z.object({ paintable: score, plausible: score, continuity: score.nullable(), flow: score, fit: score }),
+  scores: z.object({ paintable: score, plausible: score, continuity: score.optional(), flow: score, fit: score }),
   notes: z.string(),
 });
 
@@ -15,6 +15,7 @@ export function judgeSchema(): Record<string, unknown> {
   return schema;
 }
 
+/* continuity is optional, not nullable: a null type makes the schema an anyOf, which Gemini's schema dialect may refuse and then no run is judged. */
 const hasContinuation = (scenes: readonly JudgeScene[]): boolean => scenes.some((s, i) => i > 0 && s.shot === "continue");
 
 /**
@@ -44,5 +45,5 @@ export function judgePrompt(c: EvalCase, scenes: readonly JudgeScene[]): string 
 export function judgeScores(raw: unknown, scenes: readonly JudgeScene[]): Record<string, number | null> | null {
   const parsed = JudgeAnswer.safeParse(raw);
   if (!parsed.success) return null;
-  return { ...parsed.data.scores, continuity: hasContinuation(scenes) ? parsed.data.scores.continuity : null };
+  return { ...parsed.data.scores, continuity: hasContinuation(scenes) ? (parsed.data.scores.continuity ?? null) : null };
 }

@@ -25,6 +25,18 @@ describe("an eval run", () => {
     expect(out.stoppedByCap).toBe(true);
   });
 
+  it("counts runs the judge could not score, whether it failed or answered badly", async () => {
+    const llm = new FakeLlm((req) => fakeScript(req.sceneCount));
+    const failing = await runEval({ llm, judge: async () => { throw new Error("schema refused"); }, cases: one, repeats: 2, capUsd: 5, prices });
+    expect(failing).toMatchObject({ judged: 0, judgeMissing: 2 });
+    const bad = await runEval({ llm, judge: async () => "nonsense", cases: one, repeats: 1, capUsd: 5, prices });
+    expect(bad).toMatchObject({ judged: 0, judgeMissing: 1 });
+    const good = await runEval({ llm, judge: async () => ({ scores: { paintable: 4, plausible: 4, continuity: 4, flow: 4, fit: 4 }, notes: "n" }), cases: one, repeats: 2, capUsd: 5, prices });
+    expect(good).toMatchObject({ judged: 2, judgeMissing: 0 });
+    const off = await runEval({ llm, judge: null, cases: one, repeats: 1, capUsd: 5, prices });
+    expect(off).toMatchObject({ judged: 0, judgeMissing: 0 });
+  });
+
   it("goes on without a score when the judge is away or answers badly", async () => {
     const llm = new FakeLlm((req) => fakeScript(req.sceneCount));
     const out = await runEval({ llm, judge: async () => "nonsense", cases: one, repeats: 1, capUsd: 5, prices });

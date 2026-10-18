@@ -22,12 +22,19 @@ describe("the judge's question", () => {
   it("has a schema the model can answer", () => {
     expect(judgeSchema()).toHaveProperty("properties.scores");
   });
+  it("has a schema without a null type, which the model's schema dialect may refuse", () => {
+    expect(JSON.stringify(judgeSchema())).not.toContain('"null"');
+  });
 });
 
 describe("the judge's answer", () => {
   it("gives the scores of a good answer", () => expect(judgeScores(answer, scenes)).toEqual(answer.scores));
   it("gives continuity as not applicable when no scene continues another, whatever was answered", () => {
     expect(judgeScores(answer, [scenes[0]])?.continuity).toBeNull();
+  });
+  it("takes an answer without continuity as a lost data point where scenes continue, not a failure", () => {
+    const { continuity: _c, ...rest } = answer.scores;
+    expect(judgeScores({ scores: rest, notes: "ok" }, scenes)).toEqual({ ...rest, continuity: null });
   });
   it("refuses an answer outside the scale or of the wrong shape", () => {
     expect(judgeScores({ ...answer, scores: { ...answer.scores, flow: 9 } }, scenes)).toBeNull();

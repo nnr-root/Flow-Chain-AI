@@ -15,7 +15,7 @@ export type EvalInput = {
   capUsd: number;
   prices: Prices;
 };
-export type EvalOutput = { runs: RunRecord[]; metrics: Metrics; spentUsd: number; stoppedByCap: boolean; /** Why the run ended early on an error from the model (short, never the error itself). */ aborted?: string };
+export type EvalOutput = { runs: RunRecord[]; metrics: Metrics; spentUsd: number; stoppedByCap: boolean; /** Runs with scenes the judge scored, and runs with scenes it did not (it failed or answered badly). */ judged: number; judgeMissing: number; /** Why the run ended early on an error from the model (short, never the error itself). */ aborted?: string };
 
 /**
  * Runs every case `repeats` times, the repeats outermost so a run cut short by the cap still has whole repeats
@@ -24,10 +24,13 @@ export type EvalOutput = { runs: RunRecord[]; metrics: Metrics; spentUsd: number
 export async function runEval(input: EvalInput): Promise<EvalOutput> {
   const runs: RunRecord[] = [];
   let spent = 0;
+  let judged = 0;
+  let judgeMissing = 0;
+  const tally = () => ({ judged, judgeMissing });
   for (let repeat = 0; repeat < input.repeats; repeat++) {
     for (const c of input.cases) {
       const need = caseCostUsd(input.prices, c) + (input.judge ? judgeCostUsd(input.prices) : 0);
-      if (spent + need > input.capUsd) return { runs, metrics: metricsOf(runs), spentUsd: spent, stoppedByCap: true };
+      if (spent + need > input.capUsd) return { runs, metrics: metricsOf(runs), spentUsd: spent, stoppedByCap: true, ...tally() };
       spent += need;
       let outcome: Awaited<ReturnType<typeof runCase>>;
       try {
@@ -35,7 +38,7 @@ export async function runEval(input: EvalInput): Promise<EvalOutput> {
       } catch (err) {
         // Calls already made were paid for: hand them back so the script can still write them down.
         const aborted = (err instanceof Error ? err.message : String(err)).slice(0, 200);
-        return { runs, metrics: metricsOf(runs), spentUsd: spent, stoppedByCap: false, aborted };
+        return { runs, metrics: metricsOf(runs), spentUsd: spent, stoppedByCap: false, ...tally(), aborted };
       }
       let judge: RunRecord["judge"];
       if (input.judge && outcome.scenes.length) {
@@ -44,9 +47,11 @@ export async function runEval(input: EvalInput): Promise<EvalOutput> {
         } catch {
           judge = undefined;
         }
+        if (judge) judged++;
+        else judgeMissing++;
       }
       runs.push({ caseId: c.id, repeat, outcome, judge });
     }
   }
-  return { runs, metrics: metricsOf(runs), spentUsd: spent, stoppedByCap: false };
+  return { runs, metrics: metricsOf(runs), spentUsd: spent, stoppedByCap: false, ...tally() };
 }
