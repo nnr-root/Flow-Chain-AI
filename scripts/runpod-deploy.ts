@@ -46,11 +46,13 @@ async function main(): Promise<void> {
     image: process.env.RUNPOD_WORKER_IMAGE ?? (await defaultImage("clip")),
     pictureImage: process.env.RUNPOD_PICTURE_IMAGE ?? (await defaultImage("picture")),
     dataCenterId: process.env.RUNPOD_DATACENTER ?? DEFAULTS.dataCenterId,
-    volumeGb: DEFAULTS.volumeGb,
+    volumeGb: process.env.RUNPOD_PICTURE3_GPUS ? DEFAULTS.volumeGbWithFlux3 : DEFAULTS.volumeGb,
     keyframeGpus: DEFAULTS.keyframeGpus,
     clipGpus: DEFAULTS.clipGpus,
     // full HD (phase 8 spec §8): `-- --no-upscale` leaves its endpoint out
     ...(process.argv.includes("--no-upscale") ? {} : { upscaleImage: process.env.RUNPOD_UPSCALE_IMAGE ?? (await defaultImage("upscale")), upscaleGpus: DEFAULTS.upscaleGpus }),
+    // FLUX 3 (phase 10 spec §3): its endpoint is made only when the owner names its cards
+    ...(process.env.RUNPOD_PICTURE3_GPUS ? { keyframe3Gpus: process.env.RUNPOD_PICTURE3_GPUS.split(",").map((s) => s.trim()).filter(Boolean), hfToken: need("HF_TOKEN") } : {}),
     r2: {
       accountId: need("R2_ACCOUNT_ID"),
       bucket: need("R2_BUCKET"),
@@ -62,7 +64,7 @@ async function main(): Promise<void> {
   await assertImageInGhcr(cfg.pictureImage, console.warn);
   if (cfg.upscaleImage) await assertImageInGhcr(cfg.upscaleImage, console.warn);
   const rest = new RunpodRest(apiKey);
-  const steps = await planDeploy(rest, { upscale: Boolean(cfg.upscaleImage) });
+  const steps = await planDeploy(rest, { upscale: Boolean(cfg.upscaleImage), picture3: Boolean(cfg.keyframe3Gpus) });
   console.log(`RunPod deploy (clips ${cfg.image}, pictures ${cfg.pictureImage}, data centre ${cfg.dataCenterId}):`);
   for (const s of steps) console.log(`  ${s.action.padEnd(6)} ${s.what} ${s.name}`);
   const monthly = cfg.volumeGb * DEFAULTS.volumeUsdPerGbMonth;
@@ -82,6 +84,7 @@ async function main(): Promise<void> {
   // saved before the long model downloads, so a failed download never loses the ids of what was just created
   await writeEnvValues(".env", {
     RUNPOD_KEYFRAME_ENDPOINT: deployed.keyframeEndpointId,
+    ...(deployed.keyframe3EndpointId ? { RUNPOD_PICTURE3_ENDPOINT: deployed.keyframe3EndpointId } : {}),
     ...(deployed.upscaleEndpointId ? { RUNPOD_UPSCALE_ENDPOINT: deployed.upscaleEndpointId } : {}),
     RUNPOD_CLIP_ENDPOINT: deployed.clipEndpointId,
   });
@@ -108,8 +111,8 @@ async function main(): Promise<void> {
   console.log(`An earlier volume (${RETIRED_VOLUMES.join(", ")}), if there is one, is still there and still billed: once a run has worked, npm run runpod:deploy -- --remove-old-volume deletes it.`);
 }
 
-async function fetchAll(client: RunpodClient, deployed: { keyframeEndpointId: string; clipEndpointId: string }): Promise<void> {
-  for (const [kind, id] of [["keyframe", deployed.keyframeEndpointId], ["clip", deployed.clipEndpointId]] as const) {
+async function fetchAll(client: RunpodClient, deployed: { keyframeEndpointId: string; clipEndpointId: string; keyframe3EndpointId?: string }): Promise<void> {
+  for (const [kind, id] of [["keyframe", deployed.keyframeEndpointId], ["clip", deployed.clipEndpointId], ...(deployed.keyframe3EndpointId ? [["keyframe3", deployed.keyframe3EndpointId] as const] : [])] as const) {
     console.log(`Fetching ${kind} model weights onto the volume (the first time takes a while)…`);
     const done = await fetchModels(client, id, kind);
     console.log(`  downloaded ${done.downloaded.length}, already present ${done.skipped.length}`);

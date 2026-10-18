@@ -353,3 +353,42 @@ describe("the volume used before", () => {
     expect(moved.calls.filter((c) => c.startsWith("DELETE"))).toEqual(["DELETE /v1/networkvolumes/v-old"]);
   });
 });
+
+describe("runpod deploy of the FLUX 3 picture endpoint (phase 10 spec §3)", () => {
+  const withFlux3 = { ...cfg, keyframe3Gpus: ["NVIDIA RTX 6000 Ada Generation"], hfToken: "hf_secret_value" };
+
+  it("makes no FLUX 3 endpoint unless its cards are named, and plans none", async () => {
+    const { rest, store } = fakeRest();
+    expect((await applyDeploy(rest, cfg, () => {})).keyframe3EndpointId).toBeUndefined();
+    expect(store.endpoints.map((e) => e.name)).not.toContain(NAMES.keyframe3);
+    expect((await planDeploy(rest)).map((s) => s.name)).not.toContain(NAMES.keyframe3);
+  });
+
+  it("makes its endpoint on the picture worker's image and template, on the cards named, with the longer limit", async () => {
+    const { rest, store } = fakeRest();
+    expect((await planDeploy(rest, { picture3: true })).map((s) => s.name)).toContain(NAMES.keyframe3);
+    const deployed = await applyDeploy(rest, withFlux3, () => {});
+    const pictureTemplate = store.templates.find((t) => t.name === NAMES.pictureTemplate)!;
+    const e = store.endpoints.find((x) => x.name === NAMES.keyframe3)!;
+    expect(deployed.keyframe3EndpointId).toBe(e.id);
+    expect(e).toMatchObject({ templateId: pictureTemplate.id, gpuTypeIds: ["NVIDIA RTX 6000 Ada Generation"], executionTimeoutMs: 300_000, workersMax: 1, flashboot: false, minCudaVersion: "12.8" });
+    expect(e.networkVolumeId).toBe(deployed.volumeId);
+  });
+
+  it("gives the picture worker the Hugging Face token as a secret, never in plain text", async () => {
+    const { rest, store, secrets } = fakeRest();
+    await applyDeploy(rest, withFlux3, () => {});
+    expect(secrets.has("flowchain_hf_token")).toBe(true);
+    const pictureTemplate = store.templates.find((t) => t.name === NAMES.pictureTemplate)!;
+    expect(pictureTemplate.env).toMatchObject({ HF_TOKEN: "{{ RUNPOD_SECRET_flowchain_hf_token }}" });
+    expect(JSON.stringify(store)).not.toContain("hf_secret_value");
+    // the clip worker's template does not get it
+    expect(store.templates.find((t) => t.name === NAMES.template)!.env).not.toHaveProperty("HF_TOKEN");
+  });
+
+  it("asks the worker for the FLUX 3 weights by name", async () => {
+    const api = new FakeRunpodApi(() => [{ status: "COMPLETED", output: { downloaded: ["w"], skipped: [] } }]);
+    await fetchModels(new RunpodClient("k", { fetch: api.fetch }), "ep-f", "keyframe3", { pollMs: 1, sleep: async () => {} });
+    expect(api.runs[0].input).toEqual({ task: "fetch-models", only: "keyframe3" });
+  });
+});

@@ -10,6 +10,8 @@ export const NAMES = {
   pictureTemplate: "flowchain-picture",
   keyframe: "flowchain-keyframe",
   clip: "flowchain-clip",
+  /** the FLUX 3 picture endpoint (phase 10 spec §3): the picture worker's template, other cards */
+  keyframe3: "flowchain-keyframe-flux3",
   /** full HD (phase 8 spec §8): its own image, with its model inside, and no volume */
   upscaleTemplate: "flowchain-upscale",
   upscale: "flowchain-upscale",
@@ -19,7 +21,7 @@ export const NAMES = {
 export const RETIRED_VOLUMES = ["flowchain-models"];
 
 /** Secrets hold the R2 keys; the template env refers to them, so they never sit in plain text on RunPod. */
-export const SECRET_NAMES = { accessKeyId: "flowchain_r2_access_key_id", secretAccessKey: "flowchain_r2_secret_access_key" };
+export const SECRET_NAMES = { accessKeyId: "flowchain_r2_access_key_id", secretAccessKey: "flowchain_r2_secret_access_key", hfToken: "flowchain_hf_token" };
 
 export type DeployConfig = {
   image: string;
@@ -32,6 +34,10 @@ export type DeployConfig = {
   /** The upscaling worker's image (phase 8 spec §8); absent = no full HD endpoint is made or changed. */
   upscaleImage?: string;
   upscaleGpus?: string[];
+  /** The FLUX 3 picture endpoint's cards (phase 10 spec §3): absent = no such endpoint is made or changed. The owner names them. */
+  keyframe3Gpus?: string[];
+  /** Hugging Face token for the gated FLUX 3 weights: stored as a RunPod secret, given only to the picture worker. */
+  hfToken?: string;
   r2: { accountId: string; bucket: string; accessKeyId: string; secretAccessKey: string };
 };
 
@@ -40,6 +46,8 @@ export const DEFAULTS = {
   // Holds 31 GB of clip weights and 16 GB for the picture model: 47 GB. There is room for nothing else; a
   // model added later means growing it first (a volume can grow, never shrink).
   volumeGb: 50,
+  // 47 GB as above, plus the FLUX 3 weights and text encoder (about 20 GB): grown first, never shrunk
+  volumeGbWithFlux3: 80,
   keyframeGpus: ["NVIDIA GeForce RTX 4090"],
   // 24 GB: Wan 2.2 fp8 loads one expert at a time; no 48 GB card was in stock in the volume's data centre (spec §16)
   clipGpus: ["NVIDIA GeForce RTX 4090"],
@@ -113,7 +121,7 @@ function findByName(list: Resource[], kind: Kind, name: string): Resource | unde
 
 export type Step = { what: string; name: string; action: "create" | "update" };
 
-type Existing = { volume?: Resource; template?: Resource; pictureTemplate?: Resource; keyframe?: Resource; clip?: Resource; upscaleTemplate?: Resource; upscale?: Resource };
+type Existing = { volume?: Resource; template?: Resource; pictureTemplate?: Resource; keyframe?: Resource; clip?: Resource; keyframe3?: Resource; upscaleTemplate?: Resource; upscale?: Resource };
 
 /** What RunPod already has for our four resources (matched by name); throws when a name is ambiguous. Read-only. */
 async function lookupExisting(rest: RunpodRest): Promise<Existing> {
@@ -128,13 +136,14 @@ async function lookupExisting(rest: RunpodRest): Promise<Existing> {
     pictureTemplate: findByName(templates, "templates", NAMES.pictureTemplate),
     keyframe: findByName(endpoints, "endpoints", NAMES.keyframe),
     clip: findByName(endpoints, "endpoints", NAMES.clip),
+    keyframe3: findByName(endpoints, "endpoints", NAMES.keyframe3),
     upscaleTemplate: findByName(templates, "templates", NAMES.upscaleTemplate),
     upscale: findByName(endpoints, "endpoints", NAMES.upscale),
   };
 }
 
 /** What a deploy will do, given what already exists (matched by name). */
-export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean } = {}): Promise<Step[]> {
+export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean; picture3?: boolean } = {}): Promise<Step[]> {
   const found = await lookupExisting(rest);
   const step = (what: string, existing: Resource | undefined, name: string): Step => ({
     what,
@@ -147,12 +156,13 @@ export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean } =
     step("template", found.pictureTemplate, NAMES.pictureTemplate),
     step("endpoint", found.keyframe, NAMES.keyframe),
     step("endpoint", found.clip, NAMES.clip),
+    ...(opts.picture3 ? [step("endpoint", found.keyframe3, NAMES.keyframe3)] : []),
     ...(opts.upscale ? [step("template", found.upscaleTemplate, NAMES.upscaleTemplate), step("endpoint", found.upscale, NAMES.upscale)] : []),
   ];
 }
 
 /** `movedVolume`: an endpoint that existed was reading from another volume until now. */
-export type Deployed = { volumeId: string; templateId: string; keyframeEndpointId: string; clipEndpointId: string; upscaleEndpointId?: string; movedVolume: boolean };
+export type Deployed = { volumeId: string; templateId: string; keyframeEndpointId: string; clipEndpointId: string; upscaleEndpointId?: string; keyframe3EndpointId?: string; movedVolume: boolean };
 
 async function upsert(
   rest: RunpodRest,
@@ -186,6 +196,7 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
   ] as const) {
     if (!(await rest.createSecret(key, value))) log(`secret ${key} already exists (kept; delete it on RunPod to change it)`);
   }
+  if (cfg.hfToken && !(await rest.createSecret(SECRET_NAMES.hfToken, cfg.hfToken))) log(`secret ${SECRET_NAMES.hfToken} already exists (kept; delete it on RunPod to change it)`);
   // a volume can grow but never shrink, and stays in its data centre
   const volume =
     oldVolume && (oldVolume.size ?? 0) >= cfg.volumeGb
@@ -207,7 +218,8 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
   // 40: the image holds the text encoder and the VAE now (7 GB more), and the disk must hold it unpacked
   const templateBody = { imageName: cfg.image, containerDiskInGb: 40, env };
   const template = await upsert(rest, "templates", existing.template, NAMES.template, { ...templateBody, isServerless: true }, templateBody);
-  const pictureBody = { imageName: cfg.pictureImage, containerDiskInGb: 20, env };
+  const pictureEnv = cfg.hfToken ? { ...env, HF_TOKEN: `{{ RUNPOD_SECRET_${SECRET_NAMES.hfToken} }}` } : env;
+  const pictureBody = { imageName: cfg.pictureImage, containerDiskInGb: 20, env: pictureEnv };
   const pictureTemplate = await upsert(rest, "templates", existing.pictureTemplate, NAMES.pictureTemplate, { ...pictureBody, isServerless: true }, pictureBody);
   const endpoint = (templateId: string, gpus: string[], executionTimeoutMs: number, more: Record<string, unknown> = {}) => ({
     templateId,
@@ -233,7 +245,13 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
   const clip = endpoint(template.id, cfg.clipGpus, 600_000);
   const keyframeEndpoint = await upsert(rest, "endpoints", existing.keyframe, NAMES.keyframe, keyframe, keyframe);
   const clipEndpoint = await upsert(rest, "endpoints", existing.clip, NAMES.clip, clip, clip);
-  const movedVolume = [existing.keyframe, existing.clip].some(
+  let keyframe3EndpointId: string | undefined;
+  if (cfg.keyframe3Gpus?.length) {
+    // sixteen steps on a bigger card: a job may take several times the 4B's, so the limit is longer
+    const flux3 = endpoint(pictureTemplate.id, cfg.keyframe3Gpus, 300_000, { minCudaVersion: "12.8" });
+    keyframe3EndpointId = (await upsert(rest, "endpoints", existing.keyframe3, NAMES.keyframe3, flux3, flux3)).id;
+  }
+  const movedVolume = [existing.keyframe, existing.clip, existing.keyframe3].some(
     (e) => (e?.networkVolumeId !== undefined && e.networkVolumeId !== volume.id) || e?.networkVolumeIds?.some((id) => id !== volume.id),
   );
   // full HD (phase 8 spec §8): its model is in its image, so it reads no volume and may run in any data centre
@@ -244,7 +262,7 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(upscaleTemplate.id, cfg.upscaleGpus ?? DEFAULTS.upscaleGpus, 900_000, { minCudaVersion: "12.8" });
     upscaleEndpointId = (await upsert(rest, "endpoints", existing.upscale, NAMES.upscale, anywhere, anywhere)).id;
   }
-  return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id, ...(upscaleEndpointId ? { upscaleEndpointId } : {}), movedVolume };
+  return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id, ...(upscaleEndpointId ? { upscaleEndpointId } : {}), ...(keyframe3EndpointId ? { keyframe3EndpointId } : {}), movedVolume };
 }
 
 /**
@@ -276,7 +294,7 @@ export async function removeRetiredVolumes(rest: RunpodRest): Promise<string[]> 
 export async function fetchModels(
   client: RunpodClient,
   endpointId: string,
-  only: "keyframe" | "clip",
+  only: "keyframe" | "clip" | "keyframe3",
   opts: { pollMs?: number; sleep?: (ms: number) => Promise<void>; timeoutMs?: number } = {},
 ): Promise<{ downloaded: string[]; skipped: string[]; removed?: string[] }> {
   const { pollMs = 15_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), timeoutMs = 3_600_000 } = opts;
