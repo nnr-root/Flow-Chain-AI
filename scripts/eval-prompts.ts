@@ -15,6 +15,7 @@ import { estimateUsd, parseArgs } from "../src/eval/cost.js";
 import { runEval } from "../src/eval/driver.js";
 import { judgeSchema } from "../src/eval/judge.js";
 import { modelMismatch, withoutEmpty } from "../src/eval/model.js";
+import { resilientJudge, resilientLlm } from "../src/eval/resilient.js";
 import { type Baseline, compare, summaryText } from "../src/eval/stats.js";
 import { GeminiLlm } from "../src/providers/gemini.js";
 import { PROMPT_VERSION } from "../src/providers/prompt-version.js";
@@ -46,15 +47,16 @@ async function main(): Promise<void> {
   const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
   // the id the API reports for the model, not the alias asked for: an alias moves, and the baseline must name what scored it
   let judgeModelSeen = "";
-  const judge = args.judge
+  const rawJudge = args.judge
     ? async (prompt: string): Promise<unknown> => {
         const res = await ai.models.generateContent({ model: env.GEMINI_MODEL, contents: prompt, config: { responseMimeType: "application/json", responseJsonSchema: judgeSchema(), temperature: 0 } });
         if (!judgeModelSeen && res.modelVersion) judgeModelSeen = res.modelVersion;
         return res.text ? JSON.parse(res.text) : null;
       }
     : null;
+  const judge = rawJudge ? resilientJudge(rawJudge) : null;
 
-  const out = await runEval({ llm, judge, cases, repeats: args.repeats, capUsd: args.cap, prices });
+  const out = await runEval({ llm: resilientLlm(llm), judge, cases, repeats: args.repeats, capUsd: args.cap, prices });
   if (out.stoppedByCap) console.warn("stopped at the cap: the last repeat is incomplete, so this run is not a baseline");
   if (args.judge) console.log(`judge scored ${out.judged} of ${out.judged + out.judgeMissing} runs`);
   if (out.aborted) console.warn(`cut short by an error (${out.aborted}): the runs so far are written below, and this run is not a baseline`);
