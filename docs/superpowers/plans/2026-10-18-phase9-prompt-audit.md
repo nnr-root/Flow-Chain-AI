@@ -2396,20 +2396,22 @@ cp -R src/eval ../Flow-Chain-AI-baseline/src/eval
 mkdir -p ../Flow-Chain-AI-baseline/test/eval
 cp scripts/eval-prompts.ts ../Flow-Chain-AI-baseline/scripts/
 ln -s "$PWD/node_modules" ../Flow-Chain-AI-baseline/node_modules
-(cd ../Flow-Chain-AI-baseline && GEMINI_API_KEY=$(grep ^GEMINI_API_KEY= ../Flow-Chain-AI/.env | cut -d= -f2-) npx tsx scripts/eval-prompts.ts --cap 2 --repeats 3 --save-baseline)
+(cd ../Flow-Chain-AI-baseline && GEMINI_API_KEY=$(grep ^GEMINI_API_KEY= ../Flow-Chain-AI/.env | cut -d= -f2-) GEMINI_MODEL=$(grep ^GEMINI_MODEL= ../Flow-Chain-AI/.env | cut -d= -f2-) npx tsx scripts/eval-prompts.ts --cap 2 --repeats 3 --save-baseline)
 cp ../Flow-Chain-AI-baseline/test/eval/baseline.json test/eval/baseline.json
 git worktree remove --force ../Flow-Chain-AI-baseline
 git add test/eval/baseline.json && git commit -m "test: the prompts' baseline scores, measured on 2026-10-18.1"
 ```
 Expected: the summary table prints with `prompt version 2026-10-18.1`, and `test/eval/baseline.json` has `"promptVersion": "2026-10-18.1"`. Adjust `--cap` to the estimate the script prints.
 
-- [ ] **Step 2: The owner measures the latest version (`.12`, after Task 3.10) against it**
+- [ ] **Step 2: The owner measures the PROMPT_VERSION at HEAD against it** (2026-10-18.11 once the final-review fix wave lands; Tasks 3.9 and 3.10 are parked, so `.12` is not used)
 
 ```bash
-GEMINI_API_KEY=$(grep ^GEMINI_API_KEY= .env | cut -d= -f2-) npm run eval:prompts -- --cap 2 --repeats 3
+GEMINI_API_KEY=$(grep ^GEMINI_API_KEY= .env | cut -d= -f2-) GEMINI_MODEL=$(grep ^GEMINI_MODEL= .env | cut -d= -f2-) npm run eval:prompts -- --cap 2 --repeats 3
 ```
-Expected: `eval-out/2026-10-18.12/summary.md` lists regressions and improvements against `.1`. Any regression is written into the spec as a ruling or fixed in a new task; it is never dropped (CLAUDE.md, "How work is done here").
+Expected: `eval-out/<the PROMPT_VERSION at HEAD>/summary.md` lists regressions and improvements against `.1`. Any regression is written into the spec as a ruling or fixed in a new task; it is never dropped (CLAUDE.md, "How work is done here").
 
 - [ ] **Step 3: The spec gains a section on what was found**
 
 After the run, the spec gets `## 11. What the first run found` with the numbers (copy `summary.md`'s table) and each ruling.
+
+**Parked.** Tasks 3.9 and 3.10 are not built: they change the picture and clip cache keys, so a resume or reroll of existing runs would buy pictures or clips again. The owner decides whether and when.
