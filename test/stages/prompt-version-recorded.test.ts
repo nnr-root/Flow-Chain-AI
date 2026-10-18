@@ -13,11 +13,19 @@ describe("the script stage", () => {
     expect(ctx.manifest.scriptPromptVersion).toBe("test-1");
   });
 
-  it("records nothing for a model that does not say, and keeps its input hash the same either way", async () => {
+  it("records nothing for a model that does not say which prompt it writes with", async () => {
     const { ctx } = await makeTestContext({ modes: "auto", sceneCount: 2 });
-    const before = await scriptStage.inputsFor(ctx);
     await runPipeline(ctx, [scriptStage], auto);
     expect(ctx.manifest.scriptPromptVersion).toBeUndefined();
-    expect(await scriptStage.inputsFor(ctx)).toEqual(before);
+  });
+
+  it("keeps the stage's input hash the same whatever prompt version the model says, before and after the run", async () => {
+    const { ctx, fakes } = await makeTestContext({ modes: "auto", sceneCount: 2 });
+    const unset = await scriptStage.inputsFor(ctx);
+    fakes.llm.promptVersion = "test-1";
+    expect(await scriptStage.inputsFor(ctx)).toEqual(unset);
+    await runPipeline(ctx, [scriptStage], auto);
+    expect(ctx.manifest.scriptPromptVersion).toBe("test-1");
+    expect(await scriptStage.inputsFor(ctx)).toEqual(unset);
   });
 });
