@@ -62,6 +62,8 @@ export const SceneSpec = z.object({
   /** Optional when stored, so scripts written before 2.2 still load; Gemini must always send it (LlmSceneSpec). */
   actionLevel: actionLevel.optional(),
   suggestedTransition: suggestedTransition.optional(),
+  /** Optional when stored: absent means false. A cut to the same place and moment as the previous scene, from a new view (phase 10 spec §4). */
+  reframe: z.boolean().optional().describe("true on a cut scene that shows the same place and moment as the previous scene from a new angle or distance; false otherwise"),
   /** Optional when stored: a script written before phase 5 says nothing, and is read as it always was (in every scene). */
   showsCharacter: showsCharacter.optional(),
 });
@@ -333,6 +335,8 @@ export const RunRequest = z.object({
   videoProfile: VideoProfileId.optional(),
   /** How keyframes are bought; absent = fal-flux@1 (runs made before 2.4); frozen. */
   imageProfile: ImageProfileId.optional(),
+  /** Reframe cuts and the shared look reference are in use (phase 10 spec §5); frozen at the start, absent = no; set only on a profile that takes several references. */
+  cutReferences: z.boolean().optional(),
   /** A brand kit's character portrait, copied into the run (run-relative path); frozen. */
   referenceImage: z.string().optional(),
   /** Fixed shot per scene (testing override from --shots); when absent the LLM decides. */

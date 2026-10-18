@@ -1,11 +1,12 @@
 import { editById } from "../edits.js";
-import { imageProfileOf, takesReference } from "../image-profiles.js";
+import { imageProfileOf, takesReference, takesSeveralReferences } from "../image-profiles.js";
 import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
 import { runProviderJob } from "./job.js";
 import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
 import { referenceFor, referenceImageOf } from "./reference.js";
+import { referencesFor, referenceScenes } from "./references.js";
 import { warmClipsEarly } from "./warmup.js";
 import { inspect, MAX_REMAKES, noteRemake, remakeOf } from "./inspect.js";
 import { fileSha256 } from "../manifest/hash.js";
@@ -29,21 +30,26 @@ export const keyframesStage: Stage = {
   perScene: true,
   paid: true,
   appliesTo: needsKeyframe,
-  deps: (m) => [
+  deps: (m, scene) => [
     { stage: "script" },
     ...autoModeDeps(m),
     // RunPod runs condition keyframes on the reference portrait (2.4 spec §5.2)
     ...(takesReference(m.request.imageProfile) ? [{ stage: "reference" as const, scene: 0 }] : []),
+    // a FLUX 3 keyframe is conditioned on other keyframes: it waits for them
+    ...(scene === undefined ? [] : referenceScenes(m, scene).map((s) => ({ stage: "keyframes" as const, scene: s }))),
   ],
   inputsFor: async (ctx, scene) => {
     const reference = referenceFor(ctx.manifest, scene!);
+    const several = takesSeveralReferences(ctx.manifest.request.imageProfile);
+    const refs = several ? referencesFor(ctx.manifest, scene!) : [];
     return {
       model: ctx.manifest.models.image,
       prompt: imagePrompt(requireScript(ctx.manifest), scene!, effectivePreset(ctx.manifest), editById(ctx.manifest.request.edit)),
       size: ctx.keyframeSize,
       seed: keyframeSeed(ctx.manifest, scene!),
       // only runs with a reference key on it, so every other run keeps its cache key
-      reference: reference === undefined ? undefined : await fileSha256(abs(ctx, reference)),
+      reference: !several && reference !== undefined ? await fileSha256(abs(ctx, reference)) : undefined,
+      references: refs.length ? await Promise.all(refs.map((p) => fileSha256(abs(ctx, p)))) : undefined,
     };
   },
   outputsFor: (_m, scene) => [paths.keyframe(scene!)],
@@ -69,13 +75,16 @@ export const keyframesStage: Stage = {
         label: `keyframe scene ${i + 1}${remake ? ` (made again, ${remake})` : ""}`,
         costUsd: imageProfileOf(ctx.manifest.request.imageProfile).keyframeUsd(ctx.prices, ctx.keyframeSize),
         prepare: () => {
+          const several = takesSeveralReferences(ctx.manifest.request.imageProfile);
           const reference = referenceFor(ctx.manifest, i);
+          const refs = several ? referencesFor(ctx.manifest, i).map((p) => abs(ctx, p)) : [];
           return ctx.providers.image.prepare({
             prompt,
             ...ctx.keyframeSize,
             seed: remake === 0 ? keyframeSeed(ctx.manifest, i) : seed,
             preset: effectivePreset(ctx.manifest)?.name,
-            referenceImagePath: reference === undefined ? undefined : abs(ctx, reference),
+            referenceImagePath: !several && reference !== undefined ? abs(ctx, reference) : undefined,
+            referenceImagePaths: refs.length ? refs : undefined,
           });
         },
         submit: (job, signal) => ctx.providers.image.submit(job, { signal }),

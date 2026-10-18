@@ -20,6 +20,7 @@ import {
 import { CaptionStyleName, Transition } from "./media/remotion/props.js";
 import { type Plan, planRun, RunAborted, runPipeline, sealInherited } from "./pipeline.js";
 import { copySourceFiles, versionCapUsd, versionManifest, versionProblem } from "./versions.js";
+import { takesSeveralReferences } from "./image-profiles.js";
 import { PresetName } from "./presets.js";
 import { LANGUAGE_IN_ENGLISH, SPEECH_LANGUAGES, type SpeechLanguage } from "./voice/language.js";
 import { createProviders } from "./providers/factory.js";
@@ -295,6 +296,8 @@ program
       seed: seed(o.seed),
       videoProfile: providers.videoProfile,
       imageProfile: providers.imageProfile,
+      // frozen with the run: reframe cuts and the shared look reference, only where the picture worker takes several references
+      cutReferences: takesSeveralReferences(providers.imageProfile) && env.FLOWCHAIN_CUT_REFERENCES === "on" ? true : undefined,
       voiceId: o.voice ?? voice.voiceId,
       bgm: o.bgm ? resolve(o.bgm) : undefined,
       render: {
