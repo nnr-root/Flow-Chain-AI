@@ -487,6 +487,848 @@ Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
 
 ---
 
+### Task 3.1: The setting's example gives its form, not one siege (spec §2.1, row 6)
+
+**Files:**
+- Modify: `src/providers/prompt-version.ts` (version)
+- Modify: `src/providers/gemini.ts` (`bibleRules`, the first `styleBible.setting` line)
+- Modify: `test/unit/prompt-pins.json` (regenerated), spec changelog
+- Test: `test/unit/prompt-audit-setting.test.ts`
+
+**Interfaces:** Consumes `PROMPT_VERSION = "2026-10-18.2"` (Task 3). Produces `PROMPT_VERSION = "2026-10-18.3"`.
+
+- [ ] **Step 1: Write the failing test**
+
+`test/unit/prompt-audit-setting.test.ts`:
+```ts
+import { describe, expect, it } from "vitest";
+import { buildScriptPrompt } from "../../src/providers/gemini.js";
+
+const base = { topic: "How tides work", aspect: "9:16", sceneCount: 4, voiceId: "narrator-m" } as const;
+const timing = { targetSec: 120, sceneSec: { min: 3, max: 5 } };
+
+describe("the setting's example", () => {
+  it("gives the form of a setting, not one siege's soldiers and things, in a script and an outline", () => {
+    for (const p of [buildScriptPrompt(base), buildScriptPrompt({ ...base, timing, ask: { kind: "outline", partSec: [60, 60] } })]) {
+      expect(p).not.toContain("Constantinople");
+      expect(p).toContain('(in the form "<place>, <season> <year>: <what people there wear>; <what they use>; <the buildings and the light>")');
+    }
+  });
+});
+```
+
+- [ ] **Step 2: Run to see it fail**
+
+Run: `npx vitest run test/unit/prompt-audit-setting.test.ts`
+Expected: FAIL (the prompt contains "Constantinople").
+
+- [ ] **Step 3: Implement**
+
+`src/providers/prompt-version.ts`: set `PROMPT_VERSION = "2026-10-18.3"`.
+
+`src/providers/gemini.ts`, in `bibleRules`, in the line that begins `"- styleBible.setting: the one time and place`, replace exactly
+```
+(for example \"Constantinople, spring 1453: Ottoman soldiers in kaftans and turbans and Byzantine defenders in mail; wooden galleys, torches and oil lamps, parchment and quills\")
+```
+with
+```
+(in the form \"<place>, <season> <year>: <what people there wear>; <what they use>; <the buildings and the light>\")
+```
+Nothing else in the line changes.
+
+- [ ] **Step 4: Run to see it pass; run what reads the prompt**
+
+Run: `npx vitest run test/unit/prompt-audit-setting.test.ts test/unit/layers.test.ts test/unit/niches.test.ts test/unit/compat.test.ts`
+Expected: PASS (`compat.test.ts` untouched).
+
+- [ ] **Step 5: Changelog, regenerate pins, typecheck, commit**
+
+Append to the spec's changelog:
+```markdown
+- `2026-10-18.3` — the setting's example is its form (`<place>, <season> <year>: …`), not the siege of Constantinople (§2.1, row 6).
+```
+Run:
+```bash
+UPDATE_PROMPT_PINS=1 npx vitest run test/unit/prompt-pin.test.ts
+npm run typecheck && npx vitest run test/unit test/stages
+```
+Expected: PASS.
+```bash
+git add src test docs
+git commit -m "fix: the script is shown the form of a setting instead of one siege's soldiers and things, which it copied into other periods
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 3.2: The moving setting's example names no war (spec §2.1, row 7)
+
+**Files:**
+- Modify: `src/providers/prompt-version.ts` (version)
+- Modify: `src/providers/gemini.ts` (`bibleRules`, the second `styleBible.setting` line)
+- Modify: `test/unit/prompt-pins.json` (regenerated), spec changelog
+- Test: `test/unit/prompt-audit-moving-setting.test.ts`
+
+**Interfaces:** Consumes `PROMPT_VERSION = "2026-10-18.3"`. Produces `PROMPT_VERSION = "2026-10-18.4"`.
+
+- [ ] **Step 1: Write the failing test**
+
+`test/unit/prompt-audit-moving-setting.test.ts`:
+```ts
+import { describe, expect, it } from "vitest";
+import { buildScriptPrompt } from "../../src/providers/gemini.js";
+
+const base = { topic: "How tides work", aspect: "9:16", sceneCount: 4, voiceId: "narrator-m" } as const;
+
+describe("the example of a video that moves between times and places", () => {
+  it("gives the form of the list and names none of the wars of the test video it was written after", () => {
+    const p = buildScriptPrompt({ ...base, format: "countdown" });
+    for (const name of ["Zanzibar", "Honduras", "Sinai"]) expect(p, name).not.toContain(name);
+    expect(p).toContain('(in the form "Several times and places: <place> <year>, <place> <year>, <place> <year>")');
+    // the rule itself is unchanged
+    expect(p).toContain('begin it with "Several times and places:"');
+  });
+});
+```
+
+- [ ] **Step 2: Run to see it fail**
+
+Run: `npx vitest run test/unit/prompt-audit-moving-setting.test.ts`
+Expected: FAIL (the prompt contains "Zanzibar").
+
+- [ ] **Step 3: Implement**
+
+`src/providers/prompt-version.ts`: set `PROMPT_VERSION = "2026-10-18.4"`.
+
+`src/providers/gemini.ts`, in `bibleRules`, in the line that begins `"- styleBible.setting, for a video that moves between times or places`, replace exactly
+```
+(for example \"Several times and places: Zanzibar 1896, Honduras 1969, the Sinai 1967\")
+```
+with
+```
+(in the form \"Several times and places: <place> <year>, <place> <year>, <place> <year>\")
+```
+
+- [ ] **Step 4: Run to see it pass; run what reads the prompt**
+
+Run: `npx vitest run test/unit/prompt-audit-moving-setting.test.ts test/unit/layers.test.ts test/unit/compat.test.ts`
+Expected: PASS (`layers.test.ts` keeps its own Zanzibar data in its anachronism test: that is a fixture, not the prompt).
+
+- [ ] **Step 5: Changelog, regenerate pins, typecheck, commit**
+
+Append to the spec's changelog:
+```markdown
+- `2026-10-18.4` — the example of a moving setting is its form with placeholders; the three wars of the phase 8 test video are gone from every prompt (§2.1, row 7).
+```
+Run:
+```bash
+UPDATE_PROMPT_PINS=1 npx vitest run test/unit/prompt-pin.test.ts
+npm run typecheck && npx vitest run test/unit test/stages
+```
+Expected: PASS.
+```bash
+git add src test docs
+git commit -m "fix: the example of a video across several eras names no wars, so a list video is not pulled toward the shortest wars it was written after
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 3.3: A niche's or a type's opening is the first line, never the hook title (spec §2.1, row 10)
+
+**Files:**
+- Modify: `src/providers/prompt-version.ts` (version)
+- Modify: `src/providers/gemini.ts` (a new `FIRST_LINE` constant under `HOOK_RULE`; `nicheRules`; `formatRules`, two lines)
+- Modify: `test/unit/layers.test.ts` (the one assertion of the tie-break's wording, line 54)
+- Modify: `test/unit/prompt-pins.json` (regenerated), spec changelog
+- Test: `test/unit/prompt-audit-first-line.test.ts`
+
+**Interfaces:** Consumes `PROMPT_VERSION = "2026-10-18.4"`. Produces `PROMPT_VERSION = "2026-10-18.5"`.
+
+- [ ] **Step 1: Write the failing test**
+
+`test/unit/prompt-audit-first-line.test.ts`:
+```ts
+import { describe, expect, it } from "vitest";
+import { formatById } from "../../src/formats.js";
+import { nicheById } from "../../src/niches.js";
+import { buildScriptPrompt } from "../../src/providers/gemini.js";
+
+const base = { topic: "How tides work", aspect: "9:16", sceneCount: 4, voiceId: "narrator-m" } as const;
+const LABEL = "- First line (scene 1's narration, not the hook title):";
+
+describe("how a niche or a type opens", () => {
+  it("is given as the first line, so a sentence meant for scene 1 is never read as the hook title", () => {
+    const scary = nicheById("scary-stories")!;
+    const p = buildScriptPrompt({ ...base, niche: "scary-stories" });
+    expect(p).toContain(`${LABEL} ${scary.hook}`);
+    expect(p).not.toMatch(/^- Hook: /m);
+
+    const doc = formatById("documentary")!;
+    const q = buildScriptPrompt({ ...base, niche: "history", format: "documentary" });
+    expect(q).toContain(`${LABEL} ${doc.hook}`);
+    expect(q).not.toMatch(/^- Hook: /m);
+    expect(q).toContain("the video type decides the first line, the shape and the delivery");
+  });
+
+  it("leaves the hook title's own rule as it is", () => {
+    expect(buildScriptPrompt({ ...base, niche: "scary-stories" })).toContain("- hook: 2-6 punchy words shown as a big title");
+  });
+});
+```
+
+- [ ] **Step 2: Run to see it fail**
+
+Run: `npx vitest run test/unit/prompt-audit-first-line.test.ts`
+Expected: FAIL on the first `it` (the prompt has `- Hook: Open in the middle…`); the second passes already.
+
+- [ ] **Step 3: Implement**
+
+`src/providers/prompt-version.ts`: set `PROMPT_VERSION = "2026-10-18.5"`.
+
+`src/providers/gemini.ts`:
+
+1. Directly under the `HOOK_RULE` line, add:
+```ts
+/**
+ * How a niche's or a type's first line works. Not called "Hook": the answer's `hook` is the title shown over the first
+ * seconds, at most six words, and a niche's "one plain sentence … No title" read as that field is sent back as too
+ * long, a paid retry (phase 9 spec §2.1, row 10).
+ */
+const FIRST_LINE = "- First line (scene 1's narration, not the hook title):";
+```
+2. In `nicheRules`, replace
+```ts
+      ...(part || typed ? [] : [`- Hook: ${niche.hook}`, `- Shape: ${niche.arc}`]),
+```
+with
+```ts
+      ...(part || typed ? [] : [`${FIRST_LINE} ${niche.hook}`, `- Shape: ${niche.arc}`]),
+```
+3. In `formatRules`, replace
+```ts
+    ...(part ? [] : [`- Hook: ${f.hook}`, `- Shape: ${f.arc}`]),
+```
+with
+```ts
+    ...(part ? [] : [`${FIRST_LINE} ${f.hook}`, `- Shape: ${f.arc}`]),
+```
+and replace
+```ts
+    ...(req.niche || req.nicheText ? ["- Where the niche and the video type differ, the video type decides the hook, the shape and the delivery; the niche decides the subject and the tone, and its rules always hold."] : []),
+```
+with
+```ts
+    ...(req.niche || req.nicheText ? ["- Where the niche and the video type differ, the video type decides the first line, the shape and the delivery; the niche decides the subject and the tone, and its rules always hold."] : []),
+```
+
+`test/unit/layers.test.ts`, line 54: change only the asserted string to
+```ts
+    expect(p).toContain("the video type decides the first line, the shape and the delivery; the niche decides the subject and the tone, and its rules always hold");
+```
+
+- [ ] **Step 4: Run to see it pass; run what reads the prompt**
+
+Run: `npx vitest run test/unit/prompt-audit-first-line.test.ts test/unit/layers.test.ts test/unit/niches.test.ts test/unit/compat.test.ts`
+Expected: PASS. (`niches.test.ts` and `layers.test.ts` check that `h.hook` is in the prompt, which it still is, after the new label.)
+
+- [ ] **Step 5: Changelog, regenerate pins, typecheck, commit**
+
+Append to the spec's changelog:
+```markdown
+- `2026-10-18.5` — a niche's and a type's opening is labelled "First line (scene 1's narration, not the hook title)" instead of "Hook", and the tie-break says "the first line" (§2.1, row 10).
+```
+Run:
+```bash
+UPDATE_PROMPT_PINS=1 npx vitest run test/unit/prompt-pin.test.ts
+npm run typecheck && npx vitest run test/unit test/stages
+```
+Expected: PASS.
+```bash
+git add src test docs
+git commit -m "fix: a niche's or a type's opening is given as scene 1's first line, so it is never read as the six-word hook title and sent back
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 3.4: The video type decides the person and tense (spec §2.1, row 11)
+
+**Files:**
+- Modify: `src/providers/prompt-version.ts` (version)
+- Modify: `src/providers/gemini.ts` (`formatRules`, the tie-break line as Task 3.3 left it)
+- Modify: `test/unit/layers.test.ts` (the same assertion, line 54)
+- Modify: `test/unit/prompt-audit-first-line.test.ts` (its tie-break assertion)
+- Modify: `test/unit/prompt-pins.json` (regenerated), spec changelog
+- Test: `test/unit/prompt-audit-person.test.ts`
+
+**Interfaces:** Consumes `PROMPT_VERSION = "2026-10-18.5"` and the tie-break text of Task 3.3. Produces `PROMPT_VERSION = "2026-10-18.6"`.
+
+- [ ] **Step 1: Write the failing test**
+
+`test/unit/prompt-audit-person.test.ts`:
+```ts
+import { describe, expect, it } from "vitest";
+import { formatById } from "../../src/formats.js";
+import { nicheById } from "../../src/niches.js";
+import { buildScriptPrompt } from "../../src/providers/gemini.js";
+
+const base = { topic: "How tides work", aspect: "9:16", sceneCount: 4, voiceId: "narrator-m" } as const;
+const TIE = "the video type decides the first line, the shape and the delivery, and the person and tense it is told in; the niche decides the subject and the tone, and its rules always hold";
+
+describe("a niche and a type that tell in different persons", () => {
+  it("are told that the type's person and tense win", () => {
+    // scary stories are first person, past tense; "You are there" is second person, present tense
+    const p = buildScriptPrompt({ ...base, niche: "scary-stories", format: "pov" });
+    expect(p).toContain(nicheById("scary-stories")!.voice);
+    expect(p).toContain(formatById("pov")!.delivery);
+    expect(p).toContain(TIE);
+    // motivation talks to "you"; a documentary is third person
+    expect(buildScriptPrompt({ ...base, niche: "motivation", format: "documentary" })).toContain(TIE);
+  });
+});
+```
+
+- [ ] **Step 2: Run to see it fail**
+
+Run: `npx vitest run test/unit/prompt-audit-person.test.ts`
+Expected: FAIL (the tie-break does not name the person and tense).
+
+- [ ] **Step 3: Implement**
+
+`src/providers/prompt-version.ts`: set `PROMPT_VERSION = "2026-10-18.6"`.
+
+`src/providers/gemini.ts`, in `formatRules`, replace
+```ts
+    ...(req.niche || req.nicheText ? ["- Where the niche and the video type differ, the video type decides the first line, the shape and the delivery; the niche decides the subject and the tone, and its rules always hold."] : []),
+```
+with
+```ts
+    // (a niche's voice names a person and a tense too: "first person, past tense" against "Second person, present tense")
+    ...(req.niche || req.nicheText ? ["- Where the niche and the video type differ, the video type decides the first line, the shape and the delivery, and the person and tense it is told in; the niche decides the subject and the tone, and its rules always hold."] : []),
+```
+
+`test/unit/layers.test.ts`, line 54, change only the asserted string to
+```ts
+    expect(p).toContain("the video type decides the first line, the shape and the delivery, and the person and tense it is told in; the niche decides the subject and the tone, and its rules always hold");
+```
+`test/unit/prompt-audit-first-line.test.ts`: its assertion `toContain("the video type decides the first line, the shape and the delivery")` still holds (a prefix of the new text); leave it.
+
+- [ ] **Step 4: Run to see it pass; run what reads the prompt**
+
+Run: `npx vitest run test/unit/prompt-audit-person.test.ts test/unit/prompt-audit-first-line.test.ts test/unit/layers.test.ts test/unit/compat.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Changelog, regenerate pins, typecheck, commit**
+
+Append to the spec's changelog:
+```markdown
+- `2026-10-18.6` — where a niche and a type differ, the type also decides the person and tense (§2.1, row 11).
+```
+Run:
+```bash
+UPDATE_PROMPT_PINS=1 npx vitest run test/unit/prompt-pin.test.ts
+npm run typecheck && npx vitest run test/unit test/stages
+```
+Expected: PASS.
+```bash
+git add src test docs
+git commit -m "fix: where a niche and a video type tell in different persons or tenses, the script is told that the type's win
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 3.5: The script is not told an edit's finish (spec §2.1, row 12)
+
+**Files:**
+- Modify: `src/providers/prompt-version.ts` (version)
+- Modify: `src/providers/gemini.ts` (`editRules`, its first line)
+- Modify: `test/unit/prompt-pins.json` (regenerated), spec changelog
+- Test: `test/unit/prompt-audit-edit-line.test.ts`
+
+**Interfaces:** Consumes `PROMPT_VERSION = "2026-10-18.6"`. Produces `PROMPT_VERSION = "2026-10-18.7"`.
+
+- [ ] **Step 1: Write the failing test**
+
+`test/unit/prompt-audit-edit-line.test.ts`:
+```ts
+import { describe, expect, it } from "vitest";
+import { EDITS } from "../../src/edits.js";
+import { buildScriptPrompt } from "../../src/providers/gemini.js";
+
+const base = { topic: "How tides work", aspect: "9:16", sceneCount: 4, voiceId: "narrator-m" } as const;
+
+describe("an edit, as the script is told it", () => {
+  it("is named, with how to frame, move and cut, and not the form's words for its finish (tape, grain, colour)", () => {
+    for (const e of EDITS) {
+      const p = buildScriptPrompt({ ...base, edit: e.id });
+      expect(p, e.id).toContain(`Edit: ${e.label}. Frame, move and cut the scenes for it;`);
+      expect(p, e.id).not.toContain(e.about.toLowerCase());
+      for (const line of e.script) expect(p, e.id).toContain(line);
+    }
+  });
+});
+```
+
+- [ ] **Step 2: Run to see it fail**
+
+Run: `npx vitest run test/unit/prompt-audit-edit-line.test.ts`
+Expected: FAIL (the prompt has `Edit: Cinematic (slow, deliberate camera, deep shadows, film grain).`).
+
+- [ ] **Step 3: Implement**
+
+`src/providers/prompt-version.ts`: set `PROMPT_VERSION = "2026-10-18.7"`.
+
+`src/providers/gemini.ts`, in `editRules`, replace
+```ts
+    `Edit: ${e.label} (${e.about.toLowerCase()}). Frame, move and cut the scenes for it; its light and camera words are added to every picture and clip automatically.`,
+```
+with
+```ts
+    // (not its `about`: that is the form's word for the renderer's finish, "bright colour", "film grain", which the
+    // script cannot make and, told, writes into its pictures: phase 9 spec §2.1, row 12)
+    `Edit: ${e.label}. Frame, move and cut the scenes for it; its light and camera words are added to every picture and clip automatically.`,
+```
+
+- [ ] **Step 4: Run to see it pass; run what reads the prompt**
+
+Run: `npx vitest run test/unit/prompt-audit-edit-line.test.ts test/unit/layers.test.ts test/unit/compat.test.ts`
+Expected: PASS (`layers.test.ts` counts `"Edit: Cinematic"` once, which still holds).
+
+- [ ] **Step 5: Changelog, regenerate pins, typecheck, commit**
+
+Append to the spec's changelog:
+```markdown
+- `2026-10-18.7` — the script is told an edit's name and how to frame and cut, not the form's description of its finish (§2.1, row 12).
+```
+Run:
+```bash
+UPDATE_PROMPT_PINS=1 npx vitest run test/unit/prompt-pin.test.ts
+npm run typecheck && npx vitest run test/unit test/stages
+```
+Expected: PASS.
+```bash
+git add src test docs
+git commit -m "fix: the script is no longer told an edit's colour, grain or tape, which the renderer adds and the script wrote into its pictures
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 3.6: No example topic about health (spec §2.1, row 15)
+
+**Files:**
+- Modify: `src/providers/prompt-version.ts` (version)
+- Modify: `src/niches.ts` (`what-if.examples`)
+- Modify: `test/unit/prompt-pins.json` (regenerated), spec changelog
+- Test: `test/unit/prompt-audit-examples.test.ts`
+
+**Interfaces:** Consumes `PROMPT_VERSION = "2026-10-18.7"`. Produces `PROMPT_VERSION = "2026-10-18.8"`.
+
+- [ ] **Step 1: Write the failing test**
+
+`test/unit/prompt-audit-examples.test.ts`:
+```ts
+import { describe, expect, it } from "vitest";
+import { NICHES } from "../../src/niches.js";
+
+// (src/niches.ts leaves health and medicine out on purpose; an example is a topic the form offers and the model reads)
+const BODY = /\b(sleep|diet|disease|sick|illness|medicine|drugs?|vaccines?|cancer|surgery|health)\b/i;
+
+describe("the niches' example topics", () => {
+  it("offer none about the body or health, which the niches leave out on purpose", () => {
+    for (const n of NICHES) for (const x of n.examples) expect(x, n.id).not.toMatch(BODY);
+  });
+});
+```
+
+- [ ] **Step 2: Run to see it fail**
+
+Run: `npx vitest run test/unit/prompt-audit-examples.test.ts`
+Expected: FAIL naming `what-if` ("What if you didn't sleep for a week").
+
+- [ ] **Step 3: Implement**
+
+`src/providers/prompt-version.ts`: set `PROMPT_VERSION = "2026-10-18.8"`.
+
+`src/niches.ts`, in the `what-if` niche, replace
+```ts
+    examples: ["What if the Earth stopped spinning", "What if you didn't sleep for a week", "What if all the ice melted"],
+```
+with
+```ts
+    examples: ["What if the Earth stopped spinning", "What if Earth had rings like Saturn", "What if all the ice melted"],
+```
+
+- [ ] **Step 4: Run to see it pass; run what reads the niches**
+
+Run: `npx vitest run test/unit/prompt-audit-examples.test.ts test/unit/niches.test.ts test/unit/layers.test.ts`
+Then: `grep -rn --exclude-dir=node_modules --exclude-dir=.next "sleep for a week" web test src` — Expected: no match (no page or test names the old example).
+Expected: PASS.
+
+- [ ] **Step 5: Changelog, regenerate pins, typecheck, commit**
+
+Append to the spec's changelog:
+```markdown
+- `2026-10-18.8` — the "What if?" niche's example about a week without sleep, a health topic the niches leave out, is "What if Earth had rings like Saturn" (§2.1, row 15).
+```
+Run:
+```bash
+UPDATE_PROMPT_PINS=1 npx vitest run test/unit/prompt-pin.test.ts
+npm run typecheck && npx vitest run test/unit test/stages
+```
+Expected: PASS.
+```bash
+git add src test docs
+git commit -m "fix: no niche offers a health topic as an example, so the What if niche suggests Earth with rings instead of a week without sleep
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 3.7: No example tale told as a people's legend it is not known to be (spec §2.1, row 16)
+
+**Files:**
+- Modify: `src/providers/prompt-version.ts` (version)
+- Modify: `src/niches.ts` (`life-stories.examples`)
+- Modify: `test/unit/prompt-audit-examples.test.ts` (append a test)
+- Modify: `test/unit/prompt-pins.json` (regenerated), spec changelog
+
+**Interfaces:** Consumes `PROMPT_VERSION = "2026-10-18.8"`. Produces `PROMPT_VERSION = "2026-10-18.9"`.
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `test/unit/prompt-audit-examples.test.ts` (it already imports `NICHES`; add `nicheById` to that import):
+```ts
+describe("the made-up stories' example topics", () => {
+  it("offer no tale that is commonly told as a people's legend without a source for it", () => {
+    // "The two wolves inside you" is told as a Cherokee legend; no Cherokee source for it is documented, and a story
+    // niche carries no FACT_RULES to stop "a Cherokee elder told his grandson" (phase 9 spec §2.1, row 16)
+    expect(nicheById("life-stories")!.examples.join(" ")).not.toMatch(/two wolves/i);
+  });
+});
+```
+
+- [ ] **Step 2: Run to see it fail**
+
+Run: `npx vitest run test/unit/prompt-audit-examples.test.ts`
+Expected: FAIL on the new test.
+
+- [ ] **Step 3: Implement**
+
+`src/providers/prompt-version.ts`: set `PROMPT_VERSION = "2026-10-18.9"`.
+
+`src/niches.ts`, in the `life-stories` niche, replace
+```ts
+    examples: ["The man who planted trees for 40 years", "The farmer and the lost horse", "The two wolves inside you"],
+```
+with
+```ts
+    examples: ["The man who planted trees for 40 years", "The farmer and the lost horse", "The potter who kept the cracked bowl"],
+```
+
+- [ ] **Step 4: Run to see it pass**
+
+Run: `npx vitest run test/unit/prompt-audit-examples.test.ts test/unit/niches.test.ts`
+Then: `grep -rn --exclude-dir=node_modules --exclude-dir=.next "two wolves" web test src` — Expected: only the new test's own lines.
+Expected: PASS.
+
+- [ ] **Step 5: Changelog, regenerate pins, typecheck, commit**
+
+Append to the spec's changelog:
+```markdown
+- `2026-10-18.9` — the "Stories with a lesson" niche's example "The two wolves inside you", told as a Cherokee legend without a source, is "The potter who kept the cracked bowl" (§2.1, row 16).
+```
+Run:
+```bash
+UPDATE_PROMPT_PINS=1 npx vitest run test/unit/prompt-pin.test.ts
+npm run typecheck && npx vitest run test/unit test/stages
+```
+Expected: PASS.
+```bash
+git add src test docs
+git commit -m "fix: the stories niche no longer offers a tale that videos tell as a Cherokee legend without any source for it
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 3.8: A top list flows as one piece (spec §2.1, row 18)
+
+**Files:**
+- Modify: `src/providers/prompt-version.ts` (version)
+- Modify: `src/formats.ts` (`countdown.delivery`)
+- Modify: `test/unit/prompt-pins.json` (regenerated), spec changelog
+- Test: `test/unit/prompt-audit-countdown.test.ts`
+
+**Interfaces:** Consumes `PROMPT_VERSION = "2026-10-18.9"`. Produces `PROMPT_VERSION = "2026-10-18.10"`.
+
+- [ ] **Step 1: Write the failing test**
+
+`test/unit/prompt-audit-countdown.test.ts`:
+```ts
+import { describe, expect, it } from "vitest";
+import { formatById } from "../../src/formats.js";
+import { buildScriptPrompt } from "../../src/providers/gemini.js";
+
+const base = { topic: "How tides work", aspect: "9:16", sceneCount: 4, voiceId: "narrator-m" } as const;
+
+describe("a top list", () => {
+  it("is delivered item by item but as one piece, never against the rule that every script flows", () => {
+    const p = buildScriptPrompt({ ...base, format: "countdown" });
+    expect(p).toContain("It is one spoken piece, not a list of facts read out");
+    expect(p).not.toContain("nothing between the items");
+    expect(p).toContain(`- Delivery: ${formatById("countdown")!.delivery}`);
+    expect(formatById("countdown")!.delivery).toContain("its lines told as one piece");
+  });
+});
+```
+
+- [ ] **Step 2: Run to see it fail**
+
+Run: `npx vitest run test/unit/prompt-audit-countdown.test.ts`
+Expected: FAIL (the delivery says "nothing between the items").
+
+- [ ] **Step 3: Implement**
+
+`src/providers/prompt-version.ts`: set `PROMPT_VERSION = "2026-10-18.10"`.
+
+`src/formats.ts`, in the `countdown` type, replace
+```ts
+    delivery: "Brisk; each item a fresh beat; nothing between the items.",
+```
+with
+```ts
+    // (not "nothing between the items": every script is told it is one spoken piece, not a list read out)
+    delivery: "Brisk; each item a fresh beat, its lines told as one piece; one short line carries the viewer from each item to the next number.",
+```
+
+- [ ] **Step 4: Run to see it pass; run what reads the types**
+
+Run: `npx vitest run test/unit/prompt-audit-countdown.test.ts test/unit/layers.test.ts`
+Expected: PASS (`layers.test.ts` checks `c.delivery` is in the prompt, whatever it says).
+
+- [ ] **Step 5: Changelog, regenerate pins, typecheck, commit**
+
+Append to the spec's changelog:
+```markdown
+- `2026-10-18.10` — a top list's delivery no longer says "nothing between the items", which contradicted the rule that every script is one spoken piece (§2.1, row 18).
+```
+Run:
+```bash
+UPDATE_PROMPT_PINS=1 npx vitest run test/unit/prompt-pin.test.ts
+npm run typecheck && npx vitest run test/unit test/stages
+```
+Expected: PASS.
+```bash
+git add src test docs
+git commit -m "fix: a top list is delivered as one piece with a line leading to each number, no longer against the rule that a script is not a list read out
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 3.9: The archive edit names no medium (spec §2.1, row 20)
+
+This changes the picture cache key of every run made with the archive edit (spec §2.1, row 26; §3): such a run that is resumed or rerolled buys its pictures again. Accepted while nothing is deployed.
+
+**Files:**
+- Modify: `src/providers/prompt-version.ts` (version)
+- Modify: `src/edits.ts` (`archive.script[0]`, `archive.picture`)
+- Modify: `test/unit/layers.test.ts` (`STYLE_WORDS`, line 86: add `photograph`)
+- Modify: `test/unit/prompt-pins.json` (regenerated), spec changelog
+- Test: `test/unit/prompt-audit-edit-words.test.ts`
+
+**Interfaces:** Consumes `PROMPT_VERSION = "2026-10-18.10"`. Produces `PROMPT_VERSION = "2026-10-18.11"`.
+
+- [ ] **Step 1: Write the failing test**
+
+`test/unit/prompt-audit-edit-words.test.ts`:
+```ts
+import { describe, expect, it } from "vitest";
+import { EDITS } from "../../src/edits.js";
+
+// layers.test.ts's list of what a style says and an edit never does, with "photograph", which it lacked
+const STYLE_WORDS = /\b(anime|cel|watercolou?r|pixel|clay|comic|illustration|painting|drawn|3d|render|photo-?real|photograph(s|ic)?|neon|pastel|black-and-white|monochrome|red|blue|green|yellow|orange|purple|pink|teal|amber|gold|sepia|candle|rain|street|city|forest|smoke)\b/i;
+
+describe("an edit's words", () => {
+  it("never name a medium or a colour, in what is added to a picture or a clip or in what the script is told", () => {
+    for (const e of EDITS) expect(`${e.picture} ${e.motion} ${e.script.join(" ")}`, e.id).not.toMatch(STYLE_WORDS);
+  });
+});
+```
+
+- [ ] **Step 2: Run to see it fail**
+
+Run: `npx vitest run test/unit/prompt-audit-edit-words.test.ts`
+Expected: FAIL naming `archive` (matched "photograph").
+
+- [ ] **Step 3: Implement**
+
+`src/providers/prompt-version.ts`: set `PROMPT_VERSION = "2026-10-18.11"`.
+
+`src/edits.ts`, in the `archive` edit, replace
+```ts
+      "Camera: slow pans and push-ins across frames that feel like photographs of the moment.",
+```
+with
+```ts
+      "Camera: slow pans and push-ins across still, composed frames, as if each moment were held.",
+```
+and replace
+```ts
+    picture: "Soft, faded contrast, as in an old photograph",
+```
+with
+```ts
+    picture: "Soft, faded contrast and gentle, even light, a still and composed frame",
+```
+
+`test/unit/layers.test.ts`, line 86: in `STYLE_WORDS`, after `photo-?real|` insert `photograph(s|ic)?|`, so the old guard holds the same line.
+
+- [ ] **Step 4: Run to see it pass; run what reads the edits**
+
+Run: `npx vitest run test/unit/prompt-audit-edit-words.test.ts test/unit/layers.test.ts test/stages/visual-stages.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Changelog, regenerate pins, typecheck, commit**
+
+Append to the spec's changelog:
+```markdown
+- `2026-10-18.11` — the archive edit's picture words and script line no longer name a photograph, a medium that pulled every style toward one (§2.1, row 20). Archive runs' picture cache keys change (row 26).
+```
+Run:
+```bash
+UPDATE_PROMPT_PINS=1 npx vitest run test/unit/prompt-pin.test.ts
+npm run typecheck && npx vitest run test/unit test/stages
+```
+Expected: PASS.
+```bash
+git add src test docs
+git commit -m "fix: the archive edit asks for faded, still frames without naming a photograph, so a drawn style stays drawn
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 3.10: A picture is not told every era of a video that moves between them (spec §2.1, row 25)
+
+This changes the picture and clip cache keys of runs whose setting begins "Several times and places:" (made since 2026-10-16) (spec §2.1, row 26; §3). Every other run's keys stay as they are.
+
+**Files:**
+- Modify: `src/providers/prompt-version.ts` (version)
+- Modify: `src/stages/visual.ts` (`imagePrompt`, `motionPrompt`, a new `settingOf`)
+- Modify: `test/unit/prompt-pins.json` (regenerated), spec changelog
+- Test: `test/stages/prompt-audit-visual.test.ts`
+
+**Interfaces:** Consumes `PROMPT_VERSION = "2026-10-18.11"`; `isMoving` from `src/anachronism.ts`. Produces `PROMPT_VERSION = "2026-10-18.12"`.
+
+- [ ] **Step 1: Write the failing test**
+
+`test/stages/prompt-audit-visual.test.ts`:
+```ts
+import { describe, expect, it } from "vitest";
+import { PRESETS } from "../../src/presets.js";
+import { imagePrompt, motionPrompt } from "../../src/stages/visual.js";
+import { fakeScript } from "../fakes/providers.js";
+
+describe("the setting added to a picture and a clip", () => {
+  it("is left out for a video that moves between times and places, whose scenes each name their own", () => {
+    const s = fakeScript(1);
+    s.styleBible.setting = "Several times and places: a harbour 1896, a mountain road 1969";
+    for (const p of [imagePrompt(s, 0, null), imagePrompt(s, 0, PRESETS.cinematic_history), motionPrompt(s, 0, null), motionPrompt(s, 0, PRESETS.cinematic_history)]) {
+      expect(p).not.toContain("Several times and places");
+      expect(p).not.toContain("Setting:");
+    }
+  });
+
+  it("is still added for a video in one time and place", () => {
+    const s = fakeScript(1);
+    expect(imagePrompt(s, 0, null)).toContain("Setting: a snowy forest at night, the present day. ");
+    expect(motionPrompt(s, 0, null)).toContain(" Setting: a snowy forest at night, the present day.");
+  });
+});
+```
+
+- [ ] **Step 2: Run to see it fail**
+
+Run: `npx vitest run test/stages/prompt-audit-visual.test.ts`
+Expected: FAIL on the first `it` (the prompts contain "Setting: Several times and places…"); the second passes already.
+
+- [ ] **Step 3: Implement**
+
+`src/providers/prompt-version.ts`: set `PROMPT_VERSION = "2026-10-18.12"`.
+
+`src/stages/visual.ts`:
+
+1. Add the import, after the `Edit` import:
+```ts
+import { isMoving } from "../anachronism.js";
+```
+2. Above `imagePrompt`'s doc comment, add:
+```ts
+/**
+ * The setting added to every picture and clip. A video that moves between times and places has none that is true of
+ * every scene: its setting lists them all, and each scene's imagePrompt names its own year and place first, so a
+ * picture is not told the others' things too (phase 9 spec §2.1, row 25).
+ */
+const settingOf = (b: Script["styleBible"]): string | undefined => (b.setting && !isMoving(b.setting) ? b.setting : undefined);
+```
+3. In `imagePrompt`, replace
+```ts
+  const when = b.setting ? `Setting: ${b.setting}. ` : "";
+```
+with
+```ts
+  const setting = settingOf(b);
+  const when = setting ? `Setting: ${setting}. ` : "";
+```
+4. In `motionPrompt`, replace
+```ts
+  const when = b.setting ? ` Setting: ${b.setting}.` : "";
+```
+with
+```ts
+  const setting = settingOf(b);
+  const when = setting ? ` Setting: ${setting}.` : "";
+```
+
+- [ ] **Step 4: Run to see it pass; run what reads the visual prompts**
+
+Run: `npx vitest run test/stages/prompt-audit-visual.test.ts test/stages/visual-stages.test.ts test/unit/layers.test.ts test/stages/modes-stage.test.ts test/unit/compat.test.ts`
+Expected: PASS (`visual-stages.test.ts` sets "Constantinople, spring 1453…", which does not move, so its exact strings hold).
+
+- [ ] **Step 5: Changelog, regenerate pins, typecheck, commit**
+
+Append to the spec's changelog:
+```markdown
+- `2026-10-18.12` — a setting that begins "Several times and places:" is no longer added to each picture and clip; each scene's own year and place lead its picture (§2.1, row 25). Moving runs' picture and clip cache keys change (row 26).
+```
+Run:
+```bash
+UPDATE_PROMPT_PINS=1 npx vitest run test/unit/prompt-pin.test.ts
+npm run typecheck && npx vitest run test/unit test/stages
+```
+Expected: PASS.
+```bash
+git add src test docs
+git commit -m "fix: a picture or clip of a video across several eras is no longer told every era, only the year and place its own scene names
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>"
+```
+
+---
+
 ### Task 4: The extra checks the validators lack
 
 **Files:**
@@ -1561,12 +2403,12 @@ git add test/eval/baseline.json && git commit -m "test: the prompts' baseline sc
 ```
 Expected: the summary table prints with `prompt version 2026-10-18.1`, and `test/eval/baseline.json` has `"promptVersion": "2026-10-18.1"`. Adjust `--cap` to the estimate the script prints.
 
-- [ ] **Step 2: The owner measures `.2` against it**
+- [ ] **Step 2: The owner measures the latest version (`.12`, after Task 3.10) against it**
 
 ```bash
 GEMINI_API_KEY=$(grep ^GEMINI_API_KEY= .env | cut -d= -f2-) npm run eval:prompts -- --cap 2 --repeats 3
 ```
-Expected: `eval-out/2026-10-18.2/summary.md` lists regressions and improvements against `.1`. Any regression is written into the spec as a ruling or fixed in a new task; it is never dropped (CLAUDE.md, "How work is done here").
+Expected: `eval-out/2026-10-18.12/summary.md` lists regressions and improvements against `.1`. Any regression is written into the spec as a ruling or fixed in a new task; it is never dropped (CLAUDE.md, "How work is done here").
 
 - [ ] **Step 3: The spec gains a section on what was found**
 
