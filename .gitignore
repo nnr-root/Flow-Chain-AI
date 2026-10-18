@@ -18,3 +18,4 @@ deploy/server.env
 deploy/data/
 graphify-out/
 .superpowers/
+eval-out/

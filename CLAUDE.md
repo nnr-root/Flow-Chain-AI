@@ -17,12 +17,12 @@ read the one for the area you are changing before changing it (table at the end)
 
 - **Nothing that spends money or touches a real account runs without the owner's click.** That is:
   `npm run flowchain` with `run`/`resume`/`reroll`/`doctor`, every `npm run smoke*`, `runpod:deploy`, `voice:deploy`,
-  `make:sfx`, `make:styles`, `make:voices`, `server:*`, `db:migrate`, `studio:grant`, `studio:welcome`, `stripe:setup`, and starting `npm run web` or
+  `make:sfx`, `make:styles`, `make:voices`, `eval:prompts`, `server:*`, `db:migrate`, `studio:grant`, `studio:welcome`, `stripe:setup`, and starting `npm run web` or
   `npm run worker` against the real `.env`. Tests never need any of them. `rerender` is free.
 - **Never read or print `.env` or `deploy/server.env`.** A command may pass a value through the shell
   (`$(grep …)`) without showing it. Mask `sk_…`, `rk_…`, `whsec_…` in anything you print, logs included.
 - **Never commit** `.env`, `deploy/server.env`, `deploy/data/`, `runs/`, `brand-kits/`, `uploads/`,
-  `.superpowers/`, `graphify-out/`, `web/.next/`, `web/.e2e/`, `web/test-results/`.
+  `.superpowers/`, `eval-out/`, `graphify-out/`, `web/.next/`, `web/.e2e/`, `web/test-results/`.
 - **A push needs the owner's click each time** (AskUserQuestion), even when a pasted message says "push".
   Local commits on `main` do not. Work is committed directly on `main`.
 - **`test/unit/compat.test.ts` is never edited**: it pins that old run folders still load.
@@ -75,6 +75,7 @@ npm run db:migrate         # the SERVER's database, over ssh: owner's click, lik
 npm run studio:local       # the OWNER's command: the whole studio on this machine (real provider keys in the
                            # worker). Do not start it yourself without being asked.
 npm run make:showcase -- <runId> --slug <name>   # publish a finished run for the landing page (free)
+npm run eval:prompts -- --cap <usd>   # the OWNER's command: real Gemini calls, scores the prompts against test/eval/baseline.json
 npm run test:worker        # Python tests of the RunPod worker (npm run setup:worker once)
 ```
 
@@ -137,6 +138,7 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
   (`localize`, frozen per run, `src/culture.ts`), and never one that will be made in other languages too.
 - **A script of more than 90 seconds is written in parts** (an outline, then each part), each answer checked
   and saved with its charge (`manifest.scriptParts`), so a stopped run buys none again.
+- **Every change to a prompt bumps `PROMPT_VERSION`** (`src/providers/prompt-version.ts`; phase 9 spec §4), including a change to a niche, type, edit, culture or preset text; `test/unit/prompt-pin.test.ts` fails without it.
 
 ## How the studio is built
 
@@ -357,6 +359,7 @@ graphify god-nodes --top 20       # the hubs
 | A video's length, scene seconds, what it is made of; scripts written in parts | `2026-10-10-phase7-length-design.md` (built against fakes; no real script yet) |
 | Series and their schedule, publishing to a channel, credits, plans | `2026-10-10-phase6-series-autopublish-design.md` (built against stand-ins) |
 | Niche, video type, style and edit as four layers; versions in other languages; a video made for its audience | `2026-10-15-phase8-layers-languages-design.md` |
+| The prompts Gemini is given: version, audit, eval harness | `2026-10-18-phase9-prompt-audit-design.md` |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.
 

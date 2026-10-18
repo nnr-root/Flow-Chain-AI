@@ -22,6 +22,7 @@
     "make:voices": "tsx scripts/make-voices.ts",
     "make:styles": "tsx scripts/make-styles.ts",
     "make:showcase": "tsx scripts/make-showcase.ts",
+    "eval:prompts": "tsx scripts/eval-prompts.ts",
     "voice:deploy": "tsx scripts/voice-deploy.ts",
     "runpod:deploy": "tsx scripts/runpod-deploy.ts",
     "db:start": "tsx scripts/db.ts start",
