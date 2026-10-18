@@ -208,7 +208,8 @@ function formatRules(req: ScriptRequest, part = false): string[] {
     ...(part ? [] : [`${FIRST_LINE} ${f.hook}`, `- Shape: ${f.arc}`]),
     `- Delivery: ${f.delivery}`,
     ...f.rules.filter((r) => !said.has(r)).map((r) => `- ${r}`),
-    ...(req.niche || req.nicheText ? ["- Where the niche and the video type differ, the video type decides the first line, the shape and the delivery; the niche decides the subject and the tone, and its rules always hold."] : []),
+    // (a niche's voice names a person and a tense too: "first person, past tense" against "Second person, present tense")
+    ...(req.niche || req.nicheText ? ["- Where the niche and the video type differ, the video type decides the first line, the shape and the delivery, and the person and tense it is told in; the niche decides the subject and the tone, and its rules always hold."] : []),
   ];
 }
 

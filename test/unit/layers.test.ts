@@ -51,7 +51,7 @@ describe("the types of video", () => {
     // the type's hook and shape in place of the niche's
     expect(p).not.toContain(h.hook);
     expect(p).not.toContain(h.arc);
-    expect(p).toContain("the video type decides the first line, the shape and the delivery; the niche decides the subject and the tone, and its rules always hold");
+    expect(p).toContain("the video type decides the first line, the shape and the delivery, and the person and tense it is told in; the niche decides the subject and the tone, and its rules always hold");
     // a rule the niche already says is said once
     const doc = buildScriptPrompt({ ...base, niche: "history", format: "documentary" });
     expect(doc.split(FACT_RULES[0]).length - 1).toBe(1);
