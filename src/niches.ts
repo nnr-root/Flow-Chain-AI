@@ -282,7 +282,7 @@ export const NICHES: readonly Niche[] = [
     id: "life-stories",
     label: "Stories with a lesson",
     about: "Short made-up stories with a twist and a moral",
-    examples: ["The man who planted trees for 40 years", "The farmer and the lost horse", "The two wolves inside you"],
+    examples: ["The man who planted trees for 40 years", "The farmer and the lost horse", "The potter who kept the cracked bowl"],
     kind: "fiction",
     promise: "A short, moving story, a fable or a parable, that ends on a lesson the viewer remembers.",
     hook: "Open on the character and their situation in one line (\"An old farmer lost his only horse.\").",
