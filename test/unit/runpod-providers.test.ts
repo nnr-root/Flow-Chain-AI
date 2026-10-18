@@ -238,6 +238,7 @@ describe("createProviders", () => {
     ELEVENLABS_MODEL: "eleven_multilingual_v2",
     FLOWCHAIN_BUDGET_USD: 3,
     FLOWCHAIN_VOICE: "narrator-m",
+    FLOWCHAIN_CUT_REFERENCES: "off" as const,
     RUNS_DIR: "./runs",
   };
   const runpodEnv = {

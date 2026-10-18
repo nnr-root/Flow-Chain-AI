@@ -25,6 +25,8 @@ export const RUNPOD_WORKFLOWS = {
   // FLUX.2 klein (phase 5 spec §6.2); runs made on the SDXL worker before it keep their own id, and that
   // worker is gone: they load and re-render, and a picture of theirs cannot be made again
   keyframe: { workflow: "keyframe-klein", version: 1 },
+  /** FLUX 3 klein (phase 10 spec §3): on its own endpoint, beside the 4B above. */
+  keyframe3: { workflow: "keyframe-flux3-klein", version: 1 },
   clip: { workflow: "clip-wan22-480p", version: 1 },
   voice: { workflow: "voice-voxcpm2", version: 1 },
   upscale: { workflow: "upscale-seedvr2", version: 1 },

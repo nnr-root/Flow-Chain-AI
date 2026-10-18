@@ -35,6 +35,12 @@ const Env = z.object({
   RUNPOD_VOICE_ENDPOINT: z.string().min(1).optional(),
   /** The upscaling worker (phase 8 spec §8): full HD is offered only where it is set. */
   RUNPOD_UPSCALE_ENDPOINT: z.string().min(1).optional(),
+  /** The FLUX 3 klein picture worker (phase 10 spec §3): new runs use it only while this and its prices are set. */
+  RUNPOD_PICTURE3_ENDPOINT: z.string().min(1).optional(),
+  /** `klein4b` forces the 4B picture worker (the fallback); `flux3` insists on the new one and refuses to start a run without it. */
+  FLOWCHAIN_IMAGE_MODEL: z.enum(["flux3", "klein4b"]).optional(),
+  /** Reframe cuts and the shared look reference (phase 10 spec §5): off until the owner's comparison says on. Frozen per run. */
+  FLOWCHAIN_CUT_REFERENCES: z.enum(["on", "off"]).default("off"),
   /** Which of the voice worker's voices new runs use. */
   FLOWCHAIN_VOICE: z.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/).default("narrator-m"),
   R2_ACCOUNT_ID: z.string().min(1).optional(),
@@ -86,10 +92,24 @@ export const Prices = z.strictObject({
   runpodUpscaleUsdPerSec: z.number().optional(),
   runpodUpscaleSecPerClipSec: z.number().optional(),
   runpodUpscaleColdStartSec: z.number().optional(),
+  // FLUX 3 klein (phase 10 spec §3): no default on purpose. The profile is not offered until the owner has measured
+  // these on the real endpoint and set all four, so a customer is never charged from a guess.
+  runpodPicture3UsdPerSec: z.number().positive().optional(),
+  runpodPicture3Sec: z.number().positive().optional(),
+  runpodPortrait3Sec: z.number().positive().optional(),
+  runpodPicture3ColdStartSec: z.number().positive().optional(),
 });
 export type Prices = z.infer<typeof Prices>;
 
 export type RunpodRates = ReturnType<typeof runpodRates>;
+
+export type Flux3Rates = { usdPerSec: number; pictureSec: number; portraitSec: number; coldStartSec: number };
+
+/** The FLUX 3 picture worker's rates, or null while any of the four is not set. */
+export function flux3Rates(p: Prices): Flux3Rates | null {
+  const { runpodPicture3UsdPerSec: usdPerSec, runpodPicture3Sec: pictureSec, runpodPortrait3Sec: portraitSec, runpodPicture3ColdStartSec: coldStartSec } = p;
+  return usdPerSec === undefined || pictureSec === undefined || portraitSec === undefined || coldStartSec === undefined ? null : { usdPerSec, pictureSec, portraitSec, coldStartSec };
+}
 
 /** RunPod rates with their defaults (2.4 spec §6): GPU $/s per endpoint and the estimated seconds per job. */
 export function runpodRates(p: Prices) {

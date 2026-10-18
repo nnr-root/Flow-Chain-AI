@@ -64,7 +64,7 @@ function portraitPrompt(m: Manifest): string {
       `exactly as described and nothing more. Nothing else in the frame. Plain light grey studio backdrop, soft even light. ${look}.${finish}`
     );
   }
-  if (m.request.imageProfile === "runpod-klein@1") {
+  if (m.request.imageProfile === "runpod-klein@1" || m.request.imageProfile === "runpod-flux3-klein@1") {
     return (
       `Character reference portrait of ${script.styleBible.characters}. ${when}` +
       "Neutral front-facing waist-up portrait, arms relaxed at the sides, empty hands, nothing else in the frame: " +

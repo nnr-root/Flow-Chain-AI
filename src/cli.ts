@@ -263,7 +263,7 @@ program
     const budgetUsd = budget(o.budget, env);
     if (o.bgm && !existsSync(o.bgm)) throw new Error(`--bgm file not found: ${o.bgm}`);
     const kit: BrandKit | undefined = o.brand ? await loadBrandKit(o.brand) : undefined;
-    const providers = newRunProviders(env, o.clips);
+    const providers = newRunProviders(env, o.clips, loadPrices());
     const voice = newRunVoice(env, o.language);
     const request = RunRequest.parse({
       topic: o.topic,

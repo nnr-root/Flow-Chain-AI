@@ -27,7 +27,7 @@ export const SELF_NAMES: RegExp[] = [/flow\s?chain (voice|picture|motion)/i, /\b
  */
 export const INTERNAL_NAMES: RegExp[] = [
   /gemini/i, /eleven\s?labs/i, /\bfal(\.ai|-ai)?\b/i, /run\s?pod/i, /comfy\s?ui/i, /hugging\s?face/i,
-  /\bsdxl\b/i, /stable diffusion/i, /realvis/i, /animagine/i, /ip-?adapter/i, /\bwan\s?2/i, /\bwan22/i, /kling/i, /\bflux\b/i,
+  /\bsdxl\b/i, /stable diffusion/i, /realvis/i, /animagine/i, /ip-?adapter/i, /\bwan\s?2/i, /\bwan22/i, /kling/i, /\bflux\b/i, /klein/i, /qwen/i,
   /voxcpm/i, /chatterbox/i, /whisper/i, /supabase/i, /cloudflare/i, /\bR2_/, /_API_KEY\b/, /_ENDPOINT\b/, /_VOICE_ID\b/,
 ];
 
