@@ -67,6 +67,14 @@ const presetRules = (req: ScriptRequest): string[] => [
 ];
 
 const HOOK_RULE = "- hook: 2-6 punchy words shown as a big title over the first 3 seconds; tease the payoff without giving it away; no emojis, hashtags or quotes.";
+
+/**
+ * How a niche's or a type's first line works. Not called "Hook": the answer's `hook` is the title shown over the first
+ * seconds, at most six words, and a niche's "one plain sentence … No title" read as that field is sent back as too
+ * long, a paid retry (phase 9 spec §2.1, row 10).
+ */
+const FIRST_LINE = "- First line (scene 1's narration, not the hook title):";
+
 /** The hook's rule: in words, or in a language without spaces in characters (`hookCap`). */
 const hookRule = (req: ScriptRequest): string =>
   isUnspaced(req.language)
@@ -171,7 +179,7 @@ function nicheRules(req: ScriptRequest, part = false): string[] {
     return [
       `Niche: ${niche.label}. ${niche.promise}`,
       `- Examples of videos in this niche: ${niche.examples.map((e) => `"${e}"`).join(", ")}. Write this video in that spirit; it is about the topic above.`,
-      ...(part || typed ? [] : [`- Hook: ${niche.hook}`, `- Shape: ${niche.arc}`]),
+      ...(part || typed ? [] : [`${FIRST_LINE} ${niche.hook}`, `- Shape: ${niche.arc}`]),
       `- Voice: ${niche.voice}`,
       ...niche.rules.map((r) => `- ${r}`),
     ];
@@ -197,10 +205,10 @@ function formatRules(req: ScriptRequest, part = false): string[] {
   const said = new Set(nicheById(req.niche)?.rules ?? (req.nicheText ? FACT_RULES : []));
   return [
     `Video type: ${f.label}. ${f.about}.`,
-    ...(part ? [] : [`- Hook: ${f.hook}`, `- Shape: ${f.arc}`]),
+    ...(part ? [] : [`${FIRST_LINE} ${f.hook}`, `- Shape: ${f.arc}`]),
     `- Delivery: ${f.delivery}`,
     ...f.rules.filter((r) => !said.has(r)).map((r) => `- ${r}`),
-    ...(req.niche || req.nicheText ? ["- Where the niche and the video type differ, the video type decides the hook, the shape and the delivery; the niche decides the subject and the tone, and its rules always hold."] : []),
+    ...(req.niche || req.nicheText ? ["- Where the niche and the video type differ, the video type decides the first line, the shape and the delivery; the niche decides the subject and the tone, and its rules always hold."] : []),
   ];
 }
 

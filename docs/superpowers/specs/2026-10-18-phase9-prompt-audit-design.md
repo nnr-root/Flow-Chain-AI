@@ -185,3 +185,4 @@ billing, the queue, the studio.
 - `2026-10-18.2` — translate 0.3 and part 0.7 (others unchanged); a `continue` scene's motionPrompt carries on the previous camera move (finding 2); the topic is fenced as a subject (finding 3); the picture and clip check also looks for a missing or replaced subject, and between a clip's frames for a subject that changes (finding 4).
 - `2026-10-18.3` — the setting's example is its form (`<place>, <season> <year>: …`), not the siege of Constantinople (§2.1, row 6).
 - `2026-10-18.4` — the example of a moving setting is its form with placeholders; the three wars of the phase 8 test video are gone from every prompt (§2.1, row 7).
+- `2026-10-18.5` — a niche's and a type's opening is labelled "First line (scene 1's narration, not the hook title)" instead of "Hook", and the tie-break says "the first line" (§2.1, row 10).
