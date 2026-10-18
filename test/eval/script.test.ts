@@ -23,6 +23,7 @@ describe("an eval run", () => {
     const out = await runEval({ llm, judge: null, cases: one, repeats: 50, capUsd: 0.0001, prices });
     expect(out.runs.length).toBeLessThan(50);
     expect(out.stoppedByCap).toBe(true);
+    expect(llm.calls).toHaveLength(0); // the cap is under one call's cost: stopping happens before the call, not after
   });
 
   it("counts runs the judge could not score, whether it failed or answered badly", async () => {
