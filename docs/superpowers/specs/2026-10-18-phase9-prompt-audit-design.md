@@ -187,3 +187,4 @@ billing, the queue, the studio.
 - `2026-10-18.4` — the example of a moving setting is its form with placeholders; the three wars of the phase 8 test video are gone from every prompt (§2.1, row 7).
 - `2026-10-18.5` — a niche's and a type's opening is labelled "First line (scene 1's narration, not the hook title)" instead of "Hook", and the tie-break says "the first line" (§2.1, row 10).
 - `2026-10-18.6` — where a niche and a type differ, the type also decides the person and tense (§2.1, row 11).
+- `2026-10-18.7` — the script is told an edit's name and how to frame and cut, not the form's description of its finish (§2.1, row 12).

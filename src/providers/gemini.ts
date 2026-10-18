@@ -218,7 +218,9 @@ function editRules(req: ScriptRequest): string[] {
   const e = editById(req.edit);
   if (!e) return [];
   return [
-    `Edit: ${e.label} (${e.about.toLowerCase()}). Frame, move and cut the scenes for it; its light and camera words are added to every picture and clip automatically.`,
+    // (not its `about`: that is the form's word for the renderer's finish, "bright colour", "film grain", which the
+    // script cannot make and, told, writes into its pictures: phase 9 spec §2.1, row 12)
+    `Edit: ${e.label}. Frame, move and cut the scenes for it; its light and camera words are added to every picture and clip automatically.`,
     ...e.script.map((l) => `- ${l}`),
   ];
 }
