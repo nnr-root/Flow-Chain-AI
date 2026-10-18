@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-18.9",
+  "version": "2026-10-18.10",
   "hashes": {
     "temperatures": "3b34bf01b602a0c5",
     "whole": "f4f4769c15c89713",
@@ -30,7 +30,7 @@
     "format:documentary": "2a5b2e126fd1b0f2",
     "format:explainer": "0f1b4bd639e52f7f",
     "format:story": "c116675af9cc5866",
-    "format:countdown": "fb6593b414dcc1e9",
+    "format:countdown": "f8f4ce2102c8b89f",
     "format:motivational": "7ccfb884ecee8b14",
     "format:myth-busting": "e1d2db4fe3a5ef9e",
     "format:versus": "e8883172ead13011",

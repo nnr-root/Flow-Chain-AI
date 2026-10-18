@@ -190,3 +190,4 @@ billing, the queue, the studio.
 - `2026-10-18.7` — the script is told an edit's name and how to frame and cut, not the form's description of its finish (§2.1, row 12).
 - `2026-10-18.8` — the "What if?" niche's example about a week without sleep, a health topic the niches leave out, is "What if Earth had rings like Saturn" (§2.1, row 15).
 - `2026-10-18.9` — the "Stories with a lesson" niche's example "The two wolves inside you", told as a Cherokee legend without a source, is "The potter who kept the cracked bowl" (§2.1, row 16).
+- `2026-10-18.10` — a top list's delivery no longer says "nothing between the items", which contradicted the rule that every script is one spoken piece (§2.1, row 18).

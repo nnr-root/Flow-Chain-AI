@@ -72,7 +72,8 @@ export const FORMATS: readonly VideoFormat[] = [
     goesWith: "any",
     hook: "Say what the list is and how many there are, with the number in it (\"Five animals that should not exist.\").",
     arc: "From the least to the most striking: each item has its number said aloud at its start, is named, and is given the one reason it is on the list; the last is number one.",
-    delivery: "Brisk; each item a fresh beat; nothing between the items.",
+    // (not "nothing between the items": every script is told it is one spoken piece, not a list read out)
+    delivery: "Brisk; each item a fresh beat, its lines told as one piece; one short line carries the viewer from each item to the next number.",
     rules: [
       "Exactly the number of items the hook promised, each one different from the others. As many items as the length gives room for: about one for every two or three scenes.",
       "In a niche of what is so, every item is real and the reason given for it is true.",
