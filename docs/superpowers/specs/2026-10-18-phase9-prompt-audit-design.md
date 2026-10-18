@@ -182,3 +182,4 @@ billing, the queue, the studio.
 ## Changelog of `PROMPT_VERSION`
 
 - `2026-10-18.1` — the baseline: the prompts and temperatures exactly as they were before this phase (all 0.9, inspect 0). The eval's first run measures this version.
+- `2026-10-18.2` — translate 0.3 and part 0.7 (others unchanged); a `continue` scene's motionPrompt carries on the previous camera move (finding 2); the topic is fenced as a subject (finding 3); the picture and clip check also looks for a missing or replaced subject, and between a clip's frames for a subject that changes (finding 4).

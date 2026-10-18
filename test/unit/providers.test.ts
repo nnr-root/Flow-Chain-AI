@@ -12,7 +12,7 @@ import { PRESETS } from "../../src/presets.js";
 describe("gemini prompt and schema", () => {
   it("asks for the exact scene count and word cap", () => {
     const p = buildScriptPrompt({ topic: "octopus intelligence", sceneCount: 5, aspect: "9:16" });
-    expect(p).toContain('"octopus intelligence"');
+    expect(p).toContain("«octopus intelligence»");
     expect(p).toContain("exactly 5 scenes");
     expect(p).toContain("at most 16 words (ideally 12-15)");
     expect(p).toContain("vertical 9:16");
