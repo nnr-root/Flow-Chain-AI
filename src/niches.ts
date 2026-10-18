@@ -254,7 +254,7 @@ export const NICHES: readonly Niche[] = [
     id: "what-if",
     label: "What if?",
     about: "Hypothetical scenarios worked out with real science",
-    examples: ["What if the Earth stopped spinning", "What if you didn't sleep for a week", "What if all the ice melted"],
+    examples: ["What if the Earth stopped spinning", "What if Earth had rings like Saturn", "What if all the ice melted"],
     kind: "fact",
     promise: "A hypothetical scenario played out step by step, grounded in what science actually says.",
     hook: "Pose the scenario as a question in the first line.",
