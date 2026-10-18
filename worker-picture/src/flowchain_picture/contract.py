@@ -4,6 +4,11 @@ import base64
 import binascii
 
 WORKFLOW = "keyframe-klein@1"
+WORKFLOW_FLUX3 = "keyframe-flux3-klein@1"
+# which engine answers which workflow: one image, two engines, each endpoint is sent only one workflow (phase 10 spec §3)
+ENGINES = {WORKFLOW: "klein", WORKFLOW_FLUX3: "flux3"}
+# the client sends at most three (portrait, look anchor, previous picture); one more is room, not a promise
+MAX_REFERENCES = 4
 MAX_SEED = 2**31 - 1
 MAX_IMAGE_BYTES = 9 * 1024 * 1024
 # the client's style presets: accepted so that its request is one shape for every picture worker, and not used
@@ -24,6 +29,18 @@ def _int(value, name, lo, hi):
     return value
 
 
+def _image(value, name):
+    if not isinstance(value, str):
+        raise ContractError(f"{name} must be a base64 string")
+    try:
+        data = base64.b64decode(value, validate=True)
+    except (binascii.Error, ValueError) as err:
+        raise ContractError(f"{name} is not valid base64") from err
+    if not data or len(data) > MAX_IMAGE_BYTES:
+        raise ContractError(f"{name} must be between 1 byte and 9 MB")
+    return data
+
+
 def validate(inp):
     """Returns a normalised request dict, or raises ContractError."""
     if not isinstance(inp, dict):
@@ -36,9 +53,13 @@ def validate(inp):
         return {"task": task}
     if task != "keyframe":
         raise ContractError("task must be 'keyframe' or 'fetch-models'")
-    if inp.get("workflow") != WORKFLOW:
+    workflow = inp.get("workflow")
+    if workflow not in ENGINES:
+        # the message is the one the first workflow always had: a client and a test match it
         raise ContractError(f"this worker runs workflow {WORKFLOW} for task keyframe")
-    unknown = sorted(set(inp) - {"task", "workflow", "prompt", "width", "height", "seed", "preset", "reference"})
+    flux3 = ENGINES[workflow] == "flux3"
+    allowed = {"task", "workflow", "prompt", "width", "height", "seed", "preset", "references" if flux3 else "reference"}
+    unknown = sorted(set(inp) - allowed)
     if unknown:
         raise ContractError(f"unknown field(s): {', '.join(unknown)}")
     prompt = inp.get("prompt")
@@ -51,15 +72,13 @@ def validate(inp):
         req["seed"] = _int(inp["seed"], "seed", 0, MAX_SEED)
     if inp.get("preset") is not None and inp["preset"] not in PRESETS:
         raise ContractError(f"preset must be one of {', '.join(PRESETS)}")
-    if inp.get("reference") is not None:
-        ref = inp["reference"]
-        if not isinstance(ref, str):
-            raise ContractError("reference must be a base64 string")
-        try:
-            data = base64.b64decode(ref, validate=True)
-        except (binascii.Error, ValueError) as err:
-            raise ContractError("reference is not valid base64") from err
-        if not data or len(data) > MAX_IMAGE_BYTES:
-            raise ContractError("reference must be between 1 byte and 9 MB")
-        req["reference"] = data
+    if flux3 and inp.get("references") is not None:
+        refs = inp["references"]
+        if not isinstance(refs, list):
+            raise ContractError("references must be a list of base64 strings")
+        if len(refs) > MAX_REFERENCES:
+            raise ContractError(f"references must be at most {MAX_REFERENCES} images")
+        req["references"] = [_image(r, "references") for r in refs]
+    if not flux3 and inp.get("reference") is not None:
+        req["reference"] = _image(inp["reference"], "reference")
     return req

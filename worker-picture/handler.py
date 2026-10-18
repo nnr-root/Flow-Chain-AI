@@ -10,7 +10,7 @@ import time
 
 import runpod
 
-from flowchain_picture import contract, engine, storage, weights
+from flowchain_picture import contract, engine, engine_flux3, storage, weights, weights_flux3
 
 VOLUME_MODELS = "/runpod-volume/models"
 TMP_DIR = "/tmp"
@@ -29,29 +29,43 @@ def handler(job):
         req = contract.validate(job.get("input"))
     except contract.ContractError as err:
         return {"error": f"invalid request: {err}"}
+    inp = job.get("input") or {}
     if req["task"] == "fetch-models":
-        return weights.fetch(VOLUME_MODELS)
+        return (weights_flux3 if inp.get("only") == "keyframe3" else weights).fetch(VOLUME_MODELS)
 
+    flux3 = contract.ENGINES[inp["workflow"]] == "flux3"
+    wmod = weights_flux3 if flux3 else weights
     missing = storage.missing_env()
     if missing:
         return {"error": f"R2 is not set up on this worker; missing: {', '.join(missing)}"}
-    if not weights.present(VOLUME_MODELS):
+    if not wmod.present(VOLUME_MODELS):
         return {"error": "the picture model is not on the volume yet (run the fetch-models task: npm run runpod:deploy)"}
 
     job_id = job["id"]
     seed = req.get("seed", random.randrange(contract.MAX_SEED + 1))
     out = os.path.join(TMP_DIR, f"{job_id}.png")
-    ref = os.path.join(TMP_DIR, f"{job_id}-reference.png") if "reference" in req else None
+    refs = []
     try:
-        if ref:
-            with open(ref, "wb") as f:
-                f.write(req["reference"])
-        engine.picture(weights.folder(VOLUME_MODELS), req["prompt"], req["width"], req["height"], seed, ref, out)
+        if flux3:
+            for k, data in enumerate(req.get("references", [])):
+                path = os.path.join(TMP_DIR, f"{job_id}-reference-{k}.png")
+                with open(path, "wb") as f:
+                    f.write(data)
+                refs.append(path)
+            engine_flux3.picture(wmod.folder(VOLUME_MODELS), req["prompt"], req["width"], req["height"], seed, refs, out)
+        else:
+            ref = None
+            if "reference" in req:
+                ref = os.path.join(TMP_DIR, f"{job_id}-reference.png")
+                with open(ref, "wb") as f:
+                    f.write(req["reference"])
+                refs.append(ref)
+            engine.picture(wmod.folder(VOLUME_MODELS), req["prompt"], req["width"], req["height"], seed, ref, out)
         url = storage.upload(out, f"flowchain/{job_id}.png", "image/png")
     finally:
         _remove(out)
-        if ref:
-            _remove(ref)
+        for path in refs:
+            _remove(path)
     return {"url": url, "seed": seed, "executionMs": int((time.monotonic() - started) * 1000)}
 
 
