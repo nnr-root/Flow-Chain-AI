@@ -247,6 +247,7 @@ export const scriptStage: Stage = {
     // the character bible is enforced too, so every image and motion prompt carries it verbatim
     if (characters) script.styleBible.characters = characters;
     ctx.manifest.script = script;
+    if (ctx.providers.llm.promptVersion) ctx.manifest.scriptPromptVersion = ctx.providers.llm.promptVersion;
     // a run asked for by its length learns here how many scenes it has
     if (timing) layOutScenes(ctx.manifest, script.scenes.length);
     delete ctx.manifest.scriptParts;

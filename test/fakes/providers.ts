@@ -69,6 +69,7 @@ export function timedScript(wordCounts: number[], opts: FakeScriptOptions = {}) 
 }
 
 export class FakeLlm implements LlmProvider {
+  promptVersion?: string;
   calls: ScriptRequest[] = [];
   /** The look at pictures (phase 8 spec §9): absent, like a provider without one, unless a test gives it. */
   inspect?: (req: InspectRequest) => Promise<unknown>;

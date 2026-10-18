@@ -387,5 +387,7 @@ export const Manifest = z.object({
    * Gone once the script is whole.
    */
   scriptParts: z.object({ inputHash: z.string(), outline: StoredOutline.optional(), parts: z.array(LlmPart.shape.scenes) }).optional(),
+  /** Which prompt version wrote the script (phase 9 spec §4). Diagnostic only, and in no input hash. Absent on older runs. */
+  scriptPromptVersion: z.string().optional(),
 });
 export type Manifest = z.infer<typeof Manifest>;

@@ -52,6 +52,8 @@ export type ScriptRequest = {
 export type InspectRequest = { images: string[]; expected: string };
 
 export interface LlmProvider {
+  /** Which prompts this provider writes with (phase 9 spec §4); recorded with the script, never hashed. */
+  readonly promptVersion?: string;
   /** Returns parsed JSON; the script stage validates it against the LlmScript schema. */
   generateScript(req: ScriptRequest): Promise<unknown>;
   /** Looks at pictures for what a picture model gets wrong; parsed JSON `{ ok, problems }`. Optional: without it nothing is looked at. */

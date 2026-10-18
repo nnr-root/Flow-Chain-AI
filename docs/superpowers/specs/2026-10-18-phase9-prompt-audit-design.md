@@ -181,4 +181,4 @@ billing, the queue, the studio.
 
 ## Changelog of `PROMPT_VERSION`
 
-(none yet; the first entry is written in task 2)
+- `2026-10-18.1` — the baseline: the prompts and temperatures exactly as they were before this phase (all 0.9, inspect 0). The eval's first run measures this version.

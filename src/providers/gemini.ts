@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
+import { PROMPT_VERSION, TEMPERATURE, temperatureOf } from "./prompt-version.js";
 import { lengthInWords, maxSceneUnits, sceneBounds, sceneWords, totalWords, translationWords, typicalSceneWords, wordsPerSecond } from "../duration.js";
 import { hookCap, isUnspaced, lengthUnit, unitsPerWord } from "../voice/words.js";
 import { FACT_RULES, nicheById } from "../niches.js";
@@ -373,6 +374,7 @@ const INSPECT_SCHEMA = {
 };
 
 export class GeminiLlm implements LlmProvider {
+  readonly promptVersion = PROMPT_VERSION;
   private readonly ai: GoogleGenAI;
 
   constructor(
@@ -386,7 +388,7 @@ export class GeminiLlm implements LlmProvider {
     const res = await this.ai.models.generateContent({
       model: this.model,
       contents: buildScriptPrompt(req),
-      config: { responseMimeType: "application/json", responseJsonSchema: scriptJsonSchema(req.ask?.kind ?? "script", mostEntries(req)), temperature: 0.9 },
+      config: { responseMimeType: "application/json", responseJsonSchema: scriptJsonSchema(req.ask?.kind ?? "script", mostEntries(req)), temperature: temperatureOf(req) },
     });
     const text = res.text;
     if (!text) throw new Error("Gemini returned an empty response");
@@ -398,7 +400,7 @@ export class GeminiLlm implements LlmProvider {
     const res = await this.ai.models.generateContent({
       model: this.model,
       contents: [{ role: "user", parts: [{ text: inspectPrompt(req) }, ...images] }],
-      config: { responseMimeType: "application/json", responseJsonSchema: INSPECT_SCHEMA, temperature: 0 },
+      config: { responseMimeType: "application/json", responseJsonSchema: INSPECT_SCHEMA, temperature: TEMPERATURE.inspect },
     });
     const text = res.text;
     if (!text) throw new Error("Gemini returned an empty response");
