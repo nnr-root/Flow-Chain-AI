@@ -101,6 +101,8 @@ export type ImageRequest = {
   preset?: PresetName;
   /** A character portrait to condition the image on (providers that support references). */
   referenceImagePath?: string;
+  /** Several reference pictures, in order (phase 10 spec §5): portrait, look anchor, previous picture. Only a profile that takes several reads this. */
+  referenceImagePaths?: string[];
 };
 /** `costUsd`: what the job actually cost, when the provider bills by measured time (else the stage estimate). */
 /**

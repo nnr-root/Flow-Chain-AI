@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { RunpodRates } from "../config.js";
+import { shrinkReference } from "../media/reference-image.js";
 import type { R2 } from "./r2.js";
 import { NonRetryableError, UnusableResultError } from "./retry.js";
 import type { RunpodClient, RunpodJob, RunpodPolicy } from "./runpod.js";
@@ -162,6 +163,9 @@ export class RunpodImage extends RunpodQueued<ImageRequest, ImageOutput> impleme
       ...(req.referenceImagePath === undefined
         ? {}
         : { reference: (await readFile(req.referenceImagePath)).toString("base64") }),
+      ...(req.referenceImagePaths === undefined || req.referenceImagePaths.length === 0
+        ? {}
+        : { references: await Promise.all(req.referenceImagePaths.map(async (p) => (await shrinkReference(p)).toString("base64"))) }),
     };
   }
 
