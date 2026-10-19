@@ -7,7 +7,7 @@ import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
 import { referenceFor, referenceImageOf } from "./reference.js";
 import { referenceNoteFor, referencesFor, referenceScenes } from "./references.js";
-import { needsUpsampling, upsample } from "./upsample.js";
+import { needsUpsampling, upsample, upsampleEstimate } from "./upsample.js";
 import { warmClipsEarly } from "./warmup.js";
 import { inspect, MAX_REMAKES, noteRemake, remakeOf } from "./inspect.js";
 import { fileSha256 } from "../manifest/hash.js";
@@ -60,7 +60,9 @@ export const keyframesStage: Stage = {
     const profile = imageProfileOf(ctx.manifest.request.imageProfile);
     // the run's first keyframe also pays the endpoint's cold start (0 on fal)
     const first = ctx.manifest.scenes.findIndex((s) => needsKeyframe(ctx.manifest, s.idx)) === scene;
-    return profile.keyframeUsd(ctx.prices, ctx.keyframeSize) + (first ? profile.runOverheadUsd(ctx.prices) : 0);
+    // the expansion is charged as it is made, so the estimate carries it too
+    const expansion = needsUpsampling(ctx.manifest.request.imageProfile) ? upsampleEstimate(ctx.prices, 3) : 0;
+    return profile.keyframeUsd(ctx.prices, ctx.keyframeSize) + (first ? profile.runOverheadUsd(ctx.prices) : 0) + expansion;
   },
   async run(ctx, scene) {
     const i = scene!;

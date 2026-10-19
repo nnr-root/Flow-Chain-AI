@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { maxSideFor, upsampleInstructions, upsampleUserText } from "../../src/providers/gemini.js";
 import { TEMPERATURE } from "../../src/providers/prompt-version.js";
 import type { RunContext, StageContext } from "../../src/stages/types.js";
-import { needsUpsampling, upsample, upsampleCost } from "../../src/stages/upsample.js";
+import { imageProfileOf } from "../../src/image-profiles.js";
+import { keyframesStage } from "../../src/stages/keyframes.js";
+import { referenceStage } from "../../src/stages/reference.js";
+import { needsUpsampling, upsample, upsampleCost, upsampleEstimate } from "../../src/stages/upsample.js";
 import { makeTestContext } from "../helpers/context.js";
 
 /** What the pipeline hands a stage: the context with a charge that writes the ledger, as pipeline.ts does. */
@@ -73,5 +76,31 @@ describe("the picture prompt upsampler", () => {
     const failed = await upsample(running(ctx), "a lighthouse").catch((e: Error) => e);
     expect((failed as Error).message).toMatch(/prompt could not be expanded/);
     expect((failed as Error).message).not.toMatch(/secret body/);
+  });
+});
+
+describe("what a picture is estimated to cost", () => {
+  const priced = async (profile: "runpod-flux3-klein@1" | "runpod-klein@1") => {
+    const made = await makeTestContext({ modes: [2, 2], characters: "a red fox in a coat" });
+    Object.assign(made.ctx.prices, { runpodPicture3UsdPerSec: 0.0006, runpodPicture3Sec: 24, runpodPortrait3Sec: 12, runpodPicture3ColdStartSec: 90 });
+    made.ctx.manifest.request.imageProfile = profile;
+    return made.ctx;
+  };
+
+  it("carries the expansion on the FLUX 3 profile, so the approval and the cap see it", async () => {
+    const ctx = await priced("runpod-flux3-klein@1");
+    const profile = imageProfileOf(ctx.manifest.request.imageProfile);
+    const overhead = profile.runOverheadUsd(ctx.prices);
+    // scene 1 is the run's first keyframe and also pays the cold start; scene 2 does not
+    expect(keyframesStage.estimateCostUsd(ctx, 1)).toBeCloseTo(profile.keyframeUsd(ctx.prices, ctx.keyframeSize) + upsampleEstimate(ctx.prices, 3), 4);
+    expect(keyframesStage.estimateCostUsd(ctx, 0)).toBeCloseTo(profile.keyframeUsd(ctx.prices, ctx.keyframeSize) + overhead + upsampleEstimate(ctx.prices, 3), 4);
+    expect(referenceStage.estimateCostUsd(ctx, 0)).toBeCloseTo(profile.referenceUsd(ctx.prices, { width: 1024, height: 1024 }) + upsampleEstimate(ctx.prices, 0), 4);
+  });
+
+  it("is the GPU price alone on the 4B profile, which is never upsampled", async () => {
+    const ctx = await priced("runpod-klein@1");
+    const profile = imageProfileOf(ctx.manifest.request.imageProfile);
+    expect(keyframesStage.estimateCostUsd(ctx, 1)).toBe(profile.keyframeUsd(ctx.prices, ctx.keyframeSize));
+    expect(referenceStage.estimateCostUsd(ctx, 0)).toBe(profile.referenceUsd(ctx.prices, { width: 1024, height: 1024 }));
   });
 });

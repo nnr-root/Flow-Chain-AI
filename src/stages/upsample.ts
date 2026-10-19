@@ -29,3 +29,10 @@ export async function upsample(ctx: RunContext, prompt: string, referencePaths: 
     throw new Error("the picture prompt could not be expanded for the picture model; resume the run to try again");
   }
 }
+
+/**
+ * What a stage's estimate adds for the expansion: deliberately a long prompt (800 characters) and, for a keyframe,
+ * the most pictures it is shown (3). The approval and the cap are built from estimates, and an estimate under the
+ * real charge would let a picture through that the budget did not see; over-counting by a fraction of a cent is safe.
+ */
+export const upsampleEstimate = (p: Pick<Prices, "llmPerMInputTokens" | "llmPerMOutputTokens">, images: number): number => upsampleCost(p, 800, images);

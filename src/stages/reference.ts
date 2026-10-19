@@ -6,7 +6,7 @@ import { runProviderJob } from "./job.js";
 import { effectivePreset } from "./look.js";
 import { outPath, paths } from "./paths.js";
 import { requireScript } from "./require.js";
-import { needsUpsampling, upsample } from "./upsample.js";
+import { needsUpsampling, upsample, upsampleEstimate } from "./upsample.js";
 import type { Stage, StageContext } from "./types.js";
 import { needsKeyframe, showsCharacter } from "./visual.js";
 import { warmClipsEarly } from "./warmup.js";
@@ -101,7 +101,9 @@ export const referenceStage: Stage = {
   deps: () => [{ stage: "script" }],
   inputsFor: async (ctx) => inputs(ctx),
   outputsFor: () => [paths.reference],
-  estimateCostUsd: (ctx) => imageProfileOf(ctx.manifest.request.imageProfile).referenceUsd(ctx.prices, REFERENCE_SIZE),
+  estimateCostUsd: (ctx) =>
+    imageProfileOf(ctx.manifest.request.imageProfile).referenceUsd(ctx.prices, REFERENCE_SIZE) +
+    (needsUpsampling(ctx.manifest.request.imageProfile) ? upsampleEstimate(ctx.prices, 0) : 0),
   async run(ctx) {
     const req = inputs(ctx);
     const image = ctx.providers.image;
