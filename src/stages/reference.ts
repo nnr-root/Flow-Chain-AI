@@ -6,6 +6,7 @@ import { runProviderJob } from "./job.js";
 import { effectivePreset } from "./look.js";
 import { outPath, paths } from "./paths.js";
 import { requireScript } from "./require.js";
+import { needsUpsampling, upsample } from "./upsample.js";
 import type { Stage, StageContext } from "./types.js";
 import { needsKeyframe, showsCharacter } from "./visual.js";
 import { warmClipsEarly } from "./warmup.js";
@@ -110,7 +111,7 @@ export const referenceStage: Stage = {
     const result = await runProviderJob(ctx, 0, "reference", {
       label: "character reference",
       costUsd: imageProfileOf(ctx.manifest.request.imageProfile).referenceUsd(ctx.prices, REFERENCE_SIZE),
-      prepare: () => image.prepare({ prompt: req.prompt, ...REFERENCE_SIZE, seed: req.seed, preset: req.preset }),
+      prepare: async () => image.prepare({ prompt: needsUpsampling(ctx.manifest.request.imageProfile) ? await upsample(ctx, req.prompt) : req.prompt, ...REFERENCE_SIZE, seed: req.seed, preset: req.preset }),
       submit: (job, signal) => image.submit(job, { signal }),
       wait: (id) => image.wait(id, { timeoutMs: image.waitMs ?? TIMEOUTS.image }),
       waitMs: image.waitMs ?? TIMEOUTS.image,

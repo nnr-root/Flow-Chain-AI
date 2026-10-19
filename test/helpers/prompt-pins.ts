@@ -4,7 +4,7 @@ import { EDITS } from "../../src/edits.js";
 import { FORMATS } from "../../src/formats.js";
 import { NICHES } from "../../src/niches.js";
 import { PRESETS } from "../../src/presets.js";
-import { buildScriptPrompt, inspectPrompt } from "../../src/providers/gemini.js";
+import { buildScriptPrompt, inspectPrompt, upsampleInstructions, upsampleUserText } from "../../src/providers/gemini.js";
 import { TEMPERATURE } from "../../src/providers/prompt-version.js";
 import type { ScriptRequest } from "../../src/providers/types.js";
 import { REFERENCE_NOTE } from "../../src/stages/references.js";
@@ -41,6 +41,8 @@ export function pinnedPrompts(): Record<string, string> {
   out["layered:part:1"] = buildScriptPrompt({ ...base, ...layers, timing: timed, ask: { kind: "part", index: 1, partSec: [60, 60], outline, previous: ["Last line one.", "Last line two."] } });
   out["whole:reframe"] = buildScriptPrompt({ ...base, format: "story", reframe: true });
   out["references:note"] = REFERENCE_NOTE;
+  out["upsample:t2i"] = upsampleInstructions(false) + "\n" + upsampleUserText("a lighthouse at dusk", 0);
+  out["upsample:i2i"] = upsampleInstructions(true) + "\n" + upsampleUserText("a lighthouse at dusk", 2);
   out["part:1:reframe"] = buildScriptPrompt({ ...base, timing: timed, format: "documentary", reframe: true, ask: { kind: "part", index: 1, partSec: [60, 60], outline, previous: ["Last line one."] } });
   out["whole:style+characters"] = buildScriptPrompt({ ...base, style: "anime", characters: "a red fox" });
   out["whole:feedback"] = buildScriptPrompt({ ...base, feedback: "scene 2 narration has 20 words" });

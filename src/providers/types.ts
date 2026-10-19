@@ -60,6 +60,8 @@ export interface LlmProvider {
   generateScript(req: ScriptRequest): Promise<unknown>;
   /** Looks at pictures for what a picture model gets wrong; parsed JSON `{ ok, problems }`. Optional: without it nothing is looked at. */
   inspect?(req: InspectRequest): Promise<unknown>;
+  /** Expands a picture prompt for a model that needs it, seeing its reference pictures (phase 10 spec §3). Optional: a provider without it leaves the prompt as it is. */
+  upsample?(req: { prompt: string; images?: string[] }): Promise<string>;
 }
 
 /** `language`: the script's, where it is known (the studio's own voice picks its reference clip by it). */

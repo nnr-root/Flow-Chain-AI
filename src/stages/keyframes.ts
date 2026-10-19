@@ -7,6 +7,7 @@ import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
 import { referenceFor, referenceImageOf } from "./reference.js";
 import { referenceNoteFor, referencesFor, referenceScenes } from "./references.js";
+import { needsUpsampling, upsample } from "./upsample.js";
 import { warmClipsEarly } from "./warmup.js";
 import { inspect, MAX_REMAKES, noteRemake, remakeOf } from "./inspect.js";
 import { fileSha256 } from "../manifest/hash.js";
@@ -76,12 +77,13 @@ export const keyframesStage: Stage = {
       const result = await runProviderJob({ ...ctx, inputHash: remake === 0 ? ctx.inputHash : `${ctx.inputHash}#${remake}` }, i, "keyframes", {
         label: `keyframe scene ${i + 1}${remake ? ` (made again, ${remake})` : ""}`,
         costUsd: imageProfileOf(ctx.manifest.request.imageProfile).keyframeUsd(ctx.prices, ctx.keyframeSize),
-        prepare: () => {
+        prepare: async () => {
           const several = takesSeveralReferences(ctx.manifest.request.imageProfile);
           const reference = referenceFor(ctx.manifest, i);
           const refs = several ? referencesFor(ctx.manifest, i).map((p) => abs(ctx, p)) : [];
+          const sent = needsUpsampling(ctx.manifest.request.imageProfile) ? await upsample(ctx, prompt, refs) : prompt;
           return ctx.providers.image.prepare({
-            prompt,
+            prompt: sent,
             ...ctx.keyframeSize,
             seed: remake === 0 ? keyframeSeed(ctx.manifest, i) : seed,
             preset: effectivePreset(ctx.manifest)?.name,

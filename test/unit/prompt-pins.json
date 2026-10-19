@@ -1,7 +1,7 @@
 {
-  "version": "2026-10-18.12",
+  "version": "2026-10-18.13",
   "hashes": {
-    "temperatures": "3b34bf01b602a0c5",
+    "temperatures": "52627fc6858149ed",
     "whole": "f4f4769c15c89713",
     "whole:timed": "df493a0909deb7c4",
     "whole:shots": "21825b3a6b601d10",
@@ -19,6 +19,8 @@
     "layered:part:1": "17e0f16ce3b39146",
     "whole:reframe": "7c25419b42fd7fd9",
     "references:note": "e3e92fd140033305",
+    "upsample:t2i": "695840101d3b1797",
+    "upsample:i2i": "dcf3801bc0557c71",
     "part:1:reframe": "1f7a597f6ef211c3",
     "whole:style+characters": "2ca621540282fe3f",
     "whole:feedback": "41566f7fb50fd20a",
