@@ -192,3 +192,4 @@ billing, the queue, the studio.
 - `2026-10-18.9` — the "Stories with a lesson" niche's example "The two wolves inside you", told as a Cherokee legend without a source, is "The potter who kept the cracked bowl" (§2.1, row 16).
 - `2026-10-18.10` — a top list's delivery no longer says "nothing between the items", which contradicted the rule that every script is one spoken piece (§2.1, row 18).
 - `2026-10-18.11` — no prompt text changed: the pin test now also renders a niche with a type, an outline and a part with every layer, and a script with a style, characters and feedback.
+- `2026-10-18.12` — the script may mark a cut as a reframe (phase 10 spec §4): a new rule offered only to a documentary, story or pov run that takes several picture references; and a note, added only to a picture prompt that has a look reference, to take the look and copy nothing else; no prompt changes for any other run.

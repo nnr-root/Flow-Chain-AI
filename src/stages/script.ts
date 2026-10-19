@@ -3,6 +3,9 @@ import { scriptCost } from "../cost.js";
 import { maxSceneUnits, type SceneSeconds, sceneBounds, sceneWords, scriptAnswerCost, scriptParts, timedScriptCost, type Timing, totalWords, translationWords, wordsPerSecond, wordsTolerance } from "../duration.js";
 import { LlmOutline, LlmPart, LlmScript, LlmTranslation, MAX_HOOK_WORDS, MAX_NARRATION_WORDS } from "../manifest/schema.js";
 import { layOutScenes } from "../manifest/store.js";
+import { formatById } from "../formats.js";
+import { takesSeveralReferences } from "../image-profiles.js";
+import type { Manifest } from "../manifest/schema.js";
 import { PRESETS } from "../presets.js";
 import { voicePace } from "../voice/language.js";
 import { countUnits, hookCap, isUnspaced, lengthUnit, unitsPerWord } from "../voice/words.js";
@@ -185,8 +188,24 @@ async function writeInParts(ctx: RunContext, req: ScriptRequest, timing: Timing,
     ctx.log(`script: part ${i + 1} of ${partSec.length} written (${kept.parts[i].length} scenes)`);
   }
   // every part begins on a fresh picture: nothing of the part before is there to carry on from when it is written
-  for (const part of kept.parts) part[0].shot = "cut";
+  for (const part of kept.parts) {
+    part[0].shot = "cut";
+    part[0].reframe = part[0].reframe === undefined ? undefined : false;
+  }
   return { title: outline.title, stylePreset: outline.stylePreset, styleBible: outline.styleBible, hook: outline.hook, ...(outline.hashtags ? { hashtags: outline.hashtags } : {}), scenes: kept.parts.flat() } as LlmScript;
+}
+
+/** Whether a run's script may mark reframes: a type that may, a picture profile that takes several references, and the frozen setting (phase 10 spec §4). */
+export function allowsReframe(m: Manifest): boolean {
+  return formatById(m.request.format)?.reframe === true && takesSeveralReferences(m.request.imageProfile) && m.request.cutReferences === true;
+}
+
+/** Puts a model's reframe marks right, in code and not by a paid retry (phase 10 spec §12): only a cut after the first scene can be one. */
+function settleReframes(scenes: Array<{ shot: string; reframe?: boolean }>, allowed: boolean): void {
+  scenes.forEach((s, i) => {
+    if (!allowed) delete s.reframe;
+    else if (s.reframe !== undefined) s.reframe = s.reframe === true && s.shot === "cut" && i > 0;
+  });
 }
 
 export const scriptStage: Stage = {
@@ -215,6 +234,7 @@ export const scriptStage: Stage = {
       ...(format ? { format } : {}),
       ...(edit ? { edit } : {}),
       ...(localize ? { localize } : {}),
+      ...(allowsReframe(ctx.manifest) ? { reframe: true } : {}),
     };
     // a run asked for by its length is keyed on that: its number of scenes is the script's own answer
     if (timing) return { model: ctx.manifest.models.llm, topic, timing, aspect, shots, style, characters, ...asked };
@@ -226,7 +246,7 @@ export const scriptStage: Stage = {
     if (ctx.manifest.request.versionOf) return translate(ctx);
     const { topic, sceneCount, aspect, shots, style, characters, timing, language, niche, nicheText, format, edit, localize, wordsPerSecond: frozen } = ctx.manifest.request;
     const voiceId = ctx.manifest.request.voiceId;
-    const req: ScriptRequest = { topic, sceneCount, aspect, shots, style, characters, timing, language, voiceId, niche, nicheText, format, edit, localize, ...(frozen ? { wordsPerSecond: frozen } : {}) };
+    const req: ScriptRequest = { topic, sceneCount, aspect, shots, style, characters, timing, language, voiceId, niche, nicheText, format, edit, localize, ...(frozen ? { wordsPerSecond: frozen } : {}), ...(allowsReframe(ctx.manifest) ? { reframe: true } : {}) };
     const partSec = timing ? scriptParts(timing.targetSec) : null;
     const script = timing && partSec
       ? await writeInParts(ctx, req, timing, partSec)
@@ -238,6 +258,8 @@ export const scriptStage: Stage = {
     if (shots) script.scenes.forEach((s, i) => (s.shot = shots[i]));
     // there is no earlier clip for the first scene to carry on from
     if (timing) script.scenes[0].shot = "cut";
+    // a reframe is only a cut after the first scene, and only where the run may (put right here, never sent back)
+    settleReframes(script.scenes, allowsReframe(ctx.manifest));
     // --style is enforced the same way, and the preset leads the art style (spec §2)
     if (style) script.stylePreset = style;
     const preset = PRESETS[script.stylePreset];

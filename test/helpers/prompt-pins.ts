@@ -7,6 +7,7 @@ import { PRESETS } from "../../src/presets.js";
 import { buildScriptPrompt, inspectPrompt } from "../../src/providers/gemini.js";
 import { TEMPERATURE } from "../../src/providers/prompt-version.js";
 import type { ScriptRequest } from "../../src/providers/types.js";
+import { REFERENCE_NOTE } from "../../src/stages/references.js";
 import { imagePrompt, motionPrompt } from "../../src/stages/visual.js";
 import type { SpeechLanguage } from "../../src/voice/language.js";
 import { fakeScript } from "../fakes/providers.js";
@@ -38,6 +39,9 @@ export function pinnedPrompts(): Record<string, string> {
   out["layered:own-niche+versus"] = buildScriptPrompt({ ...base, nicheText: "a channel about retro handheld consoles", format: "versus" });
   out["layered:outline"] = buildScriptPrompt({ ...base, ...layers, timing: timed, ask: { kind: "outline", partSec: [60, 60] } });
   out["layered:part:1"] = buildScriptPrompt({ ...base, ...layers, timing: timed, ask: { kind: "part", index: 1, partSec: [60, 60], outline, previous: ["Last line one.", "Last line two."] } });
+  out["whole:reframe"] = buildScriptPrompt({ ...base, format: "story", reframe: true });
+  out["references:note"] = REFERENCE_NOTE;
+  out["part:1:reframe"] = buildScriptPrompt({ ...base, timing: timed, format: "documentary", reframe: true, ask: { kind: "part", index: 1, partSec: [60, 60], outline, previous: ["Last line one."] } });
   out["whole:style+characters"] = buildScriptPrompt({ ...base, style: "anime", characters: "a red fox" });
   out["whole:feedback"] = buildScriptPrompt({ ...base, feedback: "scene 2 narration has 20 words" });
   for (const n of NICHES) out[`niche:${n.id}`] = buildScriptPrompt({ ...base, niche: n.id });

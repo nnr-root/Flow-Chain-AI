@@ -26,6 +26,8 @@ export type ScriptRequest = {
   edit?: string;
   /** Made for the audience of its one language (phase 8 spec §5): who is in it where the topic leaves it open. */
   localize?: boolean;
+  /** The script may mark a cut as a reframe (phase 10 spec §4); absent = it may not and is not told of it. */
+  reframe?: boolean;
   /** The language to write what is said and shown as words in; absent = the model's own choice. */
   language?: SpeechLanguage;
   feedback?: string;

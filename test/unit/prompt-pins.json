@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-18.11",
+  "version": "2026-10-18.12",
   "hashes": {
     "temperatures": "3b34bf01b602a0c5",
     "whole": "f4f4769c15c89713",
@@ -17,6 +17,9 @@
     "layered:own-niche+versus": "2c054d97dbf4dd7e",
     "layered:outline": "2d064eb69a3c03ea",
     "layered:part:1": "17e0f16ce3b39146",
+    "whole:reframe": "7c25419b42fd7fd9",
+    "references:note": "e3e92fd140033305",
+    "part:1:reframe": "1f7a597f6ef211c3",
     "whole:style+characters": "2ca621540282fe3f",
     "whole:feedback": "41566f7fb50fd20a",
     "niche:scary-stories": "180807e5f7a4cc70",

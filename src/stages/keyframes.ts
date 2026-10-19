@@ -6,7 +6,7 @@ import { runProviderJob } from "./job.js";
 import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
 import { referenceFor, referenceImageOf } from "./reference.js";
-import { referencesFor, referenceScenes } from "./references.js";
+import { referenceNoteFor, referencesFor, referenceScenes } from "./references.js";
 import { warmClipsEarly } from "./warmup.js";
 import { inspect, MAX_REMAKES, noteRemake, remakeOf } from "./inspect.js";
 import { fileSha256 } from "../manifest/hash.js";
@@ -24,6 +24,8 @@ export function keyframeSeed(m: Manifest, i: number): number | undefined {
   if (seed === undefined) return undefined;
   return (seed + (m.scenes[i].nonces.keyframes ?? 0)) % (MAX_SEED + 1);
 }
+
+const withNote = (prompt: string, note: string): string => (note ? `${prompt} ${note}` : prompt);
 
 export const keyframesStage: Stage = {
   name: "keyframes",
@@ -44,7 +46,7 @@ export const keyframesStage: Stage = {
     const refs = several ? referencesFor(ctx.manifest, scene!) : [];
     return {
       model: ctx.manifest.models.image,
-      prompt: imagePrompt(requireScript(ctx.manifest), scene!, effectivePreset(ctx.manifest), editById(ctx.manifest.request.edit)),
+      prompt: withNote(imagePrompt(requireScript(ctx.manifest), scene!, effectivePreset(ctx.manifest), editById(ctx.manifest.request.edit)), referenceNoteFor(ctx.manifest, scene!)),
       size: ctx.keyframeSize,
       seed: keyframeSeed(ctx.manifest, scene!),
       // only runs with a reference key on it, so every other run keeps its cache key
@@ -61,7 +63,7 @@ export const keyframesStage: Stage = {
   },
   async run(ctx, scene) {
     const i = scene!;
-    const prompt = imagePrompt(requireScript(ctx.manifest), i, effectivePreset(ctx.manifest), editById(ctx.manifest.request.edit));
+    const prompt = withNote(imagePrompt(requireScript(ctx.manifest), i, effectivePreset(ctx.manifest), editById(ctx.manifest.request.edit)), referenceNoteFor(ctx.manifest, i));
     const m = ctx.manifest;
     const left = m.scenes.filter((s) => s.idx >= i && needsKeyframe(m, s.idx)).length;
     const first = m.scenes.findIndex((s) => needsKeyframe(m, s.idx)) === i && referenceImageOf(m) !== paths.reference;

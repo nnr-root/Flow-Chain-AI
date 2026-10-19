@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { anchorScene, previousKeyframeScene, reframes, referencesFor } from "../../src/stages/references.js";
+import { anchorScene, previousKeyframeScene, REFERENCE_NOTE, referenceNoteFor, reframes, referencesFor } from "../../src/stages/references.js";
 import { fileSha256 } from "../../src/manifest/hash.js";
 import { keyframesStage } from "../../src/stages/keyframes.js";
 import { fakeScript } from "../fakes/providers.js";
@@ -85,5 +85,26 @@ describe("the keyframe stage's dependencies and cache keys", () => {
     expect(inputs.references).toHaveLength(2); // the portrait, then the anchor
     expect(inputs.references).toEqual([await fileSha256(`${dir}/images/reference.png`), await fileSha256(`${dir}/images/keyframe_01.png`)]);
     expect(inputs).not.toHaveProperty("reference");
+  });
+});
+
+describe("the note that goes with a look reference", () => {
+  it("tells the picture model to take only the look from the pictures it was given, and only when it has a look anchor or a previous picture", async () => {
+    const { m } = await flux3Run({ cutReferences: true, reframe: [false, false, true, false] });
+    expect(referenceNoteFor(m, 0)).toBe("");
+    expect(referenceNoteFor(m, 2)).toBe(REFERENCE_NOTE);
+    expect(REFERENCE_NOTE).toContain("light, palette and grain");
+    expect(REFERENCE_NOTE).toContain("do not copy");
+    m.request.cutReferences = false;
+    expect(referenceNoteFor(m, 2)).toBe("");
+  });
+
+  it("is part of the keyframe's cache key, so changing its wording makes the picture again", async () => {
+    const { ctx, dir } = await flux3Run({ cutReferences: true });
+    await mkdir(`${dir}/images`, { recursive: true });
+    await writeFile(`${dir}/images/keyframe_01.png`, "anchor bytes");
+    await writeFile(`${dir}/images/reference.png`, "portrait bytes");
+    const inputs = JSON.parse(JSON.stringify(await keyframesStage.inputsFor(ctx, 2)));
+    expect(inputs.prompt).toContain(REFERENCE_NOTE);
   });
 });

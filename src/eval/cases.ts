@@ -14,6 +14,8 @@ export const CASES: readonly EvalCase[] = [
   { id: "science-explainer", note: "a plain explainer", request: req("Why the sky is blue", { niche: "space-science", format: "explainer", edit: "calm", language: "en" }) },
   { id: "horror-story", note: "made-up story: unsettling, no gore", request: req("The lighthouse that kept counting", { niche: "scary-stories", format: "story", edit: "dreamy", language: "en" }) },
   { id: "true-crime", note: "facts about real people: careful wording", request: req("The heist of the Antwerp diamond center", { niche: "true-crime", format: "documentary", edit: "archive", language: "en" }) },
+  { id: "reframe-story", note: "a story run that may reframe: reframes only on cuts, same place, never scene 1", request: req("The lighthouse that kept counting", { niche: "scary-stories", format: "story", reframe: true, language: "en" }) },
+  { id: "no-reframe-explainer", note: "an explainer is never offered reframe", request: req("Why the sky is blue", { niche: "space-science", format: "explainer", language: "en" }) },
   { id: "myth-story", note: "a myth told as a story", request: req("Medusa's origin", { niche: "mythology", format: "story", language: "en" }) },
   { id: "did-you-know", note: "a list of strange facts", request: req("Strange facts about honey", { niche: "did-you-know", format: "countdown", edit: "energetic", language: "en" }) },
   { id: "psychology", note: "a niche with abstract ideas: every imagePrompt still shows something visible", request: req("Why we procrastinate", { niche: "psychology", format: "explainer", language: "en" }) },

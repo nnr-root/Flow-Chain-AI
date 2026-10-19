@@ -24,6 +24,8 @@ async function run(profile: "runpod-flux3-klein@1" | "runpod-klein@1", cutRefere
   Object.assign(made.ctx.prices, { runpodPicture3UsdPerSec: 0.0006, runpodPicture3Sec: 24, runpodPortrait3Sec: 12, runpodPicture3ColdStartSec: 90 });
   made.ctx.manifest.request.imageProfile = profile;
   made.ctx.manifest.request.cutReferences = cutReferences ? true : undefined;
+  // a reframe exists only on a type that may reframe: phase 10 spec §4
+  made.ctx.manifest.request.format = "story" as never;
   return made;
 }
 

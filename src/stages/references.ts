@@ -52,3 +52,12 @@ export function referenceScenes(m: Manifest, scene: number): number[] {
   }
   return out;
 }
+
+/**
+ * Said to the picture model beside a look reference (phase 10 spec §5). The model draws on every picture it is
+ * given, and the 4B one copied whatever stood in a portrait (phase 5 spec §9.12): the anchor is for the look only.
+ */
+export const REFERENCE_NOTE = "Use the reference pictures only for light, palette and grain, and for the surroundings of the same place; do not copy their objects, poses or people.";
+
+/** The note for scene `scene`'s picture prompt: only where it has a look anchor or a previous picture to draw on. */
+export const referenceNoteFor = (m: Manifest, scene: number): string => (referencesFor(m, scene).some((p) => p.includes("keyframe")) ? REFERENCE_NOTE : "");
