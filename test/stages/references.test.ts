@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { anchorScene, previousKeyframeScene, reframes, referencesFor } from "../../src/stages/references.js";
+import { fileSha256 } from "../../src/manifest/hash.js";
 import { keyframesStage } from "../../src/stages/keyframes.js";
 import { fakeScript } from "../fakes/providers.js";
 import { makeTestContext } from "../helpers/context.js";
@@ -82,6 +83,7 @@ describe("the keyframe stage's dependencies and cache keys", () => {
     await writeFile(`${dir}/images/reference.png`, "portrait bytes"); // the portrait applies to scene 3 as well
     const inputs = JSON.parse(JSON.stringify(await keyframesStage.inputsFor(ctx, 2)));
     expect(inputs.references).toHaveLength(2); // the portrait, then the anchor
+    expect(inputs.references).toEqual([await fileSha256(`${dir}/images/reference.png`), await fileSha256(`${dir}/images/keyframe_01.png`)]);
     expect(inputs).not.toHaveProperty("reference");
   });
 });
