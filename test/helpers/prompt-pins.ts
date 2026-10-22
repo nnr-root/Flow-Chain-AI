@@ -30,6 +30,7 @@ export function pinnedPrompts(): Record<string, string> {
     "part:1": buildScriptPrompt({ ...base, timing: timed, ask: { kind: "part", index: 1, partSec: [60, 60], outline, previous: ["Last line one.", "Last line two."] } }),
     "translate": buildScriptPrompt({ ...base, language: "de", ask: { kind: "translate", source: { title: "T", hook: "Hook now", narrations: ["One.", "Two."] }, seconds: [3, 4], from: "en" } }),
     "inspect:one": inspectPrompt({ images: ["a.png"], expected: "a red fox standing" }),
+    "inspect:references": inspectPrompt({ images: ["a.png"], expected: "x", references: ["r.png"], checkContent: true }),
     "inspect:clip": inspectPrompt({ images: ["a.png", "b.png", "c.png"], expected: "a red fox standing" }),
   };
   // the layered branches: a niche with a type, and an outline or a part with every layer

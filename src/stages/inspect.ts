@@ -17,7 +17,7 @@ import type { RunContext } from "./types.js";
  * made again with a new seed, a picture twice at most and a clip once.
  */
 
-export const Verdict = z.object({ ok: z.boolean(), problems: z.array(z.string()).default([]) });
+export const Verdict = z.object({ ok: z.boolean(), problems: z.array(z.string()).default([]), unsafe: z.boolean().default(false) });
 export type Verdict = z.infer<typeof Verdict>;
 
 /** How many times each is made again at most: a picture costs a fifth of a cent, a clip a few cents. */
@@ -32,17 +32,17 @@ export function inspectCost(p: Prices, images: number): number {
  * Looks, and charges for it. A look that cannot be had (the model is away, the answer is not one) passes the picture:
  * a checker that is down is no reason to stop a paid run.
  */
-export async function inspect(ctx: RunContext, images: string[], expected: string): Promise<Verdict> {
+export async function inspect(ctx: RunContext, images: string[], expected: string, opts: { references?: string[]; checkContent?: boolean } = {}): Promise<Verdict> {
   const llm = ctx.providers.llm;
-  if (!llm.inspect) return { ok: true, problems: [] };
+  if (!llm.inspect) return { ok: true, problems: [], unsafe: false };
   try {
-    const raw = await withRetry("picture check", () => llm.inspect!({ images, expected }), { timeoutMs: TIMEOUTS.llm, baseDelayMs: ctx.retryDelayMs, attempts: 2 });
-    await ctx.charge(inspectCost(ctx.prices, images.length));
+    const raw = await withRetry("picture check", () => llm.inspect!({ images, expected, ...opts }), { timeoutMs: TIMEOUTS.llm, baseDelayMs: ctx.retryDelayMs, attempts: 2 });
+    await ctx.charge(inspectCost(ctx.prices, images.length + (opts.references?.length ?? 0)));
     const verdict = Verdict.safeParse(raw);
-    return verdict.success ? verdict.data : { ok: true, problems: [] };
+    return verdict.success ? verdict.data : { ok: true, problems: [], unsafe: false };
   } catch (err) {
     ctx.log(`the picture check could not be done (${err instanceof Error ? err.message : String(err)}); the picture is used as it is`);
-    return { ok: true, problems: [] };
+    return { ok: true, problems: [], unsafe: false };
   }
 }
 

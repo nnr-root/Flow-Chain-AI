@@ -390,13 +390,15 @@ export function inspectPrompt(req: InspectRequest): string {
     "- writing, letters or a watermark",
     "- the main subject of the description is missing, or has been replaced by something else",
     ...(req.images.length > 1 ? ["- between these frames of one clip, the main subject changes into something else, or its face, body or colours change"] : []),
+    ...(req.references?.length ? [`- an object, a pose or a person that was copied from a reference picture instead of drawn for this description (the last ${req.references.length} pictures are the references the generator was given, not its result)`] : []),
+    ...(req.checkContent ? ["- unlawful, unsafe or infringing content: sexual content, graphic violence, a recognisable real person or a brand's mark shown without cause. For this fault set unsafe to true"] : []),
     "Style, colour, framing, lighting and small details are never faults. ok is false only for a fault from this list; problems names each in a few words.",
   ].join("\n");
 }
 
 const INSPECT_SCHEMA = {
   type: "object",
-  properties: { problems: { type: "array", items: { type: "string" } }, ok: { type: "boolean" } },
+  properties: { problems: { type: "array", items: { type: "string" } }, ok: { type: "boolean" }, unsafe: { type: "boolean" } },
   required: ["problems", "ok"],
 };
 
@@ -453,7 +455,7 @@ export class GeminiLlm implements LlmProvider {
   }
 
   async inspect(req: InspectRequest): Promise<unknown> {
-    const images = await Promise.all(req.images.map(async (path) => ({ inlineData: { mimeType: "image/png", data: (await readFile(path)).toString("base64") } })));
+    const images = await Promise.all([...req.images, ...(req.references ?? [])].map(async (path) => ({ inlineData: { mimeType: "image/png", data: (await readFile(path)).toString("base64") } })));
     const res = await this.ai.models.generateContent({
       model: this.model,
       contents: [{ role: "user", parts: [{ text: inspectPrompt(req) }, ...images] }],

@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-18.13",
+  "version": "2026-10-18.14",
   "hashes": {
     "temperatures": "52627fc6858149ed",
     "whole": "f4f4769c15c89713",
@@ -11,6 +11,7 @@
     "part:1": "3de351852cf35425",
     "translate": "19451ee6372dc573",
     "inspect:one": "a623bbdd6d9bc19f",
+    "inspect:references": "b84e098780d6f8ca",
     "inspect:clip": "1a735c17e72af5c6",
     "layered:history+countdown": "c93ac565a1f9df01",
     "layered:scary-stories+pov": "6960679778bd7f3a",

@@ -51,7 +51,7 @@ export type ScriptRequest = {
     | { kind: "translate"; source: { title: string; hook: string; narrations: string[] }; seconds: number[]; from?: SpeechLanguage };
 };
 /** Pictures to look at before they are used (phase 8 spec §9): what they should show, and the files. */
-export type InspectRequest = { images: string[]; expected: string };
+export type InspectRequest = { images: string[]; expected: string; references?: string[]; checkContent?: boolean };
 
 export interface LlmProvider {
   /** Which prompts this provider writes with (phase 9 spec §4); recorded with the script, never hashed. */

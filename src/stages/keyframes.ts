@@ -1,3 +1,4 @@
+import { rm } from "node:fs/promises";
 import { editById } from "../edits.js";
 import { imageProfileOf, takesReference, takesSeveralReferences } from "../image-profiles.js";
 import { download } from "../providers/download.js";
@@ -103,10 +104,21 @@ export const keyframesStage: Stage = {
       // the run has its own copy now: the one the worker uploaded is taken out of the bucket
       await result.remove?.();
       ctx.manifest.scenes[i].keyframe = { path: paths.keyframe(i), seed: result.seed, sourceUrl: result.url };
-      if (remake >= (MAX_REMAKES.keyframes ?? 0)) break;
-      const verdict = await inspect(ctx, [file], expectedOf(requireScript(m), i));
-      if (verdict.ok) break;
-      ctx.log(`keyframe scene ${i + 1} is malformed (${verdict.problems.join("; ")}): making it again`);
+      const flux3 = takesSeveralReferences(m.request.imageProfile);
+      const last = remake >= (MAX_REMAKES.keyframes ?? 0);
+      // a picture is always looked at for content where the model asks for it (phase 10 spec §6), even on the last try
+      if (last && !flux3) break;
+      const refs = flux3 ? referencesFor(m, i).map((p) => abs(ctx, p)) : [];
+      const verdict = await inspect(ctx, [file], expectedOf(requireScript(m), i), flux3 ? { references: refs.length ? refs : undefined, checkContent: true } : {});
+      if (verdict.unsafe) {
+        if (last) {
+          // an unsafe picture is not kept: not on disk, and not in the manifest
+          await rm(file, { force: true });
+          ctx.manifest.scenes[i].keyframe = undefined;
+          throw new Error(`the picture for scene ${i + 1} was flagged as unsafe content and was not used; change the topic or the wording and make the video again`);
+        }
+      } else if (verdict.ok || last) break;
+      ctx.log(`keyframe scene ${i + 1} is ${verdict.unsafe ? "flagged" : "malformed"} (${verdict.problems.join("; ")}): making it again`);
       await noteRemake(ctx, i, "keyframes", remake + 1);
     }
   },
