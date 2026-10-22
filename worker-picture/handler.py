@@ -49,17 +49,18 @@ def handler(job):
         if flux3:
             for k, data in enumerate(req.get("references", [])):
                 path = os.path.join(TMP_DIR, f"{job_id}-reference-{k}.png")
+                # noted before it is written, so a write that fails halfway is still removed below
+                refs.append(path)
                 with open(path, "wb") as f:
                     f.write(data)
-                refs.append(path)
             engine_flux3.picture(wmod.folder(VOLUME_MODELS), req["prompt"], req["width"], req["height"], seed, refs, out)
         else:
             ref = None
             if "reference" in req:
                 ref = os.path.join(TMP_DIR, f"{job_id}-reference.png")
+                refs.append(ref)
                 with open(ref, "wb") as f:
                     f.write(req["reference"])
-                refs.append(ref)
             engine.picture(wmod.folder(VOLUME_MODELS), req["prompt"], req["width"], req["height"], seed, ref, out)
         url = storage.upload(out, f"flowchain/{job_id}.png", "image/png")
     finally:

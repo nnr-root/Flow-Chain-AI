@@ -1,9 +1,12 @@
 import base64
+import importlib.util
 import os
+import sys
+import types
 
 import pytest
 
-from flowchain_picture import contract, engine_flux3, weights_flux3
+from flowchain_picture import contract, engine, engine_flux3, storage, weights, weights_flux3
 
 
 
@@ -218,3 +221,59 @@ def test_the_constants_are_the_ones_the_spec_records():
     assert weights_flux3.REVISION == "337337621b8526e120f2275d250242f4a6bedd75"
     assert len(weights_flux3.BIG) == 5
     assert all(len(h) == 16 for _, h in weights_flux3.BIG.values())
+
+
+@pytest.fixture
+def worker(tmp_path, monkeypatch):
+    """handler.py with both engines, the volume and R2 replaced by fakes, its scratch folder under tmp_path."""
+    monkeypatch.setitem(sys.modules, "runpod", types.SimpleNamespace(serverless=types.SimpleNamespace(start=None)))
+    spec = importlib.util.spec_from_file_location("picture_handler_flux3", os.path.join(os.path.dirname(__file__), "..", "handler.py"))
+    h = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(h)
+    (tmp_path / "tmp").mkdir()
+    monkeypatch.setattr(h, "TMP_DIR", str(tmp_path / "tmp"))
+    monkeypatch.setattr(h, "VOLUME_MODELS", str(tmp_path / "models"))
+    for name, value in {"R2_ACCOUNT_ID": "acc", "R2_BUCKET": "bkt", "R2_ACCESS_KEY_ID": "id", "R2_SECRET_ACCESS_KEY": "secret"}.items():
+        monkeypatch.setenv(name, value)
+    h.calls = []
+    h.fail = None
+
+    def picture(model_dir, prompt, width, height, seed, reference_paths, out_path):
+        h.calls.append((list(reference_paths), [open(p, "rb").read() for p in reference_paths], [os.path.exists(p) for p in reference_paths]))
+        if h.fail:
+            raise RuntimeError(h.fail)
+        with open(out_path, "wb") as f:
+            f.write(b"png")
+
+    monkeypatch.setattr(engine_flux3, "picture", picture)
+    monkeypatch.setattr(weights_flux3, "present", lambda root: True)
+    monkeypatch.setattr(storage, "upload", lambda path, key, kind: f"https://r2.example/{key}")
+    h.tmp = tmp_path / "tmp"
+    return h
+
+
+def test_hands_the_engine_every_reference_in_order_and_leaves_none_behind(worker):
+    refs = [base64.b64encode(f"ref-{k}".encode()).decode() for k in range(3)]
+    out = worker.handler({"id": "j1", "input": {**GOOD, "references": refs}})
+    assert out["url"] == "https://r2.example/flowchain/j1.png"
+    paths, contents, existed = worker.calls[0]
+    assert [os.path.basename(p) for p in paths] == ["j1-reference-0.png", "j1-reference-1.png", "j1-reference-2.png"]
+    assert contents == [b"ref-0", b"ref-1", b"ref-2"] and all(existed)
+    assert list(worker.tmp.iterdir()) == []
+
+
+def test_leaves_no_reference_behind_when_the_engine_fails(worker):
+    worker.fail = "CUDA out of memory"
+    refs = [base64.b64encode(b"x").decode()] * 3
+    with pytest.raises(RuntimeError, match="out of memory"):
+        worker.handler({"id": "j2", "input": {**GOOD, "references": refs}})
+    assert len(worker.calls[0][0]) == 3
+    assert list(worker.tmp.iterdir()) == []
+
+
+def test_fetch_models_for_the_new_endpoint_uses_its_weights_and_without_it_the_4b(worker, monkeypatch):
+    monkeypatch.setattr(weights_flux3, "fetch", lambda root: {"fetched": "flux3"})
+    monkeypatch.setattr(weights, "fetch", lambda root: {"fetched": "4b"})
+    assert worker.handler({"id": "f1", "input": {"task": "fetch-models", "only": "keyframe3"}}) == {"fetched": "flux3"}
+    assert worker.handler({"id": "f2", "input": {"task": "fetch-models"}}) == {"fetched": "4b"}
+    assert worker.handler({"id": "f3", "input": {"task": "fetch-models", "only": "keyframe"}}) == {"fetched": "4b"}
