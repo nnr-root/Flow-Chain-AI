@@ -133,6 +133,25 @@ A second picture model, on its own endpoint beside the 4B above; a run keeps the
 Both picture models are one image and one template, so any `runpod:deploy` puts the 4B on the same software as FLUX 3. To go back to the picture image from before FLUX 3:
 `RUNPOD_PICTURE_IMAGE=ghcr.io/<owner>/flowchain-picture:p-795ce3d4a463 npm run runpod:deploy` (this also takes FLUX 3 down).
 
+### Smooth motion (60 fps, optional)
+
+A video can be made at 60 frames a second instead of 30. It is a choice made when the video is created (`--fps 60`, or "Frame rate" in
+the studio's form once it is switched on); it cannot be added to a video that exists, because chained clips are made for one frame rate.
+The default stays 30: clips already arrive at 32 fps from the clip worker. At 60, every moving clip goes through the restorer
+worker (`worker-upscale/`, the one that does Full HD), which interpolates it from 32 to 64 fps; the fit then thins 64 to 60, so one frame
+in 16 is dropped (there is no mode that lands on 60 exactly). In a Full HD video at 60 fps it is one job per clip, not two. The render takes
+longer and the file is larger; measure both on your machine. A 60 fps run is refused until the four prices below are set. In order:
+
+1. Rebuild and push the restorer image: the `upscale` job of `.github/workflows/worker-image.yml` does it when `worker-upscale/` changes (the tag is `u-` and the first 12 characters of that folder's tree hash). Only the build confirms two things: that the interpolator's separate virtualenv (numpy 1.23.5 beside the image's torch) works, and that its weights load. The build's final check runs both and fails the image if either is wrong.
+2. `npm run runpod:deploy` (it prints its plan first) puts the new image on the restorer endpoint.
+3. Make one video with `npm run flowchain -- run … --fps 60` and one with `--upscale --fps 60`. In each job's ledger entry read the GPU seconds the job took and divide by the seconds of clip.
+4. Set `runpodInterpolateUsdPerSec`, `runpodInterpolateSecPerClipSec` (interpolation alone), `runpodInterpolateColdStartSec` and `runpodRestoreExtraSecPerClipSec` (what Full HD adds inside the same job) in `prices.json`. Keep them while any 60 fps run may be resumed or remade.
+5. Set `FLOWCHAIN_SMOOTH_MOTION=on` in `.env`. The studio shows the choice only when the restorer endpoint is set and this is `on` (the web server does not read `prices.json`, so the switch is yours to set after measuring).
+6. Judge the motion: fast action, faces, fine detail; and that the platform you post to accepts a 60 fps upload.
+
+To go back to the restorer image from before smooth motion:
+`RUNPOD_UPSCALE_IMAGE=ghcr.io/<owner>/flowchain-upscale:u-415cd27e11cc npm run runpod:deploy`. That takes smooth motion down but not Full HD (the old image has the old workflow); a new 60 fps run then fails plainly until the new image is back.
+
 Runs with characters get one generated reference portrait (or a brand kit's `reference` image), made after the
 voice and straight before the pictures so the picture worker starts once; every keyframe of a scene the
 character is in is conditioned on it; `reroll <runId> --stage reference --scene 1` generates a new portrait (keyframes are then

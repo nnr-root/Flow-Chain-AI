@@ -1,6 +1,6 @@
 # Phase 11 — smooth motion: 60 fps as a paid choice, interpolated in the restorer worker
 
-Date: 2026-10-22. Status: design approved section by section; not built.
+Date: 2026-10-22. Status: built; the owner's steps (§7) are not done.
 
 ## 0. Where this sits
 

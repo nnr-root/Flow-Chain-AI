@@ -50,7 +50,7 @@ read the one for the area you are changing before changing it (table at the end)
 | `src/db/client.ts`, `src/auth/` | the one client for the studio's Postgres (`Db`), and password hashing |
 | `workers/` | the clip worker (Python, a ComfyUI graph for Wan 2.2 at 480p and 720p; text encoder and VAE in its image, the rest on the volume) |
 | `worker-picture/` | the picture worker (Python, two engines in one image: FLUX.2 klein 4B and FLUX 3 klein, through diffusers; weights on the network volume) |
-| `worker-upscale/` | the upscaling worker for full HD (Python: SeedVR2 3B; weights inside its image; phase 8 spec §8) |
+| `worker-upscale/` | the restorer worker (Python: SeedVR2 3B for full HD and RIFE for 60 fps, two workflows; weights inside its image; phase 8 spec §8, phase 11 spec) |
 | `src/providers/elevenlabs.ts`, `src/voice/hosted.ts`, `assets/voices/elevenlabs.json` | the hosted voice, and which of its voices plays each of the studio's voices in each language |
 | `worker-voice/`, `src/voice/`, `src/providers/runpod-voice.ts` | the studio's own voice worker (Python: VoxCPM2 + Whisper; the fallback), laying a script's words over what was heard, the provider |
 | `deploy/` | Compose file, Dockerfiles, Caddy files for the server |
@@ -64,6 +64,7 @@ read the one for the area you are changing before changing it (table at the end)
 npm run typecheck          # tsc for the pipeline and for web/
 npm test                   # everything in vitest (≈ 10 min; needs ffmpeg; more runs with the items below)
 npx vitest run <file>      # one file — the normal loop
+npm run flowchain -- run … --fps 60   # smooth motion (a paid run: the owner's click); not for an existing run
 npm run test:e2e           # studio in a browser, fixtures + stand-in CLI
 npm run test:accounts      # studio with accounts in a browser (needs db:start, redis-server); run it ALONE:
                            # it switches a database-wide setting on for a moment
@@ -142,6 +143,14 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
   Rollback: `RUNPOD_PICTURE_IMAGE=ghcr.io/<owner>/flowchain-picture:p-795ce3d4a463 npm run runpod:deploy` puts back the
   pre-Phase-10 picture image (and takes FLUX 3 down). Keep the four `runpodPicture3*` prices in `prices.json` while any
   FLUX 3 run may be resumed or remade (the profile throws without them).
+- **A run may be made for 60 fps** (`request.fps`, frozen; `fpsOf()` is the only reader; phase 11 spec): the default stays
+  30, since clips arrive at 32 from the clip worker's own RIFE. At 60 its moving clips are interpolated by the restorer worker
+  (`worker-upscale/`, RIFE x2: 32 in, 64 out, and `fit` thins to 60), inside the Full HD upscale job when both are chosen (one job
+  per clip), else in the `interpolate` stage. Never add a second place that reads the constant `FPS`. A 60 fps run is refused until the four
+  `runpodInterpolate*`/`runpodRestoreExtra*` prices are set (keep them in `prices.json` while any 60 fps run may be resumed or remade); the
+  studio offers it only with `RUNPOD_UPSCALE_ENDPOINT` and `FLOWCHAIN_SMOOTH_MOTION=on` (the web server never reads `prices.json`). It cannot
+  be added to an existing run (chained clips are keyed on the frame rate). Rollback: `RUNPOD_UPSCALE_IMAGE=ghcr.io/<owner>/flowchain-upscale:u-415cd27e11cc
+  npm run runpod:deploy` puts back the pre-phase-11 restorer image (smooth motion goes down, Full HD stays).
 - **A video is built from four layers chosen apart** (phase 8 spec §1): a niche (what it is about, its rules of
   truth), a type (`src/formats.ts`: how it is told), a style (how a picture is drawn) and an edit (`src/edits.ts`:
   camera, cuts, a finish over the frame). The niche's rules always hold; a type decides the hook and shape; an edit's
@@ -372,6 +381,7 @@ graphify god-nodes --top 20       # the hubs
 | Niche, video type, style and edit as four layers; versions in other languages; a video made for its audience | `2026-10-15-phase8-layers-languages-design.md` |
 | The prompts Gemini is given: version, audit, eval harness | `2026-10-18-phase9-prompt-audit-design.md` |
 | FLUX 3 klein as the picture model; reframe cuts and the shared look | `2026-10-18-phase10-flux3-reframe-design.md` |
+| Smooth motion: 60 fps interpolated in the restorer worker | `2026-10-22-phase11-smooth-motion-design.md` (§0, §3.1 and §11 win) |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.
 
