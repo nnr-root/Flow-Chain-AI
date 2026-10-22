@@ -18,7 +18,8 @@ read the one for the area you are changing before changing it (table at the end)
 - **Nothing that spends money or touches a real account runs without the owner's click.** That is:
   `npm run flowchain` with `run`/`resume`/`reroll`/`doctor`, every `npm run smoke*`, `runpod:deploy`, `voice:deploy`,
   `make:sfx`, `make:styles`, `make:voices`, `eval:prompts`, `server:*`, `db:migrate`, `studio:grant`, `studio:welcome`, `stripe:setup`, and starting `npm run web` or
-  `npm run worker` against the real `.env`. Tests never need any of them. `rerender` is free.
+  `npm run worker` against the real `.env`. Tests never need any of them. `rerender` is free. `fetch-models` for the FLUX 3 endpoint is part of
+  `runpod:deploy` (already listed), and the owner's Hugging Face token is only ever passed through the shell.
 - **Never read or print `.env` or `deploy/server.env`.** A command may pass a value through the shell
   (`$(grep …)`) without showing it. Mask `sk_…`, `rk_…`, `whsec_…` in anything you print, logs included.
 - **Never commit** `.env`, `deploy/server.env`, `deploy/data/`, `runs/`, `brand-kits/`, `uploads/`,
@@ -75,6 +76,7 @@ npm run db:migrate         # the SERVER's database, over ssh: owner's click, lik
 npm run studio:local       # the OWNER's command: the whole studio on this machine (real provider keys in the
                            # worker). Do not start it yourself without being asked.
 npm run make:showcase -- <runId> --slug <name>   # publish a finished run for the landing page (free)
+npm run eval:cuts -- <runWith> <runWithout>   # free: compares two finished runs (cut references on / off) by look consistency
 npm run eval:prompts -- --cap <usd>   # the OWNER's command: real Gemini calls, scores the prompts against test/eval/baseline.json
 npm run test:worker        # Python tests of the RunPod worker (npm run setup:worker once)
 ```
@@ -131,6 +133,11 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
   politics and money products are left out on purpose: do not add a niche without its rules and their test.
 - **A style's name is not sent to the picture worker**: it uses it for nothing and refuses one it was not built
   knowing. Do not put it back.
+- **The picture model is chosen per run** (`request.imageProfile`): `runpod-flux3-klein@1` only while
+  `RUNPOD_PICTURE3_ENDPOINT` and the four `runpodPicture3*` prices are set; `FLOWCHAIN_IMAGE_MODEL=klein4b` forces the
+  Apache 2.0 4B (the fallback if BFL ends the license, phase 10 spec §1). A run keeps its profile. FLUX 3 klein's license
+  is the FLUX Kommunity License v.1.0, not Apache: commercial use of Outputs only while revenue is under US$5M (above
+  that BFL must grant a license), BFL may terminate it at any time, and nobody trains another model on its pictures.
 - **A video is built from four layers chosen apart** (phase 8 spec §1): a niche (what it is about, its rules of
   truth), a type (`src/formats.ts`: how it is told), a style (how a picture is drawn) and an edit (`src/edits.ts`:
   camera, cuts, a finish over the frame). The niche's rules always hold; a type decides the hook and shape; an edit's
@@ -360,6 +367,7 @@ graphify god-nodes --top 20       # the hubs
 | Series and their schedule, publishing to a channel, credits, plans | `2026-10-10-phase6-series-autopublish-design.md` (built against stand-ins) |
 | Niche, video type, style and edit as four layers; versions in other languages; a video made for its audience | `2026-10-15-phase8-layers-languages-design.md` |
 | The prompts Gemini is given: version, audit, eval harness | `2026-10-18-phase9-prompt-audit-design.md` |
+| FLUX 3 klein as the picture model; reframe cuts and the shared look | `2026-10-18-phase10-flux3-reframe-design.md` |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.
 
