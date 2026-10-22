@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { type RunOptions, runPipeline } from "../../src/pipeline.js";
 import type { InspectRequest } from "../../src/providers/types.js";
 import { STAGES } from "../../src/stages/index.js";
+import { MAX_REMAKES } from "../../src/stages/inspect.js";
 import { makeTestContext } from "../helpers/context.js";
 
 const auto: RunOptions = { budgetUsd: 100, confirm: async () => true };
@@ -58,5 +59,24 @@ describe("the look at a FLUX 3 picture for unsafe content (phase 10 spec §6)", 
     await runPipeline(ctx, STAGES, auto);
     expect(seen.length).toBeGreaterThan(0);
     expect(seen.every((r) => r.checkContent !== true && r.references === undefined)).toBe(true);
+  });
+
+  it("looks at a 4B picture exactly as before: the last try is never looked at", async () => {
+    const remakes = MAX_REMAKES.keyframes ?? 0;
+    // pictures that are always fine: one look each, for two scenes
+    const fine = await run("runpod-klein@1");
+    const seenFine: InspectRequest[] = [];
+    fine.fakes.llm.inspect = async (req) => (seenFine.push(req), { ok: true, problems: [] });
+    await runPipeline(fine.ctx, STAGES, auto);
+    expect(fine.fakes.image.submits.filter((r) => r.prompt.includes("image 1"))).toHaveLength(1);
+    expect(seenFine.filter((r) => r.expected.includes("image 1"))).toHaveLength(1);
+    expect(seenFine.filter((r) => r.expected.includes("image 2"))).toHaveLength(1);
+    // a picture that is malformed every time: made 1 + remakes times, looked at remakes times (not at the last)
+    const bad = await run("runpod-klein@1");
+    const seenBad: InspectRequest[] = [];
+    bad.fakes.llm.inspect = async (req) => (seenBad.push(req), req.expected.includes("image 1") ? { ok: false, problems: ["blur"] } : { ok: true, problems: [] });
+    await runPipeline(bad.ctx, STAGES, auto);
+    expect(bad.fakes.image.submits.filter((r) => r.prompt.includes("image 1"))).toHaveLength(1 + remakes);
+    expect(seenBad.filter((r) => r.expected.includes("image 1"))).toHaveLength(remakes);
   });
 });

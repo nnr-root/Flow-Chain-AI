@@ -60,4 +60,4 @@ export function referenceScenes(m: Manifest, scene: number): number[] {
 export const REFERENCE_NOTE = "Use the reference pictures only for light, palette and grain, and for the surroundings of the same place; do not copy their objects, poses or people.";
 
 /** The note for scene `scene`'s picture prompt: only where it has a look anchor or a previous picture to draw on. */
-export const referenceNoteFor = (m: Manifest, scene: number): string => (referencesFor(m, scene).some((p) => p.includes("keyframe")) ? REFERENCE_NOTE : "");
+export const referenceNoteFor = (m: Manifest, scene: number): string => (referenceScenes(m, scene).length > 0 ? REFERENCE_NOTE : "");
