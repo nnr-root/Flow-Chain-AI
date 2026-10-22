@@ -38,6 +38,10 @@ function fakeRest() {
       return json(200, store[kind]);
     }
     if (init.method === "POST") {
+      // like RunPod's create (live, phase 10): the volume list is objects there, so a list of ids is refused
+      if (kind === "endpoints" && Array.isArray(body.networkVolumeIds) && body.networkVolumeIds.some((v: unknown) => typeof v === "string")) {
+        return json(500, { error: "Expected type NetworkVolumeIdsInput to be an object" });
+      }
       // like RunPod: a new endpoint has FlashBoot on whatever was asked; only a later change turns it off
       const r = { id: `${kind}-${++n}`, ...body, ...(kind === "endpoints" ? { flashboot: true } : {}) };
       store[kind].push(r);

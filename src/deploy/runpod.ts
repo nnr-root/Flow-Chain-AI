@@ -173,10 +173,15 @@ async function upsert(
   update: Record<string, unknown>,
 ) {
   if (found) return rest.update(kind, found.id, update);
-  const made = await rest.create(kind, { name, ...body });
+  // RunPod's create takes the volume list as objects, not ids (live, phase 10: HTTP 500 "Expected type
+  // NetworkVolumeIdsInput to be an object"), while its update takes ids: the single id goes in the create and
+  // the list in the change that follows.
+  const { networkVolumeIds, ...created } = body;
+  const made = await rest.create(kind, { name, ...created });
   // RunPod creates every endpoint with FlashBoot on, whatever the request says, and takes "off" only as a
   // change to an endpoint that exists (seen live, phase 5 spec §9): said again, so a new endpoint is as asked.
-  return body.flashboot === false ? rest.update(kind, made.id, { flashboot: false }) : made;
+  const after = { ...(body.flashboot === false ? { flashboot: false } : {}), ...(networkVolumeIds ? { networkVolumeIds } : {}) };
+  return Object.keys(after).length ? rest.update(kind, made.id, after) : made;
 }
 
 /** Creates or updates the volume, template and both endpoints; returns their ids. Safe to re-run. */
