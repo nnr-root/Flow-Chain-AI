@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import type { RunpodRates } from "../config.js";
 import { shrinkReference } from "../media/reference-image.js";
+import { RUNPOD_WORKFLOWS } from "./model-id.js";
 import type { R2 } from "./r2.js";
 import { NonRetryableError, UnusableResultError } from "./retry.js";
 import type { RunpodClient, RunpodJob, RunpodPolicy } from "./runpod.js";
@@ -142,10 +143,23 @@ abstract class RunpodQueued<Req, Out extends { url: string; costUsd?: number; re
   }
 }
 
+/**
+ * A job's own execution limit replaces the endpoint's, so the 300 s the deploy sets for FLUX 3 only counts if the
+ * job says so too: its first job loads about 20 GB of weights and then runs 16 steps with up to three references.
+ * The wait and the ttl are the same as the 4B's: a queued job that is picked up late is waited for either way.
+ */
+const FLUX3_EXECUTION_TIMEOUT_MS = 300_000;
+
 /** Keyframes (and the reference portrait) from the SDXL worker (2.4 spec §5.1–5.2). */
 export class RunpodImage extends RunpodQueued<ImageRequest, ImageOutput> implements ImageProvider {
   constructor(deps: RunpodDeps, target: Target) {
-    super(deps, target, { executionTimeout: 120_000, ttl: 3_600_000 }, 10 * 60_000, "png");
+    super(
+      deps,
+      target,
+      { executionTimeout: target.workflow === RUNPOD_WORKFLOWS.keyframe3.workflow ? FLUX3_EXECUTION_TIMEOUT_MS : 120_000, ttl: 3_600_000 },
+      10 * 60_000,
+      "png",
+    );
   }
 
   protected async input(req: ImageRequest) {

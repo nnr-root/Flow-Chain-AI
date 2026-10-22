@@ -46,4 +46,11 @@ describe("what a picture is charged", () => {
   it("refuses to make a FLUX 3 picture of a run whose FLUX 3 rates were removed from prices.json", () => {
     expect(() => createProviders(env, modelsFor(runpodModelId("ep-3", "keyframe-flux3-klein", 1)), Prices.parse({}))).toThrow(/FLUX 3 picture rates are not set in prices\.json/);
   });
+
+  it("gives a FLUX 3 job the longer execution limit and a 4B job the shorter one", async () => {
+    const f3 = await charged(runpodModelId("ep-3", "keyframe-flux3-klein", 1), flux3Prices);
+    const b4 = await charged(runpodModelId("ep-k", "keyframe-klein", 1), flux3Prices);
+    expect(f3.api.runs[0].policy).toEqual({ executionTimeout: 300_000, ttl: 3_600_000 });
+    expect(b4.api.runs[0].policy).toEqual({ executionTimeout: 120_000, ttl: 3_600_000 });
+  });
 });
