@@ -228,8 +228,8 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
                 options={[{ value: "30", label: "Standard" }, { value: "60", label: "Smooth (60 fps)" }]} />
               <span className="text-[0.85rem] text-graphite" data-testid="fps-note">
                 {f.fps === 60
-                  ? "Moving clips get extra in-between frames and the final cut is made at 60 frames a second: smoother motion, and it takes about twice as long to put together."
-                  : "Standard motion is already smoothed."}{" "}The draft shows the price before anything is made.
+                  ? "Moving clips get extra in-between frames and the final cut is made at 60 frames a second: smoother motion, and it takes longer to put together."
+                  : "Standard motion is 30 frames a second."}{" "}The draft shows the price before anything is made.
               </span>
             </div>
           )}

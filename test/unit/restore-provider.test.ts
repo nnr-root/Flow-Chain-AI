@@ -40,14 +40,14 @@ describe("the smooth-motion rates", () => {
 describe("the model a 60 fps run freezes", () => {
   it("is the restorer's new workflow on the restorer endpoint, whether or not the run is Full HD", () => {
     const p = Prices.parse(rates);
-    expect(newRunRestore(env, p, false)).toBe("runpod:up1/restore-video@1");
-    expect(newRunRestore(env, p, true)).toBe("runpod:up1/restore-video@1");
+    expect(newRunRestore(env, p)).toBe("runpod:up1/restore-video@1");
+    expect(newRunRestore(env, p)).toBe("runpod:up1/restore-video@1");
     expect(RUNPOD_WORKFLOWS.restore).toEqual({ workflow: "restore-video", version: 1 });
   });
 
   it("refuses plainly while the rates or the endpoint are missing", () => {
-    expect(() => newRunRestore(env, Prices.parse({}), false)).toThrow(/smooth motion is not set up/);
-    expect(() => newRunRestore(loadEnv({ GEMINI_API_KEY: "k" }), Prices.parse(rates), false)).toThrow(/RUNPOD_UPSCALE_ENDPOINT/);
+    expect(() => newRunRestore(env, Prices.parse({}))).toThrow(/smooth motion is not set up/);
+    expect(() => newRunRestore(loadEnv({ GEMINI_API_KEY: "k" }), Prices.parse(rates))).toThrow(/RUNPOD_UPSCALE_ENDPOINT/);
   });
 });
 

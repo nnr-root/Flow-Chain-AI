@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { Prices } from "../../src/config.js";
 import { fileSha256 } from "../../src/manifest/hash.js";
 import { probeVideo } from "../../src/media/ffmpeg.js";
 import { type RunOptions, planRun, runPipeline } from "../../src/pipeline.js";
@@ -8,7 +9,7 @@ import { bumpNonce } from "../../src/reroll.js";
 import { fitStage } from "../../src/stages/fit.js";
 import { STAGES } from "../../src/stages/index.js";
 import { interpolateStage, isSmoothed } from "../../src/stages/interpolate.js";
-import { upscaleStage } from "../../src/stages/upscale.js";
+import { upscaleCost, upscaleStage } from "../../src/stages/upscale.js";
 import { FakeUpscale } from "../fakes/providers.js";
 import { makeTestContext } from "../helpers/context.js";
 
@@ -107,5 +108,13 @@ describe("a 60 fps run whose rates are not set", () => {
     const { ctx } = await smoothRun();
     for (const key of Object.keys(RATES)) delete (ctx.prices as Record<string, unknown>)[key];
     expect(() => interpolateStage.estimateCostUsd(ctx, 0)).toThrow(/smooth motion is not set up/);
+  });
+});
+
+describe("the price of Full HD together with 60 fps", () => {
+  it("is refused plainly while the four rates are missing, and is more than Full HD alone once they are set", () => {
+    expect(() => upscaleCost(Prices.parse({}), 5, true, true)).toThrow(/smooth motion is not set up/);
+    const prices = Prices.parse(RATES);
+    expect(upscaleCost(prices, 5, true, true)).toBeGreaterThan(upscaleCost(prices, 5, true));
   });
 });

@@ -34,7 +34,7 @@ export function newRunUpscale(env: Env): string {
 }
 
 /** The endpoint a new run in smooth motion has its clips restored on (phase 11 spec §3, §4); refuses plainly while it is not set up. */
-export function newRunRestore(env: Env, prices: Prices, _fullHd: boolean): string {
+export function newRunRestore(env: Env, prices: Prices): string {
   if (!env.RUNPOD_UPSCALE_ENDPOINT) throw new Error("smooth motion is not set up in this studio: RUNPOD_UPSCALE_ENDPOINT is not set (npm run runpod:deploy)");
   if (!restoreRates(prices)) throw new Error(RESTORE_RATES_MISSING);
   const { restore } = RUNPOD_WORKFLOWS;
@@ -46,7 +46,7 @@ export function newRunRestore(env: Env, prices: Prices, _fullHd: boolean): strin
  * new workflow; Full HD alone stays on the old workflow, so its jobs and keys do not change (phase 11 spec §2).
  */
 export function restorerFor(opts: { fps?: string; upscale?: boolean }, env: Env, prices: Prices): string | undefined {
-  if (opts.fps === "60") return newRunRestore(env, prices, opts.upscale === true);
+  if (opts.fps === "60") return newRunRestore(env, prices);
   if (opts.upscale) return newRunUpscale(env);
   return undefined;
 }
