@@ -2,13 +2,14 @@ import { imageProfileOf } from "../image-profiles.js";
 import type { LedgerEntry, Manifest, Mode, Models, StageName, StageRecord } from "../manifest/schema.js";
 import { round4 } from "../cost.js";
 import { effectivePreset, hookTextFor } from "../stages/look.js";
+import { isSmoothed } from "../stages/interpolate.js";
 import { referenceApplies } from "../stages/reference.js";
 import { needsKeyframe } from "../stages/visual.js";
 import { videoProfileOf } from "../video-profiles.js";
 import { isDraft } from "./draft.js";
 
 export const RUN_STAGES: StageName[] = ["script", "modes", "captions", "render"];
-export const SCENE_STAGES: StageName[] = ["reference", "tts", "silence", "keyframes", "clips", "upscale", "fit"];
+export const SCENE_STAGES: StageName[] = ["reference", "tts", "silence", "keyframes", "clips", "upscale", "interpolate", "fit"];
 
 /** The stages a scene actually has: keyframes only where it needs one, clips and fit only for Mode 1. */
 export function sceneStagesShown(m: Manifest, idx: number): StageName[] {
@@ -17,7 +18,8 @@ export function sceneStagesShown(m: Manifest, idx: number): StageName[] {
       (s !== "reference" || referenceApplies(m, idx)) &&
       (s !== "keyframes" || needsKeyframe(m, idx)) &&
       ((s !== "clips" && s !== "fit") || m.scenes[idx].mode === 1) &&
-      (s !== "upscale" || (m.request.upscale === true && m.scenes[idx].mode === 1)),
+      (s !== "upscale" || (m.request.upscale === true && m.scenes[idx].mode === 1)) &&
+      (s !== "interpolate" || isSmoothed(m, idx)),
   );
 }
 

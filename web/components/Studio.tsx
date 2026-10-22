@@ -34,6 +34,8 @@ const REROLLS: Array<{ stage: string; label: string }> = [
   { stage: "clips", label: "clip" },
   // (shown only where the scene has the step: a moving clip of a run in full HD)
   { stage: "upscale", label: "full HD clip" },
+  // (and this one only on a moving clip of a 60 fps run that is not in full HD)
+  { stage: "interpolate", label: "smooth motion" },
 ];
 
 export function Studio({ initial, initialLog, kits, publishing = false, versions }: { initial: RunView; initialLog: string[]; kits: KitSummary[]; publishing?: boolean; versions?: VersionChoices }) {
