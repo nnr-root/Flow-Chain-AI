@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
-import { PROMPT_VERSION, TEMPERATURE, temperatureOf } from "./prompt-version.js";
+import { PROMPT_VERSION, TEMPERATURE, temperatureOf, UPSAMPLE_DECODING } from "./prompt-version.js";
 import { lengthInWords, maxSceneUnits, sceneBounds, sceneWords, totalWords, translationWords, typicalSceneWords, wordsPerSecond } from "../duration.js";
 import { hookCap, isUnspaced, lengthUnit, unitsPerWord } from "../voice/words.js";
 import { FACT_RULES, nicheById } from "../niches.js";
@@ -15,7 +15,7 @@ import { shrinkReference } from "../media/reference-image.js";
 import type { InspectRequest, LlmProvider, ScriptRequest } from "./types.js";
 
 /** Gemini's responseJsonSchema takes plain JSON Schema; drop the draft marker zod adds. */
-export function scriptJsonSchema(kind: "script" | "outline" | "part" | "translate" = "script", most: number = MAX_COUNTED_SCENES): Record<string, unknown> {
+export function scriptJsonSchema(kind: "script" | "outline" | "part" | "translate" = "script", most: number = MAX_COUNTED_SCENES, reframe = false): Record<string, unknown> {
   const of = kind === "outline" ? LlmOutline : kind === "part" ? LlmPart : kind === "translate" ? LlmTranslation : LlmScript;
   const { $schema: _ignored, ...schema } = z.toJSONSchema(of) as Record<string, unknown>;
   // The model's service refuses a schema whose list of scenes may be long: tried against it on 2026-10-10, a
@@ -25,6 +25,13 @@ export function scriptJsonSchema(kind: "script" | "outline" | "part" | "translat
   const list = (schema.properties as Record<string, { maxItems?: number }>)[kind === "outline" ? "parts" : kind === "translate" ? "narrations" : "scenes"];
   if (most <= MAX_COUNTED_SCENES) list.maxItems = most;
   else delete list.maxItems;
+  // A scene's `reframe` field belongs to the schema only for a run that may reframe (phase 10 spec §4): a model
+  // told of a field a run does not use writes it anyway, and every earlier run's answers would change.
+  if (!reframe && (kind === "script" || kind === "part")) {
+    const scene = (list as unknown as { items?: { properties?: Record<string, unknown> } }).items?.properties;
+    if (!scene || !("narration" in scene)) throw new Error("the scene schema is not shaped as expected; cannot leave the reframe field out");
+    delete scene.reframe;
+  }
   return schema;
 }
 
@@ -396,11 +403,12 @@ export function inspectPrompt(req: InspectRequest): string {
   ].join("\n");
 }
 
-const INSPECT_SCHEMA = {
+/** The answer to a picture check; `unsafe` is asked for only when the content is checked (phase 10 spec §6). */
+export const inspectSchema = (checkContent: boolean) => ({
   type: "object",
-  properties: { problems: { type: "array", items: { type: "string" } }, ok: { type: "boolean" }, unsafe: { type: "boolean" } },
+  properties: { problems: { type: "array", items: { type: "string" } }, ok: { type: "boolean" }, ...(checkContent ? { unsafe: { type: "boolean" } } : {}) },
   required: ["problems", "ok"],
-};
+});
 
 const UPSAMPLER_T2I = `You are the prompt upsampler of a text-to-image model. Expand the user's short request into ONE detailed, self-contained caption: the exact text the image model receives. Output only the caption, with no greetings, explanations, refusals, questions, Markdown, headings, JSON, coordinates, ids or angle-bracket tokens, and no quotes around it. If the input is not clearly an image request, caption a visualization of its concept. The request may begin with a "TARGET CANVAS: W:H" line: compose for that canvas (wide spreads content sideways, tall stacks it) and never mention the ratio or the canvas.
 
@@ -447,7 +455,7 @@ export class GeminiLlm implements LlmProvider {
     const res = await this.ai.models.generateContent({
       model: this.model,
       contents: buildScriptPrompt(req),
-      config: { responseMimeType: "application/json", responseJsonSchema: scriptJsonSchema(req.ask?.kind ?? "script", mostEntries(req)), temperature: temperatureOf(req) },
+      config: { responseMimeType: "application/json", responseJsonSchema: scriptJsonSchema(req.ask?.kind ?? "script", mostEntries(req), req.reframe === true), temperature: temperatureOf(req) },
     });
     const text = res.text;
     if (!text) throw new Error("Gemini returned an empty response");
@@ -459,7 +467,7 @@ export class GeminiLlm implements LlmProvider {
     const res = await this.ai.models.generateContent({
       model: this.model,
       contents: [{ role: "user", parts: [{ text: inspectPrompt(req) }, ...images] }],
-      config: { responseMimeType: "application/json", responseJsonSchema: INSPECT_SCHEMA, temperature: TEMPERATURE.inspect },
+      config: { responseMimeType: "application/json", responseJsonSchema: inspectSchema(req.checkContent === true), temperature: TEMPERATURE.inspect },
     });
     const text = res.text;
     if (!text) throw new Error("Gemini returned an empty response");
@@ -476,8 +484,20 @@ export class GeminiLlm implements LlmProvider {
     const res = await this.ai.models.generateContent({
       model: this.model,
       contents: [{ role: "user", parts }],
-      config: { systemInstruction: upsampleInstructions(images.length > 0), temperature: TEMPERATURE.upsample, topP: 0.95, topK: 20, maxOutputTokens: 3584 },
+      // Thinking is off, as BFL runs this model: thought tokens count inside the output limit and could cut the
+      // caption short or leave it empty.
+      config: {
+        systemInstruction: upsampleInstructions(images.length > 0),
+        temperature: UPSAMPLE_DECODING.temperature,
+        topP: UPSAMPLE_DECODING.topP,
+        topK: UPSAMPLE_DECODING.topK,
+        maxOutputTokens: UPSAMPLE_DECODING.maxOutputTokens,
+        thinkingConfig: { thinkingBudget: UPSAMPLE_DECODING.thinkingBudget },
+      },
     });
+    // a caption that stopped for any reason but its own end is half a caption, and is not used
+    const finish = res.candidates?.[0]?.finishReason;
+    if (finish !== undefined && String(finish) !== "STOP") throw new Error(`Gemini stopped the caption early (${String(finish)})`);
     const text = res.text?.trim();
     if (!text) throw new Error("Gemini returned an empty response");
     return text;

@@ -4,8 +4,8 @@ import { EDITS } from "../../src/edits.js";
 import { FORMATS } from "../../src/formats.js";
 import { NICHES } from "../../src/niches.js";
 import { PRESETS } from "../../src/presets.js";
-import { buildScriptPrompt, inspectPrompt, upsampleInstructions, upsampleUserText } from "../../src/providers/gemini.js";
-import { TEMPERATURE } from "../../src/providers/prompt-version.js";
+import { buildScriptPrompt, inspectPrompt, inspectSchema, scriptJsonSchema, upsampleInstructions, upsampleUserText } from "../../src/providers/gemini.js";
+import { TEMPERATURE, UPSAMPLE_DECODING } from "../../src/providers/prompt-version.js";
 import type { ScriptRequest } from "../../src/providers/types.js";
 import { REFERENCE_NOTE } from "../../src/stages/references.js";
 import { imagePrompt, motionPrompt } from "../../src/stages/visual.js";
@@ -20,7 +20,7 @@ export function pinnedPrompts(): Record<string, string> {
   const script = fakeScript(3);
   const outline = { title: "T", stylePreset: script.stylePreset, styleBible: script.styleBible, hook: script.hook, hashtags: script.hashtags, parts: [{ summary: "one" }, { summary: "two" }] };
   const out: Record<string, string> = {
-    "temperatures": JSON.stringify(TEMPERATURE),
+    "temperatures": JSON.stringify({ TEMPERATURE, UPSAMPLE_DECODING }),
     "whole": buildScriptPrompt(base),
     "whole:timed": buildScriptPrompt({ ...base, timing: { targetSec: 60, sceneSec: { min: 3, max: 5 } } }),
     "whole:shots": buildScriptPrompt({ ...base, shots: ["cut", "continue", "continue", "cut"] }),
@@ -41,6 +41,15 @@ export function pinnedPrompts(): Record<string, string> {
   out["layered:outline"] = buildScriptPrompt({ ...base, ...layers, timing: timed, ask: { kind: "outline", partSec: [60, 60] } });
   out["layered:part:1"] = buildScriptPrompt({ ...base, ...layers, timing: timed, ask: { kind: "part", index: 1, partSec: [60, 60], outline, previous: ["Last line one.", "Last line two."] } });
   out["whole:reframe"] = buildScriptPrompt({ ...base, format: "story", reframe: true });
+  // the response schemas: a field added to one reaches every run's model, so a change needs a new version too
+  out["schema:script"] = JSON.stringify(scriptJsonSchema("script", 16));
+  out["schema:script:reframe"] = JSON.stringify(scriptJsonSchema("script", 16, true));
+  out["schema:part"] = JSON.stringify(scriptJsonSchema("part", 16));
+  out["schema:part:reframe"] = JSON.stringify(scriptJsonSchema("part", 16, true));
+  out["schema:outline"] = JSON.stringify(scriptJsonSchema("outline", 16));
+  out["schema:translate"] = JSON.stringify(scriptJsonSchema("translate", 16));
+  out["schema:inspect"] = JSON.stringify(inspectSchema(false));
+  out["schema:inspect:content"] = JSON.stringify(inspectSchema(true));
   out["references:note"] = REFERENCE_NOTE;
   out["upsample:t2i"] = upsampleInstructions(false) + "\n" + upsampleUserText("a lighthouse at dusk", 0);
   out["upsample:i2i"] = upsampleInstructions(true) + "\n" + upsampleUserText("a lighthouse at dusk", 2);
