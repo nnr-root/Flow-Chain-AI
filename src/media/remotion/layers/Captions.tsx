@@ -7,7 +7,7 @@ import {
 } from "remotion";
 import { useMedia } from "../media.js";
 import type { CaptionPage, CaptionStyle } from "../props.js";
-import { activePageIndex, activeTokenIndex } from "../timeline.js";
+import { activePageIndex, activeTokenIndex, fadeInOpacity, popScale } from "../timeline.js";
 import { isRightToLeft } from "../../../voice/words.js";
 
 /**
@@ -87,8 +87,8 @@ export const Captions: React.FC<{ style: CaptionStyle; bottomPct: number; pages:
         {page.tokens.map((token, i) => {
           const isActive = i === active;
           const sinceStart = frame - (token.fromMs / 1000) * fps;
-          const pop = isActive && style.activeAnim === "pop" ? 1 + 0.15 * Math.max(0, 1 - sinceStart / 4) : 1;
-          const fadeIn = isActive && style.activeAnim === "fade" ? Math.min(1, style.inactiveOpacity + sinceStart / 4) : 1;
+          const pop = isActive && style.activeAnim === "pop" ? popScale(sinceStart, fps) : 1;
+          const fadeIn = isActive && style.activeAnim === "fade" ? fadeInOpacity(sinceStart, style.inactiveOpacity, fps) : 1;
           // the space stays outside the (possibly scaled) word, so a popping word never swallows it
           return (
             <Fragment key={i}>

@@ -7,6 +7,9 @@ import type { CameraMove, CaptionPage, FinishProps, FrameRange, Transition } fro
 
 export const MAX_ZOOM = 1.15;
 
+/** Frames at `fps` for a duration that was tuned as `framesAt30` frames at 30 fps (phase 11 spec §5): identical at 30. */
+export const framesAt = (framesAt30: number, fps: number): number => Math.round((framesAt30 * fps) / 30);
+
 /** The hook in the first seconds (2.3 spec §4): snap zoom, then a title that pops in and fades out. */
 export const HOOK = {
   seconds: 3,
@@ -44,13 +47,23 @@ export function hookLines(words: string[], fit: (line: string) => number, wanted
 
 export type HookTitleLook = { visible: boolean; scale: number; opacity: number };
 
-/** The hook title at `frame`: pops in from 0.6× over `popFrames`, holds, fades out over the last `fadeFrames`. */
-export function hookTitleLook(frame: number, endFrame: number): HookTitleLook {
+/** The hook title at `frame`: pops in from 0.6× over `popFrames`, holds, fades out over the last `fadeFrames` (both tuned at 30 fps). */
+export function hookTitleLook(frame: number, endFrame: number, fps = 30): HookTitleLook {
   if (frame < 0 || frame >= endFrame) return { visible: false, scale: 1, opacity: 0 };
-  const scale = 0.6 + 0.4 * easeOutCubic(frame / HOOK.popFrames);
-  const opacity = Math.min(1, (endFrame - frame) / HOOK.fadeFrames);
+  const scale = 0.6 + 0.4 * easeOutCubic(frame / framesAt(HOOK.popFrames, fps));
+  const opacity = Math.min(1, (endFrame - frame) / framesAt(HOOK.fadeFrames, fps));
   return { visible: true, scale, opacity };
 }
+
+/** How long a caption word's pop or fade-in lasts, in frames at 30 fps. */
+const CAPTION_ANIM_FRAMES = 4;
+
+/** The active word's pop: 1.15× at its start, settling to 1 over the animation's length. */
+export const popScale = (sinceStart: number, fps: number): number => 1 + 0.15 * Math.max(0, 1 - sinceStart / framesAt(CAPTION_ANIM_FRAMES, fps));
+
+/** The active word's fade-in from the style's inactive opacity up to 1. */
+export const fadeInOpacity = (sinceStart: number, inactiveOpacity: number, fps: number): number =>
+  Math.min(1, inactiveOpacity + sinceStart / framesAt(CAPTION_ANIM_FRAMES, fps));
 
 /** Sine ease-in-out on [0, 1]. */
 export const easeInOut = (p: number): number => 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, p)));
@@ -84,12 +97,12 @@ export function kenBurnsTransform(camera: CameraMove, frame: number, frames: num
   }
 }
 
-/** Preferred half window (frames) per transition; `cut` has none. */
+/** Preferred half window (frames at 30 fps) per transition; `cut` has none. */
 export const HALF_WINDOW: Record<Transition, number> = { cut: 0, fade: 5, dissolve: 5, blur: 5, zoom: 5, glitch: 3 };
 
 /** The half window actually used: shrunk so it never exceeds half of either neighbouring scene. */
-export function halfWindowFor(transition: Transition, prevFrames: number, nextFrames: number): number {
-  return Math.max(0, Math.min(HALF_WINDOW[transition], Math.floor(prevFrames / 2), Math.floor(nextFrames / 2)));
+export function halfWindowFor(transition: Transition, prevFrames: number, nextFrames: number, fps = 30): number {
+  return Math.max(0, Math.min(framesAt(HALF_WINDOW[transition], fps), Math.floor(prevFrames / 2), Math.floor(nextFrames / 2)));
 }
 
 export type LayerLook = { opacity: number; blurPx: number; scale: number };

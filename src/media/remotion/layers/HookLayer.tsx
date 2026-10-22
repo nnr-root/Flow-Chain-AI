@@ -16,9 +16,9 @@ export const SnapZoom: React.FC<{ hook: HookProps | null; children: React.ReactN
 /** The hook title: big, upper-centre, in the caption font, on one or two lines, its last word in the accent colour. */
 export const HookLayer: React.FC<{ hook: HookProps; style: CaptionStyle; lang?: string }> = ({ hook, style, lang }) => {
   const frame = useCurrentFrame();
-  const { width, height } = useVideoConfig();
+  const { width, height, fps } = useVideoConfig();
   const loaded = useCaptionFont(style);
-  const look = hookTitleLook(frame, hook.endFrame);
+  const look = hookTitleLook(frame, hook.endFrame, fps);
   if (!loaded || !look.visible) return null;
 
   // (a language without spaces is split by the segmenter and set without them: phase 7 spec §17)

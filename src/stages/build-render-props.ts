@@ -7,14 +7,14 @@ import { captionPages, type TimedWord } from "../media/remotion/caption-pages.js
 import { SFX, sfxCues } from "../media/sfx.js";
 import type { Boundary, RenderProps, SceneProps } from "../media/remotion/props.js";
 import { captionBottomPct } from "../media/remotion/styles.js";
-import { HOOK, halfWindowFor, speechRanges } from "../media/remotion/timeline.js";
+import { framesAt, HOOK, halfWindowFor, speechRanges } from "../media/remotion/timeline.js";
 import { globalWords } from "./captions.js";
 import { captionStyleFor, hookTextFor, transitionInto } from "./look.js";
 import { paths } from "./paths.js";
 import { requireFitted, requireScript } from "./require.js";
 import { needsKeyframe, sceneFrames } from "./visual.js";
 
-/** BGM mix constants (2.3 spec §5.4): ducked to 40 % under speech with 10-frame S-curve ramps, 1 s fade-out. */
+/** BGM mix constants (2.3 spec §5.4): ducked to 40 % under speech with 10-frame S-curve ramps, 1 s fade-out; frames at 30 fps, scaled to the run's in the props. */
 export const BGM_MIX = { duckTo: 0.4, rampFrames: 10, fadeOutFrames: 30 } as const;
 
 export type RenderInputs = {
@@ -102,7 +102,7 @@ export function assembleRenderProps(m: Manifest, opts: RenderPropsOptions, parts
       frame: scene.from,
       kind: seam ? "seam" : "cut",
       transition,
-      halfWindow: seam && !blend ? 0 : halfWindowFor(transition, frames[k - 1], frames[k]),
+      halfWindow: seam && !blend ? 0 : halfWindowFor(transition, frames[k - 1], frames[k], fps),
     };
   });
 
@@ -112,7 +112,7 @@ export function assembleRenderProps(m: Manifest, opts: RenderPropsOptions, parts
         text: hookText,
         endFrame: Math.min(Math.round(HOOK.seconds * fps), frames[0]),
         zoomFrom: HOOK.zoomFrom,
-        zoomFrames: HOOK.zoomFrames,
+        zoomFrames: framesAt(HOOK.zoomFrames, fps),
       }
     : null;
 
@@ -124,7 +124,7 @@ export function assembleRenderProps(m: Manifest, opts: RenderPropsOptions, parts
   const look = m.request.render.brand;
   const brand = look ? { logo: publish(look.logo, join(brandDir, look.logo)), ...look.watermark } : null;
   const bgm = m.request.bgm
-    ? { src: publish(`bgm${extname(m.request.bgm)}`, m.request.bgm), gain: m.request.render.bgmGain, ...BGM_MIX }
+    ? { src: publish(`bgm${extname(m.request.bgm)}`, m.request.bgm), gain: m.request.render.bgmGain, duckTo: BGM_MIX.duckTo, rampFrames: framesAt(BGM_MIX.rampFrames, fps), fadeOutFrames: framesAt(BGM_MIX.fadeOutFrames, fps) }
     : null;
 
   return {
