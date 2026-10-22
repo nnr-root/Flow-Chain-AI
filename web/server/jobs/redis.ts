@@ -45,7 +45,7 @@ const AMOUNT = /^\d+(\.\d+)?$/;
 const DRAFT_VALUED = new Set([
   "--topic", "--aspect", "--duration", "--scene-seconds", "--language", "--mode", "--clips", "--budget", "--caption-style", "--transition", "--bgm-gain", "--sfx-gain",
   "--style", "--pin-modes", "--brand", "--bgm", "--hook", "--characters", "--seed", "--voice", "--niche", "--niche-text",
-  "--format", "--edit",
+  "--format", "--edit", "--fps",
 ]);
 const DRAFT_FLAGS = new Set(["--no-hook", "--no-sfx", "--no-localize", "--upscale"]);
 /** The kind of job each command is: the kind decides whether credit must be held, so it cannot be claimed freely. */
@@ -121,6 +121,8 @@ export function refusal(queue: keyof typeof QUEUES, args: unknown, runId?: strin
     if (DRAFT_FLAGS.has(option)) continue;
     // an option's value is whatever follows it, also when it looks like an option: that is how the CLI reads it
     if (!DRAFT_VALUED.has(option) || i + 1 >= list.length) return `a draft may not carry ${option}`;
+    // smooth motion is one choice, 60: no other rate is sold
+    if (option === "--fps" && list[i + 1] !== "60") return "a draft may carry --fps only as 60";
     i++;
   }
   return undefined;

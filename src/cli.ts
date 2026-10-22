@@ -24,7 +24,7 @@ import { takesSeveralReferences } from "./image-profiles.js";
 import { PresetName } from "./presets.js";
 import { LANGUAGE_IN_ENGLISH, SPEECH_LANGUAGES, type SpeechLanguage } from "./voice/language.js";
 import { createProviders } from "./providers/factory.js";
-import { frozenModePrices, newRunProviders, newRunUpscale, newRunVoice } from "./providers/new-run.js";
+import { frozenModePrices, newRunProviders, newRunVoice, restorerFor } from "./providers/new-run.js";
 import { CLIP_QUALITIES, type ClipQuality } from "./video-profiles.js";
 import type { Providers } from "./providers/types.js";
 import { applyRenderOptions, assertRenderOnly, noPaidProviders } from "./rerender.js";
@@ -179,6 +179,7 @@ type RunFlags = {
   edit?: string;
   localize?: boolean;
   upscale?: boolean;
+  fps?: string;
 };
 
 /** --pin-modes: one entry per scene, or a single value for every scene. */
@@ -239,6 +240,7 @@ program
   .option("--brand <dir>", "brand kit folder (brand.json, logo, optional font): watermark, font, colours, characters")
   .option("--characters <text>", "character bible used in every prompt (default: the brand kit's, else Gemini's)")
   .option("--seed <n>", "seed shared by every keyframe (default: random)")
+  .addOption(new Option("--fps <n>", "smooth motion: every moving clip is interpolated and the video is rendered at 60 frames a second (phase 11 spec §2)").choices(["60"]))
   .option("--upscale", "full HD: every moving clip is upscaled to 1080p before it is fitted, at about three times a clip's cost (phase 8 spec §8)")
   .addOption(new Option("--clips <quality>", "the size moving clips are generated at: 480p, or 720p at about twice the cost (default: 480p)").choices(Object.keys(CLIP_QUALITIES)))
   .option("--voice <id>", "voice: narrator-m or narrator-f (default: FLOWCHAIN_VOICE)")
@@ -277,6 +279,7 @@ program
       format: o.format,
       edit: o.edit,
       ...(o.upscale ? { upscale: true } : {}),
+      ...(o.fps === "60" ? { fps: 60 as const } : {}),
       // made for the viewers of its one language, frozen now (phase 8 spec §5): never for English, which names no one
       // audience, nor for a video to be made in several languages
       ...(o.language && AUDIENCE[o.language as SpeechLanguage] ? { localize: o.localize !== false } : {}),
@@ -310,13 +313,14 @@ program
         sfxGain: o.sfxGain === undefined ? undefined : Number(o.sfxGain),
       },
     });
+    const restorer = restorerFor(o, env, loadPrices());
     const concurrency = renderConcurrency(o.renderConcurrency);
     const models: Models = {
       llm: env.GEMINI_MODEL,
       tts: voice.model,
       image: providers.image,
       video: providers.video,
-      ...(o.upscale ? { upscale: newRunUpscale(env) } : {}),
+      ...(restorer ? { upscale: restorer } : {}),
     };
     await requireDoctor(env, models);
     const runId = chosenRunId(o.runId);

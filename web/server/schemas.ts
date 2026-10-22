@@ -44,6 +44,8 @@ export const NewVideo = z.object({
   motion: z.enum(["auto", "clips", "stills"]).default("auto"),
   /** The size moving clips are generated at; 720p costs about twice as much. */
   clips: z.enum(["480p", "720p", "1080p"]).default("480p"),
+  /** 60 = smooth motion (phase 11 spec §2); an older recipe without it is 30, and its command line is unchanged. */
+  fps: z.union([z.literal(30), z.literal(60)]).default(30),
   brandKit: Slug.nullable().default(null),
   music: MusicId.nullable().default(null),
   musicGain: Gain.default(0.35),
@@ -130,6 +132,7 @@ export function draftArgs(input: NewVideo, runId: string): string[] {
   // (a series' recipe from before this is read as made for its audience, as every new video is: phase 8 spec §5)
   if (input.localize === false) args.push("--no-localize");
   if (input.clips === "1080p") args.push("--upscale");
+  if (input.fps === 60) args.push("--fps", "60");
   return args;
 }
 

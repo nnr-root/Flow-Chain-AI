@@ -48,7 +48,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
   const [health, setHealth] = useState(initialHealth);
   const [tracks, setTracks] = useState(initialTracks);
   const [f, setF] = useState({
-    topic, aspect: "9:16", durationSec: DEFAULT_VIDEO_SECONDS as number, sceneMin: DEFAULT_SCENE_SECONDS.min, sceneMax: DEFAULT_SCENE_SECONDS.max, style: "auto", motion: "auto", clips: "480p",
+    topic, aspect: "9:16", durationSec: DEFAULT_VIDEO_SECONDS as number, sceneMin: DEFAULT_SCENE_SECONDS.min, sceneMax: DEFAULT_SCENE_SECONDS.max, style: "auto", motion: "auto", clips: "480p", fps: 30 as 30 | 60,
     brandKit: "", music: "", musicGain: 0.35, hookMode: "auto", hookText: "",
     sfx: true, sfxGain: 0.6, characters: "", seed: "", language: "en" as SpeechLanguage, voiceId: "narrator-m" as VoiceId, captionStyle: "preset", transition: "auto",
     name: "", premise: "",
@@ -98,7 +98,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
     setError("");
     try {
       const choices = {
-        aspect: f.aspect, durationSec: f.durationSec, sceneSec: { min: f.sceneMin, max: f.sceneMax }, style: f.style, motion: f.motion, clips: f.clips,
+        aspect: f.aspect, durationSec: f.durationSec, sceneSec: { min: f.sceneMin, max: f.sceneMax }, style: f.style, motion: f.motion, clips: f.clips, fps: f.fps,
         brandKit: f.brandKit || null, music: f.music || null, musicGain: f.musicGain,
         hook: f.hookMode === "custom" ? { mode: "custom", text: f.hookText } : { mode: f.hookMode },
         sfx: f.sfx, sfxGain: f.sfxGain, captionStyle: f.captionStyle, transition: f.transition,
@@ -218,6 +218,18 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
                 {f.clips === "1080p"
                   ? "Every clip is sharpened to 1080p after it is made: the sharpest, at about six times the cost of a standard clip."
                   : "HD clips are sharper and cost about twice as much."}{" "}The draft shows the price before anything is made.
+              </span>
+            </div>
+          )}
+          {health.smooth && (
+            <div className="flex flex-wrap items-center gap-3 text-[0.95rem]">
+              <span>Frame rate</span>
+              <Segmented label="Frame rate" value={String(f.fps)} onChange={(v) => set("fps", v === "60" ? 60 : 30)}
+                options={[{ value: "30", label: "Standard" }, { value: "60", label: "Smooth (60 fps)" }]} />
+              <span className="text-[0.85rem] text-graphite" data-testid="fps-note">
+                {f.fps === 60
+                  ? "Moving clips get extra in-between frames and the final cut is made at 60 frames a second: smoother motion, and it takes about twice as long to put together."
+                  : "Standard motion is already smoothed."}{" "}The draft shows the price before anything is made.
               </span>
             </div>
           )}

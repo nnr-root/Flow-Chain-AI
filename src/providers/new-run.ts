@@ -42,6 +42,16 @@ export function newRunRestore(env: Env, prices: Prices, _fullHd: boolean): strin
 }
 
 /**
+ * The restorer model a new run is frozen with, or none: smooth motion (with or without Full HD) is the restorer's
+ * new workflow; Full HD alone stays on the old workflow, so its jobs and keys do not change (phase 11 spec §2).
+ */
+export function restorerFor(opts: { fps?: string; upscale?: boolean }, env: Env, prices: Prices): string | undefined {
+  if (opts.fps === "60") return newRunRestore(env, prices, opts.upscale === true);
+  if (opts.upscale) return newRunUpscale(env);
+  return undefined;
+}
+
+/**
  * The price table an auto run freezes for its mode rules, with the GPU rates materialised, so a later change to
  * their defaults or to prices.json cannot change what the run plans.
  */

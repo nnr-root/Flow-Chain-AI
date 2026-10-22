@@ -75,6 +75,8 @@ export type Health = {
   missing: string[];
   /** Whether full HD (upscaled clips, phase 8 spec §8) can be offered: its endpoint is set. */
   fullHd?: boolean;
+  /** Whether smooth motion (60 fps, phase 11 spec §2) can be offered: the restorer endpoint is set and the owner switched it on. Present only when true, so every studio without it answers exactly as before (the existing health test compares the whole answer). */
+  smooth?: boolean;
 };
 
 /** Whether a new run could be made, checked without any network call. */
@@ -84,5 +86,6 @@ export function health(): Health {
   return {
     missing: [...unset(NEEDS), ...(unset(VOICE_NEEDS).length === VOICE_NEEDS.length ? [`${VOICE_NEEDS[0]} (or ${VOICE_NEEDS[1]})`] : [])],
     fullHd: Boolean(env.RUNPOD_UPSCALE_ENDPOINT?.trim()),
+    ...(env.RUNPOD_UPSCALE_ENDPOINT?.trim() && env.FLOWCHAIN_SMOOTH_MOTION?.trim() === "on" ? { smooth: true } : {}),
   };
 }
