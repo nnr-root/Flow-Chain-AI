@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { consistency, keyframeLook, lookDistance, parseStats } from "../../src/eval/look.js";
+import { comparable, consistency, keyframeLook, lookDistance, parseStats } from "../../src/eval/look.js";
 import { makeImage, tempDir } from "../helpers/media.js";
 
 const LOG = [
@@ -42,5 +42,25 @@ describe("how alike a run's pictures look", () => {
     expect(consistency([a])).toBe(0);
     expect(consistency([a, b, a])).toBe(0);
     expect(consistency([a, c, a])).toBeGreaterThan(consistency([a, b, a]));
+  });
+});
+
+describe("whether two runs can be compared", () => {
+  const run = { keyframes: 6, profile: "runpod-flux3-klein@1", seed: 7 };
+
+  it("accepts two runs of the same profile and seed with several keyframes each", () => {
+    expect(comparable(run, { ...run })).toBeNull();
+  });
+
+  it("refuses a run with fewer than two keyframes, naming which", () => {
+    expect(comparable({ ...run, keyframes: 1 }, run)).toMatch(/first run has 1 keyframe/);
+    expect(comparable(run, { ...run, keyframes: 0 })).toMatch(/second run has 0 keyframes/);
+  });
+
+  it("refuses runs of another profile or another seed, which would not be the same script made two ways", () => {
+    expect(comparable(run, { ...run, profile: "runpod-klein@1" })).toMatch(/picture model/);
+    expect(comparable(run, { ...run, profile: undefined })).toMatch(/picture model/);
+    expect(comparable(run, { ...run, seed: 8 })).toMatch(/seed/);
+    expect(comparable(run, { ...run, seed: undefined })).toMatch(/seed/);
   });
 });

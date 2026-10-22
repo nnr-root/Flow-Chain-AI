@@ -32,3 +32,16 @@ export function consistency(looks: readonly Look[]): number {
   for (let i = 1; i < looks.length; i++) total += lookDistance(looks[i - 1], looks[i]);
   return total / (looks.length - 1);
 }
+
+/**
+ * Why two runs cannot be compared, or null when they can: the comparison is only fair for the same script made
+ * twice (the same picture model and seed), and a run with fewer than two keyframes has no neighbours to compare.
+ */
+export function comparable(a: { keyframes: number; profile?: string; seed?: number }, b: { keyframes: number; profile?: string; seed?: number }): string | null {
+  const few = (r: { keyframes: number }, which: string) => `the ${which} run has ${r.keyframes} keyframe${r.keyframes === 1 ? "" : "s"}; two runs with at least two each are needed`;
+  if (a.keyframes < 2) return few(a, "first");
+  if (b.keyframes < 2) return few(b, "second");
+  if (a.profile !== b.profile) return `the runs were made with different picture models (${a.profile ?? "none recorded"} and ${b.profile ?? "none recorded"}); compare runs of one model`;
+  if (a.seed !== b.seed) return `the runs have different seeds (${a.seed ?? "none recorded"} and ${b.seed ?? "none recorded"}); compare two runs of the same script and seed`;
+  return null;
+}
