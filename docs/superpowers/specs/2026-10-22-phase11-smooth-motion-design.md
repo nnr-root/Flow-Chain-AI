@@ -171,7 +171,7 @@ an exact 60 fps timeline. Not built (§10).
   and `fit`.
 - **`fit`** plays the upscaled file, else the smoothed one, else the raw clip, in `deps`, `inputsFor` and `run`; its
   `fps=${fps}` filter thins 64 to 60 (§3.1 found no target-rate mode, so it always thins).
-- **The seam frame** for chained scenes is still taken from the raw clip (`writeSeam`), as already for Full HD.
+- **The seam frame** for chained scenes is still taken from the raw clip (`writeSeam`), as already for Full HD. It is taken from the raw clip on purpose: the next clip should start from a real frame, and the fitted 60 fps clip's last frame can be a RIFE in-between frame up to 1/64 s away.
 - **Touch points** the plan lists with `grep` and the graph (`graphify explain "upscaleStage"`, `affected`): `StageName`,
   `src/stages/index.ts`, `paths.ts`, `reroll.ts` (a clip's reroll must also remake its smoothed/upscaled file), `versions.ts`,
   `require.ts`, `src/studio/status.ts`, `web/lib/labels.ts` (the studio's words for the stage).
@@ -185,7 +185,7 @@ an exact 60 fps timeline. Not built (§10).
 
 - **Render.** Remotion takes `fps` from the props already (`calculateMetadata` in `Root.tsx`). At 60 the local render makes
   twice the frames with the same encoder settings (h264, crf 18): roughly twice the render time and a file about 1.5 times
-  larger, both measured by the owner. The loudness pass and the final duration use `totalFrames / fps` already.
+  larger, both measured by the owner. The timings that are frame counts tuned at 30 (the hook's zoom, pop and fade, a transition's half window, a caption word's pop and fade, the music's ramps and fade-out) are scaled by `fps / 30` (`framesAt`, final review F1) and are identical at 30; the film grain, which moves per frame, is not. The loudness pass and the final duration use `totalFrames / fps` already.
 - **The form** gets a "Motion" control, Standard or Smooth (60 fps), shown only when `health.smooth` is true: the restorer
   endpoint and its prices are set (gated by an owner switch, not by prices: §11). The health answer says that a setting is missing without saying which. The copy is plain
   and shows no dollars; the price shows through the credit estimate.
@@ -207,7 +207,7 @@ with a stubbed engine (cleanup on success and on failure). No Gemini prompt chan
 ## 7. What only the owner can do
 
 In order: rebuild and push the worker image and run `npm run runpod:deploy` (its plan is printed first); measure GPU seconds
-per clip second for interpolation alone and inside a Full HD job, and the render time and file size at 60, and set the four
+per clip second (the ledger holds dollars, not seconds: take the time from the RunPod console, or divide a job's `usd` by the per-second price it was charged at) for interpolation alone and inside a Full HD job, and the render time and file size at 60, and set the four
 prices; make one 60 fps video and one Full HD plus 60 video and judge the motion. None of these is run by an agent
 (CLAUDE.md, "Rules that are never broken").
 
@@ -230,6 +230,9 @@ prices; make one 60 fps video and one Full HD plus 60 video and judge the motion
 - The restorer image is rebuilt and redeployed; SeedVR2's behaviour under a changed image is unchanged by design (its step is
   untouched) but unverified without a GPU.
 - 60 fps cannot be added to an existing run (§0).
+- The film grain moves per frame (`grainOffset`), so at 60 it changes twice as fast: an aesthetic the owner judges.
+- The restorer image rebuild re-resolves every layer (`worker-image.yml` has no layer cache), so SeedVR2 runs on whatever `torch` is current rather than the one Phase 8 measured: compare one Full HD video before and after; the rollback tag exists for this.
+- A failed stage's `error` text can show RIFE's traceback tail in the studio unscrubbed (pre-existing: only the job log goes through `publicLog`), so the lowercase path names in it are not caught by `/\bRIFE\b/`. Parked.
 
 ## 10. Not in scope
 
