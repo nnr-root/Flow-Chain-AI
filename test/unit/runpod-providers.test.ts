@@ -239,6 +239,7 @@ describe("createProviders", () => {
     FLOWCHAIN_BUDGET_USD: 3,
     FLOWCHAIN_VOICE: "narrator-m",
     FLOWCHAIN_CUT_REFERENCES: "off" as const,
+    FLOWCHAIN_SMOOTH_MOTION: "off" as const,
     RUNS_DIR: "./runs",
   };
   const runpodEnv = {

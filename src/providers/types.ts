@@ -130,7 +130,7 @@ export type VideoProvider = QueuedProvider<VideoRequest, VideoOutput> & {
 };
 
 /** A clip to upscale (phase 8 spec §8): the file, and the height of the short side to make it. */
-export type UpscaleRequest = { videoPath: string; short: number };
+export type UpscaleRequest = { videoPath: string; short?: number; interpolate?: 2 };
 export type UpscaleProvider = QueuedProvider<UpscaleRequest, VideoOutput>;
 
 /** `upscale`: only for a run that asked for full HD. */

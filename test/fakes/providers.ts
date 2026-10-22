@@ -8,7 +8,7 @@ import type {
   ImageOutput, ImageProvider, ImageRequest, InspectRequest, LlmProvider, PreparedJob, ScriptRequest, SpeakRequest, SubmitOptions, UpscaleProvider, UpscaleRequest,
   TtsProvider, VideoOutput, VideoProvider, VideoRequest, WaitOptions,
 } from "../../src/providers/types.js";
-import { ffmpeg } from "../../src/media/ffmpeg.js";
+import { ffmpeg, probeVideo } from "../../src/media/ffmpeg.js";
 import { makeAudio, makeImage, makeVideo } from "../helpers/media.js";
 
 export type Shot = "continue" | "cut";
@@ -208,7 +208,11 @@ export class FakeVideo extends FakeQueue<VideoRequest, VideoOutput> implements V
 export class FakeUpscale extends FakeQueue<UpscaleRequest, VideoOutput> implements UpscaleProvider {
   protected async render(req: UpscaleRequest, n: number, path: (name: string) => string) {
     const file = path(`hd_${n}.mp4`);
-    await ffmpeg(["-i", req.videoPath, "-vf", `scale=-2:${req.short}`, "-pix_fmt", "yuv420p", file]);
+    const filters: string[] = [];
+    if (req.short !== undefined) filters.push(`scale=-2:${req.short}`);
+    // (a stand-in for RIFE: twice the frames a second, frames repeated; enough to test the pipeline)
+    if (req.interpolate !== undefined) filters.push(`fps=${(await probeVideo(req.videoPath)).fps * req.interpolate}`);
+    await ffmpeg(["-i", req.videoPath, ...(filters.length ? ["-vf", filters.join(",")] : []), "-pix_fmt", "yuv420p", file]);
     return { out: { url: pathToFileURL(file).href }, file };
   }
 }

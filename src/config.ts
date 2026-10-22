@@ -43,6 +43,7 @@ const Env = z.object({
   FLOWCHAIN_IMAGE_MODEL: z.enum(["flux3", "klein4b"]).optional(),
   /** Reframe cuts and the shared look reference (phase 10 spec §5): off until the owner's comparison says on. Frozen per run. */
   FLOWCHAIN_CUT_REFERENCES: z.enum(["on", "off"]).default("off"),
+  FLOWCHAIN_SMOOTH_MOTION: z.enum(["on", "off"]).default("off"),
   /** Which of the voice worker's voices new runs use. */
   FLOWCHAIN_VOICE: z.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/).default("narrator-m"),
   R2_ACCOUNT_ID: z.string().min(1).optional(),
@@ -94,6 +95,12 @@ export const Prices = z.strictObject({
   runpodUpscaleUsdPerSec: z.number().optional(),
   runpodUpscaleSecPerClipSec: z.number().optional(),
   runpodUpscaleColdStartSec: z.number().optional(),
+  // Smooth motion (phase 11 spec §4): no default on purpose. A 60 fps run is refused until the owner has measured these
+  // on the restorer endpoint and set all four, so a customer is never charged from a guess.
+  runpodInterpolateUsdPerSec: z.number().positive().optional(),
+  runpodInterpolateSecPerClipSec: z.number().positive().optional(),
+  runpodInterpolateColdStartSec: z.number().positive().optional(),
+  runpodRestoreExtraSecPerClipSec: z.number().positive().optional(),
   // FLUX 3 klein (phase 10 spec §3): no default on purpose. The profile is not offered until the owner has measured
   // these on the real endpoint and set all four, so a customer is never charged from a guess.
   runpodPicture3UsdPerSec: z.number().positive().optional(),
@@ -164,3 +171,17 @@ export function loadPrices(path = "prices.json"): Prices {
   }
   return result.data;
 }
+
+export type RestoreRates = { usdPerSec: number; interpolateSecPerClipSec: number; coldStartSec: number; extraSecPerClipSec: number };
+
+/** The restorer's smooth-motion rates, or null while any of the four is not set. */
+export function restoreRates(p: Prices): RestoreRates | null {
+  const { runpodInterpolateUsdPerSec: usdPerSec, runpodInterpolateSecPerClipSec: interpolateSecPerClipSec, runpodInterpolateColdStartSec: coldStartSec, runpodRestoreExtraSecPerClipSec: extraSecPerClipSec } = p;
+  return usdPerSec === undefined || interpolateSecPerClipSec === undefined || coldStartSec === undefined || extraSecPerClipSec === undefined
+    ? null
+    : { usdPerSec, interpolateSecPerClipSec, coldStartSec, extraSecPerClipSec };
+}
+
+/** The plain refusal every part of the pipeline gives while the rates are missing (one text, so it is one message to the owner). */
+export const RESTORE_RATES_MISSING =
+  "smooth motion is not set up: the four rates runpodInterpolateUsdPerSec, runpodInterpolateSecPerClipSec, runpodInterpolateColdStartSec and runpodRestoreExtraSecPerClipSec are not all set in prices.json";

@@ -30,4 +30,6 @@ export const RUNPOD_WORKFLOWS = {
   clip: { workflow: "clip-wan22-480p", version: 1 },
   voice: { workflow: "voice-voxcpm2", version: 1 },
   upscale: { workflow: "upscale-seedvr2", version: 1 },
+  // the restorer's new workflow (phase 11): Full HD and/or smooth motion in one job
+  restore: { workflow: "restore-video", version: 1 },
 } as const;

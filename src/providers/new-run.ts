@@ -1,4 +1,4 @@
-import { type Env, flux3Rates, type Prices, runpodRates } from "../config.js";
+import { type Env, flux3Rates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
 import type { ImageProfileId } from "../image-profiles.js";
 import { CLIP_QUALITIES, type ClipQuality, type VideoProfileId } from "../video-profiles.js";
 import { hostedModelFor } from "../voice/hosted.js";
@@ -31,6 +31,14 @@ export function newRunUpscale(env: Env): string {
   if (!env.RUNPOD_UPSCALE_ENDPOINT) throw new Error("full HD is not set up in this studio: RUNPOD_UPSCALE_ENDPOINT is not set (npm run runpod:deploy)");
   const { upscale } = RUNPOD_WORKFLOWS;
   return runpodModelId(env.RUNPOD_UPSCALE_ENDPOINT, upscale.workflow, upscale.version);
+}
+
+/** The endpoint a new run in smooth motion has its clips restored on (phase 11 spec §3, §4); refuses plainly while it is not set up. */
+export function newRunRestore(env: Env, prices: Prices, _fullHd: boolean): string {
+  if (!env.RUNPOD_UPSCALE_ENDPOINT) throw new Error("smooth motion is not set up in this studio: RUNPOD_UPSCALE_ENDPOINT is not set (npm run runpod:deploy)");
+  if (!restoreRates(prices)) throw new Error(RESTORE_RATES_MISSING);
+  const { restore } = RUNPOD_WORKFLOWS;
+  return runpodModelId(env.RUNPOD_UPSCALE_ENDPOINT, restore.workflow, restore.version);
 }
 
 /**

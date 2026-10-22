@@ -268,7 +268,12 @@ export class RunpodUpscale extends RunpodQueued<UpscaleRequest, VideoOutput> imp
   }
 
   protected async input(req: UpscaleRequest) {
-    return { task: "upscale", video: (await readFile(req.videoPath)).toString("base64"), short: req.short };
+    return {
+      task: "upscale",
+      video: (await readFile(req.videoPath)).toString("base64"),
+      ...(req.short === undefined ? {} : { short: req.short }),
+      ...(req.interpolate === undefined ? {} : { interpolate: req.interpolate }),
+    };
   }
 
   protected usdPerSec() {

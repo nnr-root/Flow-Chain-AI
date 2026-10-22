@@ -1,4 +1,4 @@
-import { type Env, flux3Rates, type Prices, runpodRates } from "../config.js";
+import { type Env, flux3Rates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
 import type { Models } from "../manifest/schema.js";
 import { ElevenLabsTts } from "./elevenlabs.js";
 import { GeminiLlm } from "./gemini.js";
@@ -61,6 +61,14 @@ export function createProviders(env: Env, models: Models, prices: Prices): Provi
     }
     return { ...deps, rates: { ...deps.rates, keyframeUsdPerSec: r.usdPerSec } };
   };
+  // The restorer's new workflow is charged at its own measured rate (phase 11 spec §4, §11); the old one keeps the
+  // Full HD rate. Without the four rates a resumed run refuses rather than charging a guess.
+  const upscaleDeps = (workflow: string): RunpodDeps => {
+    if (workflow !== RUNPOD_WORKFLOWS.restore.workflow) return runpodDeps();
+    const r = restoreRates(prices);
+    if (!r) throw new NonRetryableError(RESTORE_RATES_MISSING);
+    return { ...runpodDeps(), rates: { ...runpodDeps().rates, upscaleUsdPerSec: r.usdPerSec } };
+  };
   const image: ImageProvider =
     imageRef.provider === "retired" ? retired("pictures", imageRef.model) : new RunpodImage(imageDeps(), imageRef);
   const video: VideoProvider =
@@ -89,6 +97,6 @@ export function createProviders(env: Env, models: Models, prices: Prices): Provi
     tts,
     image,
     video,
-    ...(upscaleRef ? { upscale: upscaleRef.provider === "retired" ? retired("full HD clips", upscaleRef.model) : new RunpodUpscale(runpodDeps(), upscaleRef) } : {}),
+    ...(upscaleRef ? { upscale: upscaleRef.provider === "retired" ? retired("full HD clips", upscaleRef.model) : new RunpodUpscale(upscaleDeps(upscaleRef.workflow), upscaleRef) } : {}),
   };
 }
