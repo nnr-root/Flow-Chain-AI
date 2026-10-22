@@ -78,6 +78,87 @@ base64 inside the request (the restorer takes at most 9 MB: `MAX_VIDEO_BYTES` in
   its template and endpoint (`RUNPOD_UPSCALE_ENDPOINT`). `models.upscale` keeps its name and now means "the restorer
   endpoint": a run that asks for Full HD or 60 fps freezes it.
 
+### 3.1 What RIFE's pages say (read on 2026-10-22 by task 1)
+
+Read anonymously, with no token: the GitHub API and raw files of `hzwer/Practical-RIFE` at the commit below, the Hugging
+Face Hub API (`/api/models/<repo>?blobs=true`) and a `HEAD` of the file, the zip's central directory (the last 8 KB of the
+file, by a range request: the names inside, not the weights), PyPI's JSON API, and issues #55, #133 and #153. Nothing was
+downloaded but that directory; nothing was run on a GPU.
+
+| Fact | Value | Where it was read |
+|---|---|---|
+| Implementation | Practical-RIFE, `https://github.com/hzwer/Practical-RIFE`, its `inference_video.py` | the repository |
+| Pinned commit | `bbfd2ea90910789a860ea3e2b32a240cd577b75e` (head of `main`, 2026-08-27, "Add Apple Silicon (MPS) support to warplayer (#156)") | `api.github.com/repos/hzwer/Practical-RIFE/commits/main` |
+| Licence | MIT ("MIT License / Copyright (c) 2021 hzwer"); the README: "The content of these links is under the same MIT license as this project." The Hugging Face repository below carries no licence tag | `LICENSE`, README "Trained Model" |
+| Python | README: "python <= 3.11" (the restorer's image is `python:3.11-slim`) | README "Installation" |
+| Weights chosen | RIFE **4.26** (2024.09.21), the newest in the README's list (it recommends 4.25 "by default for most scenes", and says "4.24+ is quite suitable for post-processing of some diffusion model generated videos") | README "Frame Interpolation" |
+| Weights source, pinned | `https://huggingface.co/hzwer/RIFE/resolve/01fdc7e97404120c243c3ea7b427046e5dc7643e/RIFEv4.26_0921.zip` (the author's own account; not gated, not private) | Hub API `models/hzwer/RIFE?blobs=true` |
+| Size, SHA-256 | 22,869,906 bytes; `1fa9b9cda3d9b8c3e301359e2595960902f97bf926c08598b0e9957a3f3f760e` (the Hub's `lfs.sha256`, equal to the `x-linked-etag` and `x-linked-size` of a `HEAD` on the pinned URL) | Hub API and `HEAD` |
+| What the zip holds | a folder `RIFEv4.26_0921/` with `flownet.pkl` (24,636,301 bytes), `IFNet_HDv3.py` (6,433), `RIFE_HDv3.py` (3,101), `refine.py` (3,510), `.DS_Store`, `__pycache__/*.cpython-311.pyc`, plus `__MACOSX/` entries. The model's code comes with the weights: the repository has none of it | the zip's central directory |
+| Where it goes | `inference_video.py` line 92: `from train_log.RIFE_HDv3 import Model` (a fixed package name, imported from the script's own folder) and line 96 `model.load_model(args.modelDir, -1)` (reads `<modelDir>/flownet.pkl`). So the zip's folder must become `train_log/` inside the clone, and `--model` should be given as that absolute path (its default `'train_log'` is relative to the working directory) | `inference_video.py` |
+| Other weights (not chosen) | 4.25 is only on Google Drive and Baidu from the author; third-party mirrors carry a `flownet.pkl` of 24,636,301 bytes, SHA-256 `6615790efd627772917205db291f51cd392528a157ecbb2ecaeec3bff8eb6de2` (`MonsterMMORPG/Practical-RIFE`, `Upsampler/rife-4-25`) | Hub API |
+| The clip worker's weights | `rife49.pth`, 21,345,274 bytes, `e55fd00f3cc184e3c65961f4bb827a9da022e78eed36b055242c0ac30000d533`, from `marduk191/rife` (`workers/Dockerfile`). **Not usable here**: Practical-RIFE needs the 4.9 model code (`RIFE_HDv3.py`, `IFNet_HDv3.py`), which exists only inside the v4.9.2 zip on Google Drive, with no checksum. The 4.26 zip, code and weights in one file hashed by the author's own host, is the simplest | `workers/Dockerfile`, README |
+| Exact target rate | **No.** `--fps` only sets the container's rate; the frames are always `--multi` times as many (see the lines below). The maintainer, issue #153: "Simply adding `--fps=60` changes the playback rate of the generated sequence; it does not automatically generate exactly the frames needed for every source rate." | `inference_video.py`, issue #153 |
+| Frames out | `multi × (N − 1) + 1` for `N` frames in: each pair writes the earlier frame and `multi − 1` new ones (lines 261–264), and the last frame once (line 273). A 32 fps clip of `N` frames gives `2N − 1` frames at 64 fps: **one frame (1/64 s) short** of twice the length. A pair whose small thumbnails differ a lot (`ssim < 0.2`, a cut) repeats the earlier frame instead of interpolating (lines 239–242); a near-identical pair (`ssim > 0.996`) is replaced by an interpolation with the next frame (lines 225–237) | `inference_video.py` |
+| Output codec | `cv2.VideoWriter_fourcc('m', 'p', '4', 'v')` (line 113): MPEG-4 Part 2, not H.264. The worker re-encodes it (or uses `--png` and encodes the frames itself) | `inference_video.py` |
+| Audio | Read and written only when neither `--fps` nor `--png` is given (line 284: `if args.png == False and fpsNotAssigned == True and not args.video is None:`), through `transferAudio`, which runs `ffmpeg` and `import moviepy.editor` and works in `./temp` of the working directory. `moviepy` is at 2.2.1 on PyPI, which has no `moviepy.editor`: the import fails inside `try`, and the `except` then renames a file that does not exist, so the script would end with an error. Passing `--fps` (or `--png`) skips all of it; clips carry no audio | `inference_video.py`, PyPI |
+| fp16, scale | `--fp16` ("fp16 mode for faster and more lightweight inference on cards with Tensor Cores"); `--scale` in `[0.25, 0.5, 1.0, 2.0, 4.0]`, default 1.0, "Try scale=0.5 for 4k video"; `--UHD` is `--scale=0.5`. Frames are padded to a multiple of `max(128, int(128 / scale))` (1080 → 1152 at scale 1.0) | `inference_video.py`, README |
+| GPU memory at 1080p | **not stated** in the README, the code or the issues searched ("memory 1080", "VRAM", "out of memory"). The only figure is a user's speed, not memory: "about 77/78 FPS with Rife 4.15/4.14/4.14-lite for 1080p inputs and 2x interpolation and a RTX 3090" (issue #55). The model is ~25 MB and runs one frame pair at a time, so the 24 GB card is not expected to be the limit, but this is the owner's measurement to make (§7) | README, issues |
+| Dependencies (`requirements.txt`) | `numpy>=1.16, <=1.23.5`, `tqdm>=4.35.0`, `sk-video>=1.1.10`, `torch>=1.3.0`, `opencv-python>=4.1.2`, `moviepy>=1.0.3`, `torchvision>=0.7.0`. Imported on the video path: `cv2`, `torch`, `numpy`, `tqdm`, `skvideo.io`, `torchvision` (via `model/loss.py`); `moviepy` only in the audio step skipped above | `requirements.txt`, the source |
+| The numpy conflict | `sk-video` 1.1.10 (the latest) fails under numpy 2: `skvideo.io.vreader` raised "`np.float` was a deprecated alias for the builtin `float`" with numpy 2.0.2 (checked in a scratch virtualenv). The restorer's Python already has SeedVR2's unpinned `numpy` and `opencv-python`; the latest `opencv-python` (5.0.0.93) requires `numpy>=2`, and `opencv-python` 4.10/4.11 require `numpy>=1.23.5` on Python 3.11. So on 3.11 numpy must be **exactly 1.23.5** (a `cp311` manylinux wheel exists) for RIFE, which cannot share SeedVR2's packages | scratch venv, PyPI |
+
+The command, verbatim from the README ("generate video_2X_xxfps.mp4"):
+
+```
+python3 inference_video.py --multi=2 --video=video.mp4
+```
+
+and its flags as `inference_video.py` defines them (lines 57–70, verbatim):
+
+```
+parser.add_argument('--video', dest='video', type=str, default=None)
+parser.add_argument('--output', dest='output', type=str, default=None)
+parser.add_argument('--model', dest='modelDir', type=str, default='train_log', help='directory with trained model files')
+parser.add_argument('--fp16', dest='fp16', action='store_true', help='fp16 mode for faster and more lightweight inference on cards with Tensor Cores')
+parser.add_argument('--scale', dest='scale', type=float, default=1.0, help='Try scale=0.5 for 4k video')
+parser.add_argument('--fps', dest='fps', type=int, default=None)
+parser.add_argument('--png', dest='png', action='store_true', help='whether to vid_out png format vid_outs')
+parser.add_argument('--multi', dest='multi', type=int, default=2)
+```
+
+The lines that decide the rate (103–110, 140): the frame count never depends on `--fps`.
+
+```
+    fps = videoCapture.get(cv2.CAP_PROP_FPS)
+    ...
+    if args.fps is None:
+        fpsNotAssigned = True
+        args.fps = fps * args.multi
+    ...
+    vid_out = cv2.VideoWriter(vid_out_name, fourcc, args.fps, (w, h))
+```
+
+What the worker (task 3) should therefore run, one clip, multiplier 2, with the clone at `/rife` and the zip's folder at
+`/rife/train_log`; `--fps` is given as twice the input's rate (64 for a 32 fps clip) only so the audio step is skipped:
+
+```
+/rife/.venv/bin/python /rife/inference_video.py --multi=2 --video=<in.mp4> --output=<rife.mp4> --model=/rife/train_log --fps=64
+```
+
+then `ffmpeg` re-encodes `<rife.mp4>` (mp4v) to H.264 `yuv420p` at 64 fps. No `--fp16` and `--scale` 1.0 (the defaults)
+until the owner's measurement says otherwise. `/rife/.venv` is a virtualenv made with `--system-site-packages` (so it
+uses the image's CUDA `torch` and `torchvision`, which are not installed twice) in which `numpy==1.23.5`,
+`sk-video==1.1.10`, `scipy==1.11.4` (sk-video needs scipy; the latest scipy requires `numpy>=2.0.0`, 1.11.4 requires
+`numpy<1.28.0,>=1.21.6`), `opencv-python-headless==4.11.0.86` (an abi3 manylinux wheel; headless because the slim image
+has no `libGL`) and `tqdm` are installed, shadowing the image's numpy 2 and its OpenCV. Two points only the image build can confirm, so its build check must import
+the venv's `cv2`, `skvideo.io` and `torch` and load the model: that the image's `torch` runs with numpy 1.23.5, and that
+`torch.load('{}/flownet.pkl'.format(path))` (in the zip's `RIFE_HDv3.py`, with no `weights_only`) loads under a `torch`
+that defaults to `weights_only=True`. The zip's `RIFE_HDv3.py` (as read from a mirror of the same size,
+`MonsterMMORPG/RIFE_4_26`) sets `self.version = 4.25`, so `make_inference` takes its `model.version >= 3.9` branch:
+`model.inference(I0, I1, (i+1) * 1. / (n+1), args.scale)`. The exact-rate mode is therefore **not** in this
+implementation; the model itself takes any `timestep`, so a later change could write its own loop that draws the frames of
+an exact 60 fps timeline. Not built (§10).
+
 ## 4. The stages
 
 - **`upscale`** (Full HD, `src/stages/upscale.ts`): for a 60 fps run it sends `interpolate: 2` in the same job. Its cache
@@ -153,3 +234,16 @@ prices; make one 60 fps video and one Full HD plus 60 video and judge the motion
 
 A tier above 1080p; converting existing runs; changing the 30 fps default or fixing its 32-to-30 judder (a later change could
 reuse §3's exact-rate mode); the clip worker's RIFE; the other items on the list (lip sync and sound effects, trend discovery).
+
+## 11. What the plan found and changed (a later section wins)
+
+- **The form's control is gated by an owner switch, not by prices.** The web server never reads `prices.json` (it is the CLI's), so `health.smooth` is `RUNPOD_UPSCALE_ENDPOINT` set **and** `FLOWCHAIN_SMOOTH_MOTION=on` (default off, set by the owner after the rates are measured), like `FLOWCHAIN_CUT_REFERENCES`. The CLI still refuses a 60 fps run without the four rates, in `newRunRestore`, and `createProviders` refuses it too, so a mis-set switch fails plainly and early.
+- **One GPU rate for the restorer's new workflow.** `restore-video@1` jobs, with or without Full HD, are charged at `runpodInterpolateUsdPerSec`; the old `upscale-seedvr2@1` workflow keeps `upscaleUsdPerSec`. A Full HD run that does not ask for 60 fps keeps the old workflow, so its jobs and keys are unchanged.
+- **The fake restorer** stands in for both steps; its interpolation doubles the frame rate with ffmpeg's `fps=` filter (frames repeated, which is enough to test the pipeline).
+- **No exact-rate mode** (§3.1): Practical-RIFE's `--fps` only relabels the frames. The worker sends `interpolate: 2` (32 fps in, 64 out) and `fit` thins 64 to 60, as §4 and §9 already allow.
+- **The weights are RIFE 4.26 from the author's own Hugging Face repository**, pinned by revision and checked by SHA-256 (§3.1), not the README's Google Drive links and not the clip worker's `rife49.pth` (whose model code is only on Google Drive). The zip brings the model's code too; it is unpacked to `/rife/train_log`.
+- **RIFE runs in its own virtualenv** (`/rife/.venv`, with the image's `torch`): its `sk-video` needs numpy 1.23.5, and SeedVR2's packages in the image's Python have numpy 2. The image's build check imports that venv's packages and loads the model.
+- **A RIFE step is two subprocesses**, not one (§3 "One subprocess per step"): `inference_video.py`, then `ffmpeg` to re-encode its MPEG-4 Part 2 output to H.264. Both are pure command builders tested without a GPU; each failure raises with the tail of its output, nothing retried.
+- **`--fps=<2 × input rate>` is always passed**, which skips the script's audio step (it imports `moviepy.editor`, absent from moviepy 2, and would end in an error); clips carry no audio.
+- **The interpolated clip is one frame short**: `N` frames in give `2N − 1` out at 64 fps (1/64 s less than twice the length). `fit` must tolerate it (it already pads or trims to the frame count it computes); task 5's real-ffmpeg test uses a clip of that length.
+- **GPU memory at 1080p is not stated** anywhere read; the 24 GB card is assumed enough for one frame pair at a time, and the owner's measurement (§7) confirms it.
