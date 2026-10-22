@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { FPS, outputSize } from "@src/config";
+import { fpsOf, outputSize } from "@src/config";
 import type { Manifest } from "@src/manifest/schema";
 import { loadManifest } from "@src/manifest/store";
 import type { RenderInputs, RenderPropsOptions } from "@src/stages/build-render-props";
@@ -134,7 +134,7 @@ async function localRuns(): Promise<RunSummary[]> {
 
 export function propsOptions(m: Manifest, runId: string, brandDir?: string): RenderPropsOptions {
   const r = roots();
-  return { dir: join(r.runs, runId), fontsDir: r.fonts, sfxDir: r.sfx, fps: FPS, size: outputSize(m.request.aspect), brandDir };
+  return { dir: join(r.runs, runId), fontsDir: r.fonts, sfxDir: r.sfx, fps: fpsOf(m.request), size: outputSize(m.request.aspect), brandDir };
 }
 
 export type Preview = RenderInputs & { draft: boolean };

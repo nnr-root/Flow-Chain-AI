@@ -2,6 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod";
 
 export const FPS = 30;
+/** The frame rate a run is fitted and rendered at: the pipeline's 30, or the 60 the run was made for (phase 11 spec §2). */
+export const fpsOf = (request: { fps?: 60 }): number => request.fps ?? FPS;
 
 export const Aspect = z.enum(["9:16", "16:9"]);
 export type Aspect = z.infer<typeof Aspect>;

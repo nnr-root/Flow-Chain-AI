@@ -8,7 +8,7 @@
 import { copyFile, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve, sep } from "node:path";
-import { FPS, outputSize } from "../src/config.js";
+import { fpsOf, outputSize } from "../src/config.js";
 import { type Making, peaksOf, publications, receiptOf, republish, slugOf } from "../src/deploy/showcase.js";
 import { looksOf } from "../src/deploy/showcase-looks.js";
 import { loadManifest } from "../src/manifest/store.js";
@@ -37,10 +37,11 @@ async function main(): Promise<void> {
   // every frame on the page is an upright one
   if (manifest.request.aspect !== "9:16") throw new Error(`run ${runId} is ${manifest.request.aspect}: the landing page shows upright (9:16) videos only`);
 
+  const fps = fpsOf(manifest.request);
   const fontsDir = resolve("assets/fonts");
   const sfxDir = resolve("assets/sfx");
   // the video as made, and every look the page lets a visitor give it: all by the studio's own preview function
-  const { props, looks, files } = looksOf(manifest, { dir, fontsDir, sfxDir, fps: FPS, size: outputSize(manifest.request.aspect) });
+  const { props, looks, files } = looksOf(manifest, { dir, fontsDir, sfxDir, fps, size: outputSize(manifest.request.aspect) });
   // Made beside its place and moved there when it is whole: a failure half-way leaves the showcase that was
   // there before, not half of a new one.
   const place = resolve("web/public/showcase", slug);
@@ -56,7 +57,7 @@ async function main(): Promise<void> {
     await mkdir(dirname(to), { recursive: true });
     if (pub.how === "video") {
       // no sound track (the narration and music are the player's own), and seekable from the first byte
-      await ffmpeg(["-i", from, "-an", "-vf", `scale=${WIDTH}:-2`, "-c:v", "libx264", "-preset", "slow", "-crf", "29", "-pix_fmt", "yuv420p", "-g", String(FPS), "-movflags", "+faststart", to]);
+      await ffmpeg(["-i", from, "-an", "-vf", `scale=${WIDTH}:-2`, "-c:v", "libx264", "-preset", "slow", "-crf", "29", "-pix_fmt", "yuv420p", "-g", String(fps), "-movflags", "+faststart", to]);
     } else if (pub.how === "picture") {
       // a still is zoomed and panned by the player: it keeps more of its size than a clip
       await ffmpeg(["-i", from, "-vf", `scale=${WIDTH * 1.5}:-2`, "-q:v", "4", to]);
@@ -73,9 +74,9 @@ async function main(): Promise<void> {
     const thumb = `scenes/${String(i + 1).padStart(2, "0")}.jpg`;
     const frames = props.scenes[i].frames;
     await mkdir(dirname(join(out, thumb)), { recursive: true });
-    if (scene.mode === 1) await ffmpeg(["-ss", (frames / FPS / 2).toFixed(2), "-i", join(dir, requireFitted(scene).path), "-frames:v", "1", "-vf", "scale=270:-2", "-q:v", "5", join(out, thumb)]);
+    if (scene.mode === 1) await ffmpeg(["-ss", (frames / fps / 2).toFixed(2), "-i", join(dir, requireFitted(scene).path), "-frames:v", "1", "-vf", "scale=270:-2", "-q:v", "5", join(out, thumb)]);
     else await ffmpeg(["-i", join(dir, paths.keyframe(i)), "-vf", "scale=270:-2", "-q:v", "5", join(out, thumb)]);
-    scenes.push({ narration: manifest.script!.scenes[i].narration, seconds: Math.round((frames / FPS) * 10) / 10, kind: scene.mode === 1 ? "clip" : "still", thumb });
+    scenes.push({ narration: manifest.script!.scenes[i].narration, seconds: Math.round((frames / fps) * 10) / 10, kind: scene.mode === 1 ? "clip" : "still", thumb });
   }
   const raw = join(tmpdir(), `showcase-${process.pid}.raw`);
   await ffmpeg(["-i", join(dir, paths.narration), "-ac", "1", "-ar", "4000", "-f", "s16le", raw]);
@@ -84,7 +85,7 @@ async function main(): Promise<void> {
   const making: Making = {
     topic: manifest.request.topic,
     scenes,
-    voice: { seconds: Math.round((props.totalFrames / FPS) * 10) / 10, peaks: peaksOf(new Int16Array(pcm.buffer, pcm.byteOffset, Math.floor(pcm.byteLength / 2)), 96) },
+    voice: { seconds: Math.round((props.totalFrames / fps) * 10) / 10, peaks: peaksOf(new Int16Array(pcm.buffer, pcm.byteOffset, Math.floor(pcm.byteLength / 2)), 96) },
   };
   await writeFile(join(out, "making.json"), `${JSON.stringify(making)}\n`);
 

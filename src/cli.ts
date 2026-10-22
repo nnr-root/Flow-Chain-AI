@@ -9,7 +9,7 @@ import { createInterface } from "node:readline/promises";
 import { Command, Option } from "commander";
 import { type BrandKit, installBrand, installReference, loadBrandKit } from "./brand.js";
 import { FONTS_DIR, SFX_DIR } from "./assets.js";
-import { type Env, FPS, keyframeSize, loadEnv, loadPrices, outputSize } from "./config.js";
+import { type Env, fpsOf, keyframeSize, loadEnv, loadPrices, outputSize } from "./config.js";
 import { formatChecks, runDoctor } from "./doctor.js";
 import { DEFAULT_SCENE_SECONDS, SCENE_SECONDS, VIDEO_SECONDS, wordsPerSecond } from "./duration.js";
 import { type Manifest, MAX_SEED, type Models, RunRequest, StageName } from "./manifest/schema.js";
@@ -107,7 +107,7 @@ function contextFor(dir: string, manifest: Manifest, providers: Providers, concu
     prices: loadPrices(),
     size: outputSize(manifest.request.aspect),
     keyframeSize: keyframeSize(manifest.request.aspect),
-    fps: FPS,
+    fps: fpsOf(manifest.request),
     fontsDir: FONTS_DIR,
     sfxDir: SFX_DIR,
     retryDelayMs: 2000,

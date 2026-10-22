@@ -314,6 +314,8 @@ export const RunRequest = z.object({
   localize: z.boolean().optional(),
   /** Full HD (--upscale, phase 8 spec §8): every clip is upscaled to 1080p before it is fitted. Frozen; absent = as made. */
   upscale: z.literal(true).optional(),
+  /** Smooth motion (--fps 60, phase 11 spec §2): the run is made and rendered at 60 frames a second. Frozen; absent = 30. */
+  fps: z.literal(60).optional(),
   /**
    * The run is a version of another in a new language (phase 8 spec §4): its pictures and clips are that run's, and
    * what is said in it is a translation of what was said there (`title`, `hook`, `narrations`), each scene written to
