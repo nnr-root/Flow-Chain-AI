@@ -66,7 +66,7 @@ base64 inside the request (the restorer takes at most 9 MB: `MAX_VIDEO_BYTES` in
   required, no `interpolate`), so a run in flight and every old run are unaffected. The new workflow is `restore-video@1`.
 - **Engine.** If `short` is given, SeedVR2 runs first as today. If `interpolate` is given, RIFE then runs on the local
   result (or on the input when there is no `short`) and re-encodes at twice the input frame rate (32 fps in, 64 out), with
-  the audio untouched (clips carry none). One subprocess per step, a tail-of-output error, nothing retried.
+  the audio untouched (clips carry none). One subprocess per step (two for interpolation: RIFE, then a re-encode: §3.1, §11), a tail-of-output error, nothing retried.
 - **RIFE** is the practical-RIFE implementation (MIT, the licence the clip worker's RIFE already has), pinned by commit with
   its weights baked into the image and checked by SHA-256, exactly as SeedVR2's. Task 1 (a gate, like phase 10's) reads the
   public repository and the weights' hashes and writes them into a new §3.1 (so §3.1 does not exist yet, and wins over this
@@ -113,7 +113,8 @@ The command, verbatim from the README ("generate video_2X_xxfps.mp4"):
 python3 inference_video.py --multi=2 --video=video.mp4
 ```
 
-and its flags as `inference_video.py` defines them (lines 57–70, verbatim):
+and its flags as `inference_video.py` defines them (a selection of lines 57–70, the whole `add_argument` block, verbatim;
+`--img`, `--montage`, `--UHD`, `--skip`, `--ext` and `--exp` are left out):
 
 ```
 parser.add_argument('--video', dest='video', type=str, default=None)
@@ -169,7 +170,7 @@ an exact 60 fps timeline. Not built (§10).
   `paths.smoothed`; the scene gains an optional `smoothed: { path, sourceUrl?, duration }` like `upscaled`. Between `clips`
   and `fit`.
 - **`fit`** plays the upscaled file, else the smoothed one, else the raw clip, in `deps`, `inputsFor` and `run`; its
-  `fps=${fps}` filter thins 64 to 60 (or lands exactly if §3's gate finds a target-rate mode).
+  `fps=${fps}` filter thins 64 to 60 (§3.1 found no target-rate mode, so it always thins).
 - **The seam frame** for chained scenes is still taken from the raw clip (`writeSeam`), as already for Full HD.
 - **Touch points** the plan lists with `grep` and the graph (`graphify explain "upscaleStage"`, `affected`): `StageName`,
   `src/stages/index.ts`, `paths.ts`, `reroll.ts` (a clip's reroll must also remake its smoothed/upscaled file), `versions.ts`,
@@ -177,7 +178,7 @@ an exact 60 fps timeline. Not built (§10).
 - **Cost.** `interpolateCost(prices, seconds, first)` and the extra inside the Full HD job are priced by GPU seconds per clip
   second and a cold start, from rates in `prices.json`: `runpodInterpolateUsdPerSec`, `runpodInterpolateSecPerClipSec`,
   `runpodInterpolateColdStartSec`, and for the combined job `runpodRestoreExtraSecPerClipSec`. **No defaults**: until the owner
-  has measured and set them, the choice is not offered and `createProviders`/`estimateCostUsd` refuse (the rule phase 10 §3
+  has measured and set them, the choice is not offered (gated by an owner switch, not by prices: §11) and `createProviders`/`estimateCostUsd` refuse (the rule phase 10 §3
   set for FLUX 3). The stage estimate is conservative; the job's own measured time is what is charged (`runProviderJob`).
 
 ## 5. The render, the studio, the queue
@@ -186,7 +187,7 @@ an exact 60 fps timeline. Not built (§10).
   twice the frames with the same encoder settings (h264, crf 18): roughly twice the render time and a file about 1.5 times
   larger, both measured by the owner. The loudness pass and the final duration use `totalFrames / fps` already.
 - **The form** gets a "Motion" control, Standard or Smooth (60 fps), shown only when `health.smooth` is true: the restorer
-  endpoint and its prices are set. The health answer says that a setting is missing without saying which. The copy is plain
+  endpoint and its prices are set (gated by an owner switch, not by prices: §11). The health answer says that a setting is missing without saying which. The copy is plain
   and shows no dollars; the price shows through the credit estimate.
 - **The queue.** The worker's command check (`refusal()` / `commandKind`, `web/server/jobs/redis.ts`) allows exactly
   `--fps 60`, as it allows `--upscale`, and no other number; a paid job still needs an open reservation for that exact
@@ -223,7 +224,7 @@ prices; make one 60 fps video and one Full HD plus 60 video and judge the motion
 ## 9. Risks
 
 - RIFE can warp fast or complex motion in AI video; the owner's visual check is the only judge.
-- 64-to-60 thinning drops about one frame in 16 unless §3's gate finds an exact-rate mode.
+- 64-to-60 thinning drops about one frame in 16 unless §3's gate finds an exact-rate mode (it found none: §3.1).
 - A 64 fps 1080p clip is a large download from R2; the measurement covers the time.
 - The local render takes about twice as long and the file is larger; some platforms re-encode a 60 fps upload.
 - The restorer image is rebuilt and redeployed; SeedVR2's behaviour under a changed image is unchanged by design (its step is
@@ -233,7 +234,7 @@ prices; make one 60 fps video and one Full HD plus 60 video and judge the motion
 ## 10. Not in scope
 
 A tier above 1080p; converting existing runs; changing the 30 fps default or fixing its 32-to-30 judder (a later change could
-reuse §3's exact-rate mode); the clip worker's RIFE; the other items on the list (lip sync and sound effects, trend discovery).
+write its own loop at fractional time steps, §3.1's last paragraph; none exists today); the clip worker's RIFE; the other items on the list (lip sync and sound effects, trend discovery).
 
 ## 11. What the plan found and changed (a later section wins)
 
