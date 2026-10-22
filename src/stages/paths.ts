@@ -21,6 +21,8 @@ export const paths = {
   seam: (i: number) => `frames/seam_${n(i)}.png`,
   /** Clip i upscaled to full HD (phase 8 spec §8). */
   upscaled: (i: number) => `clips/clip_${n(i)}.hd.mp4`,
+  /** Clip i interpolated to twice its frame rate (phase 11 spec §4). */
+  smoothed: (i: number) => `clips/clip_${n(i)}.60.mp4`,
   fitted: (i: number) => `fitted/scene_${n(i)}.mp4`,
   captions: "captions.json",
   /** Render working folder: staged public files and the Remotion bundle (recreated per render). */

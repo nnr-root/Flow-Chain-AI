@@ -22,7 +22,7 @@ export const MAX_HOOK_WORDS = 6;
 // fal's Flux seed is a signed 32-bit integer; every seed it has returned is below 2^31.
 export const MAX_SEED = 2 ** 31 - 1;
 
-export const StageName = z.enum(["script", "reference", "tts", "silence", "modes", "keyframes", "clips", "upscale", "fit", "captions", "render"]);
+export const StageName = z.enum(["script", "reference", "tts", "silence", "modes", "keyframes", "clips", "upscale", "interpolate", "fit", "captions", "render"]);
 export type StageName = z.infer<typeof StageName>;
 
 export const Mode = z.union([z.literal(1), z.literal(2)]);
@@ -226,6 +226,8 @@ export const SceneState = z.object({
     .optional(),
   /** The clip upscaled to full HD (phase 8 spec §8): what the fit plays where the run asked for it. */
   upscaled: z.object({ path: z.string(), sourceUrl: z.string().optional(), duration: z.number() }).optional(),
+  /** The clip interpolated to twice its frame rate (phase 11 spec §4): what the fit plays in a 60 fps run that is not in full HD. */
+  smoothed: z.object({ path: z.string(), sourceUrl: z.string().optional(), duration: z.number() }).optional(),
   fitted: z.object({ path: z.string(), frames: z.number().int(), plan: FitPlan }).optional(),
 });
 export type SceneState = z.infer<typeof SceneState>;
@@ -349,7 +351,7 @@ export const RunRequest = z.object({
 });
 export type RunRequest = z.infer<typeof RunRequest>;
 
-/** `upscale`: the endpoint a run that asked for full HD has its clips upscaled on (phase 8 spec §8); absent on every other run. */
+/** `upscale`: the restorer endpoint (phase 8 spec §8; phase 11: it also interpolates) a run that asked for full HD or 60 fps has its clips made on; absent on every other run. */
 export const Models = z.object({ llm: z.string(), tts: z.string(), image: z.string(), video: z.string(), upscale: z.string().optional() });
 export type Models = z.infer<typeof Models>;
 

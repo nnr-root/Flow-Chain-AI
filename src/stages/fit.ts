@@ -2,8 +2,8 @@ import { fileSha256 } from "../manifest/hash.js";
 import { applyFit, planFit } from "../media/fit.js";
 import { abs, outPath, paths } from "./paths.js";
 import { isMode1 } from "./clips.js";
-import { requireClip, requireUpscaled } from "./require.js";
-import { isUpscaled } from "./upscale.js";
+import { requireClip, requireSmoothed, requireUpscaled } from "./require.js";
+import { playedClip } from "./source.js";
 import type { Stage } from "./types.js";
 import { sceneFrames } from "./visual.js";
 
@@ -15,12 +15,12 @@ export const fitStage: Stage = {
   // frames_i depends on the durations of every scene up to and including i
   deps: (m, scene) => [
     { stage: "clips", scene },
-    // (a run in full HD fits the upscaled clip: phase 8 spec §8)
-    ...(isUpscaled(m, scene!) ? [{ stage: "upscale" as const, scene }] : []),
+    // (the clip it plays may be the upscaled or the smoothed one: phase 8 spec §8, phase 11 spec §4)
+    ...(playedClip(m, scene!).stage === "clips" ? [] : [{ stage: playedClip(m, scene!).stage, scene }]),
     ...m.scenes.slice(0, scene! + 1).map((s) => ({ stage: "silence" as const, scene: s.idx })),
   ],
   inputsFor: async (ctx, scene) => ({
-    clip: await fileSha256(abs(ctx, isUpscaled(ctx.manifest, scene!) ? paths.upscaled(scene!) : paths.clip(scene!))),
+    clip: await fileSha256(abs(ctx, playedClip(ctx.manifest, scene!).path)),
     frames: sceneFrames(ctx.manifest, ctx.fps)[scene!],
     size: ctx.size,
     fps: ctx.fps,
@@ -30,7 +30,8 @@ export const fitStage: Stage = {
   async run(ctx, scene) {
     const i = scene!;
     const state = ctx.manifest.scenes[i];
-    const clip = isUpscaled(ctx.manifest, i) ? requireUpscaled(state) : requireClip(state);
+    const played = playedClip(ctx.manifest, i);
+    const clip = played.stage === "upscale" ? requireUpscaled(state) : played.stage === "interpolate" ? requireSmoothed(state) : requireClip(state);
     const frames = sceneFrames(ctx.manifest, ctx.fps)[i];
     const plan = planFit(clip.duration, frames / ctx.fps);
     await applyFit(abs(ctx, clip.path), await outPath(ctx, paths.fitted(i)), plan, frames, ctx.size, ctx.fps);
