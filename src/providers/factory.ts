@@ -1,8 +1,8 @@
-import { type Env, type Prices, runpodRates } from "../config.js";
+import { type Env, flux3Rates, type Prices, runpodRates } from "../config.js";
 import type { Models } from "../manifest/schema.js";
 import { ElevenLabsTts } from "./elevenlabs.js";
 import { GeminiLlm } from "./gemini.js";
-import { parseModelId } from "./model-id.js";
+import { parseModelId, RUNPOD_WORKFLOWS } from "./model-id.js";
 import { R2 } from "./r2.js";
 import { RunpodClient } from "./runpod.js";
 import { type RunpodDeps, RunpodImage, RunpodUpscale, RunpodVideo } from "./runpod-providers.js";
@@ -47,8 +47,22 @@ export function createProviders(env: Env, models: Models, prices: Prices): Provi
       }),
       rates: runpodRates(prices),
     });
+  // A FLUX 3 picture runs on a 48 GB card, which costs more a second than the 4090 the 4B runs on. The measured
+  // cost (execution time x this rate) is what a run is charged, so it must be the card's own. Without the four
+  // measured prices a resumed run refuses rather than charging the wrong rate.
+  const imageDeps = (): RunpodDeps => {
+    const deps = runpodDeps();
+    if (imageRef.provider !== "runpod" || imageRef.workflow !== RUNPOD_WORKFLOWS.keyframe3.workflow) return deps;
+    const r = flux3Rates(prices);
+    if (!r) {
+      throw new NonRetryableError(
+        "the FLUX 3 picture rates are not set in prices.json (runpodPicture3UsdPerSec, runpodPicture3Sec, runpodPortrait3Sec, runpodPicture3ColdStartSec); this run's pictures were made with FLUX 3 and cannot be charged without them",
+      );
+    }
+    return { ...deps, rates: { ...deps.rates, keyframeUsdPerSec: r.usdPerSec } };
+  };
   const image: ImageProvider =
-    imageRef.provider === "retired" ? retired("pictures", imageRef.model) : new RunpodImage(runpodDeps(), imageRef);
+    imageRef.provider === "retired" ? retired("pictures", imageRef.model) : new RunpodImage(imageDeps(), imageRef);
   const video: VideoProvider =
     videoRef.provider === "retired" ? retired("clips", videoRef.model) : new RunpodVideo(runpodDeps(), videoRef);
   // The voice follows the run too: a run spoken by the studio's own voice stays on the endpoint it was made
