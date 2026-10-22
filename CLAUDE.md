@@ -49,7 +49,7 @@ read the one for the area you are changing before changing it (table at the end)
 | `db/migrations/` | the database: plain SQL, nine files (accounts, tenancy, billing, three for series, publishing, plans by the year, series without a budget) |
 | `src/db/client.ts`, `src/auth/` | the one client for the studio's Postgres (`Db`), and password hashing |
 | `workers/` | the clip worker (Python, a ComfyUI graph for Wan 2.2 at 480p and 720p; text encoder and VAE in its image, the rest on the volume) |
-| `worker-picture/` | the picture worker (Python, FLUX.2 klein 4B through diffusers; weights on the network volume) |
+| `worker-picture/` | the picture worker (Python, two engines in one image: FLUX.2 klein 4B and FLUX 3 klein, through diffusers; weights on the network volume) |
 | `worker-upscale/` | the upscaling worker for full HD (Python: SeedVR2 3B; weights inside its image; phase 8 spec §8) |
 | `src/providers/elevenlabs.ts`, `src/voice/hosted.ts`, `assets/voices/elevenlabs.json` | the hosted voice, and which of its voices plays each of the studio's voices in each language |
 | `worker-voice/`, `src/voice/`, `src/providers/runpod-voice.ts` | the studio's own voice worker (Python: VoxCPM2 + Whisper; the fallback), laying a script's words over what was heard, the provider |
@@ -138,6 +138,10 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
   Apache 2.0 4B (the fallback if BFL ends the license, phase 10 spec §1). A run keeps its profile. FLUX 3 klein's license
   is the FLUX Kommunity License v.1.0, not Apache: commercial use of Outputs only while revenue is under US$5M (above
   that BFL must grant a license), BFL may terminate it at any time, and nobody trains another model on its pictures.
+  Both engines are one image and one template, so a `runpod:deploy` moves the 4B onto the FLUX 3 stack too (phase 10 spec §12).
+  Rollback: `RUNPOD_PICTURE_IMAGE=ghcr.io/<owner>/flowchain-picture:p-795ce3d4a463 npm run runpod:deploy` puts back the
+  pre-Phase-10 picture image (and takes FLUX 3 down). Keep the four `runpodPicture3*` prices in `prices.json` while any
+  FLUX 3 run may be resumed or remade (the profile throws without them).
 - **A video is built from four layers chosen apart** (phase 8 spec §1): a niche (what it is about, its rules of
   truth), a type (`src/formats.ts`: how it is told), a style (how a picture is drawn) and an edit (`src/edits.ts`:
   camera, cuts, a finish over the frame). The niche's rules always hold; a type decides the hook and shape; an edit's

@@ -69,10 +69,10 @@ From the two model pages (`flux-3-image-klein`, `flux-3-image-klein-comfy`), als
   9 spec §4, §6). Its exact instructions are taken from BFL's repository during task 7; if they cannot be
   reproduced with Gemini, the fallback is hosting `flux-3-image-klein-pup` on the same endpoint (about +28 GB), and
   this section is amended before any deploy. The upsampled prompt is never shown to a customer or logged (phase 5 §8).
-- **The GPU:** a card of at least 32 GB, with the FP8 or NVFP4 weights. Which card, and the prices, are the
+- **The GPU:** a card of at least 32 GB, with the FP8 or NVFP4 weights (overridden by §12: BF16 on a 48 GB card). Which card, and the prices, are the
   owner's to set after measuring (§8).
 - **`diffusers`:** the Dockerfile's build-time check (`import … Flux2KleinPipeline`) is extended to the FLUX 3
-  pipeline, so an image whose library lacks it is not pushed. Whether the pinned `diffusers==0.41.0` ships
+  pipeline, so an image whose library lacks it is not pushed. (Overridden by §12: the pin moved, for both engines.) Whether the pinned `diffusers==0.41.0` ships
   `ModularPipeline` is checked in task 1 in a scratch virtual environment (free); if it does not, the pin moves and
   the 4B worker is retested.
 - **Names:** "FLUX", "klein" and the profile id join `INTERNAL_NAMES` (`web/lib/engines.ts`); `names.test.ts`
@@ -338,7 +338,7 @@ hosting for customers. None of these is run by an agent (CLAUDE.md, "Rules that 
 - 16 steps and a 32 GB-class card: slower and dearer pictures than today; the credit prices follow the measured rates.
 - Reference copying is unmeasured until the owner's run; the gate protects the default.
 - BFL can end the license on notice (§8.b); the 4B fallback is the answer.
-- Gemini may not reproduce the upsampler's instructions; the fallback is hosting the 9B upsampler (§3).
+- Gemini may not reproduce the upsampler's instructions; the fallback is hosting the 9B upsampler (§3) (overridden by §3.1 and §12: the instructions are public and Gemini uses them).
 - Base64 references may pass the request body limit (§5).
 - The owner's revenue passing US$5M ends the Qualifying User right; the owner is told here once.
 
@@ -370,3 +370,15 @@ Found by task 1 (§3.1), replacing what §3 assumed:
   reference's shape, which is the anchor or the portrait, not the video's frame.
 - **The upsampler's instructions are public** (`system_prompts.json`, Apache 2.0, copied in §3.1), and the model card
   names "any other LLM" as a replacement. Task 8 uses them with Gemini; hosting the 9B upsampler is not needed.
+- **2026-10-22, final review: one picture image for both engines (a ruling that overrides the bullet on `diffusers` above).**
+  `worker-picture/` builds ONE image and one template serves both picture endpoints, and the image tag follows the
+  `worker-picture` tree. So the image ships `diffusers` from main as a source archive,
+  `https://github.com/huggingface/diffusers/archive/b800f828f3951c4d206e154411bcbfa693cd322e.zip` (a zip, not
+  `git+https`, because the base image has no git), `transformers>=5.2`, and records `torch>=2.6`, for BOTH endpoints. The 4B
+  engine's compatibility with that stack could not be tested without a GPU and is **unverified until the owner's first
+  deploy**, and the next ordinary `runpod:deploy` (even with `RUNPOD_PICTURE3_GPUS` unset) moves the working 4B endpoint onto
+  it. Rollback: before the first deploy of this image, note the current picture image tag. The pre-Phase-10 tag is
+  `p-795ce3d4a463` (`git rev-parse 41bd71a:worker-picture` starts `795ce3d4a463`; `pictureImageTag` in `src/deploy/runpod.ts`
+  builds a tag as `p-` plus the first 12 characters of the tree hash), so
+  `RUNPOD_PICTURE_IMAGE=ghcr.io/<owner>/flowchain-picture:p-795ce3d4a463 npm run runpod:deploy` puts the 4B back; because
+  one template serves both endpoints, that also takes FLUX 3 down.
