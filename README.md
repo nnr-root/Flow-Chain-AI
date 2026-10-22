@@ -120,6 +120,19 @@ run on the new one has worked. It refuses while any endpoint still reads from it
 Re-running `runpod:deploy` also takes off the volume any weight the clip worker no longer lists (the earlier
 picture models; the text encoder and VAE, which are inside the clip image now).
 
+### FLUX 3 klein pictures (optional)
+
+A second picture model, on its own endpoint beside the 4B above; a run keeps the model it was made with. In order:
+
+1. On Hugging Face, accept the terms of `black-forest-labs/flux-3-image-klein`, make a read token, and read the model's `LICENSE.md`.
+2. Deploy its endpoint on a 48 GB card (names as RunPod lists them; the token is passed through the shell for this command only):
+   `RUNPOD_PICTURE3_GPUS="<48 GB card names, comma separated>" HF_TOKEN=… npm run runpod:deploy`. It writes `RUNPOD_PICTURE3_ENDPOINT` into `.env`.
+3. Measure one real video and set the four `runpodPicture3UsdPerSec`, `runpodPicture3Sec`, `runpodPortrait3Sec`, `runpodPicture3ColdStartSec` prices in `prices.json`. The model is not offered until all four are set; keep them while any run made with it may be resumed or remade.
+4. `FLOWCHAIN_IMAGE_MODEL=flux3` insists on it and `klein4b` forces the 4B. To try references between cuts, make the same script and seed twice, with `FLOWCHAIN_CUT_REFERENCES=off` and `on`, then compare: `npm run eval:cuts -- <runOn> <runOff>` (free). Set it to `on` in `.env` if that shows a gain.
+
+Both picture models are one image and one template, so any `runpod:deploy` puts the 4B on the same software as FLUX 3. To go back to the picture image from before FLUX 3:
+`RUNPOD_PICTURE_IMAGE=ghcr.io/<owner>/flowchain-picture:p-795ce3d4a463 npm run runpod:deploy` (this also takes FLUX 3 down).
+
 Runs with characters get one generated reference portrait (or a brand kit's `reference` image), made after the
 voice and straight before the pictures so the picture worker starts once; every keyframe of a scene the
 character is in is conditioned on it; `reroll <runId> --stage reference --scene 1` generates a new portrait (keyframes are then
@@ -163,7 +176,7 @@ answer. The first line on a host that has never run it waits about four minutes 
 
 The model stack is licensed for commercial use (VoxCPM2 and Whisper: Apache 2.0 and MIT).
 
-The picture and clip models are licensed for commercial use (FLUX.2 klein 4B and Wan 2.2: Apache 2.0).
+FLUX.2 klein 4B and Wan 2.2 are Apache 2.0, which allows commercial use. The FLUX 3 klein picture model (when you set it up, below) is not: it is under the FLUX Kommunity License v.1.0. Its outputs may be used commercially while your gross annualised revenue, with your affiliates, is under US$5M; the text does not address hosting the model for others; Black Forest Labs may end the license on notice; and its pictures must not be used to train another model. `docs/superpowers/specs/2026-10-18-phase10-flux3-reframe-design.md` §1 has the details, and the license itself is the one to read.
 
 ## Studio (web app)
 
