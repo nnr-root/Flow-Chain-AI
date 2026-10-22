@@ -149,8 +149,13 @@ longer and the file is larger; measure both on your machine. A 60 fps run is ref
 5. Set `FLOWCHAIN_SMOOTH_MOTION=on` in `.env`. The studio shows the choice only when the restorer endpoint is set and this is `on` (the web server does not read `prices.json`, so the switch is yours to set after measuring).
 6. Judge the motion: fast action, faces, fine detail; and that the platform you post to accepts a 60 fps upload.
 
-To go back to the restorer image from before smooth motion:
-`RUNPOD_UPSCALE_IMAGE=ghcr.io/<owner>/flowchain-upscale:u-415cd27e11cc npm run runpod:deploy`. That takes smooth motion down but not Full HD (the old image has the old workflow); a new 60 fps run then fails plainly until the new image is back.
+To go back to the restorer image from before smooth motion, in this order:
+
+1. Set `FLOWCHAIN_SMOOTH_MOTION=off` first. The form hides the control, a new draft that asks for 60 fps is refused, `generate` of a 60 fps draft is refused before any credit is held, and a series whose recipe is 60 fps stops and waits for its owner.
+2. Wait for any 60 fps run that is already generating to end, or stop it: it would buy its clips and then fail at the restorer.
+3. `RUNPOD_UPSCALE_IMAGE=ghcr.io/<owner>/flowchain-upscale:u-415cd27e11cc npm run runpod:deploy`. That takes smooth motion down but not Full HD (the old image has the old workflow).
+
+The switch gates the studio only. `npm run flowchain -- run … --fps 60` (your own tool) is not gated by it, only by the four prices, so a 60 fps run from the command line after the rollback fails at the restorer.
 
 Runs with characters get one generated reference portrait (or a brand kit's `reference` image), made after the
 voice and straight before the pictures so the picture worker starts once; every keyframe of a scene the

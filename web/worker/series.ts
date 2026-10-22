@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { Queue } from "bullmq";
 import type { Db } from "@src/db/client";
 import { newRunId } from "@src/manifest/store";
+import { health } from "../server/config";
 import { draftCapOfArgs, round4 } from "../lib/credit";
 import { episodeTopic } from "../lib/series";
 import { JOB_OPTIONS, type RunJobData } from "../server/jobs/redis";
@@ -119,6 +120,9 @@ export function autopilot({ db, line, asUser, here, post, busy, log }: Autopilot
     if (!s.next_due_at || new Date(s.next_due_at).getTime() > Date.now()) return;
     const recipe = Recipe.safeParse(s.recipe);
     if (!recipe.success) return finish(s, "", "failed", "its saved choices can no longer be read");
+    // A recipe that asks for smooth motion cannot be made while it is not offered (a rollback of the restorer): the
+    // video would buy its script, voice, pictures and clips and fail at the end. It stops and waits for its owner.
+    if (recipe.data.fps === 60 && !health().smooth) return finish(s, "", "failed", "its next video asks for smooth motion, which is not available right now");
     const tied = await db.from("runs").select("id").eq("series_id", s.id).order("created_at");
     if (tied.error) throw new Error(`reading a series' runs: ${tied.error.message}`);
     const runId = newRunId();

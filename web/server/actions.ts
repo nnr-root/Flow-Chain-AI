@@ -116,6 +116,11 @@ async function assertApproved(runId: string, approvedUsd: number, reroll?: Rerol
  * to the CLI twice: as `--budget`, so it does not ask, and as `--cap`, the ceiling on what the job spends in total.
  */
 export async function generate(runId: string, approvedUsd: number): Promise<JobView> {
+  // a 60 fps draft made while smooth motion was on would buy its clips and then fail at the restorer if the switch has
+  // since gone off (a rollback): refuse before anything is priced, held or queued
+  if ((await requireManifest(runId)).request.fps === 60 && !(await studioHealthRaw()).smooth) {
+    throw new ApiError("validation", "smooth motion is not available in this studio right now");
+  }
   // one figure, to four decimals, for the plan check, the credit held and the command's cap
   const approved = round4(approvedUsd);
   await assertApproved(runId, approved);

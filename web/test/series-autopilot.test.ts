@@ -67,16 +67,17 @@ describe.skipIf(!supa || !hasRedisServer())("a series on a schedule", () => {
   const runsOf = async (id: string) => ((await db().from("runs").select("id,charged_usd,topic").eq("series_id", id).order("created_at")).data ?? []) as Array<{ id: string; charged_usd: string; topic: string }>;
   const open = async () => (await db().from("reservations").select("id").eq("status", "open").eq("user_id", a.id)).data!.length;
   /** A series made and given a schedule through the studio's own routes, as its owner. */
-  const series = async (schedule: Record<string, unknown>) => {
-    const made = await createSeries(as(cookie, "/api/series", { json: { name: "Foxes", premise: "Foxes at night, one story at a time", recipe: {} } }), undefined);
+  const series = async (schedule: Record<string, unknown>, recipe: Record<string, unknown> = {}) => {
+    const made = await createSeries(as(cookie, "/api/series", { json: { name: "Foxes", premise: "Foxes at night, one story at a time", recipe } }), undefined);
     expect(made.status).toBe(201);
     const { id } = (await made.json()) as { id: string };
     const set = await changeSeries(as(cookie, `/api/series/${id}`, { json: { schedule }, method: "PATCH" }), params({ id }));
     expect(set.status).toBe(200);
     return id;
   };
-  const worker = async (): Promise<TestWorker> => {
+  const worker = async (extraEnv: Record<string, string> = {}): Promise<TestWorker> => {
     const w = startWorkerProcess({
+      ...extraEnv,
       REDIS_URL: redis.url, FLOWCHAIN_ROOT: studio.root, RUNS_DIR: studio.runs, FLOWCHAIN_CLI: process.env.FLOWCHAIN_CLI!,
       DATABASE_URL: s.worker, WORKER_RECONCILE_MS: "1000", WORKER_SERIES_MS: "400",
       // other test files use the same database at the same time: this worker leaves their users' credit alone
@@ -166,6 +167,29 @@ describe.skipIf(!supa || !hasRedisServer())("a series on a schedule", () => {
     expect(await runsOf(id)).toEqual([]);
     expect(await calls()).toEqual([]);
     expect(await balance()).toBe(0);
+  });
+
+  it("does not begin a 60 fps video while smooth motion is not offered: it stops, and buys nothing", async () => {
+    await grant(5);
+    await stage(0.31, { spendUsd: 0.2, makesVideo: true });
+    const id = await series({ cadence: "daily" }, { fps: 60 });
+    await worker();
+    await until(async () => (await row(id)).status === "paused", 30_000);
+    expect(await row(id)).toMatchObject({ status: "paused", paused_reason: "failed", current_run: null });
+    expect(await runsOf(id)).toEqual([]);
+    expect(await calls()).toEqual([]);
+    expect(await balance()).toBe(5);
+    expect(await open()).toBe(0);
+  });
+
+  it("begins a 60 fps video while smooth motion is offered", async () => {
+    await grant(5);
+    await stage(0.31, { spendUsd: 0.2, makesVideo: true });
+    const id = await series({ cadence: "daily" }, { fps: 60 });
+    await worker({ RUNPOD_UPSCALE_ENDPOINT: "ep-u", FLOWCHAIN_SMOOTH_MOTION: "on" });
+    await until(async () => (await runsOf(id)).length === 1 && (await row(id)).current_run === null && (await open()) === 0, 30_000);
+    const draft = (await calls()).find((c) => c[0] === "run")!;
+    expect(draft).toEqual(expect.arrayContaining(["--fps", "60"]));
   });
 
   it("stops, and retries nothing, when a video is not finished", async () => {
