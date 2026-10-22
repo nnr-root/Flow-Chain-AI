@@ -138,8 +138,11 @@ export function transitionLook(transition: Transition, local: number, h: number)
         b: { opacity: q, blurPx: 0, scale: 1.25 - 0.25 * q },
         glitch: false,
       };
-    case "glitch":
-      return { a: before ? PLAIN : null, b: before ? null : PLAIN, glitch: local >= h - 1 && local <= h + 1 };
+    case "glitch": {
+      // One frame either side of the cut at 30 fps (h = 3); the window's half is scaled with fps, so is the flash.
+      const flash = Math.max(1, Math.round(h / 3));
+      return { a: before ? PLAIN : null, b: before ? null : PLAIN, glitch: local >= h - flash && local <= h + flash };
+    }
   }
 }
 
