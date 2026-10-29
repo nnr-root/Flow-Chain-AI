@@ -162,6 +162,7 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - **A script of more than 90 seconds is written in parts** (an outline, then each part), each answer checked
   and saved with its charge (`manifest.scriptParts`), so a stopped run buys none again.
 - **Every change to a prompt bumps `PROMPT_VERSION`** (`src/providers/prompt-version.ts`; phase 9 spec §4), including a change to a niche, type, edit, culture or preset text; `test/unit/prompt-pin.test.ts` fails without it.
+- **A scene's sounds come from `SCENE_SOUNDS` only** (phase 12 spec; `src/sounds.ts`): the script names up to two per scene from that closed, synthesized library. A new sound needs its recipe in `scripts/make-sfx.ts`, its table entry in `src/media/sfx.ts`, its `about` line and a `PROMPT_VERSION` bump; `make:sfx` is the owner's click.
 
 ## How the studio is built
 
@@ -385,6 +386,7 @@ graphify god-nodes --top 20       # the hubs
 | The prompts Gemini is given: version, audit, eval harness | `2026-10-18-phase9-prompt-audit-design.md` |
 | FLUX 3 klein as the picture model; reframe cuts and the shared look | `2026-10-18-phase10-flux3-reframe-design.md` |
 | Smooth motion: 60 fps interpolated in the restorer worker | `2026-10-22-phase11-smooth-motion-design.md` (§0, §3.1 and §11 win) |
+| Scene sound effects: a closed synthesized library the script names | `2026-10-29-phase12-scene-sfx-design.md` |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.
 

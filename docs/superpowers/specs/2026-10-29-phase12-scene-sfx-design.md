@@ -1,6 +1,6 @@
 # Phase 12 — scene sound effects: the script names the sounds a scene would have, from a closed library
 
-Date: 2026-10-29. Status: design, not built.
+Date: 2026-10-29. Status: built; the owner's steps (§6) are not done.
 
 ## 0. Where this sits
 
@@ -21,7 +21,7 @@ Decisions of the owner for A: sounds come **by scene** (the script says what a s
 
 ## 1. The library and its vocabulary
 
-- `scripts/make-sfx.ts` grows from 3 recipes to about 24 (`aevalsrc` + filters, fixed pseudo-random sequences, 44.1 kHz stereo
+- `scripts/make-sfx.ts` grows from 3 recipes to 17 (14 new; `aevalsrc` + filters, fixed pseudo-random sequences, 44.1 kHz stereo
   MP3 in `assets/sfx/`, committed; renders never synthesize). First list, to be tuned by ear: `footstep`, `door`, `knock`, `rain`,
   `wind`, `thunder`, `crowd`, `engine`, `beep`, `glass`, `splash`, `fire`, `heartbeat`, `clock`, plus the existing `impact`,
   `whoosh`, `pop`. Names are fixed once published (they live in manifests).
@@ -83,3 +83,39 @@ Decisions of the owner for A: sounds come **by scene** (the script says what a s
    cheap to retune.
 2. Make one video at the next paid run and judge whether the sounds fit; a script that names too many sounds is fixed in the
    prompt rule (silence by default), not in code.
+
+## 7. What was found and changed
+
+Rulings of the plan (they win over §1–§2 where they differ):
+
+- **Library size:** 17 sounds, not about 24: the 3 edit sounds, 9 hits (`footstep`, `door`, `knock`, `glass`, `beep`, `clock`,
+  `heartbeat`, `splash`, `thunder`) and 5 beds (`rain`, `wind`, `crowd`, `engine`, `fire`). `src/sounds.ts` holds the vocabulary
+  (`EDIT_SOUNDS`, `SCENE_SOUNDS`, `SCENE_SOUND_ABOUT`) and imports nothing, because the browser reads it through the schema.
+- **A hit is at most 1.9 s long.** A longer sound is a bed.
+- **`at` is ignored for a bed:** it runs under the whole scene, fading at the seams.
+- **A clash is judged against the edit's sounds only** (the hook's impact and the cut sounds); the edit's sounds win. Two scenes'
+  own sounds are not compared with each other.
+
+What the tasks found:
+
+- The recipes in `scripts/make-sfx.ts` are first formulas and have **never been auditioned by ear**. ffmpeg accepted all of them
+  and a test holds each to be non-silent, of its length and byte-identical on a second build; whether they sound right is the
+  owner's step 1.
+- **Hashes.** The script stage's input hash covers request fields only, never scene fields, and `PROMPT_VERSION` is in no input
+  hash. Scene cues therefore ride the frozen script, and an old run does not buy its script again. The render stage hashes the
+  whole props object, so cues (which flow into `audio.sfx`) are already covered; a test asserts that props differ when the cue
+  list differs.
+- `PROMPT_VERSION` is now `2026-10-29.16`. Its date prefix differs from the earlier entries, so
+  `test/unit/prompt-changelog.test.ts` was changed: changelog versions may span dates, the counters run 1..n, and the last entry
+  equals `PROMPT_VERSION`. It still fails on a missing or duplicate line.
+- The schema converter needed no change: the optional enum array comes out of `z.toJSONSchema` as it is.
+
+Parked or minor:
+
+- **Gemini's live acceptance of the nested array, enum and `maxItems: 2` inside a scene is untested** (built against fakes).
+  Confirm it on the first real script.
+- **A `start` hit in scene 0 is always dropped while the hook is shown:** both land on frame 0 and the edit's impact wins. The
+  script's `middle` or `end` is the way to have a sound in scene 0.
+- The 60 fps test checks that the same second is hit within 0.05 s, not an exact frame times two (`sceneFrames` at 60 fps does
+  not simply double the fitted frames of the fixture).
+- One prompt assertion (`/empty/i`, that the list is left empty when unsure) is weak: it would pass on other uses of the word.

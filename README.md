@@ -60,7 +60,17 @@ The first 3 s open with a hook: a snap zoom, a big title Gemini writes (or `--ho
 (`--no-hook` turns it off, and `rerender --hook-on` brings a removed hook back). Cuts get sound effects: a
 whoosh into `zoom` and `blur`, a pop on `glitch` and hard cuts, nothing on `fade` and `dissolve` (`--no-sfx`,
 `--sfx-gain`; `rerender --sfx` turns them back on). The sounds are bundled in `assets/sfx` (`npm run make:sfx`
-regenerates them).
+regenerates them; it is the owner's click, like every `make:*`).
+
+The script may also name up to two sounds a scene would have, only from a closed library of synthesized sounds, and
+leaves a scene silent when its picture has no clear source (silence is the default). Nine are one-off hits at the
+scene's start, middle or end: `footstep`, `door`, `knock`, `glass`, `beep`, `clock`, `heartbeat`, `splash`, `thunder`. Five
+are beds that play quietly under the whole scene and fade at its seams: `rain`, `wind`, `crowd`, `engine`, `fire`. A
+scene sound that lands within about 6 frames of the hook's impact or a cut sound is dropped (the edit's sounds win),
+and in scene 0 a `start` hit is dropped while the hook is shown. `--no-sfx` silences all of it and `--sfx-gain` scales
+all of it; a run made before this has none. The recipes are in `scripts/make-sfx.ts` and were never tuned by ear: to
+retune one, edit its expression there, run `npm run make:sfx` (the owner's click) and listen to `assets/sfx/`. A sound
+is added with its recipe, its table entry in `src/media/sfx.ts`, its line in `src/sounds.ts` and a `PROMPT_VERSION` bump.
 
 A brand kit is a folder with `brand.json` (see `assets/brand/example`): a logo watermarked at a corner, and an
 optional font, text and accent colours and character bible. `--brand <dir>` copies it into the run;
