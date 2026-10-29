@@ -1,5 +1,7 @@
 """The FLUX 3 klein picture model, loaded once per worker (phase 10 spec §3.1). Nothing here writes a prompt or a file name to a log (phase 5 spec §8)."""
 
+import os
+
 _pipe = None
 # the distilled model's own setting (spec §3.1: "defaults to 16; trained for 4 to 16 steps"), passed so a library default
 # that changes cannot change the picture; the distilled pipeline has no guider and takes no negative prompt
@@ -20,6 +22,12 @@ def load(model_dir):
         blocks.sub_blocks.pop("prompt_upsampler", None)
         pipe = blocks.init_pipeline(model_dir)
         pipe.load_components(dtype=torch.bfloat16)
+        # load_components() skips a component it cannot load and leaves it None; seen live, the tokenizer was one, and
+        # the first picture failed in the text encoder. It is a processor whose files are in the text encoder's folder.
+        if getattr(pipe, "tokenizer", None) is None:
+            from transformers import AutoProcessor
+
+            pipe.update_components(tokenizer=AutoProcessor.from_pretrained(os.path.join(model_dir, "text_encoder")))
         pipe.to("cuda")
         _pipe = pipe
     return _pipe

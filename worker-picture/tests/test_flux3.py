@@ -146,6 +146,7 @@ def test_the_pipeline_is_built_without_its_prompt_upsampler_block(monkeypatch):
 
     class Pipe:
         blocks = Blocks()
+        tokenizer = "loaded"  # the library loaded it: nothing to add
 
         def load_components(self, dtype=None):
             events.append(("load", dtype))
@@ -171,6 +172,56 @@ def test_the_pipeline_is_built_without_its_prompt_upsampler_block(monkeypatch):
     engine_flux3.load("/models/x")
     assert ("init", "/models/x", ["denoise"]) in events
     assert ("load", "bf16") in events and ("to", "cuda") in events
+    monkeypatch.setattr(engine_flux3, "_pipe", None)
+
+
+def test_a_tokenizer_the_library_left_empty_is_loaded_from_the_text_encoder_folder(monkeypatch):
+    # live (phase 10): load_components() left `tokenizer` as None and the first picture failed in apply_chat_template
+    import sys
+    import types
+
+    events = []
+
+    class Blocks:
+        sub_blocks = {"denoise": object()}
+
+        def init_pipeline(self, path):
+            return Pipe()
+
+    class Pipe:
+        blocks = Blocks()
+        tokenizer = None
+
+        def load_components(self, dtype=None):
+            pass
+
+        def to(self, device):
+            return self
+
+        def update_components(self, **parts):
+            events.append(parts)
+            self.tokenizer = parts["tokenizer"]
+
+    class ModularPipeline:
+        @staticmethod
+        def from_pretrained(path, **kw):
+            p = Pipe()
+            p.blocks = Blocks()
+            return p
+
+    class AutoProcessor:
+        @staticmethod
+        def from_pretrained(path, **kw):
+            events.append(("processor", path))
+            return "processor"
+
+    monkeypatch.setitem(sys.modules, "diffusers", types.SimpleNamespace(ModularPipeline=ModularPipeline))
+    monkeypatch.setitem(sys.modules, "transformers", types.SimpleNamespace(AutoProcessor=AutoProcessor))
+    monkeypatch.setitem(sys.modules, "torch", types.SimpleNamespace(bfloat16="bf16"))
+    monkeypatch.setattr(engine_flux3, "_pipe", None)
+    pipe = engine_flux3.load("/models/x")
+    assert ("processor", "/models/x/text_encoder") in events
+    assert pipe.tokenizer == "processor"
     monkeypatch.setattr(engine_flux3, "_pipe", None)
 
 
