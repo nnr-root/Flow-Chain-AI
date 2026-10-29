@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SCENE_SOUNDS } from "../sounds.js";
 import { BrandLook } from "../brand.js";
 import { Aspect, Prices } from "../config.js";
 import { CaptionStyleName, Transition } from "../media/remotion/props.js";
@@ -66,8 +67,15 @@ export const SceneSpec = z.object({
   reframe: z.boolean().optional().describe("true on a cut scene that shows the same place and moment as the previous scene from a new angle or distance; false otherwise"),
   /** Optional when stored: a script written before phase 5 says nothing, and is read as it always was (in every scene). */
   showsCharacter: showsCharacter.optional(),
+  /** Optional when stored: absent means none. Sounds the scene would have, from a closed library (phase 12 spec §2). */
+  soundCues: z
+    .array(z.object({ sound: z.enum(SCENE_SOUNDS), at: z.enum(["start", "middle", "end"]) }))
+    .max(2)
+    .optional()
+    .describe("Up to 2 sounds this scene would clearly have, each with where it plays; leave empty or omit when unsure"),
 });
 export type SceneSpec = z.infer<typeof SceneSpec>;
+export type SceneSoundCue = NonNullable<SceneSpec["soundCues"]>[number];
 
 export const Script = z.object({
   title: z.string(),

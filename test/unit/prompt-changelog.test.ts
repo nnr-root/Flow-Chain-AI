@@ -10,9 +10,9 @@ describe("the prompt version's changelog in the spec", () => {
   it("has a line for the current version, so a bump without one is caught", () => {
     expect(entries).toContain(PROMPT_VERSION);
   });
-  it("has each version from .1 to the current one exactly once", () => {
-    const [date, counter] = [PROMPT_VERSION.slice(0, 10), Number(PROMPT_VERSION.slice(11))];
-    const want = Array.from({ length: counter }, (_, i) => `${date}.${i + 1}`);
-    expect(entries).toEqual(want);
+  it("has each version from .1 to the current one exactly once, the date being the day each was made", () => {
+    const counter = Number(PROMPT_VERSION.slice(11));
+    expect(entries.map((e) => Number(e.slice(11)))).toEqual(Array.from({ length: counter }, (_, i) => i + 1));
+    expect(entries.at(-1)).toBe(PROMPT_VERSION);
   });
 });

@@ -10,6 +10,7 @@ import { editById } from "../edits.js";
 import { cultureRules } from "../culture.js";
 import { LANGUAGE_IN_ENGLISH } from "../voice/language.js";
 import { LlmOutline, LlmPart, LlmScript, LlmTranslation, MAX_COUNTED_SCENES, MAX_NARRATION_WORDS } from "../manifest/schema.js";
+import { SCENE_SOUNDS, SCENE_SOUND_ABOUT } from "../sounds.js";
 import { PRESETS } from "../presets.js";
 import { shrinkReference } from "../media/reference-image.js";
 import type { InspectRequest, LlmProvider, ScriptRequest } from "./types.js";
@@ -140,6 +141,7 @@ function sceneRules(req: ScriptRequest): string[] {
     "- camera: the programmatic camera move used if this scene is rendered from a still image.",
     '- actionLevel: "high" for fast or complex motion worth real video, "medium" for some motion, "low" for still, contemplative or text-like moments.',
     '- suggestedTransition: how the cut into this scene should feel: "cut" for punchy or continuous energy, "fade" or "dissolve" for time passing or a mood shift, "zoom_transition" for an energetic jump. Scene 1\'s value is ignored.',
+    `- soundCues: up to two sounds this scene's picture clearly has a source for, each as {sound, at} with at "start", "middle" or "end" (a texture such as rain or wind plays under the whole scene, so its "at" does not matter). Choose only from: ${SCENE_SOUNDS.map((s) => `${s} (${SCENE_SOUND_ABOUT[s]})`).join("; ")}. Name a sound only when the frame shows what makes it; when unsure, leave the list empty. Silence is the default, and most scenes have none.`,
     ...(req.shots
       ? [
           `- Use exactly these shot values, in order: ${req.shots.map((s, i) => `scene ${i + 1} "${s}"`).join(", ")}. ` +
