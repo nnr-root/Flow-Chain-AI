@@ -162,7 +162,7 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - **A script of more than 90 seconds is written in parts** (an outline, then each part), each answer checked
   and saved with its charge (`manifest.scriptParts`), so a stopped run buys none again.
 - **Every change to a prompt bumps `PROMPT_VERSION`** (`src/providers/prompt-version.ts`; phase 9 spec §4), including a change to a niche, type, edit, culture or preset text; `test/unit/prompt-pin.test.ts` fails without it.
-- **A scene's sounds come from `SCENE_SOUNDS` only** (phase 12 spec; `src/sounds.ts`): the script names up to two per scene from that closed, synthesized library. A new sound needs its recipe in `scripts/make-sfx.ts`, its table entry in `src/media/sfx.ts`, its `about` line and a `PROMPT_VERSION` bump; `make:sfx` is the owner's click.
+- **A scene's sounds come from `SCENE_SOUNDS` only** (phase 12 spec; `src/sounds.ts`): the script names up to two per scene from that closed, synthesized library. A new sound needs its recipe in `scripts/make-sfx.ts`, its table entry in `src/media/sfx.ts`, its name and `about` line in `src/sounds.ts`, and a `PROMPT_VERSION` bump with its changelog line in the phase 9 spec; `make:sfx` is the owner's click.
 
 ## How the studio is built
 

@@ -66,7 +66,7 @@ The script may also name up to two sounds a scene would have, only from a closed
 leaves a scene silent when its picture has no clear source (silence is the default). Nine are one-off hits at the
 scene's start, middle or end: `footstep`, `door`, `knock`, `glass`, `beep`, `clock`, `heartbeat`, `splash`, `thunder`. Five
 are beds that play quietly under the whole scene and fade at its seams: `rain`, `wind`, `crowd`, `engine`, `fire`. A
-scene sound that lands within about 6 frames of the hook's impact or a cut sound is dropped (the edit's sounds win),
+scene sound that lands fewer than 6 frames (at 30 fps; 12 at 60) from the hook's impact or a cut sound is dropped (the edit's sounds win),
 and in scene 0 a `start` hit is dropped while the hook is shown. `--no-sfx` silences all of it and `--sfx-gain` scales
 all of it; a run made before this has none. The recipes are in `scripts/make-sfx.ts` and were never tuned by ear: to
 retune one, edit its expression there, run `npm run make:sfx` (the owner's click) and listen to `assets/sfx/`. A sound

@@ -119,3 +119,4 @@ Parked or minor:
 - The 60 fps test checks that the same second is hit within 0.05 s, not an exact frame times two (`sceneFrames` at 60 fps does
   not simply double the fitted frames of the fixture).
 - One prompt assertion (`/empty/i`, that the list is left empty when unsure) is weak: it would pass on other uses of the word.
+- The landing page's "In this video" line (`web/components/site/FeatureStage.tsx`, its `SOUND` map) names only the three edit sounds; a showcase published from a run with scene cues would label every scene sound "a sound at 0:05". No current showcase has cues. When the first one is published, label scene sounds from `SCENE_SOUND_ABOUT` (`src/sounds.ts` imports nothing, so the browser can use it) and leave beds out of the line or phrase them as under a scene.
