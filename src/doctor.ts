@@ -7,7 +7,7 @@ import { loadBrandKit } from "./brand.js";
 import type { Env } from "./config.js";
 import type { Models } from "./manifest/schema.js";
 import { CAPTION_STYLES, SCRIPT_FACES } from "./media/remotion/styles.js";
-import { sfxFiles } from "./media/sfx.js";
+import { SFX, sfxFiles } from "./media/sfx.js";
 import { PRESETS } from "./presets.js";
 import { ElevenLabsTts } from "./providers/elevenlabs.js";
 import { parseModelId } from "./providers/model-id.js";
@@ -124,7 +124,7 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models): Pr
     {
       name: "sound effects",
       ok: missingSfx.length === 0,
-      detail: missingSfx.length ? `missing: ${missingSfx.join(", ")} (run npm run make:sfx)` : "3 bundled",
+      detail: missingSfx.length ? `missing: ${missingSfx.join(", ")} (run npm run make:sfx)` : `${Object.keys(SFX).length} bundled`,
     },
     await attempt("example brand kit", async () => `${(await loadBrandKit(EXAMPLE_BRAND_DIR)).name} is valid`),
     await attempt("Remotion browser", checkRemotionBrowser),

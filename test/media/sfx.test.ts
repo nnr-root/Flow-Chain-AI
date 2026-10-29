@@ -1,7 +1,10 @@
 import { existsSync } from "node:fs";
+import { mkdtemp, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { execa } from "execa";
 import { describe, expect, it } from "vitest";
+import { RECIPES, synthesizeSfx } from "../../scripts/make-sfx.js";
 import { probeDuration } from "../../src/media/ffmpeg.js";
 import { SFX, sfxFiles } from "../../src/media/sfx.js";
 
@@ -45,4 +48,19 @@ describe("bundled sound effects", () => {
     expect(Math.abs(loudestAt(await samples(join(SFX_DIR, SFX.whoosh.file))) - 0.25)).toBeLessThanOrEqual(0.05);
     expect(SFX.whoosh.leadFrames).toBe(8); // 0.25 s at 30 fps, rounded
   });
+});
+
+describe("the sound recipes", () => {
+  it("synthesize to the declared lengths, are not silent, and are identical when made twice", async () => {
+    const a = await mkdtemp(join(tmpdir(), "sfx-a-"));
+    const b = await mkdtemp(join(tmpdir(), "sfx-b-"));
+    await synthesizeSfx(a);
+    await synthesizeSfx(b);
+    for (const r of RECIPES) {
+      expect(await probeDuration(join(a, r.file)), r.file).toBeCloseTo(r.seconds, 1);
+      const s = await samples(join(a, r.file));
+      expect(s.reduce((m, x) => Math.max(m, Math.abs(x)), 0), `${r.file} is silent`).toBeGreaterThan(0.02);
+      expect((await readFile(join(a, r.file))).equals(await readFile(join(b, r.file))), `${r.file} differs between runs`).toBe(true);
+    }
+  }, 120_000);
 });

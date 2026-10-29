@@ -36,6 +36,99 @@ export const RECIPES: Recipe[] = [
     seconds: 0.08,
     expr: "min(1,t/0.003)*0.9*sin(2*PI*(500*t+400*0.02*(1-exp(-t/0.02))))*exp(-40*t)",
   },
+  {
+    // a dull thud with a short scuff
+    file: "footstep.mp3",
+    seconds: 0.25,
+    expr: "min(1,t/0.003)*(0.6*sin(2*PI*90*t)*exp(-25*t)+0.4*(2*random(0)-1)*exp(-60*t))",
+    filters: "lowpass=f=1500",
+  },
+  {
+    // a low thump with a short noise slam
+    file: "door.mp3",
+    seconds: 0.6,
+    expr: "min(1,t/0.004)*(0.8*sin(2*PI*70*t)*exp(-9*t)+0.5*(2*random(0)-1)*exp(-30*t))",
+    filters: "lowpass=f=1200",
+  },
+  {
+    // two wooden knocks 0.18 s apart
+    file: "knock.mp3",
+    seconds: 0.4,
+    expr: "0.8*sin(2*PI*160*t)*min(1,t/0.002)*(exp(-45*t)+gte(t,0.18)*exp(-45*max(0,t-0.18)))",
+  },
+  {
+    // high ringing partials over a crack of noise
+    file: "glass.mp3",
+    seconds: 0.8,
+    expr: "min(1,t/0.002)*0.3*(sin(2*PI*2400*t)+sin(2*PI*3100*t)+sin(2*PI*4200*t))*exp(-9*t)+0.3*(2*random(0)-1)*exp(-80*t)",
+  },
+  {
+    // one 880 Hz tone
+    file: "beep.mp3",
+    seconds: 0.3,
+    expr: "0.5*sin(2*PI*880*t)*min(1,t/0.005)*min(1,(0.3-t)/0.01)",
+  },
+  {
+    // a dry tick
+    file: "clock.mp3",
+    seconds: 0.1,
+    expr: "(2*random(0)-1)*exp(-120*t)",
+    filters: "highpass=f=2000",
+  },
+  {
+    // two low thumps
+    file: "heartbeat.mp3",
+    seconds: 0.9,
+    expr: "0.9*sin(2*PI*55*t)*(exp(-14*t)+0.7*gte(t,0.28)*exp(-14*max(0,t-0.28)))",
+    filters: "lowpass=f=200,volume=2",
+  },
+  {
+    // a burst of band-limited noise
+    file: "splash.mp3",
+    seconds: 0.9,
+    expr: "(2*random(0)-1)*exp(-5*t)*min(1,t/0.01)",
+    filters: "highpass=f=400,lowpass=f=6000",
+  },
+  {
+    // a low rumble that swells and dies
+    file: "thunder.mp3",
+    seconds: 1.9,
+    expr: "(2*random(0)-1)*exp(-1.6*t)*min(1,t/0.25)",
+    filters: "lowpass=f=220,volume=4",
+  },
+  {
+    // beds: a texture that lasts a scene, faded 30 ms at both ends against a click
+    file: "rain.mp3",
+    seconds: 4,
+    expr: "(2*random(0)-1)*(0.7+0.3*sin(2*PI*0.5*t))",
+    filters: "highpass=f=1500,lowpass=f=9000,afade=t=in:d=0.03,afade=t=out:st=3.97:d=0.03",
+  },
+  {
+    file: "wind.mp3",
+    seconds: 4,
+    expr: "(2*random(0)-1)*(0.6+0.4*sin(2*PI*0.5*t))",
+    filters: "bandpass=f=400:width_type=h:w=500,volume=3,afade=t=in:d=0.03,afade=t=out:st=3.97:d=0.03",
+  },
+  {
+    file: "crowd.mp3",
+    seconds: 4,
+    expr: "(2*random(0)-1)*(0.6+0.2*sin(2*PI*1.25*t)+0.2*sin(2*PI*0.75*t))",
+    filters: "bandpass=f=450:width_type=h:w=800,volume=3,afade=t=in:d=0.03,afade=t=out:st=3.97:d=0.03",
+  },
+  {
+    // whole cycles in 4 s, so the loop has no seam
+    file: "engine.mp3",
+    seconds: 4,
+    expr: "0.5*sin(2*PI*55*t)+0.3*sin(2*PI*110*t)+0.2*sin(2*PI*165*t)+0.1*(2*random(0)-1)",
+    filters: "lowpass=f=600,afade=t=in:d=0.03,afade=t=out:st=3.97:d=0.03",
+  },
+  {
+    // noise with random crackles
+    file: "fire.mp3",
+    seconds: 4,
+    expr: "(2*random(0)-1)*(0.15+0.85*pow(random(1),12))",
+    filters: "highpass=f=800,volume=2,afade=t=in:d=0.03,afade=t=out:st=3.97:d=0.03",
+  },
 ];
 
 export async function synthesizeSfx(outDir: string): Promise<void> {
