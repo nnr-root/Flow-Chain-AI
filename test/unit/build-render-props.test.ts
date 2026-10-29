@@ -4,6 +4,7 @@ import { wordsToCaptions } from "../../src/media/remotion/caption-pages.js";
 import { RenderProps } from "../../src/media/remotion/props.js";
 import { CAPTION_STYLES } from "../../src/media/remotion/styles.js";
 import { PRESETS } from "../../src/presets.js";
+import { sfxCues } from "../../src/media/sfx.js";
 import { buildRenderProps } from "../../src/stages/build-render-props.js";
 import { globalWords } from "../../src/stages/captions.js";
 import { fakeScript } from "../fakes/providers.js";
@@ -161,5 +162,63 @@ describe("buildRenderProps with auto transitions and the preset's captions", () 
   it("captions in the preset's look and publishes its font", () => {
     expect(props.captions.style).toEqual(PRESETS.cyberpunk.caption);
     expect(files["Orbitron-Variable.ttf"]).toBe("/fonts/Orbitron-Variable.ttf");
+  });
+});
+
+describe("buildRenderProps with a script's own sounds (phase 12)", () => {
+  const withCues = () => {
+    const m = manifest();
+    m.request.render = { ...m.request.render, hook: true, sfx: true, sfxGain: 1 };
+    m.script!.scenes[1] = { ...m.script!.scenes[1], soundCues: [{ sound: "door", at: "middle" }, { sound: "rain", at: "start" }] };
+    return m;
+  };
+
+  it("plays a door at the scene's middle and a rain bed under the rest of the scene, both published", () => {
+    const m = withCues();
+    const { props, files } = buildRenderProps(m, opts, []);
+    const sc = props.scenes[1];
+    expect(props.audio.sfx).toContainEqual({ src: "sfx/door.mp3", frame: sc.from + Math.floor(sc.frames / 2), gain: 0.8 });
+    expect(props.audio.sfx).toContainEqual({ src: "sfx/rain.mp3", frame: sc.from, gain: 0.25, durationFrames: sc.frames, fadeFrames: 15 });
+    expect(files["sfx/door.mp3"]).toBe("/sfx/door.mp3");
+    expect(files["sfx/rain.mp3"]).toBe("/sfx/rain.mp3");
+    expect(RenderProps.safeParse(props).success).toBe(true);
+    expect(props.audio.sfx.map((c) => c.frame)).toEqual([...props.audio.sfx.map((c) => c.frame)].sort((a, b) => a - b));
+  });
+
+  it("plays none of them when sound effects are off", () => {
+    const m = withCues();
+    m.request.render.sfx = false;
+    expect(buildRenderProps(m, opts, []).props.audio.sfx).toEqual([]);
+  });
+
+  it("yields exactly the edit's cues for a script without sounds", () => {
+    const m = manifest();
+    m.request.render = { ...m.request.render, hook: true, sfx: true, sfxGain: 1 };
+    const { props } = buildRenderProps(m, opts, []);
+    const edit = sfxCues(props.boundaries, { hook: props.hook !== null, gain: 1 });
+    expect(props.audio.sfx.map((c) => [c.frame, c.gain])).toEqual(edit.map((c) => [c.frame, c.gain]));
+    expect(props.audio.sfx.every((c) => c.durationFrames === undefined)).toBe(true);
+  });
+
+  it("keeps the door on the same second at 60 fps", () => {
+    const m = withCues();
+    const at = (fps: number) => {
+      const { props } = buildRenderProps(m, { ...opts, fps }, []);
+      const door = props.audio.sfx.find((c) => c.src === "sfx/door.mp3")!;
+      const sc = props.scenes[1];
+      return { door: door.frame, mid: sc.from + Math.floor(sc.frames / 2), from: sc.from };
+    };
+    const a = at(30);
+    const b = at(60);
+    expect(b.door).toBe(b.mid);
+    expect(Math.abs(b.door / 60 - a.door / 30)).toBeLessThan(0.05);
+  });
+
+  it("has the cues in the render's input, so a changed cue list renders again", async () => {
+    const a = withCues();
+    const b = structuredClone(a);
+    b.script!.scenes[1].soundCues = [{ sound: "knock", at: "start" }];
+    const json = (m: typeof a) => JSON.stringify(buildRenderProps(m, opts, []).props);
+    expect(json(a)).not.toBe(json(b));
   });
 });

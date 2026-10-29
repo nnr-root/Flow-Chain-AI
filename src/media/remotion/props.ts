@@ -109,8 +109,17 @@ export const BrandProps = z.object({
 });
 export type BrandProps = z.infer<typeof BrandProps>;
 
-/** One sound effect: `src` starts playing at `frame` at `gain` (relative to the narration). */
-export const SfxCue = z.object({ src: z.string(), frame: z.number().int().min(0), gain: z.number().min(0) });
+/**
+ * One sound effect: `src` starts playing at `frame` at `gain` (relative to the narration). A cue with `durationFrames`
+ * is a bed: it loops under that many frames, fading in and out over `fadeFrames`.
+ */
+export const SfxCue = z.object({
+  src: z.string(),
+  frame: z.number().int().min(0),
+  gain: z.number().min(0),
+  durationFrames: z.number().int().positive().optional(),
+  fadeFrames: z.number().int().min(0).optional(),
+});
 export type SfxCue = z.infer<typeof SfxCue>;
 
 /** What is laid over the picture, never over the captions (an edit's finish, phase 8 spec §3). */

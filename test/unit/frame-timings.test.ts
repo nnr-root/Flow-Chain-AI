@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createManifest } from "../../src/manifest/store.js";
 import { wordsToCaptions } from "../../src/media/remotion/caption-pages.js";
 import {
+  bedVolume,
   fadeInOpacity,
   framesAt,
   HALF_WINDOW,
@@ -86,5 +87,16 @@ describe("the music's ramps follow the run's frame rate", () => {
     expect(at(60).audio.bgm).toMatchObject({ rampFrames: 20, fadeOutFrames: 60 });
     expect(at(30).hook?.zoomFrames).toBe(12);
     expect(at(60).hook?.zoomFrames).toBe(24);
+  });
+});
+
+describe("bedVolume (phase 12)", () => {
+  it("ramps in and out over the fade and holds 1 between", () => {
+    expect(bedVolume(0, 90, 15)).toBe(0);
+    expect(bedVolume(15, 90, 15)).toBe(1);
+    expect(bedVolume(45, 90, 15)).toBe(1);
+    expect(bedVolume(90, 90, 15)).toBe(0);
+    expect(bedVolume(80, 90, 15)).toBeCloseTo(0.6667, 3);
+    expect(bedVolume(5, 90, 0)).toBe(1);
   });
 });

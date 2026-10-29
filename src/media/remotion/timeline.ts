@@ -250,3 +250,9 @@ export function finishFilter(f: FinishProps): string | undefined {
 
 /** Where the grain's tile sits on a frame: it jumps every frame, the same way on every render of it. */
 export const grainOffset = (frame: number): { x: number; y: number } => ({ x: (frame * 73) % 256, y: (frame * 151) % 256 });
+
+/** A bed's level at its own frame: ramps up over `fade` frames at the start and down over `fade` at the end. */
+export function bedVolume(frame: number, total: number, fade: number): number {
+  if (fade <= 0) return 1;
+  return Math.max(0, Math.min(1, frame / fade, (total - frame) / fade));
+}

@@ -1,6 +1,8 @@
 import { join } from "node:path";
 import { EDIT_SOUNDS, type SceneSound } from "../sounds.js";
+import type { SceneSoundCue } from "../manifest/schema.js";
 import type { Boundary, Transition } from "./remotion/props.js";
+import { framesAt } from "./remotion/timeline.js";
 
 export type SfxName = (typeof EDIT_SOUNDS)[number] | SceneSound;
 export type SfxKind = "hit" | "bed";
@@ -35,7 +37,8 @@ const FOR_TRANSITION: Record<Transition, SfxName | null> = {
   cut: "pop", fade: null, dissolve: null, blur: "whoosh", zoom: "whoosh", glitch: "pop",
 };
 
-export type SfxCuePlan = { sound: SfxName; frame: number; gain: number };
+/** `durationFrames` set means a bed: it runs that many frames, fading over `fadeFrames` at each end. */
+export type SfxCuePlan = { sound: SfxName; frame: number; gain: number; durationFrames?: number; fadeFrames?: number };
 
 /**
  * Where sound effects play (spec §5.2): an impact at frame 0 when the hook is shown, and the cut's sound at
@@ -57,4 +60,39 @@ export function sfxCues(boundaries: Boundary[], opts: { hook: boolean; gain: num
 
 export function sfxFiles(sfxDir: string): string[] {
   return Object.values(SFX).map((s) => join(sfxDir, s.file));
+}
+
+export type SceneSfxInput = { from: number; frames: number; lead: number; cues: SceneSoundCue[] };
+
+/**
+ * Where a scene's own sounds play (phase 12 spec §2). A hit lands on the scene's start (after the transition that
+ * leads in), middle or last second; a bed runs under the whole scene. The edit's sounds (`taken`: the hook's impact
+ * and the cuts') win a clash, so a door never lands on top of a whoosh.
+ */
+export function sceneSfxCues(scenes: SceneSfxInput[], taken: SfxCuePlan[], opts: { gain: number; fps: number }): SfxCuePlan[] {
+  const clash = framesAt(6, opts.fps);
+  const out: SfxCuePlan[] = [];
+  for (const sc of scenes) {
+    const end = sc.from + sc.frames;
+    const start = Math.min(sc.from + sc.lead, end - 1);
+    const seen = new Set<string>();
+    let hasBed = false;
+    for (const c of sc.cues) {
+      if (seen.has(c.sound)) continue;
+      seen.add(c.sound);
+      const e = SFX[c.sound];
+      if (e.kind === "bed") {
+        if (hasBed) continue;
+        hasBed = true;
+        const durationFrames = end - start;
+        out.push({ sound: c.sound, frame: start, gain: opts.gain * e.baseGain, durationFrames, fadeFrames: Math.min(framesAt(15, opts.fps), Math.floor(durationFrames / 2)) });
+        continue;
+      }
+      const at = c.at === "start" ? start : c.at === "middle" ? sc.from + Math.floor(sc.frames / 2) : Math.max(start, end - opts.fps);
+      const frame = Math.max(0, at - e.leadFrames);
+      if (taken.some((t) => t.durationFrames === undefined && Math.abs(t.frame - frame) < clash)) continue;
+      out.push({ sound: c.sound, frame, gain: opts.gain * e.baseGain });
+    }
+  }
+  return out.sort((a, b) => a.frame - b.frame);
 }
