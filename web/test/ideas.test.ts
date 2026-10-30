@@ -36,7 +36,7 @@ vi.mock("@/server/jobs", async (orig) => {
 });
 const jobs = await import("@/server/jobs");
 
-const price = (usd: number | undefined) => vi.mocked(ideasPriceUsd).mockImplementation((raw?: unknown) => (usd !== undefined && raw === undefined ? usd : real.ideasPriceUsd(raw)));
+const price = (usd: number | undefined) => vi.mocked(ideasPriceUsd).mockImplementation((raw?: unknown) => (raw === undefined ? usd : real.ideasPriceUsd(raw)));
 const studio = useStudio();
 
 beforeEach(() => {
@@ -60,8 +60,8 @@ describe("ideasPriceUsd", () => {
     expect(real.ideasPriceUsd({ usd: 0.00001 })).toBeUndefined();
   });
 
-  it("is not set in the file as shipped: the button is not offered until the owner has measured", () => {
-    expect(real.ideasPriceUsd()).toBeUndefined();
+  it("is the price the owner chose in the file as shipped, a whole number of ten-thousandths of a dollar", () => {
+    expect(real.ideasPriceUsd()).toBe(0.1);
   });
 });
 
@@ -101,6 +101,7 @@ describe("the health answer's ideas", () => {
     process.env.GEMINI_API_KEY = "g";
     process.env.FLOWCHAIN_TREND_IDEAS = "on";
     process.env.DATABASE_URL = "postgres://x";
+    price(undefined);
     expect(studioSettings().ideas).toBeUndefined();
     price(0.05);
     expect(studioSettings().ideas).toBe(true);
