@@ -461,7 +461,7 @@ git commit -m "feat: the ideas command makes one model call with web search, rea
 
 - [ ] **Step 2: Failing tests** (`web/test/ideas-job.test.ts`):
   - `ideasRefusal` (pure, always runs): accepts `["ideas","--language","en","--cap","0.05"]` and the same with `--niche scary-stories`, `--region TR`, `--format <a real id>`, `--niche-text "retro consoles"` in any order; refuses: no `--language`, no `--cap`, a repeated option, `--cap 0.05` twice, an unknown option, a bad language (`"english"`), a niche not in `NICHE_IDS`, a `--niche-text` over `NICHE_TEXT_MAX`, `--yes`, a command that is not `ideas`, non-string entries, and an empty list.
-  - Worker (the harness's conditions; skipped like its siblings without the database and Redis): a user with credit, a request from `create_idea_request`, a reservation of kind `ideas` for 0.05, an `ideas` quick job with the exact args → the stub prints its JSON, the user is charged exactly 0.05 and the reservation is settled; the stub made to fail (`FAIL_IDEAS=1` in the worker's environment, as the harness passes env) → the job rejects and the user's balance is back to what it was; a job whose `--cap` differs from the reservation's, one with no reservation, one whose reservation belongs to another user, one whose reservation is of kind `draft`, and one for a run id that is not the reservation's → each rejects with "no credit is held for this ideas" and **spends and settles nothing** (the reservation stays open and the balance stays held).
+  - Worker (the harness's conditions; skipped like its siblings without the database and Redis): a user with credit, a request from `create_idea_request`, a reservation of kind `ideas` for 0.05, an `ideas` quick job with the exact args → the stub prints its JSON (after `IDEAS_DELAY_MS` of sleep when set), the user is charged exactly 0.05 and the reservation is settled; the stub made to fail (`FAIL_IDEAS=1` in the worker's environment, as the harness passes env) → the job rejects and the user's balance is back to what it was; a job whose `--cap` differs from the reservation's, one with no reservation, one whose reservation belongs to another user, one whose reservation is of kind `draft`, and one for a run id that is not the reservation's → each rejects with "no credit is held for this ideas" and **spends and settles nothing** (the reservation stays open and the balance stays held).
 
 - [ ] **Step 3: Implement.**
   - `redis.ts`: next to `refusal`:
@@ -551,6 +551,7 @@ export function ideasRefusal(args: unknown): string | undefined {
     }
 ```
   (`asUser` and `log` are in scope there; import `ideasRefusal`.) The `release` quick job needs no change: it settles an open reservation of a run that has no job at 0, which also refunds an ideas hold the web could not send.
+  - **The reconcile must not refund a request that is still being made** (review of Task 1, Important 2). `reconcile` passes every open reservation older than `reconcileMs` to `settleIdle`, which holds back only for `active`, `starting` or a job on the runs queue; an ideas job is on the quick queue and a search call or a wait behind four quick jobs can pass 60 s, so the price would be refunded at 0 and the later settle at the price would then charge nothing. Add a module-level `ideasInFlight = new Set<string>()` of request ids: `runQuick` adds the id when it takes an `ideas` job (after the checks, before the CLI) and removes it in a `finally` after its settle attempt; `settleIdle` returns false while `ideasInFlight.has(r.run_id)`. Test: a worker with a `reconcileMs` far smaller than the stub's runtime (the stub's `ideas` sleeps `IDEAS_DELAY_MS`, default 0) still charges the price and the request is not settled by the reconcile first.
   - `stub-cli.mjs`: an `ideas` command that prints `{"ideas":[{"topic":"A topic the stub made up","why":"Because a test asked","sources":[]}],"dropped":0}` and exits 1 with a one-line message when `process.env.FAIL_IDEAS` is set.
 
 - [ ] **Step 4:** `npx vitest run web/test/ideas-job.test.ts web/test/tenant-queue.test.ts` (confirm the summary says the worker cases **ran**, not skipped: start `npm run db:start` and `redis-server` as `CLAUDE.md` says), `npm run typecheck`.
@@ -642,7 +643,7 @@ import { ApiError } from "./http";
 import { newIdeaRequest, reserve } from "./credit";
 import { ideasJob, releaseJob, studioHealthRaw } from "./jobs";
 import { ideasArgs, type IdeasInput } from "./schemas";
-import { multiTenant } from "./tenant";
+import { multiTenant, userDb } from "./tenant";
 
 /** A click on "Suggest a topic": the price is held first (a studio with accounts), the worker asks, the price is kept or returned. */
 export async function suggestIdeas(input: IdeasInput): Promise<IdeasResult> {
@@ -651,6 +652,9 @@ export async function suggestIdeas(input: IdeasInput): Promise<IdeasResult> {
   if (!multiTenant()) return JSON.parse(await ideasJob(ideasArgs(input))) as IdeasResult;
   const price = ideasPriceUsd();
   if (price === undefined) throw new ApiError("not_found", "not found");
+  // (nothing in the database caps hidden requests: a user without credit could register one per click; review of Task 1, Minor 3)
+  const today = await userDb().from("runs").select("id", { count: "exact", head: true }).eq("state", "ideas").gte("created_at", new Date(Date.now() - 86_400_000).toISOString());
+  if ((today.count ?? 0) >= 50) throw new ApiError("too_many_jobs", "too many suggestions were asked for today", "try again tomorrow");
   const runId = await newIdeaRequest();
   const reservationId = await reserve(runId, "ideas", price);
   try {
