@@ -173,6 +173,26 @@ character is in is conditioned on it; `reroll <runId> --stage reference --scene 
 redone from it). Clips are 480p (upscaled to the output size) with frame interpolation to 32 fps. GPU time is
 charged per job from RunPod's measured execution time; cold starts and idle time are not attributed per job.
 
+### Topic ideas (optional)
+
+The new-video form can offer "Suggest a topic": one model call with Google Search (and, with a key, YouTube's public most-popular
+chart for the language's usual region) that writes up to eight ideas for the chosen niche, each with a sentence on why it is current and
+its sources. Choosing one only fills the topic field; the video is the usual paid draft. The same niche rules hold as for every video
+(no health, religion, politics or money products), and a link is shown only when the model really read that site.
+
+- `FLOWCHAIN_TREND_IDEAS=on` in `.env` switches it on (default `off`); it also needs `GEMINI_API_KEY`. On a server the **worker** needs
+  both, since the web reads the worker's health answer.
+- `YOUTUBE_API_KEY` is optional: a YouTube Data API v3 key (Google Cloud console, no OAuth). Without it the model works from search alone.
+- From the command line (the owner's, a paid call): `npm run flowchain -- ideas --language en --niche <id>` (or `--niche-text "…"`)
+  prints the ideas as JSON and the tokens and searches used on a line starting `ideas:` on stderr.
+- **Price.** A studio with accounts charges a fixed credit for each click, read from `web/content/ideas-price.json`, and shows the button
+  only once `usd` there is a number. To set it: run `ideas` for three niches, take the tokens and searches from the `ideas:` lines, work
+  out the cost at the provider's current published prices, add a margin, and write `{ "usd", "measuredOn", "basis" }`. Check on the same
+  runs that Google Search worked on your key and model (the sources are not empty). A user who gets no ideas, or ideas after the studio
+  stopped waiting, pays nothing. The owner's own studio without accounts charges nothing.
+- **Rollback.** `FLOWCHAIN_TREND_IDEAS=off` hides the button and the route answers 404; there is nothing else to undo. The migration
+  that added the `ideas` kind stays applied. Old hidden request rows are not pruned.
+
 ### The voice
 
 New runs are spoken by the hosted voice (ElevenLabs) while `ELEVENLABS_API_KEY` is set, and by the studio's own

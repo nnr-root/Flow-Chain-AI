@@ -16,7 +16,7 @@ read the one for the area you are changing before changing it (table at the end)
 ## Rules that are never broken
 
 - **Nothing that spends money or touches a real account runs without the owner's click.** That is:
-  `npm run flowchain` with `run`/`resume`/`reroll`/`doctor`, every `npm run smoke*`, `runpod:deploy`, `voice:deploy`,
+  `npm run flowchain` with `run`/`resume`/`reroll`/`ideas`/`doctor`, every `npm run smoke*`, `runpod:deploy`, `voice:deploy`,
   `make:sfx`, `make:styles`, `make:voices`, `eval:prompts`, `server:*`, `db:migrate`, `studio:grant`, `studio:welcome`, `stripe:setup`, and starting `npm run web` or
   `npm run worker` against the real `.env`. Tests never need any of them. `rerender` is free. `fetch-models` for the FLUX 3 endpoint is part of
   `runpod:deploy` (already listed), and the owner's Hugging Face token is only ever passed through the shell.
@@ -35,6 +35,7 @@ read the one for the area you are changing before changing it (table at the end)
 |---|---|
 | `src/cli.ts`, `src/pipeline.ts`, `src/stages/` | the CLI and its stages (script, tts, silence, modes, reference, keyframes, clips, fit, captions, render) |
 | `src/manifest/` | `manifest.json`: the schema, loading, saving. **The run's manifest is the truth about a run** |
+| `src/trends/` | topic ideas: the prompt, the answer's schema, the left-out lists, the filter, the region of a language, the chart (`run.ts` makes one call) |
 | `src/providers/` | Gemini, RunPod (pictures, clips, voice), R2; `types.ts` holds the interfaces the stages use |
 | `src/media/` | ffmpeg and Remotion helpers |
 | `src/billing/stripe.ts` | the Stripe HTTP client (shared by web, worker and `stripe:setup`) |
@@ -46,7 +47,7 @@ read the one for the area you are changing before changing it (table at the end)
 | `web/server/` | everything the routes do: `http.ts` (`route()`), `tenant.ts`, `session.ts`, `runs.ts`, `jobs/`, `store/`, `billing/` |
 | `web/worker/` | `worker.ts` (the queue), `tenant.ts` (credit), `billing.ts` (Stripe fulfilment), `series.ts` (series on a schedule), `publish.ts` and `vault.ts` (users' channels) |
 | `web/lib/` | code shared by server and browser; no secrets, few imports |
-| `db/migrations/` | the database: plain SQL, nine files (accounts, tenancy, billing, three for series, publishing, plans by the year, series without a budget) |
+| `db/migrations/` | the database: plain SQL, ten files (accounts, tenancy, billing, three for series, publishing, plans by the year, series without a budget, topic ideas) |
 | `src/db/client.ts`, `src/auth/` | the one client for the studio's Postgres (`Db`), and password hashing |
 | `workers/` | the clip worker (Python, a ComfyUI graph for Wan 2.2 at 480p and 720p; text encoder and VAE in its image, the rest on the volume) |
 | `worker-picture/` | the picture worker (Python, two engines in one image: FLUX.2 klein 4B and FLUX 3 klein, through diffusers; weights on the network volume) |
@@ -248,6 +249,7 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - What a plan is said to cover ("about 5 minutes…") is worked out by `fullyGeneratedMinutes` from the dated
   measurement in `web/content/measured.json`; when a new live check changes the cost, change that file.
 
+- A request for topic ideas is a hidden run (state `'ideas'`) held and settled like a job of kind `ideas`: the price from `web/content/ideas-price.json` at success, 0 at failure (phase 13 spec §5, §10).
 - **Credit:** a paid job reserves its approved cap before it is queued; the worker settles at what the
   run's manifest says was spent (ledger + pending `expectedUsd` + `abandonedUsd`). Users cannot cancel a
   reservation. Rounding is to four decimals; compare money in ten-thousandths, never as floats.
@@ -386,6 +388,7 @@ graphify god-nodes --top 20       # the hubs
 | The prompts Gemini is given: version, audit, eval harness | `2026-10-18-phase9-prompt-audit-design.md` |
 | FLUX 3 klein as the picture model; reframe cuts and the shared look | `2026-10-18-phase10-flux3-reframe-design.md` |
 | Smooth motion: 60 fps interpolated in the restorer worker | `2026-10-22-phase11-smooth-motion-design.md` (§0, §3.1 and §11 win) |
+| Topic ideas: "Suggest a topic" paid by a fixed credit | `2026-10-30-phase13-trend-ideas-design.md` (§10 wins) |
 | Scene sound effects: a closed synthesized library the script names | `2026-10-29-phase12-scene-sfx-design.md` |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.
