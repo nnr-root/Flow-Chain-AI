@@ -9,7 +9,7 @@ import { draftCapOfArgs } from "../lib/credit";
 import { multiTenant } from "../lib/accounts";
 import { baseRoots, health, roots } from "../server/config";
 import {
-  commandKind, consumerConnection, ideasRefusal, KEYS, type QuickJobData, type QuickJobResult, QUEUES, QUICK_WAIT_MS, refusal, type RunJobData, type RunJobResult,
+  commandKind, consumerConnection, ideasRefusal, KEYS, type QuickJobData, type QuickJobResult, QUEUES, IDEAS_CLI_TIMEOUT_MS, IDEAS_WAIT_MS, lateAnswer, refusal, type RunJobData, type RunJobResult,
 } from "../server/jobs/redis";
 import { exitCodeOf, lockState, readJobRecord, runFolder, runShort, spawnCli, stopProcess } from "../server/jobs/run-cli";
 import { type Job, type JobView, LOCK_FILE } from "../server/jobs/types";
@@ -40,7 +40,7 @@ export type WorkerOptions = {
   catchUpMs?: number;
   /** With accounts: how often the series with a schedule are looked at (default every two minutes). */
   seriesMs?: number;
-  /** Tests only: how long the web waits for a quick job (default `QUICK_WAIT_MS`, which is what the web uses). */
+  /** Tests only: how long the web waits for ideas (default `IDEAS_WAIT_MS`, which is what the web uses). */
   quickWaitMs?: number;
   log?: (message: string) => void;
 };
@@ -471,7 +471,7 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
           let stdout = "";
           let failure: unknown;
           try {
-            stdout = await runShort(job.data.args);
+            stdout = await runShort(job.data.args, IDEAS_CLI_TIMEOUT_MS);
           } catch (err) {
             failure = err;
           }
@@ -479,11 +479,10 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
           // that has none, would be read by the web as a failure and the user told their credit was returned
           // (final review, F4), so it is one here too and the price is returned in full.
           if (!failure && !hasIdeas(stdout)) failure = new Error("the ideas command printed no ideas");
-          // The web stops waiting QUICK_WAIT_MS after it queued the job and tells the user nothing was made; an answer
-          // that comes later reaches nobody, so it is thrown away and the price returned in full. The margin is five
-          // seconds short of the web's limit: the answer still has to reach the web through Redis, and one that might
-          // arrive in time is better refunded than charged and never shown.
-          if (!failure && Date.now() - job.timestamp >= (opts.quickWaitMs ?? QUICK_WAIT_MS) - 5000) {
+          // The web stops waiting IDEAS_WAIT_MS after it queued the job and tells the user nothing was made; an answer
+          // that comes later reaches nobody, so it is thrown away and the price returned in full (`lateAnswer` keeps
+          // a five-second margin for the way back through Redis).
+          if (!failure && lateAnswer(Date.now() - job.timestamp, opts.quickWaitMs ?? IDEAS_WAIT_MS)) {
             failure = new Error("the ideas came after the studio had stopped waiting for them");
           }
           // The price is kept when ideas came and returned in full when none did; if the database is away the reservation

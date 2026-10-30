@@ -6,7 +6,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { NICHE_TEXT_MAX } from "@src/niches";
 import { ideasJob, studioHealthRaw } from "@/server/jobs";
 import { closeQueue } from "@/server/jobs/queue";
-import { ideasRefusal, JOB_OPTIONS, QUEUES, refusal } from "@/server/jobs/redis";
+import { IDEAS_CLI_TIMEOUT_MS, IDEAS_WAIT_MS, ideasRefusal, JOB_OPTIONS, lateAnswer, QUEUES, QUICK_WAIT_MS, refusal } from "@/server/jobs/redis";
+import { SHORT_TIMEOUT_MS } from "@/server/jobs/run-cli";
+import { IDEAS_MODEL_TIMEOUT_MS } from "@src/trends/ideas";
 import { inScope } from "@/server/tenant";
 import { freshRunId, localDb, newUser, serviceClient, type TestUser } from "../../test/helpers/db";
 import { until, useStudio } from "./helpers";
@@ -18,6 +20,27 @@ import { withAccounts } from "./tenant";
  * exactly it, keeps the price when ideas came and gives it all back when none did. The worker cases need the local
  * database and `redis-server` and are skipped without either, as in tenant-queue.test.ts. Nothing reaches a provider.
  */
+describe("the time an ideas request is given (phase 13 spec §11: a grounded call took 20–60 s)", () => {
+  it("calls an answer late only from five seconds before the web stops waiting", () => {
+    for (const wait of [QUICK_WAIT_MS, IDEAS_WAIT_MS]) {
+      expect(lateAnswer(wait - 5001, wait)).toBe(false);
+      expect(lateAnswer(wait - 5000, wait)).toBe(true);
+    }
+  });
+  it("still charges an answer 56 s after it was asked for, which the old 60 s wait would have refunded", () => {
+    expect(lateAnswer(56_000, IDEAS_WAIT_MS)).toBe(false);
+    expect(lateAnswer(56_000, QUICK_WAIT_MS)).toBe(true);
+  });
+  it("waits longer than the CLI may run, which runs longer than the model call and than a short command's default", () => {
+    expect(IDEAS_WAIT_MS).toBeGreaterThan(IDEAS_CLI_TIMEOUT_MS);
+    expect(IDEAS_CLI_TIMEOUT_MS).toBeGreaterThan(IDEAS_MODEL_TIMEOUT_MS);
+    expect(IDEAS_CLI_TIMEOUT_MS).toBeGreaterThan(SHORT_TIMEOUT_MS);
+    expect(IDEAS_WAIT_MS).toBeGreaterThan(SHORT_TIMEOUT_MS);
+    // an answer the CLI gives at its very limit still comes before the late margin
+    expect(lateAnswer(IDEAS_CLI_TIMEOUT_MS, IDEAS_WAIT_MS)).toBe(false);
+  });
+});
+
 describe("ideasRefusal", () => {
   const base = ["ideas", "--language", "en", "--cap", "0.05"];
 
@@ -212,6 +235,27 @@ describe.skipIf(!supa || !hasRedisServer())("an ideas job through the queue", ()
     expect(w.output()).toMatch(/ideas .* settled at \$0\.0000/);
     expect(await reservation(reservationId)).toEqual({ status: "settled", charged_usd: 0 });
     expect(await balance(a)).toBe(1);
+  });
+
+  it("charges ideas that come 56 s after the studio asked: the worker's own wait is the ideas' 110 s, not the 60 s of other quick commands", async () => {
+    // no test override of the wait: the worker's default is what is checked; the job says it was queued 56 s ago
+    const w = await worker();
+    await grant(a, 1);
+    const runId = await request(a);
+    const reservationId = await hold(a, runId);
+    const quick = new Queue(QUEUES.quick, { connection: admin });
+    const events = new QueueEvents(QUEUES.quick, { connection: new Redis(redis.url, { maxRetriesPerRequest: null }) });
+    await events.waitUntilReady();
+    try {
+      const job = await quick.add("ideas", { args: ARGS, userId: a.id, runId, reservationId }, { ...JOB_OPTIONS, timestamp: Date.now() - 56_000 });
+      expect(await job.waitUntilFinished(events, 20_000).then(() => "ran", (err: Error) => err.message)).toBe("ran");
+    } finally {
+      await quick.close();
+      await events.close();
+    }
+    expect(w.output()).toMatch(/ideas .* settled at \$0\.0500/);
+    expect(await reservation(reservationId)).toEqual({ status: "settled", charged_usd: PRICE });
+    expect(await balance(a)).toBe(0.95);
   });
 
   it("refuses an ideas job that has no credit held for exactly it, and spends and settles nothing", async () => {

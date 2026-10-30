@@ -198,4 +198,9 @@ describe("ideasPrompt", () => {
     expect(p).toContain(`exactly ${IDEA_COUNT} ideas`);
     expect(p).toContain("one JSON object and nothing else");
   });
+  it("asks for at most 3 web searches, after telling the model to use the search, since every search is billed and slow", () => {
+    const p = ideasPrompt(base);
+    expect(p).toContain("at most 3 web searches");
+    expect(p.indexOf("at most 3 web searches")).toBeGreaterThan(p.indexOf("Use the web search"));
+  });
 });

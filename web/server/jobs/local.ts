@@ -3,6 +3,7 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { health, maxJobs, roots } from "../config";
 import { ApiError } from "../http";
+import { IDEAS_CLI_TIMEOUT_MS } from "./redis";
 import { exitCodeOf, jobAlive, lockState, readJobRecord, runFolder, runShort, spawnCli, stopProcess } from "./run-cli";
 import { type JobRunner, type JobView, LOCK_FILE } from "./types";
 
@@ -86,7 +87,7 @@ export const localRunner: JobRunner = {
 
   // the owner's own studio: the CLI's message may be shown as it is
   ideas: (args) =>
-    runShort(args).catch((err: unknown) => {
+    runShort(args, IDEAS_CLI_TIMEOUT_MS).catch((err: unknown) => {
       throw new ApiError("ideas_failed", err instanceof Error ? err.message : String(err));
     }),
 

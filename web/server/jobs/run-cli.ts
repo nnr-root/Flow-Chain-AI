@@ -161,11 +161,14 @@ export async function stopProcess(dir: string, job: Job): Promise<void> {
   }
 }
 
-/** Runs a free, short CLI command to its end and returns what it printed; throws its last error line. */
-export async function runShort(args: string[]): Promise<string> {
+/** How long a short CLI command may run when its caller names no other limit. */
+export const SHORT_TIMEOUT_MS = 60_000;
+
+/** Runs a short CLI command to its end and returns what it printed; throws its last error line. */
+export async function runShort(args: string[], timeoutMs = SHORT_TIMEOUT_MS): Promise<string> {
   const { cmd, argv } = cliCommand(args);
   try {
-    const { stdout } = await run(cmd, argv, { cwd: roots().repo, env: childEnv(), timeout: 60_000, maxBuffer: 8 * 1024 * 1024 });
+    const { stdout } = await run(cmd, argv, { cwd: roots().repo, env: childEnv(), timeout: timeoutMs, maxBuffer: 8 * 1024 * 1024 });
     return stdout;
   } catch (err) {
     const stderr = (err as { stderr?: string }).stderr?.trim();

@@ -163,6 +163,23 @@ export function ideasRefusal(args: unknown, { needsCap = true }: { needsCap?: bo
 /** How long the web waits for a quick job before telling the user the worker is busy or offline. */
 export const QUICK_WAIT_MS = 60_000;
 
+/**
+ * How long the web waits for topic ideas, and the one number the rest of their timing is cut from: the CLI is given
+ * ten seconds less, the model call less again. A grounded call with a few web searches takes 20–60 s (measured
+ * 2026-10-30, phase 13 spec §11), so the 60 s that the other quick commands keep would fail most clicks.
+ */
+export const IDEAS_WAIT_MS = 110_000;
+
+/** The CLI's own limit for an ideas command: ten seconds inside the web's wait, so an answer can still reach it. */
+export const IDEAS_CLI_TIMEOUT_MS = IDEAS_WAIT_MS - 10_000;
+
+/**
+ * Whether an answer came too late for anybody to be waiting for it (`waitMs` after the job was queued, less five
+ * seconds: the answer still has to reach the web through Redis, and one that might arrive in time is better
+ * refunded than charged and never shown).
+ */
+export const lateAnswer = (elapsedMs: number, waitMs: number): boolean => elapsedMs >= waitMs - 5000;
+
 export const redisUrl = (): string | undefined => process.env.REDIS_URL?.trim() || undefined;
 
 /**

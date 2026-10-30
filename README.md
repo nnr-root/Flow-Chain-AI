@@ -185,6 +185,9 @@ its sources. Choosing one only fills the topic field; the video is the usual pai
 - `YOUTUBE_API_KEY` is optional: a YouTube Data API v3 key (Google Cloud console, no OAuth). Without it the model works from search alone.
 - From the command line (the owner's, a paid call): `npm run flowchain -- ideas --language en --niche <id>` (or `--niche-text "…"`)
   prints the ideas as JSON and the tokens and searches used on a line starting `ideas:` on stderr.
+- **Time.** A call that searches the web takes 20–60 s (measured 2026-10-30), so a click can take up to about two minutes: the prompt
+  asks for at most three searches, the model call may take 90 s, the CLI 100 s, and the studio waits 110 s (`IDEAS_WAIT_MS`) before
+  saying nothing came. Other quick commands still wait 60 s.
 - **Price.** A studio with accounts charges a fixed credit for each click, read from `web/content/ideas-price.json`, and shows the button
   only once `usd` there is a number. To set it: run `ideas` for three niches, take the tokens and searches from the `ideas:` lines, work
   out the cost at the provider's current published prices, add a margin, and write `{ "usd", "measuredOn", "basis" }`. Write `usd` with

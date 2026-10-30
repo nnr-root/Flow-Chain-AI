@@ -2,6 +2,11 @@ import { z } from "zod";
 
 export const IDEA_TOPIC_MAX = 300;
 export const IDEA_COUNT = 8;
+/**
+ * How long the model call for ideas may take. A grounded call with a few web searches took 20–60 s when measured
+ * (phase 13 spec §11); the studio's CLI limit and its wait (`IDEAS_WAIT_MS` in web/server/jobs/redis.ts) are longer.
+ */
+export const IDEAS_MODEL_TIMEOUT_MS = 90_000;
 
 export const Idea = z.object({
   topic: z.string().trim().min(8).max(IDEA_TOPIC_MAX),

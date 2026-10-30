@@ -24,6 +24,7 @@ export function ideasPrompt(req: IdeasRequest): string {
     ...(format ? [`Video type: ${format.label}. ${format.about}.`] : []),
     `The viewers speak ${req.language} and are mostly in region ${req.region}. Write the ideas in English.`,
     `Use the web search to find what is being talked about now in this niche and region. Below, between the markers, is the platform's most-popular chart for the region: use it as a hint of what people watch, not as a list to copy.`,
+    "Search sparingly: at most 3 web searches in all, then write the answer from what they found; do not search again to check every idea.",
     DATA_START,
     chart,
     DATA_END,

@@ -14,6 +14,7 @@ import { SCENE_SOUNDS, SCENE_SOUND_ABOUT } from "../sounds.js";
 import { PRESETS } from "../presets.js";
 import { shrinkReference } from "../media/reference-image.js";
 import { ideasPrompt } from "../trends/prompt.js";
+import { IDEAS_MODEL_TIMEOUT_MS } from "../trends/ideas.js";
 import type { IdeasAnswer, IdeasRequest, InspectRequest, LlmProvider, ScriptRequest } from "./types.js";
 
 /** Gemini's responseJsonSchema takes plain JSON Schema; drop the draft marker zod adds. */
@@ -487,7 +488,7 @@ export class GeminiLlm implements LlmProvider {
       contents: ideasPrompt(req),
       // The web search tool is on; JSON is asked for in words and parsed by the pipeline (plan ruling 4), because
       // the search tool and a JSON response schema are not assumed to work together.
-      config: { tools: [{ googleSearch: {} }], temperature: TEMPERATURE.ideas, httpOptions: { timeout: 45_000 } },
+      config: { tools: [{ googleSearch: {} }], temperature: TEMPERATURE.ideas, httpOptions: { timeout: IDEAS_MODEL_TIMEOUT_MS } },
     });
     const text = res.text;
     if (!text) throw new Error("the model returned an empty response");

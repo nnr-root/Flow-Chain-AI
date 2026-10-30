@@ -6,7 +6,7 @@ import type { Health } from "../config";
 import { ApiError } from "../http";
 import { currentUser } from "../tenant";
 import {
-  clientConnection, consumerConnection, JOB_OPTIONS, KEYS, type QuickJobData, type QuickJobResult, QUEUES, QUICK_WAIT_MS, type RunJobData,
+  clientConnection, consumerConnection, JOB_OPTIONS, KEYS, type QuickJobData, type QuickJobResult, QUEUES, QUICK_WAIT_MS, IDEAS_WAIT_MS, type RunJobData,
 } from "./redis";
 import { exitCodeOf, readJobRecord, runFolder } from "./run-cli";
 import type { Job, JobRunner, JobView, StudioHealth } from "./types";
@@ -295,7 +295,7 @@ export function queueRunner(url: string): JobRunner {
         await requireWorker(e.redis);
         try {
           const userId = currentUser()?.id;
-          return (await ask(e, "ideas", { args, ...(userId ? { userId } : {}), ...(hold ?? {}) }, QUICK_WAIT_MS)).stdout;
+          return (await ask(e, "ideas", { args, ...(userId ? { userId } : {}), ...(hold ?? {}) }, IDEAS_WAIT_MS)).stdout;
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           if (/timed out before finishing/.test(message)) throw new ApiError("worker_offline", "the worker is busy or offline", "nothing was made; try again in a moment");
