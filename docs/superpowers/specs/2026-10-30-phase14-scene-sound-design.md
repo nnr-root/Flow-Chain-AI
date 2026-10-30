@@ -225,6 +225,10 @@ cost is the measured execution time at `runpodFoleyUsdPerSec`.
   file and never the web app's, which does not read them (the review's "both env files" was checked against `src/deploy/server.ts`:
   the web app's file carries only its own keys). Rolling back is `FLOWCHAIN_SCENE_SOUND=off` in `deploy/server.env` (or `.env`), then
   `server:setup`, which rewrites the worker's settings file (`server:deploy` does not: it copies the code and restarts).
+- **The form sends `sfx: false` wherever sound is not offered** (`sfxToSend`), for a draft and for a series' recipe, instead of the
+  hidden switch's default `true`. What remains, honestly: a form loaded while sound was off and submitted after the owner turned it on
+  sends `false` (no sound; safe); a series recipe saved before this fix with `sfx: true` keeps buying sound once the switch is on, priced
+  in the plan and under the schedule's standing approval. A note for the owner, no code: such recipes' `sfx` may be set to false.
 - A silent answer is logged by its scene's number, not its file's path; a prompt of only spaces buys no sound, and a prompt is sent
   trimmed.
 - The image gains two build-time checks: the two encoders are loaded offline on the CPU exactly as `load_model` loads them, and the
@@ -254,8 +258,8 @@ cost is the measured execution time at `runpodFoleyUsdPerSec`.
 - `web/server/actions.ts` imports `soundNotMade` from the stage module. It is not the web server's first runtime import of a stage
   (`src/studio/status.ts` already brings `stages/interpolate` and `stages/reference` into the web), so moving `hasSceneSound` and
   `soundNotMade` to the pure `src/sound.ts` and re-exporting them is a tidy-up, not a fix.
-- When the sound switch is off the hidden form still sends `sfx: true` (harmless: the draft then carries `--no-sfx`, see the final
-  review below, and the Look control is hidden for such a run). A stale sound record (done, but its hash changed) is not caught by `soundNotMade`.
+- When the sound switch is off the form now sends `sfx: false` (it sent the hidden default `true` until the final review, above), and the
+  Look control is hidden for such a run. A stale sound record (done, but its hash changed) is not caught by `soundNotMade`.
 - Small test cleanups: the schema test's title claims "no maxItems" but checks only `soundBible`'s subtree for an enum; a loop's braces in
   `restyle.test.ts` are misindented; the reroll total is asserted with `toBeGreaterThanOrEqual`; two web cases only characterize
   `assertApproved`. `web:e2e` and `test:accounts` were not run (only the draft note's text changed); `store.test.ts` and the bucket group of

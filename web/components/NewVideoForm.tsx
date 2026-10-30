@@ -24,6 +24,13 @@ import { VoicePicker } from "./VoicePicker";
 
 export type PresetCard = StyleCard;
 
+/**
+ * The `sfx` a form sends, for a draft and for a series' recipe alike: the switch's value only where the studio offers
+ * scene sound (phase 14 spec §6). Where it does not, the switch is hidden and its default (on) was never shown, so the
+ * answer is off: a recipe saved now must not start buying sound once the owner turns the layer on.
+ */
+export const sfxToSend = (health: Pick<StudioHealth, "sound">, switchOn: boolean): boolean => health.sound === true && switchOn;
+
 const CAPTION_STYLES = ["preset", "hormozi", "mrbeast", "minimalist"];
 const TRANSITIONS = ["auto", "cut", "fade", "dissolve", "blur", "zoom", "glitch"];
 
@@ -105,7 +112,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         aspect: f.aspect, durationSec: f.durationSec, sceneSec: { min: f.sceneMin, max: f.sceneMax }, style: f.style, motion: f.motion, clips: f.clips, fps: f.fps,
         brandKit: f.brandKit || null, music: f.music || null, musicGain: f.musicGain,
         hook: f.hookMode === "custom" ? { mode: "custom", text: f.hookText } : { mode: f.hookMode },
-        sfx: f.sfx, sfxGain: f.sfxGain, captionStyle: f.captionStyle, transition: f.transition,
+        sfx: sfxToSend(health, f.sfx), sfxGain: f.sfxGain, captionStyle: f.captionStyle, transition: f.transition,
         ...(f.characters.trim() ? { characters: f.characters } : {}),
         ...(f.seed.trim() ? { seed: Number(f.seed) } : {}),
         language: f.language, voiceId: f.voiceId,

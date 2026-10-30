@@ -8,7 +8,7 @@ import { POST as createDraft } from "@/app/api/drafts/route";
 import { POST as generate } from "@/app/api/runs/[id]/generate/route";
 import { POST as rerender } from "@/app/api/runs/[id]/rerender/route";
 import { POST as reroll } from "@/app/api/runs/[id]/reroll/route";
-import { NewVideoForm } from "@/components/NewVideoForm";
+import { NewVideoForm, sfxToSend } from "@/components/NewVideoForm";
 import { namesInternals, SELF_NAMES } from "@/lib/engines";
 import { STAGE_LABELS } from "@/lib/labels";
 import { readJob, type StudioHealth } from "@/server/jobs";
@@ -80,6 +80,15 @@ describe("the new-video form's sound effects", () => {
     expect(offered.filter((a) => !notOffered.includes(a))).toEqual([]);
     expect(draftArgs(NewVideo.parse({ topic: "t", sfx: false }), run, false).filter((a) => a === "--no-sfx")).toHaveLength(1);
     expect(refusal("runs", notOffered)).toBeUndefined();
+  });
+});
+
+describe("the sound effects a form sends, for a draft or a series' recipe", () => {
+  it("are off wherever scene sound is not offered, whatever the hidden switch holds, and the switch's value where it is", () => {
+    expect(sfxToSend({}, true)).toBe(false);
+    expect(sfxToSend({}, false)).toBe(false);
+    expect(sfxToSend({ sound: true }, true)).toBe(true);
+    expect(sfxToSend({ sound: true }, false)).toBe(false);
   });
 });
 
