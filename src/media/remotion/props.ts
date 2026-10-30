@@ -121,6 +121,14 @@ export const FinishProps = z.object({
 });
 export type FinishProps = z.infer<typeof FinishProps>;
 
+const SoundProps = z.object({
+  src: z.string(),
+  from: z.number().int().min(0),
+  frames: z.number().int().positive(),
+  gain: z.number().min(0),
+});
+export type SoundProps = z.infer<typeof SoundProps>;
+
 export const RenderProps = z.object({
   fps: z.number().int().positive(),
   width: z.number().int().positive(),
@@ -143,6 +151,8 @@ export const RenderProps = z.object({
     bgm: BgmProps.nullable(),
     /** Frames where narration is speaking (merged and padded): the BGM ducks inside them. */
     speech: z.array(FrameRange),
+    /** Each scene's own sound (phase 14), placed on the scene's frames; the narration is heard over it. Absent before phase 14. */
+    sound: z.array(SoundProps).default([]),
   }),
 });
 export type RenderProps = z.infer<typeof RenderProps>;

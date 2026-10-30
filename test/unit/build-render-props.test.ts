@@ -4,7 +4,7 @@ import { wordsToCaptions } from "../../src/media/remotion/caption-pages.js";
 import { RenderProps } from "../../src/media/remotion/props.js";
 import { CAPTION_STYLES } from "../../src/media/remotion/styles.js";
 import { PRESETS } from "../../src/presets.js";
-import { buildRenderProps } from "../../src/stages/build-render-props.js";
+import { buildRenderProps, SOUND_MIX } from "../../src/stages/build-render-props.js";
 import { globalWords } from "../../src/stages/captions.js";
 import { fakeScript } from "../fakes/providers.js";
 
@@ -144,5 +144,49 @@ describe("buildRenderProps with auto transitions and the preset's captions", () 
   it("captions in the preset's look and publishes its font", () => {
     expect(props.captions.style).toEqual(PRESETS.cyberpunk.caption);
     expect(files["Orbitron-Variable.ttf"]).toBe("/fonts/Orbitron-Variable.ttf");
+  });
+});
+
+describe("buildRenderProps with scene sound", () => {
+  const withSound = () => {
+    const m = manifest();
+    for (const i of [0, 2]) m.scenes[i].sound = { path: `sound/scene_0${i + 1}.wav`, sha256: "x", seconds: 1, seed: 1, guidance: 4, steps: 20, prompt: "p" };
+    return m;
+  };
+  const sounds = (m: ReturnType<typeof manifest>, fps = 30) => buildRenderProps(m, { ...opts, fps }, []);
+
+  it("places one entry per scene that has a sound, on the scene's own frames, at the studio's level times the base gain", () => {
+    const { props, files } = sounds(withSound());
+    expect(props.audio.sound).toEqual([
+      { src: "sound/scene_01.wav", from: 0, frames: 45, gain: 0.6 * SOUND_MIX.baseGain },
+      { src: "sound/scene_03.wav", from: 75, frames: 60, gain: 0.6 * SOUND_MIX.baseGain },
+    ]);
+    expect(files["sound/scene_01.wav"]).toBe("/run/sound/scene_01.wav");
+    expect(RenderProps.safeParse(props).success).toBe(true);
+  });
+
+  it("plays none when sound effects are off", () => {
+    const m = withSound();
+    m.request.render.sfx = false;
+    const { props, files } = sounds(m);
+    expect(props.audio.sound).toEqual([]);
+    expect(Object.keys(files).some((f) => f.startsWith("sound/"))).toBe(false);
+  });
+
+  it("is the props it gave before when no scene has a sound", () => {
+    const { props } = sounds(manifest());
+    expect(props.audio.sound).toEqual([]);
+  });
+
+  it("doubles from and frames at 60 fps", () => {
+    const e = sounds(withSound(), 60).props.audio.sound;
+    expect(e.map((x) => [x.from, x.frames])).toEqual([[0, 90], [150, 120]]);
+  });
+
+  it("parses props from before scene sound, which have no sound field", () => {
+    const { props } = sounds(manifest());
+    const old = structuredClone(props) as unknown as { audio: Record<string, unknown> };
+    delete old.audio.sound;
+    expect(RenderProps.parse(old).audio.sound).toEqual([]);
   });
 });

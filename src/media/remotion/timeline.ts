@@ -256,3 +256,28 @@ export function bedVolume(frame: number, total: number, fade: number): number {
   if (fade <= 0) return 1;
   return Math.max(0, Math.min(1, frame / fade, (total - frame) / fade));
 }
+
+/**
+ * Scene sound mix (phase 14 spec §5): ducked to half under speech with 10-frame ramps, 6 frames of fade at each of the
+ * scene's cuts, and a base level under the studio's "Sound effects" level; frames at 30 fps, scaled with `framesAt`.
+ * Here, not in the props, so the studio's player and the render read the same numbers; `build-render-props` re-exports it.
+ */
+export const SOUND_MIX = { duckTo: 0.5, rampFrames: 10, fadeFrames: 6, baseGain: 0.5 } as const;
+
+/**
+ * A scene sound's level at `frame` (local to its Sequence): `gain`, faded in and out over `fadeFrames` at the scene's
+ * own cuts, and ducked while the narration speaks. The duck reads the video's frame, `from + frame`, since `speech` is on
+ * the video's clock while Remotion hands a Sequence's volume callback its own frame.
+ */
+export function sceneSoundVolume(
+  frame: number,
+  frames: number,
+  fadeFrames: number,
+  speech: FrameRange[],
+  duckTo: number,
+  rampFrames: number,
+  gain: number,
+  from = 0,
+): number {
+  return gain * bedVolume(frame, frames, fadeFrames) * duckVolume(from + frame, speech, duckTo, rampFrames);
+}

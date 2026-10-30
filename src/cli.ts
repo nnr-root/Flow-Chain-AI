@@ -238,7 +238,7 @@ program
   .option("--hook <text>", "hook title for the first seconds (default: Gemini writes one)")
   .option("--no-hook", "no hook title or snap zoom")
   .option("--no-sfx", "no sound effects")
-  .option("--sfx-gain <0-1>", "sound-effect level relative to the narration (default: 0.6)")
+  .option("--sfx-gain <0-1>", "scene-sound level relative to the narration (default: 0.6)")
   .option("--brand <dir>", "brand kit folder (brand.json, logo, optional font): watermark, font, colours, characters")
   .option("--characters <text>", "character bible used in every prompt (default: the brand kit's, else Gemini's)")
   .option("--seed <n>", "seed shared by every keyframe (default: random)")
@@ -470,7 +470,7 @@ function lookOptions(command: Command): Command {
     .option("--hook-on", "show the hook again (the script's or the last --hook text)")
     .option("--sfx", "turn sound effects on")
     .option("--no-sfx", "turn sound effects off")
-    .option("--sfx-gain <0-1>", "sound-effect level relative to the narration")
+    .option("--sfx-gain <0-1>", "scene-sound level relative to the narration")
     .option("--brand <dir>", "apply this brand kit's look (watermark, font, colours)")
     .option("--no-brand", "remove the brand look");
 }

@@ -147,6 +147,14 @@ describe("buildDraftProps", () => {
     expect(files["draft/silence.wav"]).toBe("virtual:silence");
   });
 
+  it("carries no scene sound, even for a run that has some: nothing is bought for a preview", () => {
+    const m = draft();
+    m.scenes[0].sound = { path: "sound/scene_01.wav", sha256: "x", seconds: 1, seed: 1, guidance: 4, steps: 20, prompt: "p" };
+    const { props, files } = buildDraftProps(m, opts);
+    expect(props.audio.sound).toEqual([]);
+    expect(Object.keys(files).some((f) => f.startsWith("sound/"))).toBe(false);
+  });
+
   it("keeps everything that is already real: captions in the run's style, hook, music, boundaries", () => {
     const m = draft();
     const { props, files } = buildDraftProps(m, opts);

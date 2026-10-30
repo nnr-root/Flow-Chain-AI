@@ -9,6 +9,7 @@ import { engineHash, renderVideo } from "../media/remotion/render.js";
 import { buildRenderProps, type RenderInputs } from "./build-render-props.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireAudio, requireClip, requireFitted } from "./require.js";
+import { hasSceneSound } from "./sound.js";
 import type { Dep, Stage, StageContext } from "./types.js";
 import { autoModeDeps } from "./visual.js";
 
@@ -50,6 +51,8 @@ export const renderStage: Stage = {
     { stage: "captions" },
     ...autoModeDeps(m),
     ...m.scenes.map((s): Dep => ({ stage: "silence", scene: s.idx })),
+    // a scene with scene sound is rendered only once its sound is made (the stage exists only on a run that has it)
+    ...m.scenes.filter((s) => hasSceneSound(m, s.idx)).map((s): Dep => ({ stage: "sound", scene: s.idx })),
     ...m.scenes.map((s): Dep => (s.mode === 1 ? { stage: "fit", scene: s.idx } : { stage: "keyframes", scene: s.idx })),
   ],
   async inputsFor(ctx) {

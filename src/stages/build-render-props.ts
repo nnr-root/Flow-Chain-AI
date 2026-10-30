@@ -6,7 +6,7 @@ import type { Manifest } from "../manifest/schema.js";
 import { captionPages, type TimedWord } from "../media/remotion/caption-pages.js";
 import type { Boundary, RenderProps, SceneProps } from "../media/remotion/props.js";
 import { captionBottomPct } from "../media/remotion/styles.js";
-import { framesAt, HOOK, halfWindowFor, speechRanges } from "../media/remotion/timeline.js";
+import { framesAt, HOOK, halfWindowFor, SOUND_MIX, speechRanges } from "../media/remotion/timeline.js";
 import { globalWords } from "./captions.js";
 import { captionStyleFor, hookTextFor, transitionInto } from "./look.js";
 import { paths } from "./paths.js";
@@ -15,6 +15,8 @@ import { needsKeyframe, sceneFrames } from "./visual.js";
 
 /** BGM mix constants (2.3 spec §5.4): ducked to 40 % under speech with 10-frame S-curve ramps, 1 s fade-out; frames at 30 fps, scaled to the run's in the props. */
 export const BGM_MIX = { duckTo: 0.4, rampFrames: 10, fadeOutFrames: 30 } as const;
+
+export { SOUND_MIX };
 
 export type RenderInputs = {
   props: RenderProps;
@@ -32,6 +34,8 @@ export type RenderParts = {
   words: TimedWord[];
   captions: Caption[];
   narration: { rel: string; abs: string };
+  /** Scene i's own sound, if it has one (phase 14); `publish` registers its file. A draft preview gives none: nothing is bought for it. */
+  sound?: (i: number, publish: (rel: string, abs: string) => string) => string | null;
 };
 
 export type RenderPropsOptions = {
@@ -68,6 +72,10 @@ export function buildRenderProps(m: Manifest, opts: RenderPropsOptions, captions
     words: globalWords(m),
     captions,
     narration: { rel: paths.narration, abs: join(opts.dir, paths.narration) },
+    sound: (i, publish) => {
+      const sound = m.scenes[i].sound;
+      return m.request.render.sfx && sound ? publish(sound.path, join(opts.dir, sound.path)) : null;
+    },
   });
 }
 
@@ -125,6 +133,12 @@ export function assembleRenderProps(m: Manifest, opts: RenderPropsOptions, parts
     ? { src: publish(`bgm${extname(m.request.bgm)}`, m.request.bgm), gain: m.request.render.bgmGain, duckTo: BGM_MIX.duckTo, rampFrames: framesAt(BGM_MIX.rampFrames, fps), fadeOutFrames: framesAt(BGM_MIX.fadeOutFrames, fps) }
     : null;
 
+  // placed by the scene's own frames, not by the sound's seconds: a sound is never longer than its scene, may be shorter
+  const sound = frames.flatMap((n, i) => {
+    const src = parts.sound?.(i, publish);
+    return src ? [{ src, from: scenes[i].from, frames: n, gain: m.request.render.sfxGain * SOUND_MIX.baseGain }] : [];
+  });
+
   return {
     props: {
       fps,
@@ -141,6 +155,7 @@ export function assembleRenderProps(m: Manifest, opts: RenderPropsOptions, parts
         narration: publish(parts.narration.rel, parts.narration.abs),
         bgm,
         speech: speechRanges(parts.words, fps, totalFrames),
+        sound,
       },
     },
     files,

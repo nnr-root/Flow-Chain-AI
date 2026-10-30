@@ -44,7 +44,7 @@ function baseProps(overrides: Partial<RenderProps>): RenderProps {
     captions: { style: CAPTION_STYLES.hormozi, bottomPct: 30, pages: [] },
     hook: null,
     brand: null,
-    audio: { narration: "narration.wav", bgm: null, speech: [] },
+    audio: { narration: "narration.wav", bgm: null, speech: [], sound: [] },
     ...overrides,
   };
 }
@@ -108,6 +108,7 @@ describe("Remotion composition (real Chrome)", () => {
             { from: 0, to: 30 },
             { from: 60, to: 90 },
           ],
+          sound: [],
         },
       }),
       files: {
@@ -125,6 +126,36 @@ describe("Remotion composition (real Chrome)", () => {
     expect(open - ducked).toBeGreaterThan(10); // 0.18 ≈ -15 dB
   });
 
+  it("plays a scene's own sound on the scene's frames, faded at its cuts and ducked under speech", async () => {
+    const dir = await tempDir();
+    await makeImage(join(dir, "still.png"), { width: 192, height: 336 });
+    await makeAudio(join(dir, "narration.wav"), [{ silence: 3 }]); // silent: only the scene sound is measured
+    await makeAudio(join(dir, "sound.wav"), [{ tone: 1.5, freq: 330 }]);
+    const out = join(dir, "video.mp4");
+    await renderVideo({
+      props: baseProps({
+        // the sound belongs to the second half of the video (frames 45 to 90), and the second second is speech
+        scenes: [{ kind: "still", src: "still.png", camera: "zoom_in", from: 0, frames: 90 }],
+        audio: { narration: "narration.wav", bgm: null, speech: [{ from: 75, to: 90 }], sound: [{ src: "sound.wav", from: 45, frames: 45, gain: 1 }] },
+      }),
+      files: {
+        "still.png": join(dir, "still.png"),
+        "narration.wav": join(dir, "narration.wav"),
+        "sound.wav": join(dir, "sound.wav"),
+        "Montserrat-ExtraBold.ttf": FONT,
+      },
+      workDir: join(dir, "render"),
+      out,
+    });
+
+    const before = await meanVolume(out, 0.2, 1.0); // nothing plays before the scene's frames
+    const open = await meanVolume(out, 1.7, 0.4); // clear of the fade-in and the duck's ramp
+    const ducked = await meanVolume(out, 2.7, 0.25);
+    expect(open).toBeGreaterThan(-40); // an audio stream with sound above silence
+    expect(open - before).toBeGreaterThan(20);
+    expect(open - ducked).toBeGreaterThan(3); // 0.5 is about -6 dB
+  });
+
   it("evaluates the BGM volume curve on the video's frames when the BGM file loops", async () => {
     const dir = await tempDir();
     await makeImage(join(dir, "still.png"), { width: 192, height: 336 });
@@ -138,6 +169,7 @@ describe("Remotion composition (real Chrome)", () => {
           narration: "narration.wav",
           bgm: { src: "bgm.wav", gain: 1, duckTo: 0.18, rampFrames: 6, fadeOutFrames: 30 },
           speech: [{ from: 0, to: 30 }], // only the first second is speech
+          sound: [],
         },
       }),
       files: {
