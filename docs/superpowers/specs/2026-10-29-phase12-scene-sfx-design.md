@@ -120,3 +120,21 @@ Parked or minor:
   not simply double the fitted frames of the fixture).
 - One prompt assertion (`/empty/i`, that the list is left empty when unsure) is weak: it would pass on other uses of the word.
 - The landing page's "In this video" line (`web/components/site/FeatureStage.tsx`, its `SOUND` map) names only the three edit sounds; a showcase published from a run with scene cues would label every scene sound "a sound at 0:05". No current showcase has cues. When the first one is published, label scene sounds from `SCENE_SOUND_ABOUT` (`src/sounds.ts` imports nothing, so the browser can use it) and leave beds out of the line or phrase them as under a scene.
+
+## 8. Lip sync (B and C): tried on 2026-10-30, shelved by the owner
+
+The lip-sync trial (§0, B) ran on the owner's own RunPod account, an A100 80 GB pod, three sessions, about US$2.1 in all (the account
+balance ran out in the middle of it and killed the first pod; nothing was left running). Inputs were scene 2 (a still keyframe and its
+5.04 s narration) and scene 3 (a real Wan clip, 720x1280, 6.1 s) of run `20261029-135614-f9188a`.
+
+- **LatentSync 1.6** (Apache-2.0, mouth painted over a video): 2 min 47 s for the still, 7 min 33 s for the real clip, both with model
+  load; about US$0.22 a scene at the pod's US$1.79 an hour. Identity and camera motion were kept; the mouth changed.
+- **Wan 2.2 S2V 14B** (Apache-2.0, image and audio to video): 28 min 55 s for 5 s on 80 GB with offload and no flash-attn (`peft` and a
+  fallback of `flash_attention` to scaled dot product attention were needed); about US$0.86 a scene; 448x832 at 16 fps.
+- MuseTalk and InfiniteTalk were not tried. A hosted service (sync.so: lipsync-2 US$0.04–0.05, lipsync-2-pro US$0.067–0.083, sync-3
+  US$0.107–0.133 a second) was researched, not tried.
+
+**Ruling (the owner's): every result was judged unusable, and the owner will not pay for a hosted service. Lip sync is shelved
+entirely; C is not written.** Faces in our scenes are small in the frame and the clips are 480p, which is where open models fall short.
+Come back only if a model that handles small faces in generated video appears at a price near the clip's own, or if scenes are made
+as close portraits on purpose. Nothing in the pipeline was changed for it.
