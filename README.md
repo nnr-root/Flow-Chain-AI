@@ -187,11 +187,14 @@ its sources. Choosing one only fills the topic field; the video is the usual pai
   prints the ideas as JSON and the tokens and searches used on a line starting `ideas:` on stderr.
 - **Price.** A studio with accounts charges a fixed credit for each click, read from `web/content/ideas-price.json`, and shows the button
   only once `usd` there is a number. To set it: run `ideas` for three niches, take the tokens and searches from the `ideas:` lines, work
-  out the cost at the provider's current published prices, add a margin, and write `{ "usd", "measuredOn", "basis" }`. Check on the same
+  out the cost at the provider's current published prices, add a margin, and write `{ "usd", "measuredOn", "basis" }`. Write `usd` with
+  at most four decimals (0.0123, not 0.01234): credit is held in ten-thousandths, and a finer price counts as no price (no button). Check on the same
   runs that Google Search worked on your key and model (the sources are not empty). A user who gets no ideas, or ideas after the studio
   stopped waiting, pays nothing. The owner's own studio without accounts charges nothing.
-- **Rollback.** `FLOWCHAIN_TREND_IDEAS=off` hides the button and the route answers 404; there is nothing else to undo. The migration
-  that added the `ideas` kind stays applied. Old hidden request rows are not pruned.
+- **Rollback.** Set `FLOWCHAIN_TREND_IDEAS=off` on the **worker** (its `.env`, or `deploy/server.env` on a server) and restart the
+  worker: the web reads the switch from the worker's health answer, which it caches, so changing the web's own setting does nothing.
+  The button then goes and the route answers 404; there is nothing else to undo. The migration that added the `ideas` kind stays
+  applied. Old hidden request rows are not pruned.
 
 ### The voice
 

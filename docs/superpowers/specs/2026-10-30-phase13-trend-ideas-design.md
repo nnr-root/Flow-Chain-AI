@@ -182,17 +182,39 @@ What the tasks found:
 Parked, in plain words:
 
 - **Hidden request rows are never pruned.** Each click leaves one `'ideas'` row in `runs`; delete old ones when they matter.
-- **The account ledger page links a hidden request as "this video"** (`web/app/(studio)/account/page.tsx`), to a run page that does not exist.
 - **The left-out word lists over-catch some history topics** (campaign, church, diet, pope, senate, congress, pandemic). Revisit after
   real outputs.
 - **Free ideas if `settle` fails after a successful call:** the user keeps the ideas and the hold stays open until the reconcile settles
   it at 0. Accepted.
 - **A narrow race** between the reconcile's idle check and the worker taking the job (add the id to `ideasInFlight` before reading the reservation).
-- **The chart's category id is not validated** (8 characters can carry a line break into the chart block; the source is the YouTube API);
-  bidirectional and zero-width characters pass; the topic text of an own niche keeps its inner whitespace; duplicate sources inside one
-  idea are not removed (a repeated React key).
 - **The CLI's `--language` is not checked against the speech languages**, and its catch prints the SDK's message to stderr (the owner's
   own studio may see it; customers never do).
-- **The button:** no busy label or `aria-busy`, no client-side `https:` guard on the links, `IdeaSuggestions` is not rendered in a test,
-  and the accounts tests mock the web side's health (its serialization through the worker's answer is not exercised).
+- **The button:** no busy label or `aria-busy`. The accounts tests still mock the web side's health (its price cannot be known to the
+  worker's own answer); the queue-without-accounts test exercises the worker's real answer.
+- **The daily cap's test** does not pin the 24-hour window or the state filter, and the cap counts rows it selects, so two simultaneous
+  clicks can both pass it (above).
 - **Whether Google Search grounding works with this API key and model is unmeasured** until the owner's step in §8.
+
+### The final review's fix wave
+
+- **The queue without accounts works** (`REDIS_URL` set, `DATABASE_URL` not). The worker asked every ideas job for `--cap`, but that
+  studio holds no credit and sends none, so the button showed and every click failed. `ideasRefusal` now asks for `--cap` only where
+  credit is held (`needsCap`: the worker has a database); a cap that is there is still checked. A test runs a real worker without a
+  database: the form's health flag comes from the worker's own health answer through the queue, the ideas come back, the CLI was asked
+  without a cap, and nothing is settled.
+- **A card shows the link's host** beside the model's title (§6), without `www.`; an address that does not parse or is not `https:`
+  gets no link. The card is rendered in a test (`web/test/idea-card.test.ts`).
+- **The price is in ten-thousandths.** The database holds credit to four decimals, and the worker runs a request only when the hold
+  equals the command's cap; a price like 0.12345 was held as 0.1235 and refused on every click. Such a price is now no price (the button
+  is not offered).
+- **Charged only for ideas the studio can show.** The worker reads the CLI's answer before settling: one that is not JSON, or has no
+  ideas, is a failure and settled at 0 (the web would have told the user their credit was returned). The late-answer margin is five
+  seconds short of the web's wait, not one, so an answer still crossing Redis is refunded rather than charged and never shown.
+- **The chart cannot close its own data block:** titles and channels lose runs of three angle brackets and format characters (bidi,
+  zero-width), and a category id is passed on only as one to four digits. An own niche's text is set on one line. A link given twice in
+  one idea is kept once. The pinned prompts did not change, so `PROMPT_VERSION` stays.
+- **The account's history names a topic suggestion's rows** ("Held for a topic suggestion", "Topic suggestion settled") and links them
+  to no video; whether a row is one is told by its reservation's kind, read with the ledger (`ledgerEntry`, `web/lib/ledger.ts`).
+- **Still accepted:** free ideas if `settle` fails after a successful call (the reconcile settles the open hold at 0), and the
+  millisecond race between the reconcile's idle check and the worker taking the job. Both cost at most one suggestion's price, never
+  a charge for nothing.

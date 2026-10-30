@@ -249,10 +249,12 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - What a plan is said to cover ("about 5 minutes…") is worked out by `fullyGeneratedMinutes` from the dated
   measurement in `web/content/measured.json`; when a new live check changes the cost, change that file.
 
-- A request for topic ideas is a hidden run (state `'ideas'`) held and settled like a job of kind `ideas`: the price from `web/content/ideas-price.json` at success, 0 at failure (phase 13 spec §5, §10).
 - **Credit:** a paid job reserves its approved cap before it is queued; the worker settles at what the
   run's manifest says was spent (ledger + pending `expectedUsd` + `abandonedUsd`). Users cannot cancel a
   reservation. Rounding is to four decimals; compare money in ten-thousandths, never as floats.
+- **A topic suggestion is a hidden run** (state `'ideas'`; phase 13 spec §5, §10) held and settled like a job of kind
+  `ideas`: the price from `web/content/ideas-price.json` (in ten-thousandths) when ideas came in time, 0 otherwise. It
+  never links to a video page, and a studio without accounts holds and sends no cap for it.
 - **Two kinds of credit:** plan credit (expires when the next month begins, paid for or granted; spent first) and
   permanent credit (grants; top-ups, which are not on sale now but still work). `plan_credit_usd` is never more than the balance (a trigger keeps it).
 - **Payments:** the web verifies Stripe's signature and hands the worker only the event id. The worker
@@ -388,8 +390,8 @@ graphify god-nodes --top 20       # the hubs
 | The prompts Gemini is given: version, audit, eval harness | `2026-10-18-phase9-prompt-audit-design.md` |
 | FLUX 3 klein as the picture model; reframe cuts and the shared look | `2026-10-18-phase10-flux3-reframe-design.md` |
 | Smooth motion: 60 fps interpolated in the restorer worker | `2026-10-22-phase11-smooth-motion-design.md` (§0, §3.1 and §11 win) |
-| Topic ideas: "Suggest a topic" paid by a fixed credit | `2026-10-30-phase13-trend-ideas-design.md` (§10 wins) |
 | Scene sound effects: a closed synthesized library the script names | `2026-10-29-phase12-scene-sfx-design.md` |
+| Topic ideas: "Suggest a topic" paid by a fixed credit | `2026-10-30-phase13-trend-ideas-design.md` (§10 wins) |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.
 
