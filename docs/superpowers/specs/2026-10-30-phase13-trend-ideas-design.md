@@ -218,3 +218,11 @@ Parked, in plain words:
 - **Still accepted:** free ideas if `settle` fails after a successful call (the reconcile settles the open hold at 0), and the
   millisecond race between the reconcile's idle check and the worker taking the job. Both cost at most one suggestion's price, never
   a charge for nothing.
+
+## 11. The measurement (2026-10-30, the owner's click; four real calls, no chart key, model `gemini-flash-latest`)
+
+- **Google Search works on the account's key.** One call answered (niche `space-science`): 8 ideas, 0 dropped, all current to the week (October 2026), 4 of 8 with a source whose host the model really read; usage 1,365 tokens in, 1,476 out, **9 searches**; 45 s.
+- **Three of the four calls failed at the 45 s limit** (`history`, `animals`: the service answered `DEADLINE_EXCEEDED` after 45 s; the niche text call: the client's own abort at 47 s). A grounded call that runs nine searches takes about 45 s or more. The 45 s `httpOptions.timeout` in `GeminiLlm.ideas`, the 60 s `runShort` limit and the web's 60 s wait (`QUICK_WAIT_MS`) are too tight for it: as built, most clicks would fail and be refunded.
+- **The CLI printed the service's raw JSON error to stderr** (known minor from Task 3; customers never see it, the queue maps it to the fixed text).
+- **Cost per click is dominated by searches, not tokens**: Google bills a Gemini 3 model per search query (published range US$14–35 per 1,000 queries after a monthly free allowance; looked up 2026-10-30, ai.google.dev/pricing is the source to check), so 9 searches are about US$0.13–0.32 beyond the free allowance, against a few tenths of a cent for the tokens. A whole 4-scene video costs about US$0.25 today. The price file stays `usd: null` until the owner decides how to bring this down (fewer searches asked for in the prompt, which needs a prompt-version bump; longer timeouts) and measures again.
+- Not measured: the chart (no `YOUTUBE_API_KEY`), whether a failed (504) call is billed, the free allowance in effect on this key.
