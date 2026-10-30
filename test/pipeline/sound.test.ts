@@ -86,6 +86,16 @@ describe("a run made with scene sound", () => {
     }
   });
 
+  it("says a silent answer by its scene's number, never by a path on the machine", async () => {
+    const { ctx, sound, logs } = await soundRun();
+    sound.silent = true;
+    await runPipeline(ctx, STAGES, auto);
+    const silent = logs.filter((l) => /silent/.test(l));
+    expect(silent).toHaveLength(4);
+    expect(silent[1]).toMatch(/^scene 2's sound is silent/);
+    for (const line of silent) expect(line).not.toContain("/");
+  });
+
   it("counts the worker's start once, on the first scene", async () => {
     const { ctx } = await soundRun();
     await runPipeline(ctx, STAGES.slice(0, STAGES.findIndex((s) => s.name === "silence") + 1), auto);
@@ -167,6 +177,17 @@ describe("a run that buys no scene sound", () => {
     const { ctx, sound } = await soundRun({ sfx: false });
     await runPipeline(ctx, STAGES, auto);
     expect(sound.submits).toEqual([]);
+  });
+
+  it("is bought for no scene whose prompt is only spaces, and is asked with the prompt trimmed", async () => {
+    const { ctx, sound } = await soundRun();
+    await runPipeline(ctx, STAGES.slice(0, 1), auto);
+    const scenes = ctx.manifest.script!.scenes;
+    scenes[1].soundPrompt = "  \n\t ";
+    scenes[2].soundPrompt = "  rain on a tin roof \n";
+    await runPipeline(ctx, STAGES, auto);
+    expect(sound.submits.map((r) => r.prompt)).toEqual([scenes[0].soundPrompt, "rain on a tin roof", scenes[3].soundPrompt]);
+    expect(ctx.manifest.scenes[1].sound).toBeUndefined();
   });
 
   it("is one whose script wrote no sound prompts (a script written before them)", async () => {

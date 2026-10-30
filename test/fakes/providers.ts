@@ -228,9 +228,11 @@ export class FakeUpscale extends FakeQueue<UpscaleRequest, VideoOutput> implemen
  */
 export class FakeSound extends FakeQueue<SoundRequest, SoundOutput> implements SoundProvider {
   levelDb = -6;
+  /** Answers silence instead of a tone (an answer the model made nothing audible in). */
+  silent = false;
   protected async render(req: SoundRequest, n: number, path: (name: string) => string) {
     const file = path(`sound_${n}.wav`);
-    await makeAudio(file, [{ tone: req.audioLengthSec, freq: 300 + 40 * n, db: this.levelDb }]);
+    await makeAudio(file, [this.silent ? { silence: req.audioLengthSec } : { tone: req.audioLengthSec, freq: 300 + 40 * n, db: this.levelDb }]);
     return { out: { url: pathToFileURL(file).href, seed: req.seed }, file };
   }
 }

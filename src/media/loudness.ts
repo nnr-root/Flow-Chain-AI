@@ -27,16 +27,18 @@ export async function measureLoudness(path: string): Promise<number | undefined>
 
 /**
  * Brings a scene's sound to one loudness (`LOUDNESS_TARGET_LUFS`) with a measured static gain: single-pass loudnorm is
- * unreliable on files of a few seconds (plan ruling 3). A silent answer gets no gain: none makes it a sound.
+ * unreliable on files of a few seconds (plan ruling 3). A silent answer gets no gain: none makes it a sound. `scene` is the
+ * scene's number as a person counts it (from 1), for the log.
  */
 export async function levelSound(
   input: string,
   out: string,
-  o: { seconds: number; fadeOut: boolean; log: (message: string) => void },
+  o: { seconds: number; fadeOut: boolean; scene: number; log: (message: string) => void },
 ): Promise<{ measuredLufs?: number; gainDb: number }> {
   const measured = await measureLoudness(input);
   if (measured === undefined || !(measured > SILENT_LUFS)) {
-    o.log(`scene sound ${input}: silent (${measured ?? "no reading"} LUFS); kept without gain`);
+    // (the scene, never the file's path: the line reaches a customer's job log, and a path names the machine)
+    o.log(`scene ${o.scene}'s sound is silent (${measured ?? "no reading"} LUFS); kept without gain`);
     // (still cut to the scene: a track is never longer than its scene)
     await ffmpeg(levelArgs(input, out, { gainDb: 0, seconds: o.seconds, fadeOut: o.fadeOut }));
     return { gainDb: 0, ...(measured === undefined ? {} : { measuredLufs: measured }) };

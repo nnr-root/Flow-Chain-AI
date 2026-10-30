@@ -16,11 +16,12 @@ import { sceneFrames } from "./visual.js";
 
 /**
  * Whether scene i has a sound of its own made (phase 14 spec §3): only in a run made with scene sound and with sound
- * effects on, and only where the script wrote what is heard there. Before the script is written every scene is
+ * effects on, and only where the script wrote what is heard there (a prompt of nothing but spaces is none: it would buy a
+ * sound asked for nothing). Before the script is written every scene is
  * counted, so the first plan prices the sound a run will buy.
  */
 export const hasSceneSound = (m: Manifest, i: number): boolean =>
-  m.request.sceneSound === true && m.request.render.sfx && (m.script ? Boolean(m.script.scenes[i]?.soundPrompt) : true);
+  m.request.sceneSound === true && m.request.render.sfx && (m.script ? Boolean(m.script.scenes[i]?.soundPrompt?.trim()) : true);
 
 /**
  * A run made with scene sound some of whose scenes have no sound made, as it would be with sound effects on: what a
@@ -43,7 +44,7 @@ function soundAsk(ctx: StageContext, i: number) {
   const nonce = m.scenes[i].nonces.sound ?? 0;
   const sceneSec = sceneSeconds(ctx, i);
   return {
-    prompt: spec.soundPrompt!,
+    prompt: spec.soundPrompt!.trim(),
     negativePrompt: SOUND_NEGATIVE_PROMPT,
     seed: soundSeed(m.request.seed ?? 0, i, nonce),
     guidanceScale: guidanceFor(spec.actionLevel),
@@ -123,7 +124,7 @@ export const soundStage: Stage = {
     const raw = await outPath(ctx, paths.soundRaw(i));
     const out = abs(ctx, paths.sound(i));
     await download(result.url, raw);
-    await levelSound(raw, out, { seconds: trackSec, fadeOut, log: ctx.log });
+    await levelSound(raw, out, { seconds: trackSec, fadeOut, scene: i + 1, log: ctx.log });
     await rm(raw, { force: true });
     // (taken out of the bucket only once the levelled file is here: a failed pass downloads it again for nothing)
     await result.remove?.();
