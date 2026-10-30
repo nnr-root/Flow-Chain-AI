@@ -53,6 +53,7 @@ read the one for the area you are changing before changing it (table at the end)
 | `worker-picture/` | the picture worker (Python, two engines in one image: FLUX.2 klein 4B and FLUX 3 klein, through diffusers; weights on the network volume) |
 | `worker-upscale/` | the restorer worker (Python: SeedVR2 3B for full HD and RIFE for 60 fps, two workflows; weights inside its image; phase 8 spec §8, phase 11 spec) |
 | `src/providers/elevenlabs.ts`, `src/voice/hosted.ts`, `assets/voices/elevenlabs.json` | the hosted voice, and which of its voices plays each of the studio's voices in each language |
+| `worker-foley/` | the scene-sound worker (Python: HunyuanVideo-Foley; weights inside its image, which the workflow builds as `flowchain-foley`; phase 14 spec §4) |
 | `worker-voice/`, `src/voice/`, `src/providers/runpod-voice.ts` | the studio's own voice worker (Python: VoxCPM2 + Whisper; the fallback), laying a script's words over what was heard, the provider |
 | `deploy/` | Compose file, Dockerfiles, Caddy files for the server |
 | `test/` | pipeline tests: `unit`, `stages`, `media`, `pipeline`, `db` |
@@ -163,7 +164,7 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - **A script of more than 90 seconds is written in parts** (an outline, then each part), each answer checked
   and saved with its charge (`manifest.scriptParts`), so a stopped run buys none again.
 - **Every change to a prompt bumps `PROMPT_VERSION`** (`src/providers/prompt-version.ts`; phase 9 spec §4), including a change to a niche, type, edit, culture or preset text; `test/unit/prompt-pin.test.ts` fails without it.
-- **A scene's sound is written as a `soundBible` (once) and a `soundPrompt` per scene, plain strings** (phase 14 spec §2; the phase 12 closed library, `SCENE_SOUNDS` and `make:sfx` are gone). Keep them free of enum, `maxItems` and nested lists in the script schema: Gemini once refused a response schema as a whole for an enum together with `maxItems`. Any change to their rule bumps `PROMPT_VERSION`.
+- **A scene's sound is written as a `soundBible` (once) and a `soundPrompt` per scene, plain strings** (phase 14 spec §2; the phase 12 closed library, `SCENE_SOUNDS` and `make:sfx` are gone). Keep them free of enum, `maxItems` and nested lists in the script schema: Gemini once refused a response schema as a whole for an enum together with `maxItems`. Any change to their rule bumps `PROMPT_VERSION`. A scene's sound is made from its `soundPrompt` by the `sound` stage (after `fit`, on `RUNPOD_FOLEY_ENDPOINT`, only with `FLOWCHAIN_SCENE_SOUND=on` and the three `runpodFoley*` prices), with a seed of its own for each scene: the trial sounded alike because the model's program fixed one seed. The licence excludes the EU, the UK and South Korea (README, "Scene sound"); `FLOWCHAIN_SCENE_SOUND=off` is the rollback and a run without sound is complete.
 
 ## How the studio is built
 
@@ -390,7 +391,8 @@ graphify god-nodes --top 20       # the hubs
 | The prompts Gemini is given: version, audit, eval harness | `2026-10-18-phase9-prompt-audit-design.md` |
 | FLUX 3 klein as the picture model; reframe cuts and the shared look | `2026-10-18-phase10-flux3-reframe-design.md` |
 | Smooth motion: 60 fps interpolated in the restorer worker | `2026-10-22-phase11-smooth-motion-design.md` (§0, §3.1 and §11 win) |
-| Scene sound effects: a closed synthesized library the script names (replaced by phase 14) | `2026-10-29-phase12-scene-sfx-design.md` |
+| Scene sound effects: a closed synthesized library the script names (§1–§2 replaced by phase 14) | `2026-10-29-phase12-scene-sfx-design.md` |
+| Scene sound: a sound made for each scene from its picture, on the studio's own endpoint (§12 wins) | `2026-10-30-phase14-scene-sound-design.md` |
 | Topic ideas: "Suggest a topic" paid by a fixed credit | `2026-10-30-phase13-trend-ideas-design.md` (§10 wins) |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.

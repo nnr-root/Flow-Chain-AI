@@ -21,6 +21,8 @@ Decisions of the owner for A: sounds come **by scene** (the script says what a s
 
 ## 1. The library and its vocabulary
 
+**Superseded by `2026-10-30-phase14-scene-sound-design.md`: the library below is gone (§1–§2 no longer describe the code; §8 and §9 stand).**
+
 - `scripts/make-sfx.ts` grows from 3 recipes to 17 (14 new; `aevalsrc` + filters, fixed pseudo-random sequences, 44.1 kHz stereo
   MP3 in `assets/sfx/`, committed; renders never synthesize). First list, to be tuned by ear: `footstep`, `door`, `knock`, `rain`,
   `wind`, `thunder`, `crowd`, `engine`, `beep`, `glass`, `splash`, `fire`, `heartbeat`, `clock`, plus the existing `impact`,

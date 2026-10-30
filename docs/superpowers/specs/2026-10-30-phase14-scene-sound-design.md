@@ -1,6 +1,6 @@
 # Phase 14 — scene sound: a sound made for each scene from its picture, replacing the library
 
-Date: 2026-10-30. Status: design, not built.
+Date: 2026-10-30. Status: built; the owner's steps (§11) are not done. Where §12 differs from an earlier section, §12 wins.
 
 ## 0. Where this sits
 
@@ -57,36 +57,52 @@ Decisions of the owner (design conversation, 2026-10-30):
   `appliesTo`, `deps` on `fit`, `inputsFor` (the hash), `outputsFor`, `estimateCostUsd` (with the worker's start counted once, on the
   first scene), `run` through `runProviderJob` so a submitted job is written down before it can be lost.
 - **Input video.** A moving scene: its fitted clip. A still scene (no clip): a short silent video made locally by ffmpeg from the
-  keyframe, a slow zoom for the scene's length (the same camera the render will use, so the sound follows what is seen).
+  keyframe, a slow zoom for the scene's length. Either way the worker is sent a small copy (short side 480, 24 fps, no audio),
+  because a Full HD clip would pass the request's 9 MB limit (§12, ruling 2).
 - **Request to the worker:** the video, `soundPrompt`, the negative prompt, the seed, `guidance_scale`, steps, `audio_length`.
   - **Seed** for scene *i*: derived from the run's seed and *i* (so scenes differ, and a rerolled scene differs from before: its nonce
     changes the seed like the other rerolls).
   - **`guidance_scale`** from the scene's `actionLevel`: low 3.5, medium 4.5, high 5.5 (starting values, tuned by ear).
   - **Negative prompt**, always: "speech, voice, vocals, singing, music, narration, noise, distortion".
   - **Length:** the scene's seconds, at most `SCENE_SOUND_MAX_SEC` (starts at 10; the model's real limit is measured, §8): a longer
-    scene is made in the first 10 s and the rest holds the sound's tail faded, never a decision that makes a visual shorter.
-- **After the answer** the audio is normalized locally by ffmpeg (`loudnorm`, a single target for every scene, a starting value of
-  −26 LUFS, so a loud and a quiet result end alike) and kept as `sound/scene_NN.wav`; the manifest records path, hash, seconds, the
+    scene gets a track for its first 10 s with a fade-out and the rest is silent (nothing is looped), never a decision that makes a
+    visual shorter. A scene under 1 s asks the worker for 1 s and the track is trimmed to the scene.
+- **After the answer** the audio is levelled locally by ffmpeg (integrated loudness measured with `ebur128`, a static gain to one
+  target for every scene, a starting value of −26 LUFS, then `alimiter` at 0.8 with `level=false`, so a loud and a quiet result
+  end alike; single-pass `loudnorm` is unreliable on 2–5 s files) and kept as `sound/scene_NN.wav`; the manifest records path, hash, seconds, the
   seed and settings used, and the charge, as the other stages do. A failed scene after its attempts is a stage failure like any
   other (resumable, nothing bought twice).
 - **Switch and gates.** The stage applies only when `request.render.sfx` is true (the studio's "Sound effects", the CLI's `--no-sfx`
   turns it off: nothing is bought) **and** `FLOWCHAIN_SCENE_SOUND=on`, the endpoint is set (`RUNPOD_FOLEY_ENDPOINT`) and the three
   prices exist (`runpodFoleyUsdPerSec`, `runpodFoleySecPerClipSec`, `runpodFoleyColdStartSec`, in `prices.json`; kept while any run
-  may be resumed). Without them a new run is made without sound and says so; a run keeps what it was made with.
+  may be resumed). Without them a new run is made without sound; it says so in plain words only when the switch is on and something is missing, and
+  is silent about it otherwise. The choice is frozen when the run is created (`request.sceneSound`), and a run keeps it.
 - A dollar figure is never shown to a customer (`amount()`); the plan and the draft's price include the stage; `web/content/measured.json`
   (what a video costs) is re-measured by the owner after the first real run.
 
 ## 4. The worker (`worker-foley/`)
 
-Python, in the shape of `worker-picture/`: `Dockerfile` (torch and torchaudio pinned to 2.8.0, the package's requirements, ffmpeg),
-`handler.py`, a contract module (zod-checked on the TypeScript side), storage upload to the run bucket as the other workers do.
-- Weights (about 18 GB) on the network volume in the endpoint's data centre, fetched by the deploy like FLUX 3's; the repository is
-  public. The volume has room for them (checked at plan time; the deploy refuses when it does not).
-- The model is built once per worker and kept; a job takes the arguments above; the seed is set from the request (the trial's fixed 1
-  is the cause of §1, so it is **tested** that two seeds give different audio on the same input, with a fake model).
-- GPU: 24 GB cards (the trial ran on one); the model's own offload flag as a fallback.
-- An image tag `f-` + the folder's tree hash, built by the existing worker-image workflow, packages public as the others.
-- `runpod:deploy` creates the endpoint and writes `RUNPOD_FOLEY_ENDPOINT` into `.env`; no secret (public weights).
+Python, in the shape of `worker-upscale/`: `Dockerfile` (torch, torchvision and torchaudio pinned to 2.8.0 through a constraints file,
+the package's requirements pinned by commit, ffmpeg), `handler.py`, a contract module (zod-checked on the TypeScript side), storage
+upload to the run bucket as the other workers do.
+- **The weights are inside the image** (about 18 GB of model files, about 3 GB of the two encoders the program loads by name, torch:
+  roughly 25–30 GB), each file checked against a pinned SHA-256 at build time. So the endpoint runs in **any data centre** with
+  24 GB cards; there is no network volume, no `fetch-models` and no second volume (the picture endpoint's volume sits in one place and
+  was throttled for hours on 2026-10-30). The first start on a host is slow; the deploy sets a long execution timeout.
+- **The main model file (10.3 GB) is stored as two byte-range layers** (about 5.2 and 5.1 GB), because GitHub's registry limits a
+  layer to 10 GB; the worker joins them into one file on its own disk at a cold start (`weights.assemble`, atomic, safe to repeat; a
+  one-time copy of about 10 GB, so the container disk is set to 80 GB). A build step checks the joined hash.
+- **The image is built by the workflow** (`worker-image.yml`, the `foley` job: tag `f-` + the folder's tree hash, image
+  `flowchain-foley`, 120 minutes allowed, runner disk freed first), **not by an agent, and was never built or run in this phase.**
+  The package must be made public by the owner in GitHub's web UI, as the others.
+- The model is built once per worker and kept; a job takes the arguments of §3; the seed is set from the request (random, numpy and
+  torch all) and it is **tested** that two seeds give different audio on the same input, with a fake model and with stub `torch` and
+  `numpy` modules. The model program writes a fixed seed 1 itself and ignores `--audio_length`; the worker sets the seed first and
+  trims after generating (generation cannot be shortened, the visual features would no longer fit the latents).
+- GPU: 24 GB cards (the trial ran on one), three card names anywhere, 300 s execution timeout, one worker at most, no flash boot.
+- `runpod:deploy` creates the template and the endpoint and writes `RUNPOD_FOLEY_ENDPOINT` into `.env`; no secret (public weights).
+  While the default image is not in GHCR it **skips Foley with one plain line** and deploys the rest; an image named by
+  `RUNPOD_FOLEY_IMAGE` that is missing is an error. `--no-foley` leaves it out.
 
 ## 5. The render
 
@@ -98,7 +114,8 @@ Python, in the shape of `worker-picture/`: `Dockerfile` (torch and torchaudio pi
 - `sfxCues`, the `SFX` table, `src/sounds.ts`, `scripts/make-sfx.ts`, `assets/sfx/`, `npm run make:sfx` and the doctor's "bundled
   sounds" check are deleted; `compat.test.ts` keeps proving old runs load. **An old run made with the library, rendered again,
   has no sound effects** (nothing makes them any more); it says so in the run's page text; the hook's impact and the cut sounds are
-  gone for every run.
+  gone for every run. (The landing page's sound control and "Sound on the cuts" feature went with them, and the three published
+  showcases lost their sound keys: visitors hear narration and music only.)
 - Both the landing page's restyle and the studio's draft preview reach the new props through `assembleRenderProps` as before
   (`web/test/restyle.test.ts` holds this). A draft preview has no generated sound (nothing is bought for a preview).
 
@@ -143,7 +160,91 @@ retrofitting sound onto runs that exist.
 
 ## 11. The owner's steps after the build
 
-1. `npm run runpod:deploy` (the Foley image is built by the worker-image workflow after a push; the deploy prints its plan).
+1. Push (the owner's click); the worker-image workflow builds `flowchain-foley` (large, may take long, and its first build may need
+   fixes, §12); make the package public in GitHub's web UI; then `npm run runpod:deploy` (it prints its plan).
 2. The measurements of §8, with the controller; set the three prices.
 3. Set `FLOWCHAIN_SCENE_SOUND=on` in `.env` and on the worker.
 4. Decide on offering the layer in the EU, the UK and South Korea (§7), and confirm the platform you post to accepts the audio.
+
+## 12. What was found and changed
+
+Built in seven tasks on `main` (no push). No provider was called and no pod started by any of them.
+
+### Rulings of the plan (these differ from §3–§5 above and are built)
+
+1. **Weights inside the image**, anywhere endpoint (§4 now says it). 2. **The worker is sent a small copy of the scene** (480 px
+short side, 24 fps, silent). 3. **Levelling is a measured static gain plus a limiter**, not `loudnorm`. 4. **`request.sceneSound`
+freezes the choice at creation.** 5. **A scene over 10 s gets 10 s of track, faded, then silence.** 6. **A draft preview has no
+generated sound; runs made with the phase 12 library re-render without sound effects.** The draft note no longer says the sound
+effects are real. 7. **The provider is queued like the other RunPod providers**; its answer is `{ url, costUsd?, remove? }`, and the
+cost is the measured execution time at `runpodFoleyUsdPerSec`.
+
+### Rulings of the controller
+
+- The main weights file is two byte-range layers joined on the worker's disk at a cold start, to stay under the registry's 10 GB layer
+  limit. If wrong, the cost is extra cold-start time, or the limit is in GiB and one layer would have fit.
+- `models.sound` is `runpod:<endpoint>/sound-foley@1`, not a short name: a run is rebuilt from its frozen model id and so stays on the
+  endpoint it was made with.
+- A translated version buys each scene's sound again (a version's narration changes the lengths); it is priced through `versionCapUsd`.
+
+### What the tasks found
+
+- **Task 1 (script).** `soundBible` and `soundPrompt` added, plain strings; `PROMPT_VERSION` 2026-10-30.21; a real `run --draft` probe
+  returned both fields. The deletions went beyond the plan: the landing page's sound control, the "Sound on the cuts" feature and the
+  three showcases' sound keys went with the library (owner heads-up: the showcase videos now play with narration and music only).
+  `StageContext.sfxDir` stays optional and unused only because `compat.test.ts`, which is never edited, still passes it.
+- **Task 2 (worker).** The model's file is not named `_xxl`; the program needs two encoders loaded by name from the Hub, so they are baked
+  in with `HF_HUB_OFFLINE=1`; its requirements pull a transformers fork and `audiotools` from GitHub, now pinned by commit. The trial's
+  `torchaudio` problem is avoided by writing the wav with the standard library.
+- **Task 3 (the `sound` stage).** `limiter` needed `level=false` (ffmpeg 8 re-levels otherwise: −24 instead of −26 LUFS). A scene
+  under 1 s is asked as 1 s and trimmed. The default-off log line named `FLOWCHAIN_SCENE_SOUND` to every customer: now silent by
+  default, `FLOWCHAIN_` names are masked in `publicLog`. The seed is the first four bytes of a SHA-256 of the run's seed, the scene and
+  its nonce (a run without a seed counts from 0). `sfxGain` is not in the input hash (it is a render choice).
+- **Task 4 (render).** `SOUND_MIX` lives in `timeline.ts` and is re-exported; each scene's track fades 6 frames at 30 fps at both ends
+  and ducks under speech like the music. The render stage now depends on `sound` for scenes that have it.
+- **Task 5 (deploy).** The planner has the Foley template and endpoint; `chooseFoleyImage` skips Foley with one line when the default
+  image is not in GHCR. The NVIDIA L4 is left out of the card list because its name was not checked.
+- **Task 6 (studio).** No credit arithmetic changed: every hold comes from `plan --json`, which prices the sound stage (proved by mutation:
+  an estimate of 0 fails the tests). `Health.sound` is the only web-facing flag. A re-render that turns sound on for a finished video
+  that never had it is refused in plain words (the CLI says "use resume"); the studio has no path to buy a finished video's missing sound.
+
+### Facts, said plainly
+
+- The trial of §1 ran on an **RTX 4090**.
+- **The seed hypothesis is still unproven by ear**: the code shows a fixed seed 1; nobody has listened to scenes made with different
+  seeds. §8 (a) does that.
+- **The image has never been pushed or built.** Unverified until the first CI build: the offline cache pointer (`refs/main` written by
+  hand, then offline), that the 10 GB file is served with 206 range responses (checked by headers on a small file only), that GitHub's
+  10 GB layer limit is as documented, the real loader and sampler (`_load`, `_sample`), and the image size. The first build may need
+  fixes.
+- The real model functions are wired by name (`load_model`, `feature_process`, `denoise_process`) and untested without a GPU.
+
+### Parked, in plain words
+
+- A still scene's input video always zooms in, even when the render pans or zooms out (§3 said "the same camera"); mapping `camera` onto it
+  is a follow-up. Durations are rounded to a tenth; the render places tracks by the scene's frames, not by `sound.seconds`.
+- The cost estimate assumes 10 s a scene before the voice exists and a warm worker on a reroll or resume (as `interpolate` does).
+- A translated version buys sound again (deliberate).
+- An engine exception can carry paths in the worker's own text (the pipeline does not show worker text to users, as with the other
+  workers); seven dev and UI packages from the model's requirements add image size; the 60 fps case in the render proves only that the
+  ramp helper scales, and `AudioLayer`'s own scaling has no direct test at 60 fps.
+- `web/server/actions.ts` imports `soundNotMade` from the stage module, the web server's first runtime import of a stage (it pulls ffmpeg
+  and providers into the Next bundle): move `hasSceneSound` and `soundNotMade` to the pure `src/sound.ts` and re-export.
+- When the sound switch is off the hidden form still sends `sfx: true` (harmless: `sceneSound` is not frozen and the Look control is
+  hidden for such a run). A stale sound record (done, but its hash changed) is not caught by `soundNotMade`.
+- Small test cleanups: the schema test's title claims "no maxItems" but checks only `soundBible`'s subtree for an enum; a loop's braces in
+  `restyle.test.ts` are misindented; the reroll total is asserted with `toBeGreaterThanOrEqual`; two web cases only characterize
+  `assertApproved`. `web:e2e` and `test:accounts` were not run (only the draft note's text changed); `store.test.ts` and the bucket group of
+  `tenant-queue.test.ts` need Docker and the MinIO image, which this machine cannot pull.
+
+### For the owner to rule on (found in review of Task 6; both older than this phase)
+
+- **The run view sends `models` to the browser**, now including `runpod:<endpoint>/sound-foley@1`, against the rule that no surface names a
+  model or an endpoint. `names.test.ts` holds sources, not payloads.
+- **The `estimate_changed` refusal shows a dollar figure** ("$x.xx", since 2026-10-06), against the rule that a customer sees credits.
+
+### Measurements (not done)
+
+§8 (a) to (d) are the owner's click after the deploy; the numbers, the three prices and the listening decisions (`SOUND_MIX`,
+`LOUDNESS_TARGET_LUFS`, the guidance values) are written here when they exist, and `web/content/measured.json` gets the new full-video
+cost.

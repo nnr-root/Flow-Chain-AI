@@ -58,9 +58,8 @@ cuts: `auto` (default: the one Gemini suggests for each cut), `cut`, `fade`, `di
 
 The first 3 s open with a hook: a snap zoom and a big title Gemini writes (or `--hook "…"`)
 (`--no-hook` turns it off, and `rerender --hook-on` brings a removed hook back). The script also writes a sound bible
-(the video's sound palette) and a sound prompt for every scene; the phase 12 library of bundled sound effects is gone,
-and the sound made from those prompts comes with phase 14 (`--no-sfx` and `--sfx-gain` stay, and mean that sound; until
-it is built they change nothing).
+(the video's sound palette) and a sound prompt for every scene; a sound is made from each prompt (`--no-sfx` and `--sfx-gain`
+control it; see "Scene sound" below).
 
 A brand kit is a folder with `brand.json` (see `assets/brand/example`): a logo watermarked at a corner, and an
 optional font, text and accent colours and character bible. `--brand <dir>` copies it into the run;
@@ -156,6 +155,44 @@ To go back to the restorer image from before smooth motion, in this order:
 3. `RUNPOD_UPSCALE_IMAGE=ghcr.io/<owner>/flowchain-upscale:u-415cd27e11cc npm run runpod:deploy`. That takes smooth motion down but not Full HD (the old image has the old workflow).
 
 The switch gates the studio only. `npm run flowchain -- run … --fps 60` (your own tool) is not gated by it, only by the four prices, so a 60 fps run from the command line after the rollback fails at the restorer.
+
+### Scene sound (optional)
+
+Each scene can have a sound layer made for it: the script writes a sound prompt for the scene, and a sound model on the studio's own
+GPU endpoint listens to the scene's picture and makes what would be heard there (wind, footsteps, a machine). It plays under the whole
+scene, under the narration and ducked while it speaks. It replaces the old library of bundled sound effects: those, the hook's impact,
+the cut sounds and `npm run make:sfx` are gone. A video made with the old library and rendered again has no sound effects; nothing makes
+them any more.
+
+**Where the model's licence does not apply.** It is under the Tencent Hunyuan Community License: commercial use is allowed, but the
+licence does not apply in the European Union, the United Kingdom and South Korea; outputs may not be used to improve another AI model;
+above 100 million monthly active users a separate licence is needed. You accepted this knowing it. Whether to offer the layer to users in
+those three places is yours to decide (spec §7); `FLOWCHAIN_SCENE_SOUND` is the one switch, and a video without sound is complete.
+
+Settings, in `.env` (and, on a server, in the worker's environment too: it reads them through `env_file` in `deploy/compose.yaml`; the web
+app reads only the first and the endpoint):
+
+- `FLOWCHAIN_SCENE_SOUND=on|off` (default off). A new video gets scene sound only when this is `on`, the endpoint is set, the three prices
+  exist and its sound effects are not switched off. The choice is frozen when the video is created.
+- `RUNPOD_FOLEY_ENDPOINT`: written by `npm run runpod:deploy`.
+- In `prices.json`: `runpodFoleyUsdPerSec` (the 24 GB flex rate per second, from RunPod's published price: look it up and cite it),
+  `runpodFoleySecPerClipSec` (seconds of work for one second of scene) and `runpodFoleyColdStartSec`. Keep them while any run made with
+  sound may be resumed or remade.
+
+In order:
+
+1. Push. The worker-image workflow builds `flowchain-foley` (tag `f-` and the first 12 characters of `worker-foley/`'s tree hash). The image
+   is large (25 to 30 GB with the model inside) and the build may take long; its first build has never been run and may need fixes.
+2. In GitHub's web UI, make the `flowchain-foley` package public (the first time).
+3. `npm run runpod:deploy` (it prints its plan first). While the image is missing it skips Foley with one line and deploys the rest.
+4. Measure on the real endpoint (each step is cents): the same clip with three seeds and two guidance values, and listen (are they different
+   enough?); a 10 s and a 15 s clip (what the model does at its limit); the job's `executionTime` and `delayTime` from RunPod's status
+   right after a run on a warm worker, then a cold one, for the three prices; then one whole four-scene video, its cost, and how the layer sits
+   under the narration (tune `SOUND_MIX` and `LOUDNESS_TARGET_LUFS` by ear). Update `web/content/measured.json` with the new full-video cost.
+5. Set `runpodFoley*` in `prices.json`, then `FLOWCHAIN_SCENE_SOUND=on` in `.env` and on the worker.
+
+Rollback: set `FLOWCHAIN_SCENE_SOUND=off`. The form hides the control and new videos are made without sound; a video already made keeps
+its sound and plays it.
 
 Runs with characters get one generated reference portrait (or a brand kit's `reference` image), made after the
 voice and straight before the pictures so the picture worker starts once; every keyframe of a scene the
