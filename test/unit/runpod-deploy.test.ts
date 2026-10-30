@@ -2,7 +2,7 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  applyDeploy, applyVoiceDeploy, assertImageInGhcr, DEFAULTS, fetchModels, NAMES, planDeploy, planVoiceDeploy, removeRetiredVolumes, RunpodRest, VOICE_DEFAULTS, voiceImageTag,
+  applyDeploy, applyVoiceDeploy, assertImageInGhcr, DEFAULTS, envValuesOf, fetchModels, foleyImageTag, NAMES, planDeploy, planVoiceDeploy, removeRetiredVolumes, RunpodRest, VOICE_DEFAULTS, voiceImageTag,
   workerImageTag, writeEnvValues,
 } from "../../src/deploy/runpod.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
@@ -117,6 +117,33 @@ describe("runpod deploy", () => {
     await applyDeploy(rest, { ...cfg, upscaleImage: "ghcr.io/me/flowchain-upscale:u-2" }, () => {});
     expect(store.endpoints.filter((e) => e.name === NAMES.upscale)).toHaveLength(1);
     expect((await planDeploy(rest, { upscale: true })).find((s) => s.name === NAMES.upscale)?.action).toBe("update");
+  });
+
+  it("makes the Foley endpoint only when its image is given: its own template with room for the model, 24 GB cards, no volume, anywhere (phase 14)", async () => {
+    const without = fakeRest();
+    const plain = await applyDeploy(without.rest, cfg, () => {});
+    expect(plain.foleyEndpointId).toBeUndefined();
+    expect(without.store.endpoints.map((e) => e.name)).not.toContain(NAMES.foley);
+    expect((await planDeploy(without.rest)).map((s) => s.name)).not.toContain(NAMES.foley);
+    expect(Object.keys(envValuesOf(plain))).not.toContain("RUNPOD_FOLEY_ENDPOINT");
+
+    const { rest, store } = fakeRest();
+    const image = `ghcr.io/me/flowchain-foley:${foleyImageTag("0123456789abcdef0123")}`;
+    expect(image).toMatch(/:f-[0-9a-f]{12}$/);
+    expect((await planDeploy(rest, { foley: true })).slice(-2).map((s) => `${s.action} ${s.what} ${s.name}`)).toEqual(["create template flowchain-foley", "create endpoint flowchain-foley"]);
+    const deployed = await applyDeploy(rest, { ...cfg, foleyImage: image }, () => {});
+    const foley = store.endpoints.find((e) => e.name === NAMES.foley)!;
+    expect(deployed.foleyEndpointId).toBe(foley.id);
+    expect(store.templates.find((t) => t.id === foley.templateId)).toMatchObject({ name: NAMES.foleyTemplate, imageName: image, containerDiskInGb: 80, isServerless: true });
+    expect(foley).toMatchObject({ gpuTypeIds: DEFAULTS.foleyGpus, workersMin: 0, workersMax: 1, idleTimeout: 30, executionTimeoutMs: 300_000, flashboot: false });
+    expect(DEFAULTS.foleyGpus).not.toContain("NVIDIA L4");
+    for (const field of ["networkVolumeId", "networkVolumeIds", "dataCenterIds"]) expect(foley).not.toHaveProperty(field);
+    expect(envValuesOf(deployed).RUNPOD_FOLEY_ENDPOINT).toBe(foley.id);
+    // a second deploy changes it in place
+    await applyDeploy(rest, { ...cfg, foleyImage: `${image}2` }, () => {});
+    expect(store.endpoints.filter((e) => e.name === NAMES.foley)).toHaveLength(1);
+    expect(store.templates.filter((t) => t.name === NAMES.foleyTemplate)).toHaveLength(1);
+    expect((await planDeploy(rest, { foley: true })).find((s) => s.name === NAMES.foley)?.action).toBe("update");
   });
 
   it("updates instead of duplicating on a second run, and keeps existing secrets", async () => {

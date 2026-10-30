@@ -6,7 +6,7 @@
 import { createInterface } from "node:readline/promises";
 import { execa } from "execa";
 import {
-  applyDeploy, assertImageInGhcr, DEFAULTS, fetchModels, NAMES, pictureImageTag, planDeploy, removeRetiredVolumes, RETIRED_VOLUMES, RunpodRest, upscaleImageTag, workerImageTag, writeEnvValues,
+  applyDeploy, assertImageInGhcr, DEFAULTS, envValuesOf, fetchModels, foleyImageTag, NAMES, pictureImageTag, planDeploy, removeRetiredVolumes, RETIRED_VOLUMES, RunpodRest, upscaleImageTag, workerImageTag, writeEnvValues,
 } from "../src/deploy/runpod.js";
 import { R2 } from "../src/providers/r2.js";
 import { RunpodClient } from "../src/providers/runpod.js";
@@ -17,13 +17,14 @@ function need(name: string): string {
   return value;
 }
 
-async function defaultImage(which: "clip" | "picture" | "upscale"): Promise<string> {
+async function defaultImage(which: "clip" | "picture" | "upscale" | "foley"): Promise<string> {
   const { stdout } = await execa("git", ["remote", "get-url", "origin"]);
   const owner = /github\.com[:/]([^/]+)\//.exec(stdout)?.[1];
   if (!owner) throw new Error("cannot tell the GitHub owner from the origin remote; set RUNPOD_WORKER_IMAGE and RUNPOD_PICTURE_IMAGE");
   // each tag follows the content of its worker's folder, so a template always points at the image built from this checkout
   const tree = async (dir: string) => (await execa("git", ["rev-parse", `HEAD:${dir}`])).stdout.trim();
   if (which === "upscale") return `ghcr.io/${owner.toLowerCase()}/flowchain-upscale:${upscaleImageTag(await tree("worker-upscale"))}`;
+  if (which === "foley") return `ghcr.io/${owner.toLowerCase()}/flowchain-foley:${foleyImageTag(await tree("worker-foley"))}`;
   return which === "clip"
     ? `ghcr.io/${owner.toLowerCase()}/flowchain-worker:${workerImageTag(await tree("workers"))}`
     : `ghcr.io/${owner.toLowerCase()}/flowchain-picture:${pictureImageTag(await tree("worker-picture"))}`;
@@ -51,6 +52,8 @@ async function main(): Promise<void> {
     clipGpus: DEFAULTS.clipGpus,
     // full HD (phase 8 spec §8): `-- --no-upscale` leaves its endpoint out
     ...(process.argv.includes("--no-upscale") ? {} : { upscaleImage: process.env.RUNPOD_UPSCALE_IMAGE ?? (await defaultImage("upscale")), upscaleGpus: DEFAULTS.upscaleGpus }),
+    // scene sound (phase 14 spec §4): `-- --no-foley` leaves its endpoint out
+    ...(process.argv.includes("--no-foley") ? {} : { foleyImage: process.env.RUNPOD_FOLEY_IMAGE ?? (await defaultImage("foley")), foleyGpus: DEFAULTS.foleyGpus }),
     // FLUX 3 (phase 10 spec §3): its endpoint is made only when the owner names its cards
     ...(process.env.RUNPOD_PICTURE3_GPUS ? { keyframe3Gpus: process.env.RUNPOD_PICTURE3_GPUS.split(",").map((s) => s.trim()).filter(Boolean), hfToken: need("HF_TOKEN") } : {}),
     r2: {
@@ -63,8 +66,9 @@ async function main(): Promise<void> {
   await assertImageInGhcr(cfg.image, console.warn); // before anything is created
   await assertImageInGhcr(cfg.pictureImage, console.warn);
   if (cfg.upscaleImage) await assertImageInGhcr(cfg.upscaleImage, console.warn);
+  if (cfg.foleyImage) await assertImageInGhcr(cfg.foleyImage, console.warn);
   const rest = new RunpodRest(apiKey);
-  const steps = await planDeploy(rest, { upscale: Boolean(cfg.upscaleImage), picture3: Boolean(cfg.keyframe3Gpus) });
+  const steps = await planDeploy(rest, { upscale: Boolean(cfg.upscaleImage), picture3: Boolean(cfg.keyframe3Gpus), foley: Boolean(cfg.foleyImage) });
   console.log(`RunPod deploy (clips ${cfg.image}, pictures ${cfg.pictureImage}, data centre ${cfg.dataCenterId}):`);
   for (const s of steps) console.log(`  ${s.action.padEnd(6)} ${s.what} ${s.name}`);
   const monthly = cfg.volumeGb * DEFAULTS.volumeUsdPerGbMonth;
@@ -82,12 +86,7 @@ async function main(): Promise<void> {
   const deployed = await applyDeploy(rest, cfg, console.log);
   console.log(`Endpoints: keyframe ${deployed.keyframeEndpointId}, clip ${deployed.clipEndpointId}`);
   // saved before the long model downloads, so a failed download never loses the ids of what was just created
-  await writeEnvValues(".env", {
-    RUNPOD_KEYFRAME_ENDPOINT: deployed.keyframeEndpointId,
-    ...(deployed.keyframe3EndpointId ? { RUNPOD_PICTURE3_ENDPOINT: deployed.keyframe3EndpointId } : {}),
-    ...(deployed.upscaleEndpointId ? { RUNPOD_UPSCALE_ENDPOINT: deployed.upscaleEndpointId } : {}),
-    RUNPOD_CLIP_ENDPOINT: deployed.clipEndpointId,
-  });
+  await writeEnvValues(".env", envValuesOf(deployed));
   console.log("Wrote RUNPOD_KEYFRAME_ENDPOINT and RUNPOD_CLIP_ENDPOINT to .env.");
   // The pipeline removes each upload once it has its own copy. A rule on the bucket catches what is left when
   // a run stops in between; it needs a key that may change the bucket's settings, which the workers' key is not.

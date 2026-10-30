@@ -15,6 +15,9 @@ export const NAMES = {
   /** full HD (phase 8 spec §8): its own image, with its model inside, and no volume */
   upscaleTemplate: "flowchain-upscale",
   upscale: "flowchain-upscale",
+  /** scene sound (phase 14 spec §4): its own image, with its models inside, and no volume */
+  foleyTemplate: "flowchain-foley",
+  foley: "flowchain-foley",
 } as const;
 
 /** Volumes this studio used before, by name: `removeRetiredVolumes` deletes them once nothing reads from them. */
@@ -34,6 +37,9 @@ export type DeployConfig = {
   /** The upscaling worker's image (phase 8 spec §8); absent = no full HD endpoint is made or changed. */
   upscaleImage?: string;
   upscaleGpus?: string[];
+  /** The Foley worker's image (phase 14 spec §4); absent = no Foley endpoint is made or changed. */
+  foleyImage?: string;
+  foleyGpus?: string[];
   /** The FLUX 3 picture endpoint's cards (phase 10 spec §3): absent = no such endpoint is made or changed. The owner names them. */
   keyframe3Gpus?: string[];
   /** Hugging Face token for the gated FLUX 3 weights: stored as a RunPod secret, given only to the picture worker. */
@@ -53,6 +59,9 @@ export const DEFAULTS = {
   clipGpus: ["NVIDIA GeForce RTX 4090"],
   // 24 GB: SeedVR2's 3B model fits with full HD decoded in tiles; it reads no volume, so any data centre will do
   upscaleGpus: ["NVIDIA GeForce RTX 4090", "NVIDIA RTX A5000", "NVIDIA GeForce RTX 3090"],
+  // 24 GB cards, spelled as RunPod takes them for the upscale endpoint; it reads no volume either. NVIDIA L4 is left
+  // out on purpose: the names RunPod accepts were not checked for it, and a wrong name would fail the whole create.
+  foleyGpus: ["NVIDIA GeForce RTX 4090", "NVIDIA RTX A5000", "NVIDIA GeForce RTX 3090"],
   /** Network volume storage, $ per GB per month (RunPod standard tier). */
   volumeUsdPerGbMonth: 0.07,
 };
@@ -121,7 +130,7 @@ function findByName(list: Resource[], kind: Kind, name: string): Resource | unde
 
 export type Step = { what: string; name: string; action: "create" | "update" };
 
-type Existing = { volume?: Resource; template?: Resource; pictureTemplate?: Resource; keyframe?: Resource; clip?: Resource; keyframe3?: Resource; upscaleTemplate?: Resource; upscale?: Resource };
+type Existing = { volume?: Resource; template?: Resource; pictureTemplate?: Resource; keyframe?: Resource; clip?: Resource; keyframe3?: Resource; upscaleTemplate?: Resource; upscale?: Resource; foleyTemplate?: Resource; foley?: Resource };
 
 /** What RunPod already has for our four resources (matched by name); throws when a name is ambiguous. Read-only. */
 async function lookupExisting(rest: RunpodRest): Promise<Existing> {
@@ -139,11 +148,13 @@ async function lookupExisting(rest: RunpodRest): Promise<Existing> {
     keyframe3: findByName(endpoints, "endpoints", NAMES.keyframe3),
     upscaleTemplate: findByName(templates, "templates", NAMES.upscaleTemplate),
     upscale: findByName(endpoints, "endpoints", NAMES.upscale),
+    foleyTemplate: findByName(templates, "templates", NAMES.foleyTemplate),
+    foley: findByName(endpoints, "endpoints", NAMES.foley),
   };
 }
 
 /** What a deploy will do, given what already exists (matched by name). */
-export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean; picture3?: boolean } = {}): Promise<Step[]> {
+export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean; picture3?: boolean; foley?: boolean } = {}): Promise<Step[]> {
   const found = await lookupExisting(rest);
   const step = (what: string, existing: Resource | undefined, name: string): Step => ({
     what,
@@ -158,11 +169,12 @@ export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean; pi
     step("endpoint", found.clip, NAMES.clip),
     ...(opts.picture3 ? [step("endpoint", found.keyframe3, NAMES.keyframe3)] : []),
     ...(opts.upscale ? [step("template", found.upscaleTemplate, NAMES.upscaleTemplate), step("endpoint", found.upscale, NAMES.upscale)] : []),
+    ...(opts.foley ? [step("template", found.foleyTemplate, NAMES.foleyTemplate), step("endpoint", found.foley, NAMES.foley)] : []),
   ];
 }
 
 /** `movedVolume`: an endpoint that existed was reading from another volume until now. */
-export type Deployed = { volumeId: string; templateId: string; keyframeEndpointId: string; clipEndpointId: string; upscaleEndpointId?: string; keyframe3EndpointId?: string; movedVolume: boolean };
+export type Deployed = { volumeId: string; templateId: string; keyframeEndpointId: string; clipEndpointId: string; upscaleEndpointId?: string; foleyEndpointId?: string; keyframe3EndpointId?: string; movedVolume: boolean };
 
 async function upsert(
   rest: RunpodRest,
@@ -267,7 +279,18 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(upscaleTemplate.id, cfg.upscaleGpus ?? DEFAULTS.upscaleGpus, 900_000, { minCudaVersion: "12.8" });
     upscaleEndpointId = (await upsert(rest, "endpoints", existing.upscale, NAMES.upscale, anywhere, anywhere)).id;
   }
-  return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id, ...(upscaleEndpointId ? { upscaleEndpointId } : {}), ...(keyframe3EndpointId ? { keyframe3EndpointId } : {}), movedVolume };
+  // scene sound (phase 14 spec §4): its models are in its image too, so it is made the way full HD is
+  let foleyEndpointId: string | undefined;
+  if (cfg.foleyImage) {
+    // 80, not the upscale worker's 30: at a cold start the worker joins its 10 GB model file from two image layers
+    // onto its own disk, so the disk holds the image unpacked and that file once more
+    const foleyBody = { imageName: cfg.foleyImage, containerDiskInGb: 80, env };
+    const foleyTemplate = await upsert(rest, "templates", existing.foleyTemplate, NAMES.foleyTemplate, { ...foleyBody, isServerless: true }, foleyBody);
+    // 300 s: the image is large, so the first job after a cold start must fit inside the limit
+    const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(foleyTemplate.id, cfg.foleyGpus ?? DEFAULTS.foleyGpus, 300_000);
+    foleyEndpointId = (await upsert(rest, "endpoints", existing.foley, NAMES.foley, anywhere, anywhere)).id;
+  }
+  return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id, ...(upscaleEndpointId ? { upscaleEndpointId } : {}), ...(foleyEndpointId ? { foleyEndpointId } : {}), ...(keyframe3EndpointId ? { keyframe3EndpointId } : {}), movedVolume };
 }
 
 /**
@@ -415,6 +438,20 @@ export type VoiceDeployConfig = { image: string; gpus: string[] };
 export const voiceImageTag = (treeHash: string): string => `v-${treeHash.slice(0, 12)}`;
 /** And for `worker-upscale/`. */
 export const upscaleImageTag = (treeHash: string): string => `u-${treeHash.slice(0, 12)}`;
+
+/** And for `worker-foley/`. */
+export const foleyImageTag = (treeHash: string): string => `f-${treeHash.slice(0, 12)}`;
+
+/** The endpoint ids a deploy writes into `.env`: only the endpoints it made. */
+export function envValuesOf(d: Deployed): Record<string, string> {
+  return {
+    RUNPOD_KEYFRAME_ENDPOINT: d.keyframeEndpointId,
+    ...(d.keyframe3EndpointId ? { RUNPOD_PICTURE3_ENDPOINT: d.keyframe3EndpointId } : {}),
+    ...(d.upscaleEndpointId ? { RUNPOD_UPSCALE_ENDPOINT: d.upscaleEndpointId } : {}),
+    ...(d.foleyEndpointId ? { RUNPOD_FOLEY_ENDPOINT: d.foleyEndpointId } : {}),
+    RUNPOD_CLIP_ENDPOINT: d.clipEndpointId,
+  };
+}
 
 /** And for `worker-picture/`. */
 export const pictureImageTag = (treeHash: string): string => `p-${treeHash.slice(0, 12)}`;
