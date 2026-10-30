@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { SCENE_SOUNDS } from "../sounds.js";
 import { BrandLook } from "../brand.js";
 import { Aspect, Prices } from "../config.js";
 import { CaptionStyleName, Transition } from "../media/remotion/props.js";
@@ -54,6 +53,10 @@ const suggestedTransition = SuggestedTransition.describe(
   "How the cut into this scene should feel: cut = punchy, fade/dissolve = time passing or mood shift, zoom_transition = energetic jump",
 );
 
+// (plain strings, no enum and no list: Gemini refused a response schema whole for an enum together with maxItems, 2026-10-30)
+const soundPrompt = z.string().max(200).describe("What is heard in this scene's place: concrete sources and materials from the sound bible, specific to the scene; at most 200 characters, English; no speech, voices, singing or music");
+const soundBible = z.string().max(300).describe("The video's sound palette in English: the place and time as sound, and three to five recurring elements; at most 300 characters");
+
 export const SceneSpec = z.object({
   narration: z.string().describe(`Voiceover for this scene, at most ${MAX_NARRATION_WORDS} words`),
   imagePrompt: z.string().describe("What one still frame of this scene shows"),
@@ -67,16 +70,10 @@ export const SceneSpec = z.object({
   reframe: z.boolean().optional().describe("true on a cut scene that shows the same place and moment as the previous scene from a new angle or distance; false otherwise"),
   /** Optional when stored: a script written before phase 5 says nothing, and is read as it always was (in every scene). */
   showsCharacter: showsCharacter.optional(),
-  /** Optional when stored: absent means none. Sounds the scene would have, from a closed library (phase 12 spec §2). */
-  soundCues: z
-    // (no .max(2) here: Gemini refuses a response schema that has both this enum and a maxItems, "invalid argument", the
-    // whole script with it, measured live on 2026-10-30; the limit of two is asked for in the prompt and kept by `sceneSfxCues`)
-    .array(z.object({ sound: z.enum(SCENE_SOUNDS), at: z.enum(["start", "middle", "end"]) }))
-    .optional()
-    .describe("Up to 2 sounds this scene would clearly have, each with where it plays; leave empty or omit when unsure"),
+  /** Optional when stored (phase 14 spec §2): what is heard in this scene's place, built from the script's sound bible; the picture's sound is made from it. */
+  soundPrompt: soundPrompt.optional(),
 });
 export type SceneSpec = z.infer<typeof SceneSpec>;
-export type SceneSoundCue = NonNullable<SceneSpec["soundCues"]>[number];
 
 export const Script = z.object({
   title: z.string(),
@@ -100,6 +97,8 @@ export const Script = z.object({
      */
     characterKind: z.enum(["people", "animal", "other", "none"]).optional(),
   }),
+  /** Optional when stored: the video's sound palette, written once (phase 14 spec §2). Before the scenes, so the model settles it first. */
+  soundBible: soundBible.optional(),
   scenes: z.array(SceneSpec).min(1).max(MAX_SCENES),
   /** The hook title (2.3); optional when stored, so scripts written before 2.3 still load. */
   hook: z.string().optional(),
@@ -115,7 +114,7 @@ const hashtags = z
   .describe("Exactly 5 hashtags to post the video with, each starting with #, in the video's language");
 
 /** Gemini's answer (sent as the response schema): the fields added since are required. */
-export const LlmSceneSpec = SceneSpec.extend({ actionLevel, suggestedTransition, showsCharacter });
+export const LlmSceneSpec = SceneSpec.extend({ actionLevel, suggestedTransition, showsCharacter, soundPrompt });
 const LlmStyleBible = Script.shape.styleBible.extend({
   setting: z.string().describe("The one time and place every picture shows, with what people there wear and use and how it is lit, in English"),
   characterKind: z.enum(["people", "animal", "other", "none"]).describe("What the recurring characters are: people, a real kind of animal, something else (a made-up creature, a robot, a figure), or none"),
@@ -123,6 +122,7 @@ const LlmStyleBible = Script.shape.styleBible.extend({
 export const LlmScript = Script.extend({
   stylePreset: PresetName.describe("The style preset that best fits the topic"),
   styleBible: LlmStyleBible,
+  soundBible,
   scenes: z.array(LlmSceneSpec).min(1).max(MAX_SCENES),
   hook: z
     .string()
@@ -139,6 +139,7 @@ export const LlmOutline = z.object({
   title: z.string(),
   stylePreset: PresetName.describe("The style preset that best fits the topic"),
   styleBible: LlmStyleBible,
+  soundBible,
   hook: LlmScript.shape.hook,
   parts: z.array(z.object({ summary: z.string().describe("What this part of the video tells, in one or two sentences") })).min(1).max(20),
   // (last: the model answers in this order, and tags a video best once it has said what the video tells)
@@ -146,7 +147,7 @@ export const LlmOutline = z.object({
 });
 export type LlmOutline = z.infer<typeof LlmOutline>;
 /** An outline as a run keeps it: one kept before hashtags were asked for has none, and still loads. */
-export const StoredOutline = LlmOutline.extend({ styleBible: Script.shape.styleBible, hashtags: LlmOutline.shape.hashtags.optional() });
+export const StoredOutline = LlmOutline.extend({ styleBible: Script.shape.styleBible, soundBible: soundBible.optional(), hashtags: LlmOutline.shape.hashtags.optional() });
 export type StoredOutline = z.infer<typeof StoredOutline>;
 export const LlmPart = z.object({ scenes: z.array(LlmSceneSpec).min(1).max(60) });
 export type LlmPart = z.infer<typeof LlmPart>;
@@ -248,13 +249,16 @@ export const RenderOptions = z.object({
   /** "auto" = each cut uses the incoming scene's suggestedTransition (fade when it has none). */
   transition: z.union([Transition, z.literal("auto")]).default("auto"),
   bgmGain: z.number().min(0).max(1).default(0.35),
-  /** Show the hook (title, snap zoom, impact) when there is hook text. */
+  /** Show the hook (title, snap zoom) when there is hook text. */
   hook: z.boolean().default(true),
   /** Replaces the script's hook text. */
   hookText: z.string().trim().min(1).max(60).optional(),
-  /** Sound effects at the hook and at cuts. */
+  /**
+   * The sound layer on or off, and its level relative to the narration. The phase 12 library these once switched is
+   * gone (phase 14); they mean the scene sound made from the script's sound prompts once the render lays it down
+   * (phase 14 task 4), and until then change nothing.
+   */
   sfx: z.boolean().default(true),
-  /** Sound-effect level relative to the narration. */
   sfxGain: z.number().min(0).max(1).default(0.6),
   /** The brand kit's look (watermark, font, colours), copied into the run; absent = no brand. */
   brand: BrandLook.optional(),

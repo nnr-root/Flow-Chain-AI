@@ -35,7 +35,6 @@ export function roots() {
       return join(base.runs, tenantFolder());
     },
     fonts: join(base.repo, "assets/fonts"),
-    sfx: join(base.repo, "assets/sfx"),
     music: join(base.repo, "assets/music"),
     get uploads() {
       return join(base.uploads, tenantFolder());

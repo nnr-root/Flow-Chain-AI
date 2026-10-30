@@ -12,8 +12,8 @@ export type StageContext = {
   keyframeSize: Size;
   fps: number;
   fontsDir: string;
-  /** Bundled sound effects (assets/sfx). */
-  sfxDir: string;
+  /** Gone with the phase 12 library (phase 14); optional only so the pinned compat test's contexts still type-check. Nothing reads it. */
+  sfxDir?: string;
   /** Base backoff for provider retries (tests use 0). */
   retryDelayMs: number;
   /** Remotion render concurrency (null/undefined = Remotion's default). Speed only, not part of any cache key. */

@@ -61,7 +61,7 @@ export function KitForm({ defaultFont }: { defaultFont: { family: string; file: 
       },
       hook: null,
       brand: logoUrl ? { logo: "logo", position: f.position, widthPct: f.widthPct, opacity: f.opacity, marginPct: 4 } : null,
-      audio: { narration: "silence", bgm: null, speech: [], sfx: [] },
+      audio: { narration: "silence", bgm: null, speech: [] },
     };
   }, [family, font, f.fontWeight, f.textColor, f.accentColor, f.position, f.widthPct, f.opacity, logoUrl, defaultFont.weight]);
   const resolve = useCallback(

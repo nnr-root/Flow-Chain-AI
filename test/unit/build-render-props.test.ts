@@ -4,7 +4,6 @@ import { wordsToCaptions } from "../../src/media/remotion/caption-pages.js";
 import { RenderProps } from "../../src/media/remotion/props.js";
 import { CAPTION_STYLES } from "../../src/media/remotion/styles.js";
 import { PRESETS } from "../../src/presets.js";
-import { sfxCues } from "../../src/media/sfx.js";
 import { buildRenderProps } from "../../src/stages/build-render-props.js";
 import { globalWords } from "../../src/stages/captions.js";
 import { fakeScript } from "../fakes/providers.js";
@@ -39,7 +38,7 @@ function manifest() {
   return m;
 }
 
-const opts = { dir: "/run", fontsDir: "/fonts", sfxDir: "/sfx", fps: 30, size: { width: 1080, height: 1920 } };
+const opts = { dir: "/run", fontsDir: "/fonts", fps: 30, size: { width: 1080, height: 1920 } };
 
 describe("buildRenderProps", () => {
   const m = manifest();
@@ -70,7 +69,6 @@ describe("buildRenderProps", () => {
 
   it("ducks the BGM under speech and publishes every file it references", () => {
     expect(props.audio.bgm).toEqual({ src: "bgm.mp3", gain: 0.5, duckTo: 0.4, rampFrames: 10, fadeOutFrames: 30 });
-    expect(props.audio.sfx).toEqual([]); // no hook, a seam and a dissolve: all quiet
     expect(props.hook).toBeNull();
     expect(props.audio.speech).toEqual([
       { from: 0, to: 21 },
@@ -117,16 +115,7 @@ describe("buildRenderProps with auto transitions and the preset's captions", () 
     expect(props.hook).toEqual({ text: "Foxes never sleep", endFrame: 45, zoomFrom: 1.15, zoomFrames: 12 });
   });
 
-  it("plays an impact under the hook and a whoosh into the zoom cut (peaking on it), and publishes both", () => {
-    expect(props.audio.sfx).toEqual([
-      { src: "sfx/impact_boom.mp3", frame: 0, gain: 0.5 },
-      { src: "sfx/whoosh.mp3", frame: 67, gain: 0.4 },
-    ]);
-    expect(files["sfx/impact_boom.mp3"]).toBe("/sfx/impact_boom.mp3");
-    expect(files["sfx/whoosh.mp3"]).toBe("/sfx/whoosh.mp3");
-  });
-
-  it("uses --hook text over the script's, and drops the hook and its impact when turned off", () => {
+  it("uses --hook text over the script's, and drops the hook when turned off", () => {
     const own = structuredClone(m);
     own.request.render.hookText = "Night shift";
     expect(buildRenderProps(own, opts, []).props.hook?.text).toBe("Night shift");
@@ -134,13 +123,6 @@ describe("buildRenderProps with auto transitions and the preset's captions", () 
     off.request.render.hook = false;
     const p = buildRenderProps(off, opts, []).props;
     expect(p.hook).toBeNull();
-    expect(p.audio.sfx.map((c) => c.src)).toEqual(["sfx/whoosh.mp3"]);
-  });
-
-  it("drops every cue when sound effects are off", () => {
-    const quiet = structuredClone(m);
-    quiet.request.render.sfx = false;
-    expect(buildRenderProps(quiet, opts, []).props.audio.sfx).toEqual([]);
   });
 
   it("puts the brand's logo at its corner and publishes the logo and brand font from the run directory", () => {
@@ -162,63 +144,5 @@ describe("buildRenderProps with auto transitions and the preset's captions", () 
   it("captions in the preset's look and publishes its font", () => {
     expect(props.captions.style).toEqual(PRESETS.cyberpunk.caption);
     expect(files["Orbitron-Variable.ttf"]).toBe("/fonts/Orbitron-Variable.ttf");
-  });
-});
-
-describe("buildRenderProps with a script's own sounds (phase 12)", () => {
-  const withCues = () => {
-    const m = manifest();
-    m.request.render = { ...m.request.render, hook: true, sfx: true, sfxGain: 1 };
-    m.script!.scenes[1] = { ...m.script!.scenes[1], soundCues: [{ sound: "door", at: "middle" }, { sound: "rain", at: "start" }] };
-    return m;
-  };
-
-  it("plays a door at the scene's middle and a rain bed under the rest of the scene, both published", () => {
-    const m = withCues();
-    const { props, files } = buildRenderProps(m, opts, []);
-    const sc = props.scenes[1];
-    expect(props.audio.sfx).toContainEqual({ src: "sfx/door.mp3", frame: sc.from + Math.floor(sc.frames / 2), gain: 0.8 });
-    expect(props.audio.sfx).toContainEqual({ src: "sfx/rain.mp3", frame: sc.from, gain: 0.25, durationFrames: sc.frames, fadeFrames: 15 });
-    expect(files["sfx/door.mp3"]).toBe("/sfx/door.mp3");
-    expect(files["sfx/rain.mp3"]).toBe("/sfx/rain.mp3");
-    expect(RenderProps.safeParse(props).success).toBe(true);
-    expect(props.audio.sfx.map((c) => c.frame)).toEqual([...props.audio.sfx.map((c) => c.frame)].sort((a, b) => a - b));
-  });
-
-  it("plays none of them when sound effects are off", () => {
-    const m = withCues();
-    m.request.render.sfx = false;
-    expect(buildRenderProps(m, opts, []).props.audio.sfx).toEqual([]);
-  });
-
-  it("yields exactly the edit's cues for a script without sounds", () => {
-    const m = manifest();
-    m.request.render = { ...m.request.render, hook: true, sfx: true, sfxGain: 1 };
-    const { props } = buildRenderProps(m, opts, []);
-    const edit = sfxCues(props.boundaries, { hook: props.hook !== null, gain: 1 });
-    expect(props.audio.sfx.map((c) => [c.frame, c.gain])).toEqual(edit.map((c) => [c.frame, c.gain]));
-    expect(props.audio.sfx.every((c) => c.durationFrames === undefined)).toBe(true);
-  });
-
-  it("keeps the door on the same second at 60 fps", () => {
-    const m = withCues();
-    const at = (fps: number) => {
-      const { props } = buildRenderProps(m, { ...opts, fps }, []);
-      const door = props.audio.sfx.find((c) => c.src === "sfx/door.mp3")!;
-      const sc = props.scenes[1];
-      return { door: door.frame, mid: sc.from + Math.floor(sc.frames / 2), from: sc.from };
-    };
-    const a = at(30);
-    const b = at(60);
-    expect(b.door).toBe(b.mid);
-    expect(Math.abs(b.door / 60 - a.door / 30)).toBeLessThan(0.05);
-  });
-
-  it("has the cues in the render's input, so a changed cue list renders again", async () => {
-    const a = withCues();
-    const b = structuredClone(a);
-    b.script!.scenes[1].soundCues = [{ sound: "knock", at: "start" }];
-    const json = (m: typeof a) => JSON.stringify(buildRenderProps(m, opts, []).props);
-    expect(json(a)).not.toBe(json(b));
   });
 });

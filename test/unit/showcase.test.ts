@@ -54,7 +54,7 @@ describe("the voice as a row of bars", () => {
 });
 
 describe("publishing a run's files", () => {
-  const published = ["fitted/scene_01.mp4", "images/keyframe_02.png", "narration.wav", "bgm.mp3", "sfx/whoosh.mp3", "Bangers-Regular.ttf", "logo.svg", "brand/logo.png"];
+  const published = ["fitted/scene_01.mp4", "images/keyframe_02.png", "narration.wav", "bgm.mp3", "Bangers-Regular.ttf", "logo.svg", "brand/logo.png"];
 
   it("makes clips and pictures small, the narration an MP3, and copies the rest", () => {
     expect(publications(published)).toEqual([
@@ -62,7 +62,6 @@ describe("publishing a run's files", () => {
       { from: "images/keyframe_02.png", to: "images/keyframe_02.jpg", how: "picture" },
       { from: "narration.wav", to: "narration.mp3", how: "narration" },
       { from: "bgm.mp3", to: "bgm.mp3", how: "copy" },
-      { from: "sfx/whoosh.mp3", to: "sfx/whoosh.mp3", how: "copy" },
       { from: "Bangers-Regular.ttf", to: "Bangers-Regular.ttf", how: "copy" },
       { from: "logo.svg", to: "logo.svg", how: "copy" },
       // a logo keeps its format, and with it its transparency
@@ -74,7 +73,7 @@ describe("publishing a run's files", () => {
     const props = {
       scenes: [{ kind: "video", src: "fitted/scene_01.mp4", from: 0 }, { kind: "still", src: "images/keyframe_02.png", from: 90 }],
       hook: { text: "narration.wav is not a title, but images/keyframe_02.png in a sentence stays" },
-      audio: { narration: "narration.wav", bgm: { src: "bgm.mp3", gain: 0.35 }, sfx: [{ src: "sfx/whoosh.mp3", frame: 90, gain: 1 }] },
+      audio: { narration: "narration.wav", bgm: { src: "bgm.mp3", gain: 0.35 } },
       brand: null,
     };
     expect(republish(props, publications(published))).toEqual({

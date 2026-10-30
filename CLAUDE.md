@@ -17,7 +17,7 @@ read the one for the area you are changing before changing it (table at the end)
 
 - **Nothing that spends money or touches a real account runs without the owner's click.** That is:
   `npm run flowchain` with `run`/`resume`/`reroll`/`ideas`/`doctor`, every `npm run smoke*`, `runpod:deploy`, `voice:deploy`,
-  `make:sfx`, `make:styles`, `make:voices`, `eval:prompts`, `server:*`, `db:migrate`, `studio:grant`, `studio:welcome`, `stripe:setup`, and starting `npm run web` or
+  `make:styles`, `make:voices`, `eval:prompts`, `server:*`, `db:migrate`, `studio:grant`, `studio:welcome`, `stripe:setup`, and starting `npm run web` or
   `npm run worker` against the real `.env`. Tests never need any of them. `rerender` is free. `fetch-models` for the FLUX 3 endpoint is part of
   `runpod:deploy` (already listed), and the owner's Hugging Face token is only ever passed through the shell.
 - **Never read or print `.env` or `deploy/server.env`.** A command may pass a value through the shell
@@ -163,7 +163,7 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - **A script of more than 90 seconds is written in parts** (an outline, then each part), each answer checked
   and saved with its charge (`manifest.scriptParts`), so a stopped run buys none again.
 - **Every change to a prompt bumps `PROMPT_VERSION`** (`src/providers/prompt-version.ts`; phase 9 spec §4), including a change to a niche, type, edit, culture or preset text; `test/unit/prompt-pin.test.ts` fails without it.
-- **A scene's sounds come from `SCENE_SOUNDS` only** (phase 12 spec; `src/sounds.ts`): the script names up to two per scene from that closed, synthesized library. A new sound needs its recipe in `scripts/make-sfx.ts`, its table entry in `src/media/sfx.ts`, its name and `about` line in `src/sounds.ts`, and a `PROMPT_VERSION` bump with its changelog line in the phase 9 spec; `make:sfx` is the owner's click.
+- **A scene's sound is written as a `soundBible` (once) and a `soundPrompt` per scene, plain strings** (phase 14 spec §2; the phase 12 closed library, `SCENE_SOUNDS` and `make:sfx` are gone). Keep them free of enum, `maxItems` and nested lists in the script schema: Gemini once refused a response schema as a whole for an enum together with `maxItems`. Any change to their rule bumps `PROMPT_VERSION`.
 
 ## How the studio is built
 
@@ -390,7 +390,7 @@ graphify god-nodes --top 20       # the hubs
 | The prompts Gemini is given: version, audit, eval harness | `2026-10-18-phase9-prompt-audit-design.md` |
 | FLUX 3 klein as the picture model; reframe cuts and the shared look | `2026-10-18-phase10-flux3-reframe-design.md` |
 | Smooth motion: 60 fps interpolated in the restorer worker | `2026-10-22-phase11-smooth-motion-design.md` (§0, §3.1 and §11 win) |
-| Scene sound effects: a closed synthesized library the script names | `2026-10-29-phase12-scene-sfx-design.md` |
+| Scene sound effects: a closed synthesized library the script names (replaced by phase 14) | `2026-10-29-phase12-scene-sfx-design.md` |
 | Topic ideas: "Suggest a topic" paid by a fixed credit | `2026-10-30-phase13-trend-ideas-design.md` (§10 wins) |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.

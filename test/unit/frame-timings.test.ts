@@ -77,7 +77,7 @@ describe("the music's ramps follow the run's frame rate", () => {
   }
   const at = (fps: number) => {
     const m = manifest();
-    return buildRenderProps(m, { dir: "/run", fontsDir: "/f", sfxDir: "/s", fps, size: { width: 1080, height: 1920 } }, wordsToCaptions(globalWords(m), 6)).props;
+    return buildRenderProps(m, { dir: "/run", fontsDir: "/f", fps, size: { width: 1080, height: 1920 } }, wordsToCaptions(globalWords(m), 6)).props;
   };
   it("keeps BGM_MIX as the at-30 constants", () => {
     expect(BGM_MIX).toEqual({ duckTo: 0.4, rampFrames: 10, fadeOutFrames: 30 });

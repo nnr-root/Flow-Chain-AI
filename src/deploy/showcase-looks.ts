@@ -17,11 +17,11 @@ export type CutChoice = (typeof CUT_CHOICES)[number];
 
 export type Looks = {
   /** How the video was made: where the controls start. */
-  made: { captions: CaptionChoice; cuts: CutChoice; hook: boolean; sfx: boolean };
+  made: { captions: CaptionChoice; cuts: CutChoice; hook: boolean };
   /** The captions in each style; `branded` where the video has a brand, whose font and colours they take. */
   captions: Record<CaptionChoice, { plain: RenderProps["captions"]; branded?: RenderProps["captions"] }>;
-  /** The cuts with each transition, and the sounds that go with them, with and without the hook's impact. */
-  cuts: Record<CutChoice, { boundaries: RenderProps["boundaries"]; sfx: { hook: RenderProps["audio"]["sfx"]; plain: RenderProps["audio"]["sfx"] } }>;
+  /** The cuts with each transition. */
+  cuts: Record<CutChoice, { boundaries: RenderProps["boundaries"] }>;
   /** The hook as it shows when on (its text can be replaced); null when the script has none. */
   hook: RenderProps["hook"];
   brand: RenderProps["brand"];
@@ -55,8 +55,7 @@ export function looksOf(m: Manifest, opts: RenderPropsOptions): ShowcaseLooks {
   }
   const cuts = {} as Looks["cuts"];
   for (const transition of CUT_CHOICES) {
-    const withHook = look({ transition, sfx: true, hookOn: true });
-    cuts[transition] = { boundaries: withHook.boundaries, sfx: { hook: withHook.audio.sfx, plain: look({ transition, sfx: true, hook: false }).audio.sfx } };
+    cuts[transition] = { boundaries: look({ transition, hookOn: true }).boundaries };
   }
   const shown = look({ hookOn: true });
   return {
@@ -66,7 +65,6 @@ export function looksOf(m: Manifest, opts: RenderPropsOptions): ShowcaseLooks {
         captions: CAPTION_CHOICES.includes(render.captionStyle as CaptionChoice) ? (render.captionStyle as CaptionChoice) : "preset",
         cuts: CUT_CHOICES.includes(render.transition as CutChoice) ? (render.transition as CutChoice) : "auto",
         hook: base.hook !== null,
-        sfx: render.sfx,
       },
       captions, cuts, hook: shown.hook, brand: base.brand, bgm: base.audio.bgm,
     },

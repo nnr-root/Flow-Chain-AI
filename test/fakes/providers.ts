@@ -33,6 +33,7 @@ export function fakeScript(sceneCount: number, opts: FakeScriptOptions = {}) {
     hashtags: ["#wildlife", "#foxes", "#redfox", "#nightanimals", "#animalfacts"],
     // ("people", so the stand-in's character is drawn from a portrait as every earlier test expects)
     styleBible: { artStyle: "flat test pattern", characters: "a red fox", palette: "teal, orange", setting: "a snowy forest at night, the present day", characterKind: opts.characterKind ?? "people" },
+    soundBible: "a stone lighthouse on a storm coast: wind, surf, stone echo",
     scenes: Array.from({ length: sceneCount }, (_, i) => ({
       narration: `Scene ${i + 1} says hello. Then it pauses and continues.`,
       imagePrompt: `image ${i + 1}`,
@@ -42,6 +43,7 @@ export function fakeScript(sceneCount: number, opts: FakeScriptOptions = {}) {
       actionLevel: opts.actionLevels?.[i] ?? "high",
       suggestedTransition: opts.transitions?.[i] ?? "fade",
       showsCharacter: opts.shown?.[i] ?? true,
+      soundPrompt: `wind and surf, scene ${i + 1}`,
     })),
   };
 }

@@ -82,8 +82,6 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   // the words typed are in the film itself (the composition is ordinary page content, not a recording): the
   // title shows for the first three seconds of each pass of the loop, a line of words at a time
   await expect(player.getByText(/browser/i).first()).toBeAttached({ timeout: 30_000 });
-  await page.getByText("Sound effects", { exact: true }).click();
-  await expect(player).toHaveAttribute("data-sounds", "0");
   await page.getByTestId("restyle-reset").click();
   await expect(player).toHaveAttribute("data-caption-font", before.font!);
   await expect(player).toHaveAttribute("data-cuts", before.cuts!);
@@ -113,16 +111,13 @@ test("a stranger signs up, gets nothing to spend, is granted credit, makes a vid
   }
   await expect(page.getByTestId("shelf-compare")).toContainText("634 credits, with 3 moving scenes");
   await expect(page.getByTestId("shelf-compare")).toContainText("1,625 credits, with 2 moving scenes");
-  // a feature is shown on a real video, not described: the brand comes off it, the sounds come out of it
+  // a feature is shown on a real video, not described: the brand comes off it
   const feature = page.getByTestId("feature-player");
   await feature.scrollIntoViewIfNeeded();
   await expect(feature).toHaveAttribute("data-live", "true", { timeout: 20_000 });
   await expect(feature).toHaveAttribute("data-brand", "true");
   await page.getByTestId("feature-brand").click();
   await expect(feature).toHaveAttribute("data-brand", "false");
-  await expect(page.getByTestId("feature-cues")).toContainText("an impact at 0:00.0");
-  await page.getByTestId("feature-sfx").click();
-  await expect(feature).toHaveAttribute("data-sounds", "0");
   // What a month would cost: worked out from what is on sale (here a $19 plan for $12 of credit and a $10
   // top-up for $6) and from what the videos above really used. Twenty videos on our own GPU use about $5.46:
   // the top-up covers them, and is cheaper than the plan.

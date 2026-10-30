@@ -8,7 +8,7 @@ import { randomInt } from "node:crypto";
 import { createInterface } from "node:readline/promises";
 import { Command, Option } from "commander";
 import { type BrandKit, installBrand, installReference, loadBrandKit } from "./brand.js";
-import { FONTS_DIR, SFX_DIR } from "./assets.js";
+import { FONTS_DIR } from "./assets.js";
 import { type Env, fpsOf, keyframeSize, loadEnv, loadPrices, outputSize } from "./config.js";
 import { formatChecks, runDoctor } from "./doctor.js";
 import { DEFAULT_SCENE_SECONDS, SCENE_SECONDS, VIDEO_SECONDS, wordsPerSecond } from "./duration.js";
@@ -112,7 +112,6 @@ function contextFor(dir: string, manifest: Manifest, providers: Providers, concu
     keyframeSize: keyframeSize(manifest.request.aspect),
     fps: fpsOf(manifest.request),
     fontsDir: FONTS_DIR,
-    sfxDir: SFX_DIR,
     retryDelayMs: 2000,
     renderConcurrency: concurrency,
     log: (message) => console.log(message),
@@ -237,7 +236,7 @@ program
   .option("--shots <list>", "testing override: per-scene continue|cut, e.g. cut,continue,continue (default: LLM decides)")
   .addOption(new Option("--style <preset>", "style preset (default: Gemini picks one)").choices(PresetName.options))
   .option("--hook <text>", "hook title for the first seconds (default: Gemini writes one)")
-  .option("--no-hook", "no hook title, snap zoom or impact sound")
+  .option("--no-hook", "no hook title or snap zoom")
   .option("--no-sfx", "no sound effects")
   .option("--sfx-gain <0-1>", "sound-effect level relative to the narration (default: 0.6)")
   .option("--brand <dir>", "brand kit folder (brand.json, logo, optional font): watermark, font, colours, characters")

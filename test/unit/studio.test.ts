@@ -15,7 +15,7 @@ import { buildDraftProps, previewProps } from "../../src/studio/props.js";
 import { statusOf } from "../../src/studio/status.js";
 import { fakeScript } from "../fakes/providers.js";
 
-const opts = { dir: "/run", fontsDir: "/fonts", sfxDir: "/sfx", fps: 30, size: { width: 1080, height: 1920 } };
+const opts = { dir: "/run", fontsDir: "/fonts", fps: 30, size: { width: 1080, height: 1920 } };
 const keyframeSize = { width: 1000, height: 1000 };
 const done = { status: "done" as const, inputHash: "h", costUsd: 0, finishedAt: "t" };
 
@@ -147,7 +147,7 @@ describe("buildDraftProps", () => {
     expect(files["draft/silence.wav"]).toBe("virtual:silence");
   });
 
-  it("keeps everything that is already real: captions in the run's style, hook, music, sound effects, boundaries", () => {
+  it("keeps everything that is already real: captions in the run's style, hook, music, boundaries", () => {
     const m = draft();
     const { props, files } = buildDraftProps(m, opts);
     const spoken = props.captions.pages.flatMap((p) => p.tokens.map((t) => t.text.trim())).join(" ");
@@ -156,7 +156,6 @@ describe("buildDraftProps", () => {
     expect(props.hook?.text).toBe(m.script!.hook);
     expect(props.audio.bgm?.src).toBe("bgm.mp3");
     expect(files["bgm.mp3"]).toBe("/music/song.mp3");
-    expect(props.audio.sfx.length).toBeGreaterThan(0);
     expect(props.audio.speech.length).toBeGreaterThan(0);
     // provisional modes 1,1,(1): scene 2 continues scene 1 as a seam, scene 3 is a cut
     expect(props.boundaries.map((b) => b.kind)).toEqual(["seam", "cut"]);
@@ -194,7 +193,6 @@ describe("previewProps", () => {
     const preview = previewProps(m, opts, flags);
     expect(preview).toEqual(buildRenderProps(applied, opts, captions));
     expect(preview.props.hook?.text).toBe("Look here");
-    expect(preview.props.audio.sfx).toEqual([]);
     expect(preview.props.audio.bgm?.gain).toBe(0.1);
     expect(m).toEqual(snapshot);
   });

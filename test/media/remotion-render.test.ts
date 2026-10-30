@@ -44,7 +44,7 @@ function baseProps(overrides: Partial<RenderProps>): RenderProps {
     captions: { style: CAPTION_STYLES.hormozi, bottomPct: 30, pages: [] },
     hook: null,
     brand: null,
-    audio: { narration: "narration.wav", bgm: null, speech: [], sfx: [] },
+    audio: { narration: "narration.wav", bgm: null, speech: [] },
     ...overrides,
   };
 }
@@ -108,7 +108,6 @@ describe("Remotion composition (real Chrome)", () => {
             { from: 0, to: 30 },
             { from: 60, to: 90 },
           ],
-          sfx: [],
         },
       }),
       files: {
@@ -139,7 +138,6 @@ describe("Remotion composition (real Chrome)", () => {
           narration: "narration.wav",
           bgm: { src: "bgm.wav", gain: 1, duckTo: 0.18, rampFrames: 6, fadeOutFrames: 30 },
           speech: [{ from: 0, to: 30 }], // only the first second is speech
-          sfx: [],
         },
       }),
       files: {
@@ -158,31 +156,6 @@ describe("Remotion composition (real Chrome)", () => {
     // without "extend" the curve restarts at frame 0 on every loop: every second is ducked and the fade never arrives
     expect(open - ducked).toBeGreaterThan(10);
     expect(open - tail).toBeGreaterThan(10);
-  });
-
-  it("plays a sound-effect cue at its frame", async () => {
-    const dir = await tempDir();
-    await makeImage(join(dir, "still.png"), { width: 192, height: 336 });
-    await makeAudio(join(dir, "narration.wav"), [{ silence: 3 }]); // silent: only the sound effect is measured
-    const out = join(dir, "video.mp4");
-    await renderVideo({
-      props: baseProps({
-        scenes: [{ kind: "still", src: "still.png", camera: "zoom_in", from: 0, frames: 90 }],
-        audio: { narration: "narration.wav", bgm: null, speech: [], sfx: [{ src: "sfx/whoosh.mp3", frame: 37, gain: 0.8 }] },
-      }),
-      files: {
-        "still.png": join(dir, "still.png"),
-        "narration.wav": join(dir, "narration.wav"),
-        "sfx/whoosh.mp3": resolve("assets/sfx/whoosh.mp3"),
-        "Montserrat-ExtraBold.ttf": FONT,
-      },
-      workDir: join(dir, "render"),
-      out,
-    });
-
-    const before = await meanVolume(out, 0.3, 0.6); // nothing plays yet
-    const around = await meanVolume(out, 37 / 30 + 0.1, 0.3); // the whoosh's loud middle (peak 0.25 s after frame 37)
-    expect(around - before).toBeGreaterThan(30);
   });
 
   it("shows the hook title until endFrame and snap-zooms the picture at the start", async () => {

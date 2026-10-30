@@ -11,8 +11,6 @@ import { Stage } from "./Stage";
 
 const ShowcasePlayer = dynamic(() => import("./ShowcasePlayer"), { ssr: false });
 
-const SOUND: Record<string, string> = { "sfx/impact_boom.mp3": "an impact", "sfx/whoosh.mp3": "a whoosh", "sfx/pop.mp3": "a pop" };
-const at = (frame: number, fps: number): string => `${Math.floor(frame / fps / 60)}:${(frame / fps % 60).toFixed(1).padStart(4, "0")}`;
 
 function Feature({ name, children }: { name: string; children: React.ReactNode }) {
   return (
@@ -54,14 +52,13 @@ export function FeatureStage({ showcase }: { showcase: Showcase }) {
   const set = <K extends keyof Controls>(key: K, value: Controls[K]) => setControls((c) => ({ ...c, [key]: value }));
   const props = useMemo(() => restyle(showcase.props, looks, controls), [showcase, looks, controls]);
   const resolve = useCallback((path: string) => mediaUrl(showcase.slug, looks.shared, path), [showcase, looks]);
-  const cues = looks.cuts[controls.cuts].sfx[controls.hook && looks.hook ? "hook" : "plain"];
 
   return (
     <div className="grid gap-x-16 gap-y-12 lg:grid-cols-12" data-testid="features">
       <div className="lg:col-span-4">
         <div className="mx-auto w-full max-w-[19rem] lg:sticky lg:top-10">
           <Stage caption={[`${receipt.seconds.toFixed(1)} s, ${receipt.scenes} scenes`, inCredits(receipt.totalUsd)]}>
-            <div ref={frame} className="absolute inset-0" data-testid="feature-player" data-live={live} data-brand={props.brand !== null} data-hook={props.hook?.text ?? ""} data-sounds={props.audio.sfx.length}>
+            <div ref={frame} className="absolute inset-0" data-testid="feature-player" data-live={live} data-brand={props.brand !== null} data-hook={props.hook?.text ?? ""}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={`/showcase/${showcase.slug}/poster.jpg`} alt={`A frame of “${receipt.title}”`} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
               {live && (
@@ -84,7 +81,7 @@ export function FeatureStage({ showcase }: { showcase: Showcase }) {
         )}
         {looks.hook && (
           <Feature name="An opening that stops the scroll">
-            <p>The first {inWords(Math.round(looks.hook.endFrame / props.fps))} seconds open with a title the script writes, a quick zoom and an impact. Reword it or leave it out; neither costs anything.</p>
+            <p>The first {inWords(Math.round(looks.hook.endFrame / props.fps))} seconds open with a title the script writes, and a quick zoom. Reword it or leave it out; neither costs anything.</p>
             <div className="flex flex-wrap gap-3">
               <input
                 type="text" value={controls.hookText} onChange={(e) => setControls((c) => ({ ...c, hook: true, hookText: e.target.value.slice(0, 60) }))}
@@ -95,20 +92,6 @@ export function FeatureStage({ showcase }: { showcase: Showcase }) {
             </div>
           </Feature>
         )}
-        <Feature name="Sound on the cuts">
-          <p>A cut gets a sound that fits it: a whoosh into a zoom or a blur, a pop on a hard cut or a glitch, nothing on a fade. Music, where there is any, is turned down under the voice.</p>
-          {controls.sfx && cues.length > 0 && (
-            <p className="figures text-[0.8rem] text-graphite" data-testid="feature-cues">
-              In this video: {cues.map((c) => `${SOUND[c.src] ?? "a sound"} at ${at(c.frame, props.fps)}`).join(", ")}.
-            </p>
-          )}
-          <div className="flex flex-wrap gap-3">
-            <button type="button" className={act} onClick={(e) => player.current?.playFrom(0, e)}>Play it from the start</button>
-            <button type="button" className={act} data-testid="feature-sfx" onClick={() => set("sfx", !controls.sfx)}>
-              {controls.sfx ? "Take the sounds out" : "Put the sounds back"}
-            </button>
-          </div>
-        </Feature>
         <Feature name="A queue that never buys twice">
           <p>Videos wait their turn and you see your place in line. Before anything is generated you are shown what it can cost at most, and that amount is the limit. If a job stops half-way it waits for you: nothing is retried, and nothing already made is bought again.</p>
         </Feature>

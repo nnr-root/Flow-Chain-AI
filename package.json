@@ -18,7 +18,6 @@
     "test:stack": "npm run test:stack -w web",
     "test:accounts": "npm run test:accounts -w web",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web",
-    "make:sfx": "tsx scripts/make-sfx.ts",
     "make:voices": "tsx scripts/make-voices.ts",
     "make:styles": "tsx scripts/make-styles.ts",
     "make:showcase": "tsx scripts/make-showcase.ts",

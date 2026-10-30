@@ -39,9 +39,8 @@ async function main(): Promise<void> {
 
   const fps = fpsOf(manifest.request);
   const fontsDir = resolve("assets/fonts");
-  const sfxDir = resolve("assets/sfx");
   // the video as made, and every look the page lets a visitor give it: all by the studio's own preview function
-  const { props, looks, files } = looksOf(manifest, { dir, fontsDir, sfxDir, fps, size: outputSize(manifest.request.aspect) });
+  const { props, looks, files } = looksOf(manifest, { dir, fontsDir, fps, size: outputSize(manifest.request.aspect) });
   // Made beside its place and moved there when it is whole: a failure half-way leaves the showcase that was
   // there before, not half of a new one.
   const place = resolve("web/public/showcase", slug);
@@ -49,8 +48,8 @@ async function main(): Promise<void> {
   const sharedOut = resolve("web/public/showcase/_shared");
   await rm(out, { recursive: true, force: true });
   const pubs = publications(Object.keys(files));
-  // the bundled caption fonts and sound effects are the same for every video: kept once, beside the videos
-  const shared = pubs.filter((pub) => [fontsDir, sfxDir].some((d) => files[pub.from].startsWith(d + sep))).map((pub) => pub.to);
+  // the bundled caption fonts are the same for every video: kept once, beside the videos
+  const shared = pubs.filter((pub) => files[pub.from].startsWith(fontsDir + sep)).map((pub) => pub.to);
   for (const pub of pubs) {
     const from = files[pub.from];
     const to = join(shared.includes(pub.to) ? sharedOut : out, pub.to);

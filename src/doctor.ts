@@ -2,12 +2,11 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { ensureBrowser } from "@remotion/renderer";
 import { execa } from "execa";
-import { EXAMPLE_BRAND_DIR, SFX_DIR } from "./assets.js";
+import { EXAMPLE_BRAND_DIR } from "./assets.js";
 import { loadBrandKit } from "./brand.js";
 import type { Env } from "./config.js";
 import type { Models } from "./manifest/schema.js";
 import { CAPTION_STYLES, SCRIPT_FACES } from "./media/remotion/styles.js";
-import { SFX, sfxFiles } from "./media/sfx.js";
 import { PRESETS } from "./presets.js";
 import { ElevenLabsTts } from "./providers/elevenlabs.js";
 import { parseModelId } from "./providers/model-id.js";
@@ -113,18 +112,12 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models): Pr
   const hosted = voiceModel && !voiceModel.startsWith("runpod:") ? voiceModel : undefined;
   const fonts = captionFontFiles(fontsDir);
   const missingFonts = fonts.filter((f) => !existsSync(f));
-  const missingSfx = sfxFiles(SFX_DIR).filter((f) => !existsSync(f));
   return [
     ...(await checkFfmpeg()),
     {
       name: "caption fonts",
       ok: missingFonts.length === 0,
       detail: missingFonts.length ? `missing: ${missingFonts.join(", ")}` : `${fonts.length} bundled`,
-    },
-    {
-      name: "sound effects",
-      ok: missingSfx.length === 0,
-      detail: missingSfx.length ? `missing: ${missingSfx.join(", ")} (run npm run make:sfx)` : `${Object.keys(SFX).length} bundled`,
     },
     await attempt("example brand kit", async () => `${(await loadBrandKit(EXAMPLE_BRAND_DIR)).name} is valid`),
     await attempt("Remotion browser", checkRemotionBrowser),

@@ -10,7 +10,6 @@ import { editById } from "../edits.js";
 import { cultureRules } from "../culture.js";
 import { LANGUAGE_IN_ENGLISH } from "../voice/language.js";
 import { LlmOutline, LlmPart, LlmScript, LlmTranslation, MAX_COUNTED_SCENES, MAX_NARRATION_WORDS } from "../manifest/schema.js";
-import { SCENE_SOUNDS, SCENE_SOUND_ABOUT } from "../sounds.js";
 import { PRESETS } from "../presets.js";
 import { shrinkReference } from "../media/reference-image.js";
 import { ideasPrompt } from "../trends/prompt.js";
@@ -120,6 +119,10 @@ const SUBJECT_RULE =
 const REFRAME_RULE =
   '- reframe: true on a "cut" scene that shows the same place and moment as the previous scene from a new angle or distance (its imagePrompt describes the new view, and keeps that place\'s light and surroundings the same); false for every other scene, and always false for scene 1, for a "continue" scene and for the first scene you write.';
 
+/** Asked once, beside the style bible, and not again for each part of a long video (the outline carries it). */
+const SOUND_BIBLE_RULE =
+  "- soundBible (once, before the scenes): the video's sound palette in English, at most 300 characters: the place and time as sound, and three to five recurring elements (for example: a storm coast lighthouse: wind, surf on rock, stone echo, brass machinery, a creaking iron stair).";
+
 function sceneRules(req: ScriptRequest): string[] {
   const orientation =
     req.aspect === "9:16"
@@ -143,7 +146,7 @@ function sceneRules(req: ScriptRequest): string[] {
     "- camera: the programmatic camera move used if this scene is rendered from a still image.",
     '- actionLevel: "high" for fast or complex motion worth real video, "medium" for some motion, "low" for still, contemplative or text-like moments.',
     '- suggestedTransition: how the cut into this scene should feel: "cut" for punchy or continuous energy, "fade" or "dissolve" for time passing or a mood shift, "zoom_transition" for an energetic jump. Scene 1\'s value is ignored.',
-    `- soundCues: up to two sounds this scene's picture clearly has a source for, each as {sound, at} with at "start", "middle" or "end" (a texture such as rain or wind plays under the whole scene, so its "at" does not matter). Choose only from: ${SCENE_SOUNDS.map((s) => `${s} (${SCENE_SOUND_ABOUT[s]})`).join("; ")}. Name a sound only when the frame shows what makes it; when unsure, leave the list empty. Silence is the default, and most scenes have none.`,
+    "- soundPrompt: what is heard in this scene's place, in English, at most 200 characters, built from the soundBible and specific to the scene (what moves, what it touches, how far away). No speech, voices, singing or music, ever. Concrete sources and materials. Scenes must differ from one another in what leads the sound while the soundBible keeps them one place. A scene with nothing to hear gets a quiet room tone, never an empty soundPrompt.",
     ...(req.shots
       ? [
           `- Use exactly these shot values, in order: ${req.shots.map((s, i) => `scene ${i + 1} "${s}"`).join(", ")}. ` +
@@ -282,6 +285,7 @@ function wholePrompt(req: ScriptRequest): string {
     hookRule(req),
     hashtagRule(req),
     ...bibleRules(req),
+    SOUND_BIBLE_RULE,
     ...sceneRules(req),
     ...feedbackLines(req),
   ].join("\n");
@@ -305,6 +309,7 @@ function outlinePrompt(req: ScriptRequest, partSec: number[]): string {
     hookRule(req),
     hashtagRule(req),
     ...bibleRules(req),
+    SOUND_BIBLE_RULE,
     `- parts: exactly ${partSec.length}, in order. For each, summary: what that part tells, in one or two plain sentences, specific enough that someone else could write it.`,
     "- The parts together are one story with a direction: part 1 opens on the hook and makes a promise, each part adds something the ones before did not, and the last part pays the promise off. No part repeats another, and none is filler.",
     ...feedbackLines(req),
@@ -337,6 +342,8 @@ function partPrompt(req: ScriptRequest, ask: Extract<NonNullable<ScriptRequest["
     `- characters: ${req.characters ?? outline.styleBible.characters}`,
     `- palette: ${outline.styleBible.palette}`,
     ...(outline.styleBible.setting ? [`- setting (every scene's time and place, and what belongs to it): ${outline.styleBible.setting}`] : []),
+    // (an outline kept before the sound bible has none: its parts are then written with no sound to keep to)
+    ...(outline.soundBible ? [`- soundBible (the sound of every scene's place; each soundPrompt is built from it): ${outline.soundBible}`] : []),
     "",
     "Rules:",
     ...languageRule(req, "every narration"),

@@ -21,7 +21,6 @@ function publishedPaths(props: RenderProps): string[] {
     props.captions.style.font.file,
     props.audio.narration,
     ...(props.audio.bgm ? [props.audio.bgm.src] : []),
-    ...props.audio.sfx.map((c) => c.src),
     ...(props.brand ? [props.brand.logo] : []),
   ];
 }
@@ -57,7 +56,7 @@ describe("the showcase videos", () => {
     for (const captions of Object.keys(looks.captions) as Array<keyof typeof looks.captions>) {
       for (const cuts of Object.keys(looks.cuts) as Array<keyof typeof looks.cuts>) {
         for (const brand of looks.brand ? [true, false] : [false]) {
-          const shown = RenderProps.parse(restyle(props, looks, { ...made, captions, cuts, brand, sfx: true, hook: looks.hook !== null }));
+          const shown = RenderProps.parse(restyle(props, looks, { ...made, captions, cuts, brand, hook: looks.hook !== null }));
           for (const path of publishedPaths(shown)) expect(existsSync(onDisk(slug, looks.shared, path)), `${slug}: ${path} (${captions}, ${cuts})`).toBe(true);
         }
       }

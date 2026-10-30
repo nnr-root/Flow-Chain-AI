@@ -148,6 +148,10 @@ describe("a long video's script, written in parts", () => {
     const [outline, first, second] = fakes.llm.calls;
     expect(buildScriptPrompt(outline)).toContain("It will be written in 2 parts of about 60 seconds each");
     expect(buildScriptPrompt(outline)).toContain("parts: exactly 2, in order");
+    // the sound bible is asked for once, in the outline, and handed to each part, which is not asked for it again
+    expect(buildScriptPrompt(outline)).toContain("soundBible (once, before the scenes)");
+    expect(buildScriptPrompt(first)).toContain(`the sound of every scene's place; each soundPrompt is built from it): ${fakeScript(1).soundBible}`);
+    expect(buildScriptPrompt(first)).not.toContain("soundBible (once, before the scenes)");
     expect(first.ask).toMatchObject({ kind: "part", index: 0, previous: [] });
     expect(buildScriptPrompt(first)).toContain("You are writing part 1 of 2");
     expect(buildScriptPrompt(first)).toContain("This is the opening: scene 1 is a strong hook.");
@@ -162,6 +166,7 @@ describe("a long video's script, written in parts", () => {
     const script = ctx.manifest.script!;
     expect(script.scenes).toHaveLength(30);
     expect([script.title, script.hook]).toEqual(["Fake run", "Foxes never sleep"]);
+    expect(script.soundBible).toBe(fakeScript(1).soundBible);
     // every part begins on a fresh picture; inside a part the model's own shots stand
     expect(script.scenes.map((s) => s.shot).filter((s) => s === "cut")).toHaveLength(2);
     expect([script.scenes[0].shot, script.scenes[15].shot]).toEqual(["cut", "cut"]);

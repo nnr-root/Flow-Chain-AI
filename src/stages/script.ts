@@ -192,7 +192,7 @@ async function writeInParts(ctx: RunContext, req: ScriptRequest, timing: Timing,
     part[0].shot = "cut";
     part[0].reframe = part[0].reframe === undefined ? undefined : false;
   }
-  return { title: outline.title, stylePreset: outline.stylePreset, styleBible: outline.styleBible, hook: outline.hook, ...(outline.hashtags ? { hashtags: outline.hashtags } : {}), scenes: kept.parts.flat() } as LlmScript;
+  return { title: outline.title, stylePreset: outline.stylePreset, styleBible: outline.styleBible, ...(outline.soundBible ? { soundBible: outline.soundBible } : {}), hook: outline.hook, ...(outline.hashtags ? { hashtags: outline.hashtags } : {}), scenes: kept.parts.flat() } as LlmScript;
 }
 
 /** Whether a run's script may mark reframes: a type that may, a picture profile that takes several references, and the frozen setting (phase 10 spec §4). */

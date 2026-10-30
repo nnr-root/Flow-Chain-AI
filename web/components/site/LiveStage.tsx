@@ -142,7 +142,6 @@ export function LiveStage({ showcases, title, children }: { showcases: Showcase[
                 data-caption-font={props.captions.style.font.family}
                 data-cuts={props.boundaries.map((b) => b.transition).join(",")}
                 data-hook={props.hook?.text ?? ""}
-                data-sounds={props.audio.sfx.length}
                 data-music={props.audio.bgm !== null}
                 data-brand={props.brand !== null}
               >
@@ -219,7 +218,6 @@ export function LiveStage({ showcases, title, children }: { showcases: Showcase[
             <div className="flex flex-wrap gap-x-6 gap-y-2.5">
               {looks.brand && <Toggle label="Brand" checked={controls.brand} onChange={(v) => set("brand", v)} />}
               {looks.bgm && <Toggle label="Music" checked={controls.music} onChange={(v) => set("music", v)} />}
-              <Toggle label="Sound effects" checked={controls.sfx} onChange={(v) => set("sfx", v)} />
             </div>
           </div>
         </div>

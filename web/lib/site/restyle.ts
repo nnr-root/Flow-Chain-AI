@@ -11,12 +11,11 @@ export type Controls = {
   hookText: string;
   brand: boolean;
   music: boolean;
-  sfx: boolean;
 };
 
 /** The controls as the video was made. */
 export function madeControls(looks: Looks): Controls {
-  return { captions: looks.made.captions, cuts: looks.made.cuts, hook: looks.made.hook, hookText: "", brand: looks.brand !== null, music: looks.bgm !== null, sfx: looks.made.sfx };
+  return { captions: looks.made.captions, cuts: looks.made.cuts, hook: looks.made.hook, hookText: "", brand: looks.brand !== null, music: looks.bgm !== null };
 }
 
 /**
@@ -36,12 +35,12 @@ export function restyle(base: RenderProps, looks: Looks, c: Controls): RenderPro
     boundaries: cut.boundaries,
     hook,
     brand,
-    audio: { ...base.audio, bgm: c.music ? looks.bgm : null, sfx: c.sfx ? (hook ? cut.sfx.hook : cut.sfx.plain) : [] },
+    audio: { ...base.audio, bgm: c.music ? looks.bgm : null },
   };
 }
 
 /**
- * Where a published file is fetched from. The bundled caption fonts and sound effects are the same for every
+ * Where a published file is fetched from. The bundled caption fonts are the same for every
  * video and are kept once (`shared`); everything else is the video's own.
  */
 export function mediaUrl(slug: string, shared: readonly string[], path: string): string {

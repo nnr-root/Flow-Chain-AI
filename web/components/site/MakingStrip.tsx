@@ -74,7 +74,7 @@ export function MakingStrip({ showcase }: { showcase: Showcase }) {
           <div className="flex items-center gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={`/showcase/${slug}/poster.jpg`} alt={`The finished video, “${receipt.title}”`} loading="lazy" className="aspect-[9/16] w-14 rounded-[14px] object-cover" />
-            <p className="max-w-[34rem] text-[1.02rem] leading-snug">Captions word by word, the opening title, the cuts between scenes, music turned down under the voice, and a sound on each cut.</p>
+            <p className="max-w-[34rem] text-[1.02rem] leading-snug">Captions word by word, the opening title, the cuts between scenes and music turned down under the voice.</p>
           </div>
         </Track>
       </ol>

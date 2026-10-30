@@ -134,7 +134,7 @@ async function localRuns(): Promise<RunSummary[]> {
 
 export function propsOptions(m: Manifest, runId: string, brandDir?: string): RenderPropsOptions {
   const r = roots();
-  return { dir: join(r.runs, runId), fontsDir: r.fonts, sfxDir: r.sfx, fps: fpsOf(m.request), size: outputSize(m.request.aspect), brandDir };
+  return { dir: join(r.runs, runId), fontsDir: r.fonts, fps: fpsOf(m.request), size: outputSize(m.request.aspect), brandDir };
 }
 
 export type Preview = RenderInputs & { draft: boolean };

@@ -4,7 +4,6 @@ import type { Caption } from "@remotion/captions";
 import type { Size } from "../config.js";
 import type { Manifest } from "../manifest/schema.js";
 import { captionPages, type TimedWord } from "../media/remotion/caption-pages.js";
-import { SFX, sceneSfxCues, sfxCues } from "../media/sfx.js";
 import type { Boundary, RenderProps, SceneProps } from "../media/remotion/props.js";
 import { captionBottomPct } from "../media/remotion/styles.js";
 import { framesAt, HOOK, halfWindowFor, speechRanges } from "../media/remotion/timeline.js";
@@ -38,7 +37,6 @@ export type RenderParts = {
 export type RenderPropsOptions = {
   dir: string;
   fontsDir: string;
-  sfxDir: string;
   fps: number;
   size: Size;
   /** Where the brand look's files are; the run directory unless a kit is only being previewed. */
@@ -127,16 +125,6 @@ export function assembleRenderProps(m: Manifest, opts: RenderPropsOptions, parts
     ? { src: publish(`bgm${extname(m.request.bgm)}`, m.request.bgm), gain: m.request.render.bgmGain, duckTo: BGM_MIX.duckTo, rampFrames: framesAt(BGM_MIX.rampFrames, fps), fadeOutFrames: framesAt(BGM_MIX.fadeOutFrames, fps) }
     : null;
 
-  // the script's own sounds per scene; a draft preview may lack the final script, and then there are none
-  const editCues = m.request.render.sfx ? sfxCues(boundaries, { hook: hook !== null, gain: m.request.render.sfxGain }) : [];
-  const ownCues = m.request.render.sfx
-    ? sceneSfxCues(
-        scenes.map((s, i) => ({ from: s.from, frames: frames[i], lead: i === 0 ? 0 : boundaries[i - 1].halfWindow, cues: m.script?.scenes[i]?.soundCues ?? [] })),
-        editCues,
-        { gain: m.request.render.sfxGain, fps },
-      )
-    : [];
-
   return {
     props: {
       fps,
@@ -153,14 +141,6 @@ export function assembleRenderProps(m: Manifest, opts: RenderPropsOptions, parts
         narration: publish(parts.narration.rel, parts.narration.abs),
         bgm,
         speech: speechRanges(parts.words, fps, totalFrames),
-        sfx: [...editCues, ...ownCues]
-          .sort((a, b) => a.frame - b.frame)
-          .map((c) => ({
-            src: publish(`sfx/${SFX[c.sound].file}`, join(opts.sfxDir, SFX[c.sound].file)),
-            frame: c.frame,
-            gain: c.gain,
-            ...(c.durationFrames !== undefined ? { durationFrames: c.durationFrames, fadeFrames: c.fadeFrames } : {}),
-          })),
       },
     },
     files,

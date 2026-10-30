@@ -78,7 +78,7 @@ describe("a version in another language", () => {
     const made = await finishedRun();
     const ctx = await versionOf(made);
     await runPipeline(ctx, STAGES, auto);
-    const opts = { dir: ctx.dir, fontsDir: ctx.fontsDir, sfxDir: ctx.sfxDir, fps: ctx.fps, size: ctx.size };
+    const opts = { dir: ctx.dir, fontsDir: ctx.fontsDir, fps: ctx.fps, size: ctx.size };
     const boundary = (m: typeof ctx.manifest) => buildRenderProps(m, opts, wordsToCaptions(globalWords(m), 6)).props.boundaries[0];
     expect(boundary(made.ctx.manifest)).toMatchObject({ kind: "seam", transition: "cut", halfWindow: 0 });
     expect(boundary(ctx.manifest)).toMatchObject({ kind: "seam", transition: "dissolve" });

@@ -137,7 +137,7 @@ describe("the edits", () => {
     m.script = fakeScript(2, { cameras: ["zoom_in", "pan_left"] });
     m.scenes.forEach((s, i) => (s.audio = { path: `audio/scene_0${i + 1}.wav`, duration: 1, removedSec: 0, words: [{ text: `w${i}`, start: 0.1, end: 0.5 }] }));
     m.scenes[0].fitted = { path: "fitted/scene_01.mp4", frames: 30, plan: { kind: "trim" } };
-    const opts = { dir: "/run", fontsDir: "/fonts", sfxDir: "/sfx", fps: 30, size: { width: 1080, height: 1920 } };
+    const opts = { dir: "/run", fontsDir: "/fonts", fps: 30, size: { width: 1080, height: 1920 } };
     const render = () => buildRenderProps(m, opts, wordsToCaptions(globalWords(m), 6)).props;
     // a run without an edit is rendered exactly as before
     const before = render();

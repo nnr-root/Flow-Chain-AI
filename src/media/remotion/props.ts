@@ -109,19 +109,6 @@ export const BrandProps = z.object({
 });
 export type BrandProps = z.infer<typeof BrandProps>;
 
-/**
- * One sound effect: `src` starts playing at `frame` at `gain` (relative to the narration). A cue with `durationFrames`
- * is a bed: it loops under that many frames, fading in and out over `fadeFrames`.
- */
-export const SfxCue = z.object({
-  src: z.string(),
-  frame: z.number().int().min(0),
-  gain: z.number().min(0),
-  durationFrames: z.number().int().positive().optional(),
-  fadeFrames: z.number().int().min(0).optional(),
-});
-export type SfxCue = z.infer<typeof SfxCue>;
-
 /** What is laid over the picture, never over the captions (an edit's finish, phase 8 spec §3). */
 export const FinishProps = z.object({
   contrast: z.number().min(0.5).max(1.5),
@@ -146,7 +133,7 @@ export const RenderProps = z.object({
    * "İ"), a language without spaces sets its words side by side, and Arabic is set right to left.
    */
   captions: z.object({ style: CaptionStyle, bottomPct: z.number(), pages: z.array(CaptionPage), lang: z.string().regex(/^[a-z]{2}$/).optional() }),
-  /** null = no hook (no zoom, no title, no impact sound). The title uses `captions.style`. */
+  /** null = no hook (no zoom, no title). The title uses `captions.style`. */
   hook: HookProps.nullable(),
   /** Absent = the picture as it is (every run without an edit). */
   finish: FinishProps.optional(),
@@ -156,7 +143,6 @@ export const RenderProps = z.object({
     bgm: BgmProps.nullable(),
     /** Frames where narration is speaking (merged and padded): the BGM ducks inside them. */
     speech: z.array(FrameRange),
-    sfx: z.array(SfxCue),
   }),
 });
 export type RenderProps = z.infer<typeof RenderProps>;

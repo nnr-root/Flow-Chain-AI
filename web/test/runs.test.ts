@@ -127,7 +127,6 @@ describe("preview", () => {
     expect(real.draft).toBe(false);
     expect(real.props.scenes.map((s) => s.src)).toEqual(["fitted/scene_01.mp4", "fitted/scene_02.mp4", "images/keyframe_03.png"]);
     expect(real.files["fitted/scene_01.mp4"]).toBe(join(studio.runs, id, "fitted/scene_01.mp4"));
-    expect(real.files["sfx/whoosh.mp3"] ?? real.files["sfx/impact_boom.mp3"]).toContain(join(studio.root, "assets/sfx"));
 
     // bought half-way (a clip is missing): still previewable, as a draft
     const half = finishedManifest(id);

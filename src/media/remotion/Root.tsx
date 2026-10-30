@@ -15,7 +15,7 @@ const DEFAULT_PROPS: RenderProps = {
   captions: { style: CAPTION_STYLES.hormozi, bottomPct: 30, pages: [] },
   hook: null,
   brand: null,
-  audio: { narration: "narration.wav", bgm: null, speech: [], sfx: [] },
+  audio: { narration: "narration.wav", bgm: null, speech: [] },
 };
 
 export const Root: React.FC = () => (
