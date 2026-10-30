@@ -98,4 +98,26 @@ describe.skipIf(!supa)("topic ideas in the database", () => {
     await expect(hold(a, mine, 0.05)).rejects.toThrow("job_active");
     await expect(hold(a, await request(a), 0.05, "bogus")).rejects.toThrow("invalid_kind");
   });
+
+  it("leaves a request's state alone when the worker sets one, and still sets a normal run's", async () => {
+    const a = await newUser(s, "a");
+    const id = await request(a);
+    for (const state of ["creating", "failed"]) {
+      expect((await svc().rpc("set_run_state", { p_run_id: id, p_state: state })).error).toBeNull();
+      expect((await a.client.from("runs").select("state").eq("id", id)).data).toEqual([{ state: "ideas" }]);
+    }
+    const normal = freshRunId();
+    expect((await a.client.rpc("create_run", { p_id: normal, p_topic: "x" })).error).toBeNull();
+    expect((await svc().rpc("set_run_state", { p_run_id: normal, p_state: "done" })).error).toBeNull();
+    expect((await a.client.from("runs").select("state").eq("id", normal)).data).toEqual([{ state: "done" }]);
+  });
+
+  it("never counts requests for ideas among unstarted videos, even after the worker has set their state", async () => {
+    const a = await newUser(s, "a");
+    for (let i = 0; i < 25; i++) {
+      const id = await request(a);
+      expect((await svc().rpc("set_run_state", { p_run_id: id, p_state: "creating" })).error).toBeNull();
+    }
+    expect((await a.client.rpc("create_run", { p_id: freshRunId(), p_topic: "x" })).error).toBeNull();
+  });
 });

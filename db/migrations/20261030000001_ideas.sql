@@ -58,5 +58,18 @@ begin
   return v_id;
 end $$;
 
+-- set_run_state as the tenancy migration made it, except that an 'ideas' row keeps its state: the worker's reconcile
+-- sets a state from the job it finds (null job -> 'creating'), and a settled-at-0 request must not turn into an
+-- unstarted video that create_run counts against max_unstarted_runs. `create or replace` keeps its grants
+-- (studio_worker only).
+create or replace function public.set_run_state(p_run_id text, p_state text, p_stored_at timestamptz default null) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  update public.runs
+    set state = case when state = 'ideas' then state else coalesce(p_state, state) end,
+        stored_at = coalesce(p_stored_at, stored_at), updated_at = now()
+    where id = p_run_id;
+end $$;
+
 -- (a new function starts with no access for anyone; `create or replace` kept reserve_credit's)
 grant execute on function public.create_idea_request(text) to studio_web;
