@@ -9,7 +9,7 @@ import { draftCapOfArgs } from "../lib/credit";
 import { multiTenant } from "../lib/accounts";
 import { baseRoots, health, roots } from "../server/config";
 import {
-  commandKind, consumerConnection, ideasRefusal, KEYS, type QuickJobData, type QuickJobResult, QUEUES, refusal, type RunJobData, type RunJobResult,
+  commandKind, consumerConnection, ideasRefusal, KEYS, type QuickJobData, type QuickJobResult, QUEUES, QUICK_WAIT_MS, refusal, type RunJobData, type RunJobResult,
 } from "../server/jobs/redis";
 import { exitCodeOf, lockState, readJobRecord, runFolder, runShort, spawnCli, stopProcess } from "../server/jobs/run-cli";
 import { type Job, type JobView, LOCK_FILE } from "../server/jobs/types";
@@ -40,6 +40,8 @@ export type WorkerOptions = {
   catchUpMs?: number;
   /** With accounts: how often the series with a schedule are looked at (default every two minutes). */
   seriesMs?: number;
+  /** Tests only: how long the web waits for a quick job (default `QUICK_WAIT_MS`, which is what the web uses). */
+  quickWaitMs?: number;
   log?: (message: string) => void;
 };
 
@@ -471,6 +473,12 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
             stdout = await runShort(job.data.args);
           } catch (err) {
             failure = err;
+          }
+          // The web stops waiting QUICK_WAIT_MS after it queued the job and tells the user nothing was made; an answer
+          // that comes later reaches nobody, so it is thrown away and the price returned in full (a second short of
+          // the web's limit, so that an answer which might still arrive in time is not the one refunded).
+          if (!failure && Date.now() - job.timestamp >= (opts.quickWaitMs ?? QUICK_WAIT_MS) - 1000) {
+            failure = new Error("the ideas came after the studio had stopped waiting for them");
           }
           // The price is kept when ideas came and returned in full when none did; if the database is away the reservation
           // stays open and the reconcile settles it (at 0: a request that has no manifest and was charged nothing).

@@ -171,6 +171,27 @@ describe.skipIf(!supa || !hasRedisServer())("an ideas job through the queue", ()
     expect(await balance(a)).toBe(0.95);
   });
 
+  it("gives the whole price back when the ideas come after the studio stopped waiting: nobody is there to be shown them", async () => {
+    // the studio's wait made short, and the request longer than it
+    const w = await worker({ WORKER_QUICK_WAIT_MS: "1500", IDEAS_DELAY_MS: "2500" });
+    await grant(a, 1);
+    const runId = await request(a);
+    const reservationId = await hold(a, runId);
+    const quick = new Queue(QUEUES.quick, { connection: admin });
+    const events = new QueueEvents(QUEUES.quick, { connection: new Redis(redis.url, { maxRetriesPerRequest: null }) });
+    await events.waitUntilReady();
+    try {
+      const job = await quick.add("ideas", { args: ARGS, userId: a.id, runId, reservationId }, JOB_OPTIONS);
+      expect(await job.waitUntilFinished(events, 20_000).then(() => "ran", (err: Error) => err.message)).toMatch(/stopped waiting/);
+    } finally {
+      await quick.close();
+      await events.close();
+    }
+    expect(w.output()).toMatch(/ideas .* settled at \$0\.0000/);
+    expect(await reservation(reservationId)).toEqual({ status: "settled", charged_usd: 0 });
+    expect(await balance(a)).toBe(1);
+  });
+
   it("refuses an ideas job that has no credit held for exactly it, and spends and settles nothing", async () => {
     // a reconcile pass so rare that it cannot be what settles here
     const w = await worker({ WORKER_RECONCILE_MS: "600000" });
@@ -200,6 +221,7 @@ describe.skipIf(!supa || !hasRedisServer())("an ideas job through the queue", ()
         { reservationId: undefined }, // no reservation
         { reservationId: bReservation }, // someone else's
         { reservationId: bReservation, userId: b.id }, // someone else's, for a request of a's
+        { userId: b.id }, // a's reservation for a's request, in a job that says it is b's
         { runId: draftRun, reservationId: draftReservation }, // a draft's
         { runId: otherRequest }, // a request the reservation is not for
       ]) {

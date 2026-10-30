@@ -21,6 +21,7 @@ try {
     reconcileMs: number("WORKER_RECONCILE_MS"),
     catchUpMs: number("WORKER_CATCH_UP_MS"),
     seriesMs: number("WORKER_SERIES_MS"),
+    quickWaitMs: number("WORKER_QUICK_WAIT_MS"),
     reconcileKnownUsersOnly: process.env.WORKER_RECONCILE_KNOWN_USERS_ONLY === "1",
   });
   const stop = () => {
