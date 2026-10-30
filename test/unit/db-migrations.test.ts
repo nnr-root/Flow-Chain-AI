@@ -95,7 +95,7 @@ describe("applying them", () => {
     const files = migrationFiles();
     expect(files.map((f) => f.name)).toEqual([
       "20261006000001_accounts.sql", "20261007000001_tenancy.sql", "20261008000001_billing.sql",
-      "20261010000001_series.sql", "20261010000002_series_schedule.sql", "20261010000003_series_month.sql", "20261010000004_publishing.sql", "20261010000005_plan_years.sql", "20261010000006_series_no_budget.sql",
+      "20261010000001_series.sql", "20261010000002_series_schedule.sql", "20261010000003_series_month.sql", "20261010000004_publishing.sql", "20261010000005_plan_years.sql", "20261010000006_series_no_budget.sql", "20261030000001_ideas.sql",
     ]);
     expect(pendingMigrations(files, []).length).toBe(files.length);
     // no secret is ever in a migration: roles get their passwords from the setup command
