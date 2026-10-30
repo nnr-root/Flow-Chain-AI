@@ -6,7 +6,7 @@
 import { createInterface } from "node:readline/promises";
 import { execa } from "execa";
 import {
-  applyDeploy, assertImageInGhcr, DEFAULTS, envValuesOf, fetchModels, foleyImageTag, NAMES, pictureImageTag, planDeploy, removeRetiredVolumes, RETIRED_VOLUMES, RunpodRest, upscaleImageTag, workerImageTag, writeEnvValues,
+  applyDeploy, assertImageInGhcr, chooseFoleyImage, DEFAULTS, envValuesOf, fetchModels, foleyImageTag, NAMES, pictureImageTag, planDeploy, removeRetiredVolumes, RETIRED_VOLUMES, RunpodRest, upscaleImageTag, workerImageTag, writeEnvValues,
 } from "../src/deploy/runpod.js";
 import { R2 } from "../src/providers/r2.js";
 import { RunpodClient } from "../src/providers/runpod.js";
@@ -43,6 +43,14 @@ async function main(): Promise<void> {
     console.log(removed.length ? `Deleted volume ${removed.join(", ")}; ${NAMES.volume} is the only one now.` : `No volume named ${RETIRED_VOLUMES.join(" or ")} exists; nothing was deleted.`);
     return;
   }
+  // scene sound (phase 14 spec §4): `-- --no-foley` leaves its endpoint out; a default image not built yet skips it
+  const foley = await chooseFoleyImage({
+    skip: process.argv.includes("--no-foley"),
+    explicit: process.env.RUNPOD_FOLEY_IMAGE,
+    defaultImage: () => defaultImage("foley"),
+    probe: (image) => assertImageInGhcr(image, console.warn),
+  });
+  if (foley.message) console.log(foley.message);
   const cfg = {
     image: process.env.RUNPOD_WORKER_IMAGE ?? (await defaultImage("clip")),
     pictureImage: process.env.RUNPOD_PICTURE_IMAGE ?? (await defaultImage("picture")),
@@ -52,8 +60,7 @@ async function main(): Promise<void> {
     clipGpus: DEFAULTS.clipGpus,
     // full HD (phase 8 spec §8): `-- --no-upscale` leaves its endpoint out
     ...(process.argv.includes("--no-upscale") ? {} : { upscaleImage: process.env.RUNPOD_UPSCALE_IMAGE ?? (await defaultImage("upscale")), upscaleGpus: DEFAULTS.upscaleGpus }),
-    // scene sound (phase 14 spec §4): `-- --no-foley` leaves its endpoint out
-    ...(process.argv.includes("--no-foley") ? {} : { foleyImage: process.env.RUNPOD_FOLEY_IMAGE ?? (await defaultImage("foley")), foleyGpus: DEFAULTS.foleyGpus }),
+    ...(foley.image ? { foleyImage: foley.image, foleyGpus: DEFAULTS.foleyGpus } : {}),
     // FLUX 3 (phase 10 spec §3): its endpoint is made only when the owner names its cards
     ...(process.env.RUNPOD_PICTURE3_GPUS ? { keyframe3Gpus: process.env.RUNPOD_PICTURE3_GPUS.split(",").map((s) => s.trim()).filter(Boolean), hfToken: need("HF_TOKEN") } : {}),
     r2: {
@@ -66,7 +73,6 @@ async function main(): Promise<void> {
   await assertImageInGhcr(cfg.image, console.warn); // before anything is created
   await assertImageInGhcr(cfg.pictureImage, console.warn);
   if (cfg.upscaleImage) await assertImageInGhcr(cfg.upscaleImage, console.warn);
-  if (cfg.foleyImage) await assertImageInGhcr(cfg.foleyImage, console.warn);
   const rest = new RunpodRest(apiKey);
   const steps = await planDeploy(rest, { upscale: Boolean(cfg.upscaleImage), picture3: Boolean(cfg.keyframe3Gpus), foley: Boolean(cfg.foleyImage) });
   console.log(`RunPod deploy (clips ${cfg.image}, pictures ${cfg.pictureImage}, data centre ${cfg.dataCenterId}):`);
@@ -87,7 +93,7 @@ async function main(): Promise<void> {
   console.log(`Endpoints: keyframe ${deployed.keyframeEndpointId}, clip ${deployed.clipEndpointId}`);
   // saved before the long model downloads, so a failed download never loses the ids of what was just created
   await writeEnvValues(".env", envValuesOf(deployed));
-  console.log("Wrote RUNPOD_KEYFRAME_ENDPOINT and RUNPOD_CLIP_ENDPOINT to .env.");
+  console.log(`Wrote ${Object.keys(envValuesOf(deployed)).join(", ")} to .env.`);
   // The pipeline removes each upload once it has its own copy. A rule on the bucket catches what is left when
   // a run stops in between; it needs a key that may change the bucket's settings, which the workers' key is not.
   await new R2(cfg.r2).expireAfter("flowchain/", 1).then(

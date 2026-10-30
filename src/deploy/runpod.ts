@@ -374,7 +374,7 @@ const MANIFEST_ACCEPT = [
   "application/vnd.oci.image.manifest.v1+json",
 ].join(", ");
 
-class ImageMissing extends Error {}
+export class ImageMissing extends Error {}
 
 /**
  * Checks, anonymously, that a ghcr.io image exists and is public, so a deploy never points a template at an
@@ -451,6 +451,31 @@ export function envValuesOf(d: Deployed): Record<string, string> {
     ...(d.foleyEndpointId ? { RUNPOD_FOLEY_ENDPOINT: d.foleyEndpointId } : {}),
     RUNPOD_CLIP_ENDPOINT: d.clipEndpointId,
   };
+}
+
+/**
+ * Which Foley image a deploy uses. An image the owner named must exist (a missing one throws); the default one
+ * may not have been built yet, and then Foley is skipped with a message so routine redeploys of the rest go on.
+ */
+export async function chooseFoleyImage(o: {
+  skip: boolean;
+  explicit?: string;
+  defaultImage: () => Promise<string>;
+  probe: (image: string) => Promise<void>;
+}): Promise<{ image?: string; message?: string }> {
+  if (o.skip) return {};
+  if (o.explicit) {
+    await o.probe(o.explicit);
+    return { image: o.explicit };
+  }
+  const image = await o.defaultImage();
+  try {
+    await o.probe(image);
+    return { image };
+  } catch (err) {
+    if (!(err instanceof ImageMissing)) throw err;
+    return { message: `the Foley image ${image.slice(image.lastIndexOf(":") + 1)} is not in GHCR yet, or is not public: skipping the Foley endpoint (build and publish it, then run this again)` };
+  }
 }
 
 /** And for `worker-picture/`. */

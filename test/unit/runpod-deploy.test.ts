@@ -2,7 +2,7 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  applyDeploy, applyVoiceDeploy, assertImageInGhcr, DEFAULTS, envValuesOf, fetchModels, foleyImageTag, NAMES, planDeploy, planVoiceDeploy, removeRetiredVolumes, RunpodRest, VOICE_DEFAULTS, voiceImageTag,
+  applyDeploy, applyVoiceDeploy, assertImageInGhcr, chooseFoleyImage, DEFAULTS, envValuesOf, ImageMissing, fetchModels, foleyImageTag, NAMES, planDeploy, planVoiceDeploy, removeRetiredVolumes, RunpodRest, VOICE_DEFAULTS, voiceImageTag,
   workerImageTag, writeEnvValues,
 } from "../../src/deploy/runpod.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
@@ -124,7 +124,9 @@ describe("runpod deploy", () => {
     const plain = await applyDeploy(without.rest, cfg, () => {});
     expect(plain.foleyEndpointId).toBeUndefined();
     expect(without.store.endpoints.map((e) => e.name)).not.toContain(NAMES.foley);
-    expect((await planDeploy(without.rest)).map((s) => s.name)).not.toContain(NAMES.foley);
+    expect((await planDeploy(without.rest)).map((s) => s.name)).toEqual([
+      "flowchain-weights", "flowchain-worker", "flowchain-picture", "flowchain-keyframe", "flowchain-clip",
+    ]);
     expect(Object.keys(envValuesOf(plain))).not.toContain("RUNPOD_FOLEY_ENDPOINT");
 
     const { rest, store } = fakeRest();
@@ -144,6 +146,21 @@ describe("runpod deploy", () => {
     expect(store.endpoints.filter((e) => e.name === NAMES.foley)).toHaveLength(1);
     expect(store.templates.filter((t) => t.name === NAMES.foleyTemplate)).toHaveLength(1);
     expect((await planDeploy(rest, { foley: true })).find((s) => s.name === NAMES.foley)?.action).toBe("update");
+  });
+
+  it("skips a default Foley image that is not built yet, but not one the owner named", async () => {
+    const probed: string[] = [];
+    const absent = async (i: string) => { probed.push(i); throw new ImageMissing("gone"); };
+    const present = async (i: string) => { probed.push(i); };
+    const defaultImage = async () => "ghcr.io/me/flowchain-foley:f-abc";
+    const miss = await chooseFoleyImage({ skip: false, defaultImage, probe: absent });
+    expect(miss.image).toBeUndefined();
+    expect(miss.message).toBe("the Foley image f-abc is not in GHCR yet, or is not public: skipping the Foley endpoint (build and publish it, then run this again)");
+    expect(await chooseFoleyImage({ skip: false, defaultImage, probe: present })).toEqual({ image: "ghcr.io/me/flowchain-foley:f-abc" });
+    await expect(chooseFoleyImage({ skip: false, explicit: "ghcr.io/me/x:1", defaultImage, probe: absent })).rejects.toBeInstanceOf(ImageMissing);
+    probed.length = 0;
+    expect(await chooseFoleyImage({ skip: true, defaultImage, probe: absent })).toEqual({});
+    expect(probed).toEqual([]);
   });
 
   it("updates instead of duplicating on a second run, and keeps existing secrets", async () => {
