@@ -453,10 +453,11 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       return { stdout: await pay.customer(String(job.data.userId ?? "")) };
     }
     if (job.name === "ideas") {
-      const refused = ideasRefusal(job.data.args);
+      // a worker without accounts holds no credit, so its studio sends no cap (and asUser refuses a job that names a user)
+      const refused = ideasRefusal(job.data.args, { needsCap: Boolean(db) });
       if (refused) throw new Error(refused);
       const { userId, runId, reservationId } = job.data;
-      const cap = Number(job.data.args[job.data.args.indexOf("--cap") + 1]);
+      const cap = db ? Number(job.data.args[job.data.args.indexOf("--cap") + 1]) : 0;
       // With accounts, credit must be held for exactly this: an open reservation of this user, for this request, of kind ideas, for this amount.
       if (db) {
         const held = reservationId && UUID.test(reservationId) ? await db.reservation(reservationId) : null;
@@ -474,10 +475,15 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
           } catch (err) {
             failure = err;
           }
+          // Ideas are charged only when there are some the studio can show: an answer that is not the CLI's JSON, or
+          // that has none, would be read by the web as a failure and the user told their credit was returned
+          // (final review, F4), so it is one here too and the price is returned in full.
+          if (!failure && !hasIdeas(stdout)) failure = new Error("the ideas command printed no ideas");
           // The web stops waiting QUICK_WAIT_MS after it queued the job and tells the user nothing was made; an answer
-          // that comes later reaches nobody, so it is thrown away and the price returned in full (a second short of
-          // the web's limit, so that an answer which might still arrive in time is not the one refunded).
-          if (!failure && Date.now() - job.timestamp >= (opts.quickWaitMs ?? QUICK_WAIT_MS) - 1000) {
+          // that comes later reaches nobody, so it is thrown away and the price returned in full. The margin is five
+          // seconds short of the web's limit: the answer still has to reach the web through Redis, and one that might
+          // arrive in time is better refunded than charged and never shown.
+          if (!failure && Date.now() - job.timestamp >= (opts.quickWaitMs ?? QUICK_WAIT_MS) - 5000) {
             failure = new Error("the ideas came after the studio had stopped waiting for them");
           }
           // The price is kept when ideas came and returned in full when none did; if the database is away the reservation
@@ -637,3 +643,13 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
 
 /** The guard's holder, for a health check ("is the worker this process?"). */
 export const guardHolder = (redis: Redis): Promise<string | null> => redis.get(KEYS.worker);
+
+/** Whether an ideas command's output is what the studio shows: JSON with at least one idea. */
+export function hasIdeas(stdout: string): boolean {
+  try {
+    const answer = JSON.parse(stdout) as { ideas?: unknown };
+    return Array.isArray(answer?.ideas) && answer.ideas.length > 0;
+  } catch {
+    return false;
+  }
+}

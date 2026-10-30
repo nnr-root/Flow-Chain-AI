@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { BROWSER_COOKIE, type LINK_ERRORS, multiTenant, OAUTH_COOKIE, safeNext, SESSION_COOKIE, SESSION_DAYS } from "@/lib/accounts";
+import type { LedgerKind } from "@/lib/ledger";
 import { db } from "./db";
 import { ApiError } from "./http";
 import { mailOn, sendLink } from "./mail";
@@ -253,7 +254,7 @@ export async function finishCallback(req: Request): Promise<string> {
 }
 
 export type Account = { email: string; balanceUsd: number };
-export type LedgerRow = { id: number; kind: "grant" | "reserve" | "settle" | "purchase" | "plan" | "expire" | "refund"; amountUsd: number; balanceAfterUsd: number; runId: string | null; note: string; at: string };
+export type LedgerRow = { id: number; kind: LedgerKind; amountUsd: number; balanceAfterUsd: number; runId: string | null; note: string; at: string; reservationKind?: string };
 
 /** The signed-in user's balance; row-level security makes "the one row I can see" exactly that. */
 export async function account(): Promise<Account> {
@@ -263,10 +264,21 @@ export async function account(): Promise<Account> {
 }
 
 export async function ledger(limit = 100): Promise<LedgerRow[]> {
-  const { data, error } = await userDb().from("ledger").select("id,kind,amount_usd,balance_after_usd,run_id,note,created_at").order("id", { ascending: false }).limit(limit);
+  const { data, error } = await userDb().from("ledger").select("id,kind,amount_usd,balance_after_usd,run_id,reservation_id,note,created_at").order("id", { ascending: false }).limit(limit);
   if (error) throw new Error(error.message);
-  return (data ?? []).map((r) => ({
-    id: r.id as number, kind: r.kind as LedgerRow["kind"], amountUsd: Number(r.amount_usd), balanceAfterUsd: Number(r.balance_after_usd),
-    runId: r.run_id as string | null, note: r.note as string, at: r.created_at as string,
-  }));
+  // the kind of the reservation each held or settled row belongs to: a topic suggestion's has no video to link to
+  const ids = [...new Set((data ?? []).map((r) => r.reservation_id as string | null).filter((id): id is string => Boolean(id)))];
+  const kinds = new Map<string, string>();
+  if (ids.length > 0) {
+    const held = await userDb().from("reservations").select("id,kind").in("id", ids);
+    if (held.error) throw new Error(held.error.message);
+    for (const r of held.data ?? []) kinds.set(r.id as string, r.kind as string);
+  }
+  return (data ?? []).map((r) => {
+    const reservationKind = r.reservation_id ? kinds.get(r.reservation_id as string) : undefined;
+    return {
+      id: r.id as number, kind: r.kind as LedgerKind, amountUsd: Number(r.amount_usd), balanceAfterUsd: Number(r.balance_after_usd),
+      runId: r.run_id as string | null, note: r.note as string, at: r.created_at as string, ...(reservationKind ? { reservationKind } : {}),
+    };
+  });
 }

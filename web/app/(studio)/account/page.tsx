@@ -6,6 +6,7 @@ import { SignOut } from "@/components/SignOut";
 import { Panel } from "@/components/ui";
 import { amount, money } from "@/lib/api";
 import { arrivedSince, billingOn, LIVE, purchaseTime } from "@/lib/billing";
+import { ledgerEntry } from "@/lib/ledger";
 import { CHANNEL_NOTES, publishingOn } from "@/lib/publishing";
 import { account, ledger } from "@/server/auth";
 import { billingView } from "@/server/billing/actions";
@@ -14,10 +15,6 @@ import { accountsOnly, forUser } from "@/server/page";
 
 export const dynamic = "force-dynamic";
 
-const WHAT = {
-  grant: "Credit added", reserve: "Held for a job", settle: "Job settled",
-  purchase: "Top-up bought", plan: "Plan credit", expire: "Plan credit expired", refund: "Refund",
-} as const;
 /** Rows whose note is an identifier for the books, not something to read. */
 const QUIET = ["reserve", "purchase", "refund"];
 const STATUS: Record<string, string> = { active: "Active", trialing: "Trial", past_due: "Payment failed, Stripe is retrying", canceled: "Ended", unpaid: "Unpaid", incomplete: "Waiting for the first payment", incomplete_expired: "Ended", paused: "Paused" };
@@ -92,14 +89,17 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
         ) : (
           <table className="w-full text-[0.95rem]" data-testid="ledger">
             <tbody>
-              {rows.map((r) => (
+              {rows.map((r) => {
+                const { what, href } = ledgerEntry(r);
+                return (
                 <tr key={r.id} className="border-t border-hairline first:border-t-0">
                   <td className="py-2 text-[0.85rem] text-graphite">{minute(r.at)}</td>
-                  <td className="py-2">{WHAT[r.kind]}{r.runId && <>, <Link href={`/runs/${r.runId}`} className="underline underline-offset-4">this video</Link></>}{r.note && !QUIET.includes(r.kind) ? <span className="text-graphite">, {r.note}</span> : null}</td>
+                  <td className="py-2">{what}{href && <>, <Link href={href} className="underline underline-offset-4">this video</Link></>}{r.note && !QUIET.includes(r.kind) ? <span className="text-graphite">, {r.note}</span> : null}</td>
                   <td className={`py-2 text-right tabular-nums ${r.amountUsd < 0 ? "text-warn" : "text-good"}`}>{r.amountUsd < 0 ? "−" : "+"}{amount(Math.abs(r.amountUsd))}</td>
                   <td className="py-2 text-right tabular-nums text-graphite">{amount(r.balanceAfterUsd)}</td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         )}

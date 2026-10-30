@@ -56,6 +56,14 @@ describe("ideasRefusal", () => {
     }
   });
 
+  it("needs no cap from a studio without accounts, which holds no credit, and still checks one if it is there", () => {
+    expect(ideasRefusal(["ideas", "--language", "en"], { needsCap: false })).toBeUndefined();
+    expect(ideasRefusal(["ideas", "--language", "en", "--niche", "scary-stories"], { needsCap: false })).toBeUndefined();
+    expect(ideasRefusal(["ideas", "--language", "en"])).toEqual(expect.any(String));
+    expect(ideasRefusal(["ideas", "--language", "en", "--cap", "lots"], { needsCap: false })).toEqual(expect.any(String));
+    expect(ideasRefusal(["ideas", "--cap", "0.05"], { needsCap: false })).toEqual(expect.any(String));
+  });
+
   it("is not a free quick command: asked for as one, it would spend without credit held", () => {
     expect(refusal("quick", base)).toEqual(expect.any(String));
   });
@@ -157,6 +165,20 @@ describe.skipIf(!supa || !hasRedisServer())("an ideas job through the queue", ()
     expect(await reservation(reservationId)).toEqual({ status: "settled", charged_usd: 0 });
     expect(await balance(a)).toBe(1);
   });
+
+  for (const [what, stdout] of [["is not JSON", "Here are some ideas!"], ["has no ideas", '{"ideas":[],"dropped":3}']] as const) {
+    it(`gives the whole price back when the CLI ends well but its answer ${what}: the studio could show nothing`, async () => {
+      const w = await worker({ IDEAS_STDOUT: stdout });
+      await grant(a, 1);
+      const runId = await request(a);
+      const reservationId = await hold(a, runId);
+      const failed = await ask(a, ARGS, { runId, reservationId }).catch((err: unknown) => err);
+      expect(failed).toMatchObject({ code: "ideas_failed", message: "no ideas could be made this time" });
+      expect(w.output()).toMatch(/ideas .* settled at \$0\.0000/);
+      expect(await reservation(reservationId)).toEqual({ status: "settled", charged_usd: 0 });
+      expect(await balance(a)).toBe(1);
+    });
+  }
 
   it("does not refund a request still being made, however long it takes", async () => {
     // the reconcile passes several times while the request is made, and looks at reservations this young

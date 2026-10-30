@@ -34,21 +34,45 @@ export function IdeaSuggestions({ request, onPick }: { request: { language: stri
         {IDEAS_LABELS.button}{price !== undefined ? ` · ${amount(price)}` : ""}
       </Button>
       {error ? <ErrorNote>{error}</ErrorNote> : null}
-      {result?.ideas.map((idea) => (
-        <div key={idea.topic} className="space-y-1.5 rounded-[16px] bg-sheet p-3 text-[0.9rem]" data-testid="idea">
-          <p className="font-bold">{idea.topic}</p>
-          <p className="text-graphite">{IDEAS_LABELS.why}: {idea.why}</p>
-          {idea.sources.length > 0 ? (
-            <p className="flex flex-wrap gap-x-3 text-graphite">
-              <span>{IDEAS_LABELS.sources}:</span>
-              {idea.sources.map((s) => (
-                <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer" className="underline">{s.title}</a>
-              ))}
-            </p>
-          ) : null}
-          <Button type="button" onClick={() => onPick(idea.topic)}>{IDEAS_LABELS.use}</Button>
-        </div>
-      ))}
+      {result?.ideas.map((idea) => <IdeaCard key={idea.topic} idea={idea} onPick={onPick} />)}
+    </div>
+  );
+}
+
+/**
+ * The host a source is shown by (spec §6): the model chose the title, the link's host is where it really goes. An
+ * address that does not parse, or is not https, gets no link at all (the CLI keeps only https sources already).
+ */
+export function sourceHost(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" ? parsed.hostname.toLowerCase().replace(/^www\./, "") : null;
+  } catch {
+    return null;
+  }
+}
+
+/** One idea: its topic, why, the sources it was found in, and the button that puts it in the topic field. */
+export function IdeaCard({ idea, onPick }: { idea: IdeasResult["ideas"][number]; onPick: (topic: string) => void }) {
+  const links = idea.sources.flatMap((s) => {
+    const host = sourceHost(s.url);
+    return host ? [{ ...s, host }] : [];
+  });
+  return (
+    <div className="space-y-1.5 rounded-[16px] bg-sheet p-3 text-[0.9rem]" data-testid="idea">
+      <p className="font-bold">{idea.topic}</p>
+      <p className="text-graphite">{IDEAS_LABELS.why}: {idea.why}</p>
+      {links.length > 0 ? (
+        <p className="flex flex-wrap gap-x-3 text-graphite">
+          <span>{IDEAS_LABELS.sources}:</span>
+          {links.map((s) => (
+            <a key={s.url} href={s.url} target="_blank" rel="noopener noreferrer" className="underline">
+              {s.title} <span className="opacity-70">({s.host})</span>
+            </a>
+          ))}
+        </p>
+      ) : null}
+      <Button type="button" onClick={() => onPick(idea.topic)}>{IDEAS_LABELS.use}</Button>
     </div>
   );
 }

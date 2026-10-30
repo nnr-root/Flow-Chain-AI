@@ -31,8 +31,12 @@ export function filterIdeas(ideas: Idea[], hosts: string[]): { kept: Idea[]; dro
       continue;
     }
     seen.add(key);
+    // a link given twice in one idea is shown once (and would repeat the page's key for it)
+    const urls = new Set<string>();
     const sources = idea.sources
       .filter((s) => {
+        if (urls.has(s.url)) return false;
+        urls.add(s.url);
         if (!s.url.startsWith("https://")) return false;
         const host = hostOf(s.url);
         return host !== null && known.has(host);

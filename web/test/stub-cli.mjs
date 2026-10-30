@@ -20,6 +20,9 @@ if (command === "plan") {
   if (process.env.FAIL_IDEAS) {
     console.error("Error: the stub's model call failed");
     process.exitCode = 1;
+  } else if (process.env.IDEAS_STDOUT !== undefined) {
+    // an answer that ends well but is not the ideas the studio can show
+    console.log(process.env.IDEAS_STDOUT);
   } else {
     console.log(JSON.stringify({ ideas: [{ topic: "A topic the stub made up", why: "Because a test asked", sources: [] }], dropped: 0 }));
   }

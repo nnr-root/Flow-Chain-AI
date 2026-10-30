@@ -13,8 +13,10 @@ import { ideasArgs, IdeasInput } from "@/server/schemas";
 import { runRows } from "@/server/store/tenant";
 import { db as webDb } from "@/server/db";
 import { inScope } from "@/server/tenant";
+import { ledger as accountLedger } from "@/server/auth";
+import { ledgerEntry } from "@/lib/ledger";
 import { freshRunId, localDb, newUser, serviceClient, type TestUser } from "../../test/helpers/db";
-import { request, until, useStudio, withKeys } from "./helpers";
+import { calls, request, until, useStudio, withKeys } from "./helpers";
 import { hasRedisServer, startRedis, startWorkerProcess, type TestRedis, type TestWorker } from "./redis";
 import { as, cookiesOf, withAccounts } from "./tenant";
 
@@ -49,6 +51,13 @@ describe("ideasPriceUsd", () => {
   it("reads a positive price from the dated file and nothing else", () => {
     expect(real.ideasPriceUsd({ usd: 0.05, measuredOn: "2026-10-30", basis: "x" })).toBe(0.05);
     for (const bad of [{ usd: null }, {}, { usd: -1 }, { usd: 0 }, { usd: "0.05" }, { usd: 6 }, null]) expect(real.ideasPriceUsd(bad), JSON.stringify(bad)).toBeUndefined();
+  });
+
+  it("takes only a price in ten-thousandths, the precision the database holds credit in", () => {
+    expect(real.ideasPriceUsd({ usd: 0.05 })).toBe(0.05);
+    expect(real.ideasPriceUsd({ usd: 0.0123 })).toBe(0.0123);
+    expect(real.ideasPriceUsd({ usd: 0.12345 })).toBeUndefined();
+    expect(real.ideasPriceUsd({ usd: 0.00001 })).toBeUndefined();
   });
 
   it("is not set in the file as shipped: the button is not offered until the owner has measured", () => {
@@ -128,7 +137,7 @@ let admin: Redis;
 let workers: TestWorker[] = [];
 
 beforeAll(async () => {
-  if (!supa || !hasRedisServer()) return;
+  if (!hasRedisServer()) return;
   redis = await startRedis();
   admin = new Redis(redis.url, { maxRetriesPerRequest: null });
   admin.on("error", () => {});
@@ -141,6 +150,30 @@ afterEach(async () => {
   await Promise.all(workers.map((w) => w.stop()));
   workers = [];
   await closeQueue();
+});
+
+describe.skipIf(!hasRedisServer())("POST /api/ideas through the queue without accounts", () => {
+  // REDIS_URL set, DATABASE_URL not: a supported mode (final review, F1). Nothing is held, so no cap is sent.
+  beforeEach(async () => {
+    await admin.flushall();
+    process.env.REDIS_URL = redis.url;
+  });
+
+  it("offers ideas as the worker's own health says, and answers with them without touching any credit", async () => {
+    // the switch and the key are the worker's; the web side has neither, and reads the worker's answer through the queue
+    const w = startWorkerProcess({ REDIS_URL: redis.url, FLOWCHAIN_ROOT: studio.root, RUNS_DIR: studio.runs, FLOWCHAIN_CLI: process.env.FLOWCHAIN_CLI!, GEMINI_API_KEY: "g", FLOWCHAIN_TREND_IDEAS: "on" });
+    workers.push(w);
+    await until(() => w.output().includes("ready") || w.child.exitCode !== null);
+    expect(process.env.DATABASE_URL).toBeUndefined();
+    expect(process.env.FLOWCHAIN_TREND_IDEAS).toBeUndefined();
+    expect(JSON.parse(await (await healthRoute(request("/api/health"), undefined)).text()).ideas).toBe(true);
+    const res = await suggest(request("/api/ideas", { json: { language: "en", niche: { kind: "known", id: "scary-stories" } } }), undefined);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ideas: [{ topic: "A topic the stub made up", why: "Because a test asked", sources: [] }], dropped: 0 });
+    // the CLI was asked without a cap: there is no credit here to cap
+    expect((await calls(studio)).filter((c) => c[0] === "ideas")).toEqual([["ideas", "--language", "en", "--niche", "scary-stories"]]);
+    expect(w.output()).not.toMatch(/settled|no credit is held/);
+  });
 });
 
 describe.skipIf(!supa || !hasRedisServer())("POST /api/ideas in a studio with accounts", () => {
@@ -186,6 +219,13 @@ describe.skipIf(!supa || !hasRedisServer())("POST /api/ideas in a studio with ac
     expect(await res.json()).toEqual({ ideas: [{ topic: "A topic the stub made up", why: "Because a test asked", sources: [] }], dropped: 0 });
     expect(await ledger(a)).toEqual(["grant", "reserve", "settle"]);
     expect(await balance(a)).toBe(1 - PRICE);
+    // the account's history names both rows as a topic suggestion's and links neither to a video page
+    const rows = await inScope({ user: { id: a.id, email: a.email }, db: webDb().as(a.id) }, () => accountLedger());
+    expect(rows.map((r) => [r.kind, ledgerEntry(r)])).toEqual([
+      ["settle", { what: "Topic suggestion settled", href: null }],
+      ["reserve", { what: "Held for a topic suggestion", href: null }],
+      ["grant", { what: "Credit added", href: null }],
+    ]);
   });
 
   it("gives the whole price back and answers only with the fixed words when none came", async () => {

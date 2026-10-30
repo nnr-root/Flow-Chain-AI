@@ -135,8 +135,10 @@ const IDEAS_VALUED = new Set(["--language", "--cap", "--region", "--niche", "--n
 /**
  * What the worker agrees to run as an ideas job (phase 13 plan): exactly the shape the studio builds, each option once,
  * every value checked, so nothing that reaches Redis can make the CLI do anything but ask for ideas.
+ * `--cap` is required only where credit is held for the request (a worker with accounts): a studio with the queue but
+ * no accounts holds nothing and sends none, and requiring it there refused every click (final review, F1).
  */
-export function ideasRefusal(args: unknown): string | undefined {
+export function ideasRefusal(args: unknown, { needsCap = true }: { needsCap?: boolean } = {}): string | undefined {
   if (!Array.isArray(args) || args.length === 0 || !args.every((a) => typeof a === "string")) return "the job has no command";
   const list = args as string[];
   if (list[0] !== "ideas") return `"${list[0]}" is not an ideas command`;
@@ -147,9 +149,10 @@ export function ideasRefusal(args: unknown): string | undefined {
     if (seen.has(option)) return `ideas may not repeat ${option}`;
     seen.set(option, list[i + 1]);
   }
-  if (!seen.has("--language") || !seen.has("--cap")) return "ideas must carry --language and --cap";
+  if (!seen.has("--language")) return "ideas must carry --language";
+  if (needsCap && !seen.has("--cap")) return "ideas must carry --cap";
   if (!LANGUAGE.test(seen.get("--language")!)) return "ideas: not a language code";
-  if (!AMOUNT.test(seen.get("--cap")!)) return "ideas: --cap must be an amount";
+  if (seen.has("--cap") && !AMOUNT.test(seen.get("--cap")!)) return "ideas: --cap must be an amount";
   if (seen.has("--region") && !/^[A-Za-z]{2}$/.test(seen.get("--region")!)) return "ideas: not a region code";
   if (seen.has("--niche") && !(NICHE_IDS as string[]).includes(seen.get("--niche")!)) return "ideas: not a niche";
   if (seen.has("--format") && !(FORMAT_IDS as string[]).includes(seen.get("--format")!)) return "ideas: not a video type";
