@@ -6,15 +6,15 @@ const vol = (frame: number, speech: Array<{ from: number; to: number }> = [], fr
   sceneSoundVolume(frame, frames, fade, speech, 0.5, 10, gain, from);
 
 describe("sceneSoundVolume", () => {
-  it("is silent where the scene starts and where it ends, and is the gain in the middle", () => {
+  it("is silent on the scene's first and last rendered frame, and is the gain in the middle", () => {
     expect(vol(0)).toBe(0);
-    expect(vol(60)).toBe(0); // the frame after the last one
+    expect(vol(59)).toBe(0); // the last frame the scene shows
     expect(vol(30)).toBeCloseTo(0.8);
   });
 
   it("ramps up over the fade frames", () => {
     expect(vol(3)).toBeCloseTo(0.4);
-    expect(vol(59)).toBeCloseTo(0.8 / 6);
+    expect(vol(58)).toBeCloseTo(0.8 / 6);
   });
 
   it("is ducked to duckTo under speech, read on the video's frame and not the scene's", () => {
@@ -23,12 +23,17 @@ describe("sceneSoundVolume", () => {
     expect(vol(30, speech, 0)).toBeCloseTo(0.8); // global frame 30, far from speech
   });
 
-  it("eases between over rampFrames", () => {
+  it("eases between over rampFrames, as duckVolume's S-curve does", () => {
     const speech = [{ from: 100, to: 140 }];
-    const mid = vol(35, speech, 70); // global 105 inside; 95 is five frames before
-    const before = vol(25, speech, 70); // global 95
-    expect(before).toBeGreaterThan(0.8 * 0.5);
-    expect(before).toBeLessThan(0.8);
+    // scene starts at global 70: local 30 is global 100 (speech starts), 20 is ten frames before, 25 is five before
+    const g = 0.8;
+    expect(vol(20, speech, 70)).toBeCloseTo(g, 6); // ramp not begun: 10 frames away is full level
+    expect(vol(25, speech, 70)).toBeCloseTo(g * (0.5 + 0.5 * 0.5), 6); // halfway: easeInOut(0.5) = 0.5
+    expect(vol(30, speech, 70)).toBeCloseTo(g * 0.5, 6);
+    // and after the speech's last frame (global 139), the scene starting at 100: local 39 is that frame
+    expect(vol(39, speech, 100)).toBeCloseTo(g * 0.5, 6);
+    expect(vol(44, speech, 100)).toBeCloseTo(g * 0.75, 6);
+    expect(vol(49, speech, 100)).toBeCloseTo(g, 6);
   });
 
   it("has no fade when fadeFrames is 0", () => {

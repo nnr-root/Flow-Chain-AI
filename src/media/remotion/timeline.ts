@@ -279,5 +279,6 @@ export function sceneSoundVolume(
   gain: number,
   from = 0,
 ): number {
-  return gain * bedVolume(frame, frames, fadeFrames) * duckVolume(from + frame, speech, duckTo, rampFrames);
+  // the last rendered frame is frames - 1, so the fade reaches silence on it (as fadeOutVolume does)
+  return gain * bedVolume(frame, frames - 1, fadeFrames) * duckVolume(from + frame, speech, duckTo, rampFrames);
 }

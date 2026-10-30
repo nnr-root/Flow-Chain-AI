@@ -129,14 +129,15 @@ describe("Remotion composition (real Chrome)", () => {
   it("plays a scene's own sound on the scene's frames, faded at its cuts and ducked under speech", async () => {
     const dir = await tempDir();
     await makeImage(join(dir, "still.png"), { width: 192, height: 336 });
-    await makeAudio(join(dir, "narration.wav"), [{ silence: 3 }]); // silent: only the scene sound is measured
-    await makeAudio(join(dir, "sound.wav"), [{ tone: 1.5, freq: 330 }]);
+    await makeAudio(join(dir, "narration.wav"), [{ silence: 5 }]); // silent: only the scene sound is measured
+    await makeAudio(join(dir, "sound.wav"), [{ tone: 5, freq: 330 }]);
     const out = join(dir, "video.mp4");
     await renderVideo({
       props: baseProps({
-        // the sound belongs to the second half of the video (frames 45 to 90), and the second second is speech
-        scenes: [{ kind: "still", src: "still.png", camera: "zoom_in", from: 0, frames: 90 }],
-        audio: { narration: "narration.wav", bgm: null, speech: [{ from: 75, to: 90 }], sound: [{ src: "sound.wav", from: 45, frames: 45, gain: 1 }] },
+        totalFrames: 150,
+        scenes: [{ kind: "still", src: "still.png", camera: "zoom_in", from: 0, frames: 150 }],
+        // a 5 s sound; speech in frames 60 to 90 (2 s to 3 s)
+        audio: { narration: "narration.wav", bgm: null, speech: [{ from: 60, to: 90 }], sound: [{ src: "sound.wav", from: 0, frames: 150, gain: 0.5 }] },
       }),
       files: {
         "still.png": join(dir, "still.png"),
@@ -148,12 +149,14 @@ describe("Remotion composition (real Chrome)", () => {
       out,
     });
 
-    const before = await meanVolume(out, 0.2, 1.0); // nothing plays before the scene's frames
-    const open = await meanVolume(out, 1.7, 0.4); // clear of the fade-in and the duck's ramp
-    const ducked = await meanVolume(out, 2.7, 0.25);
+    // every window is clear of the 6-frame fades at both cuts and of the 10-frame ramps around the speech
+    const open = await meanVolume(out, 0.5, 1.0); // frames 15 to 45
+    const ducked = await meanVolume(out, 2.2, 0.6); // frames 66 to 84
+    const recovered = await meanVolume(out, 3.5, 1.0); // frames 105 to 135
     expect(open).toBeGreaterThan(-40); // an audio stream with sound above silence
-    expect(open - before).toBeGreaterThan(20);
-    expect(open - ducked).toBeGreaterThan(3); // 0.5 is about -6 dB
+    expect(ducked - open).toBeGreaterThan(20 * Math.log10(0.5) - 1.5);
+    expect(ducked - open).toBeLessThan(20 * Math.log10(0.5) + 1.5);
+    expect(Math.abs(recovered - open)).toBeLessThan(1.5);
   });
 
   it("evaluates the BGM volume curve on the video's frames when the BGM file loops", async () => {
