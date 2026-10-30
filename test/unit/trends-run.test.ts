@@ -42,6 +42,13 @@ describe("makeIdeas", () => {
     expect(out.usage?.searches).toBe(2);
   });
 
+  it("keeps the valid ideas beside invalid ones and counts both kinds of drop", async () => {
+    const mixed = [...eight.slice(0, 4), { topic: "short", why: "people are searching for it this week" }, { topic: "A topic with no reason at all" }];
+    const out = await makeIdeas({ llm: llmWith(JSON.stringify({ ideas: [...mixed, ...eight.slice(6)] })), chart: noChart, today: "2026-10-30" }, { language: "en" });
+    expect(out.ideas).toHaveLength(4);
+    expect(out.dropped).toBe(4);
+  });
+
   it("goes on with an empty chart when the chart throws", async () => {
     const seen: IdeasRequest[] = [];
     await makeIdeas({ llm: llmWith(answerText, seen), chart: async () => { throw new Error(`boom ${KEY}`); }, today: "2026-10-30" }, { language: "en" });
@@ -51,7 +58,8 @@ describe("makeIdeas", () => {
   it("rejects an answer that is not JSON, has the wrong shape, or is all left out, without a key or a link", async () => {
     const cases: Array<[string, string]> = [
       ["no json here", "the answer was not JSON"],
-      [JSON.stringify({ ideas: [{ topic: "x" }] }), "the answer did not have the right shape"],
+      [JSON.stringify({ ideas: "x" }), "the answer did not have the right shape"],
+      [JSON.stringify({ ideas: [{ topic: "x" }] }), "no idea was left after the checks"],
       [JSON.stringify({ ideas: [eight[6], eight[7]] }), "no idea was left after the checks"],
     ];
     for (const [text, message] of cases) {

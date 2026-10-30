@@ -3,7 +3,7 @@ import { SPEECH_LANGUAGES } from "../../src/voice/language.js";
 import { FACT_RULES, NICHES } from "../../src/niches.js";
 import { REGION_LANGUAGES, regionFor } from "../../src/trends/region.js";
 import { parseChart } from "../../src/trends/chart.js";
-import { IDEA_COUNT, IDEA_TOPIC_MAX, Idea, IdeasParsed, parseIdeasText } from "../../src/trends/ideas.js";
+import { IDEA_COUNT, IDEA_TOPIC_MAX, Idea, parseIdeas, parseIdeasText } from "../../src/trends/ideas.js";
 import { leftOutOf } from "../../src/trends/leftout.js";
 import { filterIdeas } from "../../src/trends/filter.js";
 import { DATA_END, DATA_START, ideasPrompt } from "../../src/trends/prompt.js";
@@ -85,17 +85,41 @@ describe("parseIdeasText", () => {
     expect(() => parseIdeasText("no braces")).toThrow("the answer was not JSON");
     expect(() => parseIdeasText("{ not json }")).toThrow("the answer was not JSON");
   });
-  it("accepts one idea", () => {
-    expect(IdeasParsed.safeParse({ ideas: [good] }).success).toBe(true);
+  it("accepts a valid answer", () => {
+    expect(parseIdeas({ ideas: [good, good] })).toEqual({ ideas: [good, good].map((g) => ({ ...g, sources: g.sources ?? [] })), invalid: 0 });
   });
-  it("refuses a topic over the maximum", () => {
-    expect(IdeasParsed.safeParse({ ideas: [{ ...good, topic: "x".repeat(IDEA_TOPIC_MAX + 1) }] }).success).toBe(false);
+  it("drops an idea whose topic is over the maximum and keeps the others", () => {
+    const out = parseIdeas({ ideas: [good, { ...good, topic: "x".repeat(IDEA_TOPIC_MAX + 1) }, good] });
+    expect(out.ideas).toHaveLength(2);
+    expect(out.invalid).toBe(1);
   });
-  it("refuses a thirteenth idea", () => {
-    expect(IdeasParsed.safeParse({ ideas: Array.from({ length: 13 }, () => good) }).success).toBe(false);
+  it("drops what is not an object, a short topic and a missing reason", () => {
+    const out = parseIdeas({ ideas: [good, "text", null, { ...good, topic: "short" }, { topic: good.topic }] });
+    expect(out.ideas).toHaveLength(1);
+    expect(out.invalid).toBe(4);
   });
-  it("refuses an http source link", () => {
-    expect(IdeasParsed.safeParse({ ideas: [{ ...good, sources: [{ title: "t", url: "http://example.com/a" }] }] }).success).toBe(false);
+  it("cuts a long reason at a word boundary within 240 characters", () => {
+    const why = "word ".repeat(60).trim();
+    const out = parseIdeas({ ideas: [{ ...good, why }] });
+    expect(why.length).toBe(299);
+    expect(out.ideas[0].why.length).toBeLessThanOrEqual(240);
+    expect(out.ideas[0].why.endsWith("word")).toBe(true);
+    expect(why.startsWith(out.ideas[0].why)).toBe(true);
+  });
+  it("drops a bad or http source and keeps the idea with its valid ones", () => {
+    const ok = { title: "t", url: "https://example.com/a" };
+    const out = parseIdeas({ ideas: [{ ...good, sources: [{ title: "t", url: "http://example.com/a" }, { title: "t", url: "nope" }, 5, ok] }, { ...good, sources: [{ url: "x" }] }] });
+    expect(out.ideas[0].sources).toEqual([ok]);
+    expect(out.ideas[1].sources).toEqual([]);
+    expect(out.invalid).toBe(0);
+  });
+  it("reads at most twelve ideas", () => {
+    expect(parseIdeas({ ideas: Array.from({ length: 13 }, () => good) }).ideas).toHaveLength(12);
+  });
+  it("throws when ideas is not an array, or no idea is valid", () => {
+    expect(() => parseIdeas({ ideas: "x" })).toThrow("the answer did not have the right shape");
+    expect(() => parseIdeas(null)).toThrow("the answer did not have the right shape");
+    expect(() => parseIdeas({ ideas: [{ topic: "x" }, 3] })).toThrow("no idea was left after the checks");
   });
 });
 
@@ -198,9 +222,11 @@ describe("ideasPrompt", () => {
     expect(p).toContain(`exactly ${IDEA_COUNT} ideas`);
     expect(p).toContain("one JSON object and nothing else");
   });
-  it("asks for at most 3 web searches, after telling the model to use the search, since every search is billed and slow", () => {
+  it("requires searching at least once and at most 3 times, after telling the model to use the search, since every search is billed and slow", () => {
     const p = ideasPrompt(base);
+    expect(p).toContain("at least once");
     expect(p).toContain("at most 3 web searches");
+    expect(p).not.toContain("sparingly");
     expect(p.indexOf("at most 3 web searches")).toBeGreaterThan(p.indexOf("Use the web search"));
   });
 });

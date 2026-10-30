@@ -1,6 +1,6 @@
 import type { ChartItem } from "./chart.js";
 import { filterIdeas } from "./filter.js";
-import { type Idea, IdeasParsed, parseIdeasText } from "./ideas.js";
+import { type Idea, parseIdeas, parseIdeasText } from "./ideas.js";
 import { regionFor } from "./region.js";
 import type { IdeasAnswer, LlmProvider } from "../providers/types.js";
 
@@ -21,9 +21,8 @@ export async function makeIdeas(
     chart = [];
   }
   const answer = await deps.llm.ideas({ niche: input.niche, nicheText: input.nicheText, format: input.format, language: input.language, region, chart, today: deps.today });
-  const parsed = IdeasParsed.safeParse(parseIdeasText(answer.text));
-  if (!parsed.success) throw new Error("the answer did not have the right shape");
-  const { kept, dropped } = filterIdeas(parsed.data.ideas, answer.hosts);
+  const parsed = parseIdeas(parseIdeasText(answer.text));
+  const { kept, dropped } = filterIdeas(parsed.ideas, answer.hosts);
   if (kept.length === 0) throw new Error("no idea was left after the checks");
-  return { ideas: kept, dropped: dropped.length, usage: answer.usage };
+  return { ideas: kept, dropped: parsed.invalid + dropped.length, usage: answer.usage };
 }
