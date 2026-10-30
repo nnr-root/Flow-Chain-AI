@@ -1,4 +1,6 @@
 import { Redis } from "ioredis";
+import { FORMAT_IDS } from "@src/formats";
+import { NICHE_IDS, NICHE_TEXT_MAX } from "@src/niches";
 import type { JobKind } from "./types";
 
 /* What the web app and the worker agree on: queue names, keys, job shapes and the options every job gets. */
@@ -34,6 +36,7 @@ export type RunJobResult = { exitCode: number | null; stopped?: boolean };
 /** `restore` (a studio with accounts) brings `runId`'s folder back from the bucket. */
 /** `stripe-event` carries the id of a Stripe event to fulfil; `stripe-customer` asks for the user's Stripe customer. */
 /** `channel-connect` carries a consent's code to exchange (the worker alone sees what comes back); `publish` the id of a post to carry out. */
+/** `ideas` carries the args of an ideas command with the run and reservation that pay for it. */
 export type QuickJobData = {
   args: string[]; userId?: string; runId?: string; reservationId?: string; eventId?: string;
   code?: string; verifier?: string; redirect?: string; postId?: string;
@@ -125,6 +128,32 @@ export function refusal(queue: keyof typeof QUEUES, args: unknown, runId?: strin
     if (option === "--fps" && list[i + 1] !== "60") return "a draft may carry --fps only as 60";
     i++;
   }
+  return undefined;
+}
+
+const IDEAS_VALUED = new Set(["--language", "--cap", "--region", "--niche", "--niche-text", "--format"]);
+/**
+ * What the worker agrees to run as an ideas job (phase 13 plan): exactly the shape the studio builds, each option once,
+ * every value checked, so nothing that reaches Redis can make the CLI do anything but ask for ideas.
+ */
+export function ideasRefusal(args: unknown): string | undefined {
+  if (!Array.isArray(args) || args.length === 0 || !args.every((a) => typeof a === "string")) return "the job has no command";
+  const list = args as string[];
+  if (list[0] !== "ideas") return `"${list[0]}" is not an ideas command`;
+  const seen = new Map<string, string>();
+  for (let i = 1; i < list.length; i += 2) {
+    const option = list[i];
+    if (!IDEAS_VALUED.has(option) || i + 1 >= list.length) return `ideas may not carry ${option}`;
+    if (seen.has(option)) return `ideas may not repeat ${option}`;
+    seen.set(option, list[i + 1]);
+  }
+  if (!seen.has("--language") || !seen.has("--cap")) return "ideas must carry --language and --cap";
+  if (!LANGUAGE.test(seen.get("--language")!)) return "ideas: not a language code";
+  if (!AMOUNT.test(seen.get("--cap")!)) return "ideas: --cap must be an amount";
+  if (seen.has("--region") && !/^[A-Za-z]{2}$/.test(seen.get("--region")!)) return "ideas: not a region code";
+  if (seen.has("--niche") && !(NICHE_IDS as string[]).includes(seen.get("--niche")!)) return "ideas: not a niche";
+  if (seen.has("--format") && !(FORMAT_IDS as string[]).includes(seen.get("--format")!)) return "ideas: not a video type";
+  if (seen.has("--niche-text") && seen.get("--niche-text")!.length > NICHE_TEXT_MAX) return "ideas: the niche text is too long";
   return undefined;
 }
 

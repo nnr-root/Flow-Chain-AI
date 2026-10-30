@@ -14,6 +14,15 @@ if (command === "plan") {
   // _plan.json: what continuing costs; _plan-modes.json / _plan-reroll.json: what the tried-out variant costs
   const file = args.includes("--reroll") ? "_plan-reroll.json" : args.includes("--modes") ? "_plan-modes.json" : args.includes("--translate") ? "_plan-translate.json" : "_plan.json";
   console.log(JSON.stringify(readJson(file, readJson("_plan.json", { items: [], totalUsd: 0 }))));
+} else if (command === "ideas") {
+  // topic ideas (phase 13): one answer after IDEAS_DELAY_MS, or a failure when FAIL_IDEAS is set
+  if (process.env.IDEAS_DELAY_MS) await new Promise((done) => setTimeout(done, Number(process.env.IDEAS_DELAY_MS)));
+  if (process.env.FAIL_IDEAS) {
+    console.error("Error: the stub's model call failed");
+    process.exitCode = 1;
+  } else {
+    console.log(JSON.stringify({ ideas: [{ topic: "A topic the stub made up", why: "Because a test asked", sources: [] }], dropped: 0 }));
+  }
 } else if (command === "draft-modes") {
   console.log(JSON.stringify({ modes: [], reasons: [], estimatedUsd: 0 }));
 } else if (command === "run") {

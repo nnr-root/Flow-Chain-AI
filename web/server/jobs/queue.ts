@@ -289,6 +289,21 @@ export function queueRunner(url: string): JobRunner {
         }
       }),
 
+    ideas: (args, hold) =>
+      reach(async () => {
+        const e = await ends(url);
+        await requireWorker(e.redis);
+        try {
+          const userId = currentUser()?.id;
+          return (await ask(e, "ideas", { args, ...(userId ? { userId } : {}), ...(hold ?? {}) }, QUICK_WAIT_MS)).stdout;
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          if (/timed out before finishing/.test(message)) throw new ApiError("worker_offline", "the worker is busy or offline", "nothing was made; try again in a moment");
+          // the CLI's and the provider's own words stay with the worker's log: a customer is told only that none came
+          throw new ApiError("ideas_failed", "no ideas could be made this time");
+        }
+      }),
+
     async health(): Promise<StudioHealth> {
       const e = await ends(url);
       let worker: boolean;

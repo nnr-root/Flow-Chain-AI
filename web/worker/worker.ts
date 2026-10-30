@@ -9,7 +9,7 @@ import { draftCapOfArgs } from "../lib/credit";
 import { multiTenant } from "../lib/accounts";
 import { baseRoots, health, roots } from "../server/config";
 import {
-  commandKind, consumerConnection, KEYS, type QuickJobData, type QuickJobResult, QUEUES, refusal, type RunJobData, type RunJobResult,
+  commandKind, consumerConnection, ideasRefusal, KEYS, type QuickJobData, type QuickJobResult, QUEUES, refusal, type RunJobData, type RunJobResult,
 } from "../server/jobs/redis";
 import { exitCodeOf, lockState, readJobRecord, runFolder, runShort, spawnCli, stopProcess } from "../server/jobs/run-cli";
 import { type Job, type JobView, LOCK_FILE } from "../server/jobs/types";
@@ -135,6 +135,12 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
   /** Runs whose CLI is being started, and those among them that were told to stop meanwhile. */
   const starting = new Set<string>();
   const stopAfterStart = new Set<string>();
+  /**
+   * Requests for topic ideas being made now, by request id. Such a job is on the quick queue, which `settleIdle` does
+   * not look in: a search call, or a wait behind other quick jobs, can outlast the reconcile's age, and the credit
+   * would be refunded at 0 while the answer is still coming (the settle at the price would then charge nothing).
+   */
+  const ideasInFlight = new Set<string>();
   const signalAll = (signal: NodeJS.Signals) => {
     for (const held of active.values()) {
       try {
@@ -340,7 +346,7 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
     // leaves alone the credit of users it has never seen. (In production one database has one worker, and a
     // user's first draft, never queued, has no folder: this rule would strand its credit.)
     if (opts.reconcileKnownUsersOnly && !existsSync(join(baseRoots().runs, r.user_id))) return false;
-    if (active.has(r.run_id) || starting.has(r.run_id) || (await line.getJob(r.run_id))) return false;
+    if (active.has(r.run_id) || starting.has(r.run_id) || ideasInFlight.has(r.run_id) || (await line.getJob(r.run_id))) return false;
     return inScope({ user: { id: r.user_id, email: "" } }, async () => {
       const dir = runFolder(r.run_id);
       const total = await settleAt(r.run_id, dir, r.user_id);
@@ -443,6 +449,45 @@ export async function startWorker(opts: WorkerOptions): Promise<RunningWorker> {
       // Stripe too. Nothing that reaches this worker through Redis can make credit out of nothing.
       if (job.name === "stripe-event") return { stdout: await pay.fulfil(String(job.data.eventId ?? "")) };
       return { stdout: await pay.customer(String(job.data.userId ?? "")) };
+    }
+    if (job.name === "ideas") {
+      const refused = ideasRefusal(job.data.args);
+      if (refused) throw new Error(refused);
+      const { userId, runId, reservationId } = job.data;
+      const cap = Number(job.data.args[job.data.args.indexOf("--cap") + 1]);
+      // With accounts, credit must be held for exactly this: an open reservation of this user, for this request, of kind ideas, for this amount.
+      if (db) {
+        const held = reservationId && UUID.test(reservationId) ? await db.reservation(reservationId) : null;
+        const ok = held && held.status === "open" && held.user_id === userId && held.run_id === runId && held.kind === "ideas" && Math.abs(held.cap_usd - cap) < 0.00005;
+        if (!ok) throw new Error("no credit is held for this ideas request");
+      }
+      return asUser(userId, async () => {
+        // from here until its settle the request is being made: the reconcile leaves its credit alone
+        if (runId) ideasInFlight.add(runId);
+        try {
+          let stdout = "";
+          let failure: unknown;
+          try {
+            stdout = await runShort(job.data.args);
+          } catch (err) {
+            failure = err;
+          }
+          // The price is kept when ideas came and returned in full when none did; if the database is away the reservation
+          // stays open and the reconcile settles it (at 0: a request that has no manifest and was charged nothing).
+          if (db && reservationId) {
+            try {
+              const charged = await db.settle(reservationId, failure ? 0 : cap);
+              log(`worker: ideas ${runId} settled at $${charged.toFixed(4)}`);
+            } catch (err) {
+              log(`worker: could not settle ideas ${runId} yet: ${err instanceof Error ? err.message : String(err)}`);
+            }
+          }
+          if (failure) throw failure;
+          return { stdout };
+        } finally {
+          if (runId) ideasInFlight.delete(runId);
+        }
+      });
     }
     const refused = refusal("quick", job.data.args);
     if (refused) throw new Error(refused);

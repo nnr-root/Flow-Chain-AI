@@ -48,6 +48,11 @@ export interface JobRunner {
   view(runId: string): Promise<JobView | null>;
   /** Runs a free, short CLI command (plan, draft-modes, look) to its end and returns what it printed. */
   cliText(args: string[]): Promise<string>;
+  /**
+   * Runs an `ideas` command and waits for what it printed. In a studio with accounts `hold` names the request and the
+   * credit held for exactly it (kind `ideas`, the command's own cap): the worker refuses the job without that.
+   */
+  ideas(args: string[], hold?: { runId: string; reservationId: string }): Promise<string>;
   health(): Promise<StudioHealth>;
   /** The run's lock was left by a process that is gone and nothing of the run is running. */
   staleLock(runId: string, job: JobView | null): Promise<boolean>;

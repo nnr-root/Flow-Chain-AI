@@ -84,6 +84,12 @@ export const localRunner: JobRunner = {
     }
   },
 
+  // the owner's own studio: the CLI's message may be shown as it is
+  ideas: (args) =>
+    runShort(args).catch((err: unknown) => {
+      throw new ApiError("ideas_failed", err instanceof Error ? err.message : String(err));
+    }),
+
   async health() {
     return { ...health(), queue: { mode: "local" } };
   },

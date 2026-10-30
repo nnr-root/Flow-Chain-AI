@@ -6,13 +6,15 @@ export type ErrorCode =
   | "validation" | "not_found" | "job_active" | "busy" | "estimate_changed" | "not_draft" | "missing_keys"
   | "forbidden_origin" | "queue_unavailable" | "worker_offline" | "internal"
   | "unauthenticated" | "insufficient_credit" | "too_many_jobs" | "storage_unavailable"
-  | "billing_unavailable" | "already_subscribed";
+  | "billing_unavailable" | "already_subscribed" | "ideas_failed";
 
 const STATUS: Record<ErrorCode, number> = {
   validation: 400, not_found: 404, job_active: 409, busy: 429, estimate_changed: 409, not_draft: 409,
   missing_keys: 400, forbidden_origin: 403, queue_unavailable: 503, worker_offline: 503, internal: 500,
   unauthenticated: 401, insufficient_credit: 402, too_many_jobs: 429, storage_unavailable: 503,
   billing_unavailable: 503, already_subscribed: 409,
+  // the worker asked and no ideas came (the price is given back): the fault is upstream, not the request's
+  ideas_failed: 502,
 };
 
 /** An error the client is meant to see; anything else becomes a generic 500. */

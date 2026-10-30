@@ -43,6 +43,9 @@ export const forCustomers = (health: StudioHealth, accounts: boolean): StudioHea
 /** Runs a free, short CLI command to its end and returns what it printed. */
 export const cliText = (args: string[]): Promise<string> => runner().cliText(args);
 
+/** Asks for topic ideas and waits for the answer; with accounts, `hold` is the request and the credit held for it. */
+export const ideasJob = (args: string[], hold?: { runId: string; reservationId: string }): Promise<string> => runner().ideas(args, hold);
+
 /** Runs a free, short CLI command (plan, draft-modes) and returns its JSON output. */
 export async function cliJson<T>(args: string[]): Promise<T> {
   return JSON.parse(await cliText(args)) as T;
