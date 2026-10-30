@@ -24,6 +24,12 @@ export const paths = {
   /** Clip i interpolated to twice its frame rate (phase 11 spec §4). */
   smoothed: (i: number) => `clips/clip_${n(i)}.60.mp4`,
   fitted: (i: number) => `fitted/scene_${n(i)}.mp4`,
+  /** Scene i's sound, levelled (phase 14 spec §3). */
+  sound: (i: number) => `sound/scene_${n(i)}.wav`,
+  /** The worker's answer for scene i's sound, before it is levelled. */
+  soundRaw: (i: number) => `sound/scene_${n(i)}.raw.wav`,
+  /** The small silent video scene i's sound is made from. */
+  soundInput: (i: number) => `sound/input_${n(i)}.mp4`,
   captions: "captions.json",
   /** Render working folder: staged public files and the Remotion bundle (recreated per render). */
   renderDir: "render",

@@ -13,6 +13,7 @@ const env = {
   FLOWCHAIN_CUT_REFERENCES: "off" as const,
   FLOWCHAIN_SMOOTH_MOTION: "off" as const,
   FLOWCHAIN_TREND_IDEAS: "off" as const,
+  FLOWCHAIN_SCENE_SOUND: "off" as const,
   RUNS_DIR: "./runs",
   RUNPOD_API_KEY: "rk",
   R2_ACCOUNT_ID: "a",

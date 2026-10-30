@@ -5,7 +5,8 @@ import type { ActionLevel, Camera, SuggestedTransition } from "../../src/manifes
 import type { PresetName } from "../../src/presets.js";
 import { UnusableResultError } from "../../src/providers/retry.js";
 import type {
-  ImageOutput, ImageProvider, IdeasAnswer, IdeasRequest, ImageRequest, InspectRequest, LlmProvider, PreparedJob, ScriptRequest, SpeakRequest, SubmitOptions, UpscaleProvider, UpscaleRequest,
+  ImageOutput, ImageProvider, IdeasAnswer, IdeasRequest, ImageRequest, InspectRequest, LlmProvider, PreparedJob, ScriptRequest, SoundOutput, SoundProvider, SoundRequest, SpeakRequest,
+  SubmitOptions, UpscaleProvider, UpscaleRequest,
   TtsProvider, VideoOutput, VideoProvider, VideoRequest, WaitOptions,
 } from "../../src/providers/types.js";
 import { ffmpeg, probeVideo } from "../../src/media/ffmpeg.js";
@@ -218,5 +219,18 @@ export class FakeUpscale extends FakeQueue<UpscaleRequest, VideoOutput> implemen
     if (req.interpolate !== undefined) filters.push(`fps=${(await probeVideo(req.videoPath)).fps * req.interpolate}`);
     await ffmpeg(["-i", req.videoPath, ...(filters.length ? ["-vf", filters.join(",")] : []), "-pix_fmt", "yuv420p", file]);
     return { out: { url: pathToFileURL(file).href }, file };
+  }
+}
+
+/**
+ * Scene sound (phase 14 spec §3): a tone as long as the sound asked for, at `levelDb` (a loud or a quiet answer, for
+ * the levelling), with the seed it was asked for, as the Foley worker answers.
+ */
+export class FakeSound extends FakeQueue<SoundRequest, SoundOutput> implements SoundProvider {
+  levelDb = -6;
+  protected async render(req: SoundRequest, n: number, path: (name: string) => string) {
+    const file = path(`sound_${n}.wav`);
+    await makeAudio(file, [{ tone: req.audioLengthSec, freq: 300 + 40 * n, db: this.levelDb }]);
+    return { out: { url: pathToFileURL(file).href, seed: req.seed }, file };
   }
 }

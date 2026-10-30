@@ -1,14 +1,14 @@
-import { type Env, flux3Rates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
+import { type Env, FOLEY_RATES_MISSING, foleyRates, flux3Rates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
 import type { Models } from "../manifest/schema.js";
 import { ElevenLabsTts } from "./elevenlabs.js";
 import { GeminiLlm } from "./gemini.js";
 import { parseModelId, RUNPOD_WORKFLOWS } from "./model-id.js";
 import { R2 } from "./r2.js";
 import { RunpodClient } from "./runpod.js";
-import { type RunpodDeps, RunpodImage, RunpodUpscale, RunpodVideo } from "./runpod-providers.js";
+import { type RunpodDeps, RunpodFoley, RunpodImage, RunpodUpscale, RunpodVideo } from "./runpod-providers.js";
 import { NonRetryableError } from "./retry.js";
 import { RunpodTts } from "./runpod-voice.js";
-import type { ImageProvider, Providers, QueuedProvider, TtsProvider, VideoProvider } from "./types.js";
+import type { ImageProvider, Providers, QueuedProvider, SoundOutput, SoundRequest, TtsProvider, VideoProvider } from "./types.js";
 
 function need(value: string | undefined, name: string, why: string): string {
   if (!value) throw new Error(`${name} is not set; ${why}`);
@@ -92,11 +92,21 @@ export function createProviders(env: Env, models: Models, prices: Prices): Provi
           };
   // full HD only where the run asked for it (phase 8 spec §8), on the endpoint it was made with
   const upscaleRef = models.upscale ? parseModelId(models.upscale) : undefined;
+  // scene sound only where the run was made with it (phase 14 spec §3), on its endpoint, charged at its card's own
+  // measured rate: without the three rates a resumed run refuses rather than charging a guess
+  const soundRef = models.sound ? parseModelId(models.sound) : undefined;
+  const sound = () => {
+    if (soundRef!.provider === "retired") return retired<SoundRequest, SoundOutput>("scene sounds", soundRef!.model);
+    const r = foleyRates(prices);
+    if (!r) throw new NonRetryableError(FOLEY_RATES_MISSING);
+    return new RunpodFoley(runpodDeps(), soundRef!, r.usdPerSec);
+  };
   return {
     llm: new GeminiLlm(env.GEMINI_API_KEY, models.llm),
     tts,
     image,
     video,
     ...(upscaleRef ? { upscale: upscaleRef.provider === "retired" ? retired("full HD clips", upscaleRef.model) : new RunpodUpscale(upscaleDeps(upscaleRef.workflow), upscaleRef) } : {}),
+    ...(soundRef ? { sound: sound() } : {}),
   };
 }

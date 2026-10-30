@@ -1,11 +1,13 @@
 import type { Manifest } from "./manifest/schema.js";
 import { referenceApplies } from "./stages/reference.js";
 import { isSmoothed } from "./stages/interpolate.js";
+import { hasSceneSound } from "./stages/sound.js";
 import { isUpscaled } from "./stages/upscale.js";
 import { needsKeyframe } from "./stages/visual.js";
 
 // (a full HD clip too, phase 8 spec §8: a failed upscale is kept for its inputs, and only a new nonce asks again)
-export const REROLLABLE = ["tts", "keyframes", "clips", "upscale", "interpolate", "reference"] as const;
+// (a scene's sound too, phase 14 spec §3: a new nonce is a new seed)
+export const REROLLABLE = ["tts", "keyframes", "clips", "upscale", "interpolate", "sound", "reference"] as const;
 export type RerollStage = (typeof REROLLABLE)[number];
 
 /**
@@ -31,6 +33,9 @@ export function bumpNonce(m: Manifest, sceneNumber: number, stage: string): void
   }
   if (stage === "interpolate" && !isSmoothed(m, idx)) {
     throw new Error(`scene ${sceneNumber} has no smoothed clip: only a moving clip of a 60 fps run that is not in full HD is smoothed on its own`);
+  }
+  if (stage === "sound" && !hasSceneSound(m, idx)) {
+    throw new Error(`scene ${sceneNumber} has no scene sound: only a run made with scene sound and sound effects on, in a scene its script wrote a sound for, has one`);
   }
   if (stage === "keyframes" && !needsKeyframe(m, idx)) {
     throw new Error(`scene ${sceneNumber} continues from the previous clip and has no keyframe; reroll its clips instead`);

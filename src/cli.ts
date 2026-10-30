@@ -27,7 +27,7 @@ import { GeminiLlm } from "./providers/gemini.js";
 import { fetchChart } from "./providers/youtube-chart.js";
 import { makeIdeas } from "./trends/run.js";
 import { createProviders } from "./providers/factory.js";
-import { frozenModePrices, newRunProviders, newRunVoice, restorerFor } from "./providers/new-run.js";
+import { frozenModePrices, newRunProviders, newRunSound, newRunVoice, restorerFor } from "./providers/new-run.js";
 import { CLIP_QUALITIES, type ClipQuality } from "./video-profiles.js";
 import type { Providers } from "./providers/types.js";
 import { applyRenderOptions, assertRenderOnly, noPaidProviders } from "./rerender.js";
@@ -270,6 +270,9 @@ program
     const kit: BrandKit | undefined = o.brand ? await loadBrandKit(o.brand) : undefined;
     const providers = newRunProviders(env, o.clips, loadPrices());
     const voice = newRunVoice(env, o.language);
+    // scene sound is frozen now, on only when everything it needs is here (phase 14 spec §3); a run without it says why once
+    const sound = newRunSound(env, loadPrices(), o.sfx !== false);
+    if ("off" in sound) console.log(`scene sound is off: ${sound.off}`);
     const request = RunRequest.parse({
       topic: o.topic,
       aspect: o.aspect,
@@ -282,6 +285,7 @@ program
       edit: o.edit,
       ...(o.upscale ? { upscale: true } : {}),
       ...(o.fps === "60" ? { fps: 60 as const } : {}),
+      ...("model" in sound ? { sceneSound: true as const } : {}),
       // made for the viewers of its one language, frozen now (phase 8 spec §5): never for English, which names no one
       // audience, nor for a video to be made in several languages
       ...(o.language && AUDIENCE[o.language as SpeechLanguage] ? { localize: o.localize !== false } : {}),
@@ -323,6 +327,7 @@ program
       image: providers.image,
       video: providers.video,
       ...(restorer ? { upscale: restorer } : {}),
+      ...("model" in sound ? { sound: sound.model } : {}),
     };
     await requireDoctor(env, models);
     const runId = chosenRunId(o.runId);

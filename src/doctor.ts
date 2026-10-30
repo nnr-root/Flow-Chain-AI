@@ -102,6 +102,18 @@ function runpodEndpointIds(env: Env, models?: Models): string[] {
   return ids as string[];
 }
 
+/**
+ * The Foley endpoint to check (phase 14 spec §3): the run's own where it was made with scene sound, else the one a new
+ * run would get while the switch is on. Nothing when the layer is off: a run is then made without it.
+ */
+export function soundEndpointId(env: Env, models?: Models): string | undefined {
+  if (models) {
+    const ref = models.sound ? parseModelId(models.sound) : undefined;
+    return ref?.provider === "runpod" ? ref.endpointId : undefined;
+  }
+  return env.FLOWCHAIN_SCENE_SOUND === "on" ? env.RUNPOD_FOLEY_ENDPOINT : undefined;
+}
+
 /** `models` lets resume/reroll check the models frozen in the manifest instead of today's env. */
 export async function runDoctor(env: Env, fontsDir: string, models?: Models): Promise<Check[]> {
   const llmModel = models?.llm ?? env.GEMINI_MODEL;
@@ -111,6 +123,7 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models): Pr
   // (a run made with the hosted voice before it came back, and checked without its key, is still checked: it says the key is missing)
   const hosted = voiceModel && !voiceModel.startsWith("runpod:") ? voiceModel : undefined;
   const fonts = captionFontFiles(fontsDir);
+  const foley = soundEndpointId(env, models);
   const missingFonts = fonts.filter((f) => !existsSync(f));
   return [
     ...(await checkFfmpeg()),
@@ -163,6 +176,14 @@ export async function runDoctor(env: Env, fontsDir: string, models?: Models): Pr
             }),
           ]
         : [{ name: "voice", ok: false, detail: "no voice is set up: set ELEVENLABS_API_KEY, or run npm run voice:deploy" }]),
+    ...(foley
+      ? [
+          await attempt("scene sound endpoint", async () => {
+            if (!env.RUNPOD_API_KEY) throw new Error("RUNPOD_API_KEY is not set");
+            return checkRunpodEndpoints(new RunpodClient(env.RUNPOD_API_KEY), [foley]);
+          }),
+        ]
+      : []),
   ];
 }
 

@@ -17,6 +17,8 @@ import { LANGUAGE_IN_ENGLISH, type SpeechLanguage } from "./voice/language.js";
  * version's narration changes: keyed on them, every clip would be bought again. They are keyed on the source and
  * their files instead (`inheritedInputs`), and refuse to run.
  */
+// (not a scene's sound, phase 14 spec §3: it is made at the scene's length, which the version's narration changes, so a
+// version made with scene sound has each scene's sound made again for its own lengths)
 export const INHERITED: readonly StageName[] = ["modes", "reference", "keyframes", "clips", "upscale", "interpolate"];
 
 export const isInherited = (m: Manifest, stage: StageName): boolean => m.request.versionOf !== undefined && INHERITED.includes(stage);

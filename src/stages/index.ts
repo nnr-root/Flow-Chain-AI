@@ -8,6 +8,7 @@ import { referenceStage } from "./reference.js";
 import { renderStage } from "./render.js";
 import { scriptStage } from "./script.js";
 import { silenceStage } from "./silence.js";
+import { soundStage } from "./sound.js";
 import type { Stage } from "./types.js";
 import { ttsStage } from "./tts.js";
 import { upscaleStage } from "./upscale.js";
@@ -28,6 +29,8 @@ export const STAGES: Stage[] = [
   upscaleStage,
   interpolateStage,
   fitStage,
+  // (after the fit: a scene's sound is made from its picture at the scene's final length, phase 14 spec §3)
+  soundStage,
   captionsStage,
   renderStage,
 ];

@@ -44,6 +44,13 @@ const Env = z.object({
   /** Reframe cuts and the shared look reference (phase 10 spec §5): off until the owner's comparison says on. Frozen per run. */
   FLOWCHAIN_CUT_REFERENCES: z.enum(["on", "off"]).default("off"),
   FLOWCHAIN_SMOOTH_MOTION: z.enum(["on", "off"]).default("off"),
+  /**
+   * Scene sound (phase 14 spec §3): a new run is made with a sound for each scene only while this is on, the Foley
+   * endpoint is set and its three prices are in prices.json. Frozen per run (`request.sceneSound`); off = rollback.
+   */
+  FLOWCHAIN_SCENE_SOUND: z.enum(["on", "off"]).default("off"),
+  /** The Foley worker (phase 14 spec §4): makes a scene's sound from its picture. */
+  RUNPOD_FOLEY_ENDPOINT: z.string().min(1).optional(),
   /** Topic ideas from the web and the public chart (phase 13): the studio offers them only while this is on. */
   FLOWCHAIN_TREND_IDEAS: z.enum(["on", "off"]).default("off"),
   /** The public chart's key: without it the ideas call uses the web alone. */
@@ -111,6 +118,11 @@ export const Prices = z.strictObject({
   runpodPicture3Sec: z.number().positive().optional(),
   runpodPortrait3Sec: z.number().positive().optional(),
   runpodPicture3ColdStartSec: z.number().positive().optional(),
+  // Scene sound (phase 14 spec §3): no default on purpose, as above. A run is made without scene sound until the owner
+  // has measured these on the Foley endpoint and set all three; keep them while any run made with it may be resumed.
+  runpodFoleyUsdPerSec: z.number().positive().optional(),
+  runpodFoleySecPerClipSec: z.number().positive().optional(),
+  runpodFoleyColdStartSec: z.number().positive().optional(),
 });
 export type Prices = z.infer<typeof Prices>;
 
@@ -189,3 +201,15 @@ export function restoreRates(p: Prices): RestoreRates | null {
 /** The plain refusal every part of the pipeline gives while the rates are missing (one text, so it is one message to the owner). */
 export const RESTORE_RATES_MISSING =
   "smooth motion is not set up: the four rates runpodInterpolateUsdPerSec, runpodInterpolateSecPerClipSec, runpodInterpolateColdStartSec and runpodRestoreExtraSecPerClipSec are not all set in prices.json";
+
+export type FoleyRates = { usdPerSec: number; secPerClipSec: number; coldStartSec: number };
+
+/** The Foley worker's rates, or undefined while any of the three is not set. */
+export function foleyRates(p: Prices): FoleyRates | undefined {
+  const { runpodFoleyUsdPerSec: usdPerSec, runpodFoleySecPerClipSec: secPerClipSec, runpodFoleyColdStartSec: coldStartSec } = p;
+  return usdPerSec === undefined || secPerClipSec === undefined || coldStartSec === undefined ? undefined : { usdPerSec, secPerClipSec, coldStartSec };
+}
+
+/** The plain refusal every part of the pipeline gives while the Foley rates are missing (one text, one message to the owner). */
+export const FOLEY_RATES_MISSING =
+  "scene sound is not set up: the three rates runpodFoleyUsdPerSec, runpodFoleySecPerClipSec and runpodFoleyColdStartSec are not all set in prices.json";

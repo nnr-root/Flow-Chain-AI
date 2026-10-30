@@ -32,4 +32,6 @@ export const RUNPOD_WORKFLOWS = {
   upscale: { workflow: "upscale-seedvr2", version: 1 },
   // the restorer's new workflow (phase 11): Full HD and/or smooth motion in one job
   restore: { workflow: "restore-video", version: 1 },
+  // the Foley worker (phase 14 spec §4): a scene's sound from its picture
+  sound: { workflow: "sound-foley", version: 1 },
 } as const;
