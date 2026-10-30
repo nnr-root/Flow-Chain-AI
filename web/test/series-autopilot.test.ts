@@ -192,6 +192,24 @@ describe.skipIf(!supa || !hasRedisServer())("a series on a schedule", () => {
     expect(draft).toEqual(expect.arrayContaining(["--fps", "60"]));
   });
 
+  // (phase 14: the worker is the studio here, so its own switch decides; one worker per test, so no other picks it up)
+  const soundDraft = async (env?: Record<string, string>) => {
+    await grant(5);
+    await stage(0.31, { spendUsd: 0.2, makesVideo: true });
+    const id = await series({ cadence: "daily" }, { sfx: true });
+    await worker(env);
+    await until(async () => (await runsOf(id)).length === 1 && (await row(id)).current_run === null && (await open()) === 0, 30_000);
+    return (await calls()).find((c) => c[0] === "run")!;
+  };
+
+  it("asks for no scene sound while the worker does not offer it, though the recipe has it on", async () => {
+    expect(await soundDraft()).toContain("--no-sfx");
+  });
+
+  it("asks for scene sound while the worker offers it", async () => {
+    expect(await soundDraft({ RUNPOD_FOLEY_ENDPOINT: "ep-f", FLOWCHAIN_SCENE_SOUND: "on" })).not.toContain("--no-sfx");
+  });
+
   it("stops, and retries nothing, when a video is not finished", async () => {
     await grant(5);
     await stage(0.31, { spendUsd: 0.1, exitCode: 1 });

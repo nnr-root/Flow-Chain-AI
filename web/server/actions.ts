@@ -25,7 +25,7 @@ type RerollTarget = { scene: number; stage: string };
 /** Buys the script for a new run and stops there. The keys a run needs must be set first. */
 /** `seriesId`: the run is one of that series' videos (the caller's own series: the database checks). */
 export async function createDraft(input: NewVideo, seriesId?: string): Promise<{ runId: string; job: JobView }> {
-  const { missing, queue, fullHd, smooth } = await studioHealthRaw();
+  const { missing, queue, fullHd, smooth, sound } = await studioHealthRaw();
   // with the queue the keys are the worker's: when it cannot be asked, nothing is known about them
   if (queue.mode === "queue" && !(queue.redis && queue.worker)) {
     throw new ApiError(queue.redis ? "worker_offline" : "queue_unavailable", queue.redis ? "the worker is offline" : "the job queue is unavailable", "nothing was started; try again in a moment");
@@ -51,10 +51,10 @@ export async function createDraft(input: NewVideo, seriesId?: string): Promise<{
   if (multiTenant()) {
     // the run is registered as the user's, and the script's cost is held from their credit, before anything is queued
     const runId = await newTenantRun(input.topic, seriesId);
-    return { runId, job: await startPaid(runId, "draft", draftArgs(input, runId), draftCapUsd({ targetSec: input.durationSec, sceneSec: input.sceneSec })) };
+    return { runId, job: await startPaid(runId, "draft", draftArgs(input, runId, sound === true), draftCapUsd({ targetSec: input.durationSec, sceneSec: input.sceneSec })) };
   }
   const runId = newRunId();
-  return { runId, job: await startJob(runId, "draft", draftArgs(input, runId)) };
+  return { runId, job: await startJob(runId, "draft", draftArgs(input, runId, sound === true)) };
 }
 
 /**

@@ -6,8 +6,8 @@ const run = "20261006-120000-abc001";
 
 describe("the smooth-motion choice in a draft's command", () => {
   it("adds --fps 60 and nothing else for smooth motion, and nothing for the default", () => {
-    expect(draftArgs(NewVideo.parse({ topic: "t" }), run)).not.toContain("--fps");
-    const smooth = draftArgs(NewVideo.parse({ topic: "t", fps: 60 }), run);
+    expect(draftArgs(NewVideo.parse({ topic: "t" }), run, true)).not.toContain("--fps");
+    const smooth = draftArgs(NewVideo.parse({ topic: "t", fps: 60 }), run, true);
     expect(smooth).toEqual(expect.arrayContaining(["--fps", "60"]));
     expect(refusal("runs", smooth)).toBeUndefined();
   });
@@ -18,7 +18,7 @@ describe("the smooth-motion choice in a draft's command", () => {
   });
 
   it("goes with Full HD in one command", () => {
-    const both = draftArgs(NewVideo.parse({ topic: "t", clips: "1080p", fps: 60 }), run);
+    const both = draftArgs(NewVideo.parse({ topic: "t", clips: "1080p", fps: 60 }), run, true);
     expect(both).toEqual(expect.arrayContaining(["--upscale", "--fps", "60"]));
     expect(refusal("runs", both)).toBeUndefined();
   });

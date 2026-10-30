@@ -163,7 +163,7 @@ retrofitting sound onto runs that exist.
 1. Push (the owner's click); the worker-image workflow builds `flowchain-foley` (large, may take long, and its first build may need
    fixes, §12); make the package public in GitHub's web UI; then `npm run runpod:deploy` (it prints its plan).
 2. The measurements of §8, with the controller; set the three prices.
-3. Set `FLOWCHAIN_SCENE_SOUND=on` in `.env` and on the worker.
+3. Set `FLOWCHAIN_SCENE_SOUND=on` in `.env` (on a server, then `npm run server:deploy`, which writes it into the worker's settings; §12).
 4. Decide on offering the layer in the EU, the UK and South Korea (§7), and confirm the platform you post to accepts the audio.
 
 ## 12. What was found and changed

@@ -67,7 +67,7 @@ describe("what a draft holds", () => {
 
   it("is worked out by the worker from the command it is given, to the same amount the studio held", () => {
     for (const [sec, scene] of [[30, { min: 3, max: 5 }], [60, { min: 5, max: 5 }], [600, { min: 2, max: 2 }], [5, { min: 2, max: 5 }]] as const) {
-      expect(draftCapOfArgs(draftArgs(input(sec, scene), "20261006-120000-abc001")), `${sec}`).toBe(draftCapUsd({ targetSec: sec, sceneSec: scene }));
+      expect(draftCapOfArgs(draftArgs(input(sec, scene), "20261006-120000-abc001", true)), `${sec}`).toBe(draftCapUsd({ targetSec: sec, sceneSec: scene }));
     }
     // a command that names no length a video can have holds nothing the worker would accept
     expect(draftCapOfArgs(["run", "--draft", "--topic", "t"])).toBeNaN();

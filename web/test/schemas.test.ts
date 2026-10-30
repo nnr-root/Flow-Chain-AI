@@ -39,7 +39,7 @@ describe("the new-video form", () => {
     for (const voiceId of Object.keys(VOICES)) expect(NewVideo.parse({ ...base, voiceId }).voiceId).toBe(voiceId);
     // a voice is one of the studio's own, by name: not any id a request cares to send to the engine
     for (const bad of [{ language: "sw" }, { language: "" }, { voiceId: "someone-else" }, { voiceId: "../narrator-m" }]) expect(NewVideo.safeParse({ ...base, ...bad }).success, JSON.stringify(bad)).toBe(false);
-    expect(draftArgs(NewVideo.parse({ ...base, language: "tr" }), "20261006-120000-abcdef")).toEqual(expect.arrayContaining(["--language", "tr"]));
+    expect(draftArgs(NewVideo.parse({ ...base, language: "tr" }), "20261006-120000-abcdef", true)).toEqual(expect.arrayContaining(["--language", "tr"]));
   });
 
   it("refuses music and kit names that are not plain names", () => {
@@ -50,7 +50,7 @@ describe("the new-video form", () => {
   });
 
   it("becomes a `run --draft` command line, one option per field", () => {
-    const minimal = draftArgs(NewVideo.parse(base), "20261006-120000-abcdef");
+    const minimal = draftArgs(NewVideo.parse(base), "20261006-120000-abcdef", true);
     expect(minimal).toEqual([
       "run", "--draft", "--yes", "--run-id", "20261006-120000-abcdef", "--topic", "foxes", "--aspect", "9:16", "--duration", "60", "--scene-seconds", "3-5",
       "--language", "en", "--mode", "auto", "--clips", "480p", "--budget", "100", "--caption-style", "preset", "--transition", "auto",
@@ -62,6 +62,7 @@ describe("the new-video form", () => {
         hook: { mode: "custom", text: "Watch this" }, sfx: false, characters: "a red fox", seed: 7, voiceId: "narrator-f", language: "tr",
       }),
       "20261006-120000-abcdef",
+      true,
     );
     const after = (flag: string) => full[full.indexOf(flag) + 1];
     // the studio no longer chooses where pictures are made: every run is made on its own GPU endpoints
@@ -77,7 +78,7 @@ describe("the new-video form", () => {
     expect(after("--seed")).toBe("7");
     expect(after("--voice")).toBe("narrator-f");
     expect(after("--language")).toBe("tr");
-    expect(draftArgs(NewVideo.parse({ ...base, hook: { mode: "off" }, motion: "clips" }), "x")).toEqual(expect.arrayContaining(["--no-hook", "--pin-modes", "1"]));
+    expect(draftArgs(NewVideo.parse({ ...base, hook: { mode: "off" }, motion: "clips" }), "x", true)).toEqual(expect.arrayContaining(["--no-hook", "--pin-modes", "1"]));
   });
 });
 

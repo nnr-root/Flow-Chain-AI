@@ -4,6 +4,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { GET as health } from "@/app/api/health/route";
+import { POST as createDraft } from "@/app/api/drafts/route";
 import { POST as generate } from "@/app/api/runs/[id]/generate/route";
 import { POST as rerender } from "@/app/api/runs/[id]/rerender/route";
 import { POST as reroll } from "@/app/api/runs/[id]/reroll/route";
@@ -11,8 +12,9 @@ import { NewVideoForm } from "@/components/NewVideoForm";
 import { namesInternals, SELF_NAMES } from "@/lib/engines";
 import { STAGE_LABELS } from "@/lib/labels";
 import { readJob, type StudioHealth } from "@/server/jobs";
+import { refusal } from "@/server/jobs/redis";
 import { draftArgs, NewVideo } from "@/server/schemas";
-import { calls, draftManifest, finishedManifest, nextRunId, params, request, saveRun, stub, until, useStudio } from "./helpers";
+import { calls, draftManifest, finishedManifest, nextRunId, params, request, saveRun, stub, until, useStudio, withKeys } from "./helpers";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {}, refresh: () => {} }) }));
 
@@ -62,10 +64,42 @@ describe("the new-video form's sound effects", () => {
 
   it("change a draft's command only by --no-sfx when switched off, as before", () => {
     const run = "20261006-120000-abc001";
-    const on = draftArgs(NewVideo.parse({ topic: "t" }), run);
-    const off = draftArgs(NewVideo.parse({ topic: "t", sfx: false }), run);
+    const on = draftArgs(NewVideo.parse({ topic: "t" }), run, true);
+    const off = draftArgs(NewVideo.parse({ topic: "t", sfx: false }), run, true);
+    expect(on).not.toContain("--no-sfx");
     expect(off.filter((a) => !on.includes(a))).toEqual(["--no-sfx"]);
     expect(on.filter((a) => !off.includes(a))).toEqual([]);
+  });
+
+  it("are never asked for by a draft where the studio does not offer them, whatever the form sent", () => {
+    // (the worker decides by its own switch too: a customer who was shown no switch must not be sold sound by it)
+    const run = "20261006-120000-abc001";
+    const offered = draftArgs(NewVideo.parse({ topic: "t", sfx: true }), run, true);
+    const notOffered = draftArgs(NewVideo.parse({ topic: "t", sfx: true }), run, false);
+    expect(notOffered.filter((a) => !offered.includes(a))).toEqual(["--no-sfx"]);
+    expect(offered.filter((a) => !notOffered.includes(a))).toEqual([]);
+    expect(draftArgs(NewVideo.parse({ topic: "t", sfx: false }), run, false).filter((a) => a === "--no-sfx")).toHaveLength(1);
+    expect(refusal("runs", notOffered)).toBeUndefined();
+  });
+});
+
+describe("a new draft's scene sound", () => {
+  // the studio's own health answer is the one gate: here (no queue) it is read from the studio's .env
+  const draftCommand = async (env: string, json: object) => {
+    withKeys();
+    await writeFile(join(studio.root, ".env"), env);
+    await stub(studio, "_draft-manifest.json", draftManifest("placeholder"));
+    const res = await createDraft(request("/api/drafts", { json: { topic: "foxes", ...json } }), undefined);
+    expect(res.status).toBe(202);
+    const { runId } = await res.json();
+    await until(() => readJob(join(studio.runs, runId))?.state === "ended");
+    return (await calls(studio)).at(-1)!;
+  };
+
+  it("is asked for only while the studio offers it, and never when the customer turned it off", async () => {
+    expect(await draftCommand("RUNPOD_FOLEY_ENDPOINT=f\nFLOWCHAIN_SCENE_SOUND=on\n", {})).not.toContain("--no-sfx");
+    expect(await draftCommand("RUNPOD_FOLEY_ENDPOINT=f\nFLOWCHAIN_SCENE_SOUND=on\n", { sfx: false })).toContain("--no-sfx");
+    expect(await draftCommand("RUNPOD_FOLEY_ENDPOINT=f\n", { sfx: true })).toContain("--no-sfx");
   });
 });
 

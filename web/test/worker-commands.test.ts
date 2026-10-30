@@ -7,6 +7,7 @@ describe("what the worker agrees to run", () => {
     const draft = draftArgs(
       { topic: "t", aspect: "9:16", durationSec: 30, sceneSec: { min: 3, max: 5 }, language: "en", style: "auto", motion: "auto", clips: "480p", captionStyle: "preset", transition: "auto", musicGain: 0.35, sfxGain: 0.6, sfx: true, hook: { mode: "auto" } } as Parameters<typeof draftArgs>[0],
       "20261006-120000-abc001",
+      true,
     );
     expect(refusal("runs", draft)).toBeUndefined();
     // a draft is asked for by its length; a number of scenes is not something the studio sends
@@ -15,7 +16,7 @@ describe("what the worker agrees to run", () => {
     expect(refusal("runs", [...draft, "--duration", "600"])).toBeTruthy();
     expect(refusal("runs", draft, "20261006-120000-abc001")).toBeUndefined();
     // a niche (phase 7 spec §19): one the studio knows, or one in the user's words, as the one value it is
-    const withNiche = (niche: object) => draftArgs({ ...(NewVideo.parse({ topic: "t", niche })) }, "20261006-120000-abc001");
+    const withNiche = (niche: object) => draftArgs({ ...(NewVideo.parse({ topic: "t", niche })) }, "20261006-120000-abc001", true);
     expect(withNiche({ kind: "known", id: "history" })).toEqual(expect.arrayContaining(["--niche", "history"]));
     expect(withNiche({ kind: "custom", text: "Cozy cat facts --budget 9" })).toEqual(expect.arrayContaining(["--niche-text", "Cozy cat facts --budget 9"]));
     for (const niche of [{ kind: "known", id: "history" }, { kind: "custom", text: "--cap 5" }]) expect(refusal("runs", withNiche(niche)), JSON.stringify(niche)).toBeUndefined();
@@ -23,19 +24,19 @@ describe("what the worker agrees to run", () => {
     expect(() => NewVideo.parse({ topic: "t", niche: { kind: "custom", text: "two\nlines" } })).toThrow();
     expect(() => NewVideo.parse({ topic: "t", niche: { kind: "known", id: "medicine" } })).toThrow();
     // a type, an edit and a video not made for its language's viewers (phase 8 spec): each the one value it is
-    const layered = draftArgs(NewVideo.parse({ topic: "t", language: "ja", format: "countdown", edit: "retro", localize: false }), "20261006-120000-abc001");
+    const layered = draftArgs(NewVideo.parse({ topic: "t", language: "ja", format: "countdown", edit: "retro", localize: false }), "20261006-120000-abc001", true);
     expect(layered).toEqual(expect.arrayContaining(["--format", "countdown", "--edit", "retro", "--no-localize"]));
     expect(refusal("runs", layered)).toBeUndefined();
     expect(refusal("runs", [...layered, "--format", "pov"])).toBe("a draft may not repeat --format");
     // made for its viewers unless asked not to, and nothing said of it then
-    expect(draftArgs(NewVideo.parse({ topic: "t", language: "ja" }), "x")).not.toContain("--no-localize");
+    expect(draftArgs(NewVideo.parse({ topic: "t", language: "ja" }), "x", true)).not.toContain("--no-localize");
     expect(() => NewVideo.parse({ topic: "t", format: "vlog" })).toThrow();
     // full HD (phase 8 spec §8) is a 480p clip upscaled: the one flag it adds is one a draft may carry
-    const hd = draftArgs(NewVideo.parse({ topic: "t", clips: "1080p" }), "20261006-120000-abc001");
+    const hd = draftArgs(NewVideo.parse({ topic: "t", clips: "1080p" }), "20261006-120000-abc001", true);
     expect(hd).toEqual(expect.arrayContaining(["--clips", "480p", "--upscale"]));
     expect(hd).not.toContain("1080p");
     expect(refusal("runs", hd)).toBeUndefined();
-    expect(draftArgs(NewVideo.parse({ topic: "t", clips: "720p" }), "x")).not.toContain("--upscale");
+    expect(draftArgs(NewVideo.parse({ topic: "t", clips: "720p" }), "x", true)).not.toContain("--upscale");
     expect(refusal("runs", ["resume", "x", "--budget", "1", "--cap", "1"], "x")).toBeUndefined();
     expect(refusal("runs", ["resume", "x", "--budget", "1", "--cap", "1"])).toBeUndefined();
     expect(refusal("runs", ["reroll", "x", "--scene", "1", "--stage", "clips", "--budget", "1", "--cap", "1"])).toBeUndefined();

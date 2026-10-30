@@ -129,7 +129,8 @@ export function autopilot({ db, line, asUser, here, post, busy, log }: Autopilot
     const { topic, args } = await asUser(s.user_id, async () => {
       const earlier = ((tied.data ?? []) as Array<{ id: string }>).map((r) => scriptOf(r.id)?.title).filter((t): t is string => !!t);
       const topic = episodeTopic(s.premise, earlier);
-      return { topic, args: draftArgs({ ...recipe.data, topic }, runId) };
+      // (the worker is the studio here: its own health decides whether this video may ask for sound)
+      return { topic, args: draftArgs({ ...recipe.data, topic }, runId, health().sound === true) };
     });
     const began = await ask("start_series_episode", { p_series_id: s.id, p_run_id: runId, p_topic: topic, p_draft_cap_usd: draftCapOfArgs(args) });
     if (began.refused) {

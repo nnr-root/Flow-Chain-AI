@@ -124,8 +124,13 @@ export const kitDir = (slug: string): string => join(roots().brandKits, slug);
  */
 export const NO_BUDGET_USD = 100;
 
-/** The `run --draft` command line for a form. */
-export function draftArgs(input: NewVideo, runId: string): string[] {
+/**
+ * The `run --draft` command line for a form. `soundOffered` is the studio's own answer (`health().sound`) at the moment
+ * the draft is asked for: a video asks for scene sound only where the studio shows the switch. The CLI decides by its
+ * own environment too, so without this a worker whose switch is on would buy sound for a customer whose studio said
+ * nothing of it (a health answer that is stale, or not known while the worker was not answering).
+ */
+export function draftArgs(input: NewVideo, runId: string, soundOffered: boolean): string[] {
   const args = [
     "run", "--draft", "--yes", "--run-id", runId, "--topic", input.topic, "--aspect", input.aspect,
     "--duration", String(input.durationSec), "--scene-seconds", input.sceneSec.min === input.sceneSec.max ? String(input.sceneSec.min) : `${input.sceneSec.min}-${input.sceneSec.max}`,
@@ -140,7 +145,7 @@ export function draftArgs(input: NewVideo, runId: string): string[] {
   if (input.music) args.push("--bgm", musicPath(input.music));
   if (input.hook.mode === "custom") args.push("--hook", input.hook.text);
   if (input.hook.mode === "off") args.push("--no-hook");
-  if (!input.sfx) args.push("--no-sfx");
+  if (!input.sfx || !soundOffered) args.push("--no-sfx");
   if (input.characters) args.push("--characters", input.characters);
   if (input.seed !== undefined) args.push("--seed", String(input.seed));
   if (input.voiceId) args.push("--voice", input.voiceId);
