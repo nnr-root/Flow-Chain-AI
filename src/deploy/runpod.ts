@@ -286,8 +286,9 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     // onto its own disk, so the disk holds the image unpacked and that file once more
     const foleyBody = { imageName: cfg.foleyImage, containerDiskInGb: 80, env };
     const foleyTemplate = await upsert(rest, "templates", existing.foleyTemplate, NAMES.foleyTemplate, { ...foleyBody, isServerless: true }, foleyBody);
-    // 300 s: the image is large, so the first job after a cold start must fit inside the limit
-    const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(foleyTemplate.id, cfg.foleyGpus ?? DEFAULTS.foleyGpus, 300_000);
+    // 300 s: the image is large, so the first job after a cold start must fit inside the limit. Its PyTorch is built
+    // for CUDA 12.8 as the picture worker's is: a host with an older driver has no usable GPU for it
+    const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(foleyTemplate.id, cfg.foleyGpus ?? DEFAULTS.foleyGpus, 300_000, { minCudaVersion: "12.8" });
     foleyEndpointId = (await upsert(rest, "endpoints", existing.foley, NAMES.foley, anywhere, anywhere)).id;
   }
   return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id, ...(upscaleEndpointId ? { upscaleEndpointId } : {}), ...(foleyEndpointId ? { foleyEndpointId } : {}), ...(keyframe3EndpointId ? { keyframe3EndpointId } : {}), movedVolume };

@@ -24,9 +24,14 @@ def model(root, loader=None):
 
 def _load(root):
     import torch  # lazily: only the image has it
+
+    # never the CPU: there a job runs until the endpoint's limit and is charged for it. A host whose driver is older than
+    # the CUDA 12.8 this PyTorch was built for shows no GPU, and the job must fail at once instead
+    if not torch.cuda.is_available():
+        raise RuntimeError("no GPU with a driver for CUDA 12.8 is available on this worker")
     from hunyuanvideo_foley.utils.model_utils import load_model
 
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:0")
     # the XXL model, no offload: it fits a 24 GB card (the trial of 2026-10-30)
     model_dict, cfg = load_model(root, CONFIG, device, enable_offload=False, model_size="xxl")
     return {"model_dict": model_dict, "cfg": cfg}

@@ -119,7 +119,7 @@ describe("runpod deploy", () => {
     expect((await planDeploy(rest, { upscale: true })).find((s) => s.name === NAMES.upscale)?.action).toBe("update");
   });
 
-  it("makes the Foley endpoint only when its image is given: its own template with room for the model, 24 GB cards, no volume, anywhere (phase 14)", async () => {
+  it("makes the Foley endpoint only when its image is given: its own template with room for the model, 24 GB cards with a driver for CUDA 12.8, no volume, anywhere (phase 14)", async () => {
     const without = fakeRest();
     const plain = await applyDeploy(without.rest, cfg, () => {});
     expect(plain.foleyEndpointId).toBeUndefined();
@@ -137,7 +137,7 @@ describe("runpod deploy", () => {
     const foley = store.endpoints.find((e) => e.name === NAMES.foley)!;
     expect(deployed.foleyEndpointId).toBe(foley.id);
     expect(store.templates.find((t) => t.id === foley.templateId)).toMatchObject({ name: NAMES.foleyTemplate, imageName: image, containerDiskInGb: 80, isServerless: true });
-    expect(foley).toMatchObject({ gpuTypeIds: DEFAULTS.foleyGpus, workersMin: 0, workersMax: 1, idleTimeout: 30, executionTimeoutMs: 300_000, flashboot: false });
+    expect(foley).toMatchObject({ gpuTypeIds: DEFAULTS.foleyGpus, workersMin: 0, workersMax: 1, idleTimeout: 30, executionTimeoutMs: 300_000, flashboot: false, minCudaVersion: "12.8" });
     expect(DEFAULTS.foleyGpus).not.toContain("NVIDIA L4");
     for (const field of ["networkVolumeId", "networkVolumeIds", "dataCenterIds"]) expect(foley).not.toHaveProperty(field);
     expect(envValuesOf(deployed).RUNPOD_FOLEY_ENDPOINT).toBe(foley.id);

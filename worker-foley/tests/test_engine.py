@@ -140,3 +140,15 @@ def test_seeds_python_numpy_and_torch_with_the_requests_seed_before_sampling(tmp
     run(tmp_path, "a.wav", 4242, sampler)
     assert log[-1] == ("sample", None)
     assert sorted(log[:-1]) == [("numpy", 4242), ("random", 4242), ("torch", 4242)]
+
+
+def test_the_real_loader_refuses_a_worker_without_a_gpu_instead_of_running_on_the_cpu(monkeypatch):
+    import sys
+    import types
+
+    torch = types.ModuleType("torch")
+    torch.cuda = types.SimpleNamespace(is_available=lambda: False)
+    torch.device = lambda name: pytest.fail(f"a device was chosen: {name}")
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    with pytest.raises(RuntimeError, match="no GPU with a driver for CUDA 12.8"):
+        engine._load("/models/foley")
