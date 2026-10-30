@@ -44,6 +44,10 @@ const Env = z.object({
   /** Reframe cuts and the shared look reference (phase 10 spec §5): off until the owner's comparison says on. Frozen per run. */
   FLOWCHAIN_CUT_REFERENCES: z.enum(["on", "off"]).default("off"),
   FLOWCHAIN_SMOOTH_MOTION: z.enum(["on", "off"]).default("off"),
+  /** Topic ideas from the web and the public chart (phase 13): the studio offers them only while this is on. */
+  FLOWCHAIN_TREND_IDEAS: z.enum(["on", "off"]).default("off"),
+  /** The public chart's key: without it the ideas call uses the web alone. */
+  YOUTUBE_API_KEY: z.string().min(1).optional(),
   /** Which of the voice worker's voices new runs use. */
   FLOWCHAIN_VOICE: z.string().regex(/^[a-z0-9][a-z0-9-]{0,40}$/).default("narrator-m"),
   R2_ACCOUNT_ID: z.string().min(1).optional(),

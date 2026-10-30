@@ -68,6 +68,8 @@ export interface LlmProvider {
   inspect?(req: InspectRequest): Promise<unknown>;
   /** Expands a picture prompt for a model that needs it, seeing its reference pictures (phase 10 spec §3). Optional: a provider without it leaves the prompt as it is. */
   upsample?(req: { prompt: string; images?: string[] }): Promise<string>;
+  /** Suggests current topics with web search (phase 13 spec §2). Optional like `inspect`: a provider without it has no such feature. */
+  ideas?(req: IdeasRequest): Promise<IdeasAnswer>;
 }
 
 /** `language`: the script's, where it is known (the studio's own voice picks its reference clip by it). */

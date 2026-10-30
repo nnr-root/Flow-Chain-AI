@@ -23,6 +23,9 @@ import { copySourceFiles, versionCapUsd, versionManifest, versionProblem } from 
 import { takesSeveralReferences } from "./image-profiles.js";
 import { PresetName } from "./presets.js";
 import { LANGUAGE_IN_ENGLISH, SPEECH_LANGUAGES, type SpeechLanguage } from "./voice/language.js";
+import { GeminiLlm } from "./providers/gemini.js";
+import { fetchChart } from "./providers/youtube-chart.js";
+import { makeIdeas } from "./trends/run.js";
 import { createProviders } from "./providers/factory.js";
 import { frozenModePrices, newRunProviders, newRunVoice, restorerFor } from "./providers/new-run.js";
 import { CLIP_QUALITIES, type ClipQuality } from "./video-profiles.js";
@@ -408,6 +411,35 @@ program
       // with an approved amount a reroll is capped like a resume; without one it asks whenever it would spend
       await execute(ctx, { budgetUsd: budget(o.budget, env), capUsd: cap(o.cap), yes: o.yes, reroll: o.budget === undefined });
     });
+  });
+
+program
+  .command("ideas")
+  .description("suggest current topics for a niche and language (one paid model call; prints JSON; the owner's tool and the worker's)")
+  .requiredOption("--language <code>", "the language of the video, e.g. en")
+  .option("--region <code>", "two-letter region of the audience (default: the language's usual one)")
+  .option("--niche <id>", "one of the studio's niches")
+  .option("--niche-text <text>", "a niche in the user's own words")
+  .option("--format <id>", "the video type")
+  .option("--cap <usd>", "the amount the caller holds for this call (the command makes one model call)")
+  .action(async (o: { language: string; region?: string; niche?: string; nicheText?: string; format?: string; cap?: string }) => {
+    try {
+      if (o.niche !== undefined && !NICHE_IDS.includes(o.niche)) throw new Error(`--niche must be one of: ${NICHE_IDS.join(", ")}`);
+      if (o.format !== undefined && !FORMAT_IDS.includes(o.format)) throw new Error(`--format must be one of: ${FORMAT_IDS.join(", ")}`);
+      if (o.region !== undefined && !/^[A-Za-z]{2}$/.test(o.region)) throw new Error(`--region must be two letters, got "${o.region}"`);
+      const env = loadEnv();
+      cap(o.cap);
+      const llm = new GeminiLlm(env.GEMINI_API_KEY, env.GEMINI_MODEL);
+      const { ideas, dropped, usage } = await makeIdeas(
+        { llm, chart: (region) => (env.YOUTUBE_API_KEY ? fetchChart(env.YOUTUBE_API_KEY, region) : Promise.resolve([])), today: new Date().toISOString().slice(0, 10) },
+        { language: o.language, region: o.region, niche: o.niche, nicheText: o.nicheText, format: o.format },
+      );
+      console.error(`ideas: ${JSON.stringify(usage ?? {})}`);
+      console.log(JSON.stringify({ ideas, dropped }));
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exitCode = 1;
+    }
   });
 
 type LookFlagsCli = {

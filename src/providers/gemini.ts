@@ -13,7 +13,8 @@ import { LlmOutline, LlmPart, LlmScript, LlmTranslation, MAX_COUNTED_SCENES, MAX
 import { SCENE_SOUNDS, SCENE_SOUND_ABOUT } from "../sounds.js";
 import { PRESETS } from "../presets.js";
 import { shrinkReference } from "../media/reference-image.js";
-import type { InspectRequest, LlmProvider, ScriptRequest } from "./types.js";
+import { ideasPrompt } from "../trends/prompt.js";
+import type { IdeasAnswer, IdeasRequest, InspectRequest, LlmProvider, ScriptRequest } from "./types.js";
 
 /** Gemini's responseJsonSchema takes plain JSON Schema; drop the draft marker zod adds. */
 export function scriptJsonSchema(kind: "script" | "outline" | "part" | "translate" = "script", most: number = MAX_COUNTED_SCENES, reframe = false): Record<string, unknown> {
@@ -442,6 +443,22 @@ export function upsampleUserText(prompt: string, imageCount: number): string {
 /** The longest side the upsampler sees a reference at (BFL's `MAX_PIXELS_BY_REFS`): 1024 for one, 724 for two, 512 for more. */
 export const maxSideFor = (imageCount: number): number => (imageCount <= 1 ? 1024 : imageCount === 2 ? 724 : 512);
 
+/** The hosts of what the model really read: a chunk's title is its site's name, its link a redirect through Google unless it is direct. */
+export function hostsOfChunks(chunks: Array<{ web?: { uri?: string; title?: string } }>): string[] {
+  const out = new Set<string>();
+  for (const { web } of chunks) {
+    const title = web?.title?.trim().toLowerCase().replace(/^www\./, "");
+    if (title && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(title)) out.add(title);
+    try {
+      const host = new URL(web?.uri ?? "").hostname.toLowerCase().replace(/^www\./, "");
+      if (host && host !== "vertexaisearch.cloud.google.com") out.add(host);
+    } catch {
+      /* no usable link */
+    }
+  }
+  return [...out];
+}
+
 export class GeminiLlm implements LlmProvider {
   readonly promptVersion = PROMPT_VERSION;
   private readonly ai: GoogleGenAI;
@@ -462,6 +479,24 @@ export class GeminiLlm implements LlmProvider {
     const text = res.text;
     if (!text) throw new Error("Gemini returned an empty response");
     return JSON.parse(text);
+  }
+
+  async ideas(req: IdeasRequest): Promise<IdeasAnswer> {
+    const res = await this.ai.models.generateContent({
+      model: this.model,
+      contents: ideasPrompt(req),
+      // The web search tool is on; JSON is asked for in words and parsed by the pipeline (plan ruling 4), because
+      // the search tool and a JSON response schema are not assumed to work together.
+      config: { tools: [{ googleSearch: {} }], temperature: TEMPERATURE.ideas, httpOptions: { timeout: 45_000 } },
+    });
+    const text = res.text;
+    if (!text) throw new Error("the model returned an empty response");
+    const grounding = res.candidates?.[0]?.groundingMetadata;
+    return {
+      text,
+      hosts: hostsOfChunks(grounding?.groundingChunks ?? []),
+      usage: { inputTokens: res.usageMetadata?.promptTokenCount, outputTokens: res.usageMetadata?.candidatesTokenCount, searches: grounding?.webSearchQueries?.length },
+    };
   }
 
   async inspect(req: InspectRequest): Promise<unknown> {

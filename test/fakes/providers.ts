@@ -5,7 +5,7 @@ import type { ActionLevel, Camera, SuggestedTransition } from "../../src/manifes
 import type { PresetName } from "../../src/presets.js";
 import { UnusableResultError } from "../../src/providers/retry.js";
 import type {
-  ImageOutput, ImageProvider, ImageRequest, InspectRequest, LlmProvider, PreparedJob, ScriptRequest, SpeakRequest, SubmitOptions, UpscaleProvider, UpscaleRequest,
+  ImageOutput, ImageProvider, IdeasAnswer, IdeasRequest, ImageRequest, InspectRequest, LlmProvider, PreparedJob, ScriptRequest, SpeakRequest, SubmitOptions, UpscaleProvider, UpscaleRequest,
   TtsProvider, VideoOutput, VideoProvider, VideoRequest, WaitOptions,
 } from "../../src/providers/types.js";
 import { ffmpeg, probeVideo } from "../../src/media/ffmpeg.js";
@@ -73,6 +73,8 @@ export class FakeLlm implements LlmProvider {
   calls: ScriptRequest[] = [];
   /** The look at pictures (phase 8 spec §9): absent, like a provider without one, unless a test gives it. */
   inspect?: (req: InspectRequest) => Promise<unknown>;
+  /** The topic-ideas call (phase 13): absent, like a provider without one, unless a test gives it. */
+  ideas?: (req: IdeasRequest) => Promise<IdeasAnswer>;
   constructor(private readonly respond: (req: ScriptRequest, callNo: number) => unknown) {}
   async generateScript(req: ScriptRequest): Promise<unknown> {
     this.calls.push(req);
