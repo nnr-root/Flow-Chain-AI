@@ -129,7 +129,7 @@ export type StoredRun = { runId: string; topic: string; state: string; createdAt
 /** The user's runs as the database lists them (row-level security: only their own). Empty without accounts. */
 export async function runRows(): Promise<StoredRun[]> {
   if (!currentUser()) return [];
-  const { data, error } = await userDb().from("runs").select("id,topic,state,created_at,stored_at").order("created_at", { ascending: false });
+  const { data, error } = await userDb().from("runs").select("id,topic,state,created_at,stored_at").neq("state", "ideas").order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []).map((r) => ({ runId: r.id as string, topic: r.topic as string, state: r.state as string, createdAt: r.created_at as string, stored: !!r.stored_at }));
 }

@@ -18,6 +18,7 @@ import { FORMATS, formatClash } from "@src/formats";
 import { EDITS } from "@src/edits";
 import { AUDIENCE } from "@src/culture";
 import { LayerPicker } from "./LayerPicker";
+import { IdeaSuggestions } from "./IdeaSuggestions";
 import { type NicheChoice, NichePicker } from "./NichePicker";
 import { VoicePicker } from "./VoicePicker";
 
@@ -32,6 +33,9 @@ const MADE_OF = [
   { value: "auto", label: "Pictures and clips", note: "A moving clip where something happens, a picture where little does: the script decides scene by scene." },
   { value: "clips", label: "Clips only", note: "Every scene is a generated moving clip. It costs the most." },
 ] as const;
+
+/** The niche as a request carries it (a niche of one's own left empty is no niche). */
+const nicheRequest = (niche: NicheChoice) => (niche.kind === "custom" ? (niche.text.trim() ? { kind: "custom" as const, text: niche.text.trim() } : { kind: "none" as const }) : niche);
 
 /**
  * The form a video starts from. `series`: the same choices are saved as a series instead of being spent on one
@@ -105,8 +109,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         ...(f.characters.trim() ? { characters: f.characters } : {}),
         ...(f.seed.trim() ? { seed: Number(f.seed) } : {}),
         language: f.language, voiceId: f.voiceId,
-        // (a niche of one's own left empty is no niche)
-        niche: niche.kind === "custom" ? (niche.text.trim() ? { kind: "custom", text: niche.text.trim() } : { kind: "none" }) : niche,
+        niche: nicheRequest(niche),
         ...(format ? { format } : {}),
         ...(edit ? { edit } : {}),
         localize,
@@ -164,6 +167,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
               <textarea data-testid="topic" required rows={2} maxLength={500} value={f.topic} onChange={(e) => set("topic", e.target.value)} placeholder="A lighthouse keeper's daughter takes over the light" />
             </Field>
           )}
+          {!series && health.ideas ? <IdeaSuggestions request={{ language: f.language, niche: nicheRequest(niche), ...(format ? { format } : {}) }} onPick={(t) => set("topic", t.slice(0, 500))} /> : null}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <Field group label="Shape">
               {/* the word a person knows the shape by first, its ratio beside it, and where it is watched */}

@@ -28,11 +28,22 @@ export async function newTenantRun(topic: string, seriesId?: string): Promise<st
   throw new Error("could not find a free run id");
 }
 
+/** Registers a request for ideas as the caller's and returns its id (a request is a hidden run: phase 13 plan ruling 1). */
+export async function newIdeaRequest(): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const id = newRunId();
+    const { error } = await userDb().rpc("create_idea_request", { p_id: id });
+    if (!error) return id;
+    if (error.message !== "run_exists") throw REFUSALS[error.message]?.() ?? new Error(`create_idea_request: ${error.message}`);
+  }
+  throw new Error("could not find a free request id");
+}
+
 /**
  * Holds `capUsd` of the caller's credit for one paid job on their run and returns the reservation's id. The
  * database refuses when the balance is too low, the run is not theirs, or the run already has a paid job.
  */
-export async function reserve(runId: string, kind: "draft" | "generate" | "reroll", capUsd: number): Promise<string> {
+export async function reserve(runId: string, kind: "draft" | "generate" | "reroll" | "ideas", capUsd: number): Promise<string> {
   const { data, error } = await userDb().rpc("reserve_credit", { p_run_id: runId, p_kind: kind, p_cap_usd: capUsd });
   if (error) throw REFUSALS[error.message]?.() ?? new Error(`reserve_credit: ${error.message}`);
   return data as string;

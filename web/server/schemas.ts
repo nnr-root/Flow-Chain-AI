@@ -15,6 +15,12 @@ import { z } from "zod";
 import { roots } from "./config";
 import { ApiError } from "./http";
 
+export const NicheChoice = z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("none") }),
+    z.object({ kind: z.literal("known"), id: z.enum(NICHE_IDS) }),
+    z.object({ kind: z.literal("custom"), text: z.string().trim().min(1).max(NICHE_TEXT_MAX).regex(/^[^\n\r]*$/, "one line") }),
+]);
+
 /** Folder names the studio creates: lowercase letters, digits and dashes only. */
 export const Slug = z.string().regex(/^[a-z0-9][a-z0-9-]{0,62}$/, "use lowercase letters, digits and dashes");
 /** A music choice: a bundled track or an uploaded one, by file name. */
@@ -62,11 +68,7 @@ export const NewVideo = z.object({
    * The kind of video (phase 7 spec §19): one of the studio's niches, one in the user's own words, or none. The
    * words are a description, quoted to the script's model as the user's, never read as instructions.
    */
-  niche: z.discriminatedUnion("kind", [
-    z.object({ kind: z.literal("none") }),
-    z.object({ kind: z.literal("known"), id: z.enum(NICHE_IDS) }),
-    z.object({ kind: z.literal("custom"), text: z.string().trim().min(1).max(NICHE_TEXT_MAX).regex(/^[^\n\r]*$/, "one line") }),
-  ]).default({ kind: "none" }),
+  niche: NicheChoice.default({ kind: "none" }),
   /** The type of video (phase 8 spec §2): how it is told; absent = as its niche tells it. */
   format: z.enum(FORMAT_IDS).optional(),
   /** How it moves and is cut (phase 8 spec §3); absent = the studio's plain edit. */
@@ -84,6 +86,24 @@ export const NewVideo = z.object({
   transition: TransitionChoice.default("auto"),
 });
 export type NewVideo = z.infer<typeof NewVideo>;
+
+/** A request for topic ideas (phase 13): the form's language, niche and type; nothing else the studio holds. */
+export const IdeasInput = z.object({
+  language: z.enum(SPEECH_LANGUAGE_CODES),
+  niche: NicheChoice.optional(),
+  format: z.enum(FORMAT_IDS).optional(),
+});
+export type IdeasInput = z.infer<typeof IdeasInput>;
+
+/** The command for an ideas job, in the one shape the worker accepts (`ideasRefusal`). */
+export function ideasArgs(input: IdeasInput, capUsd?: number): string[] {
+  const args = ["ideas", "--language", input.language];
+  if (input.niche?.kind === "known") args.push("--niche", input.niche.id);
+  if (input.niche?.kind === "custom") args.push("--niche-text", input.niche.text);
+  if (input.format) args.push("--format", input.format);
+  if (capUsd !== undefined) args.push("--cap", String(capUsd));
+  return args;
+}
 
 /** What a series keeps of the form (phase 6 spec §3): everything but the topic, which each of its videos gets built. */
 export const Recipe = NewVideo.omit({ topic: true });

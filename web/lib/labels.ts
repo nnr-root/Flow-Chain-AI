@@ -47,3 +47,6 @@ export const JOB_LABELS: Record<string, string> = {
 
 /** A name nobody gave a label is shown as it is, with its underscores as spaces: better than nothing, and it shows up in review. */
 export const labelOf = (labels: Record<string, string>, name: string): string => labels[name] ?? name.replaceAll("_", " ");
+
+/** The words of "Suggest a topic" (phase 13): no model, provider or data source is named. */
+export const IDEAS_LABELS = { button: "Suggest a topic", why: "Why it is current", sources: "Sources", use: "Use this topic", none: "No ideas could be made this time.", returned: "Your credit was returned." } as const;
