@@ -30,7 +30,7 @@ import { createProviders } from "./providers/factory.js";
 import { frozenModePrices, newRunProviders, newRunSound, newRunVoice, restorerFor } from "./providers/new-run.js";
 import { CLIP_QUALITIES, type ClipQuality } from "./video-profiles.js";
 import type { Providers } from "./providers/types.js";
-import { applyRenderOptions, assertRenderOnly, noPaidProviders } from "./rerender.js";
+import { applyRenderOptions, assertRenderOnly, noPaidProviders, withLook } from "./rerender.js";
 import { bumpNonce, REROLLABLE } from "./reroll.js";
 import { STAGES } from "./stages/index.js";
 import type { StageContext } from "./stages/types.js";
@@ -495,8 +495,10 @@ lookOptions(
     await withRunLock(dir, async () => {
       const manifest = await loadManifest(dir);
       const ctx = contextFor(dir, manifest, noPaidProviders(), renderConcurrency(o.renderConcurrency));
-      // render options never make a paid stage stale, so refusing first is equivalent and leaves the brand files alone
-      assertRenderOnly(await planRun(ctx, STAGES), runId);
+      // planned with the new look but before it is stored, so a refusal leaves the run and its brand files alone: turning
+      // sound effects on can make a paid stage due (scene sound never made, phase 14 spec §3); a brand never can
+      const looked = withLook(manifest, { ...o, brand: undefined });
+      assertRenderOnly(await planRun({ ...ctx, manifest: looked }, STAGES), runId);
       await storeLook(dir, manifest, o, kit);
       await execute(ctx, { budgetUsd: 0, yes: true });
     });

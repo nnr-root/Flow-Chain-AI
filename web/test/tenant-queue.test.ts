@@ -14,6 +14,7 @@ import { POST as makeVersion } from "@/app/api/runs/[id]/versions/route";
 import { DELETE as stop } from "@/app/api/runs/[id]/job/route";
 import { GET as viewRun } from "@/app/api/runs/[id]/route";
 import { POST as rerender } from "@/app/api/runs/[id]/rerender/route";
+import { POST as reroll } from "@/app/api/runs/[id]/reroll/route";
 import { JOB_FILE } from "@/server/jobs";
 import { closeQueue } from "@/server/jobs/queue";
 import { JOB_OPTIONS, QUEUES } from "@/server/jobs/redis";
@@ -149,6 +150,18 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     ]);
     await until(async () => (await db().from("runs").select("charged_usd,state").eq("id", id).single()).data?.state !== "creating");
     expect((await db().from("runs").select("charged_usd").eq("id", id).single()).data).toEqual({ charged_usd: 0.2755 });
+  });
+
+  it("holds for one scene's new sound what the plan prices it at, and the worker runs it with exactly that held", async () => {
+    await worker();
+    await grant(a, 1);
+    const id = await ownRun(a, (runId) => ({ ...finishedManifest(runId), request: { ...finishedManifest(runId).request, sceneSound: true as const } }));
+    await writeFile(join(folder(a), "_plan-reroll.json"), JSON.stringify({ items: [{ stage: "sound", scene: 2, costUsd: 0.0048 }, { stage: "render", scene: null, costUsd: 0 }], totalUsd: 0.0048 }));
+    const res = await reroll(as(aCookie, `/api/runs/${id}/reroll`, { json: { scene: 2, stage: "sound", approvedUsd: 0.0048 } }), params({ id }));
+    expect(res.status).toBe(202);
+    expect((await db().from("reservations").select("cap_usd,kind").eq("run_id", id).single()).data).toEqual({ cap_usd: 0.0048, kind: "reroll" });
+    await until(async () => (await openReservations()) === 0);
+    expect(await jobCalls(a)).toEqual([["reroll", id, "--scene", "2", "--stage", "sound", "--budget", "0.0048", "--cap", "0.0048"]]);
   });
 
   it("starts nothing when the credit does not cover the approved amount", async () => {

@@ -33,6 +33,7 @@ export const STAGE_LABELS: Record<string, string> = {
   upscale: "Full HD",
   interpolate: "Smooth motion",
   fit: "Fitted to the voice",
+  sound: "Sound effects",
   captions: "Captions",
   render: "Final cut",
 };

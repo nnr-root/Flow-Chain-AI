@@ -31,6 +31,8 @@ export const INTERNAL_NAMES: RegExp[] = [
   /voxcpm/i, /chatterbox/i, /whisper/i, /supabase/i, /cloudflare/i, /\bR2_/, /_API_KEY\b/, /_ENDPOINT\b/, /_VOICE_ID\b/,
   // (the second is case-sensitive on purpose: "rife" is an English word)
   /seedvr/i, /\bRIFE\b/,
+  // the scene sound's model (phase 14), and the workflow name its run records carry
+  /hunyuan/i, /foley/i,
   // the studio's own settings and its GPU endpoints' settings, whatever they are called next
   /\bFLOWCHAIN_[A-Z_]+\b/, /\bRUNPOD_[A-Z_]+\b/,
 ];

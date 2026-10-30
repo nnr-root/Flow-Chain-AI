@@ -35,6 +35,16 @@ export function applyRenderOptions(m: Manifest, flags: RerenderFlags): void {
   });
 }
 
+/**
+ * A copy of the run with these options applied, to plan on: turning sound effects on can make a paid stage due (a run
+ * with scene sound whose sound was never made, phase 14 spec §3), so a rerender is checked with the look it will render.
+ */
+export function withLook(m: Manifest, flags: RerenderFlags): Manifest {
+  const copy = structuredClone(m);
+  applyRenderOptions(copy, flags);
+  return copy;
+}
+
 const FREE_STAGES: StageName[] = ["modes", "captions", "render"];
 
 /**

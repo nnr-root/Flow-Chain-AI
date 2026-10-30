@@ -80,6 +80,12 @@ export type Health = {
   smooth?: boolean;
   /** Whether topic ideas (phase 13) are offered: the key is there, the owner switched them on and, with accounts, a price is set. Present only when true, like `smooth`. */
   ideas?: true;
+  /**
+   * Whether scene sound (phase 14 spec §6) can be offered: its endpoint is set and the owner switched it on. Present only
+   * when true, like `smooth`. Its prices are not read here (the web never reads `prices.json`): the CLI's own gate
+   * decides at creation, and a run made without them is made without sound and says so.
+   */
+  sound?: true;
 };
 
 /** Whether a new run could be made, checked without any network call. */
@@ -90,6 +96,7 @@ export function health(): Health {
     missing: [...unset(NEEDS), ...(unset(VOICE_NEEDS).length === VOICE_NEEDS.length ? [`${VOICE_NEEDS[0]} (or ${VOICE_NEEDS[1]})`] : [])],
     fullHd: Boolean(env.RUNPOD_UPSCALE_ENDPOINT?.trim()),
     ...(env.RUNPOD_UPSCALE_ENDPOINT?.trim() && env.FLOWCHAIN_SMOOTH_MOTION?.trim() === "on" ? { smooth: true } : {}),
+    ...(env.RUNPOD_FOLEY_ENDPOINT?.trim() && env.FLOWCHAIN_SCENE_SOUND?.trim() === "on" ? { sound: true as const } : {}),
     ...(env.GEMINI_API_KEY?.trim() && env.FLOWCHAIN_TREND_IDEAS?.trim() === "on" && (!multiTenant() || ideasPriceUsd() !== undefined) ? { ideas: true as const } : {}),
   };
 }

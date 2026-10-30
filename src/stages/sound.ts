@@ -22,6 +22,15 @@ import { sceneFrames } from "./visual.js";
 export const hasSceneSound = (m: Manifest, i: number): boolean =>
   m.request.sceneSound === true && m.request.render.sfx && (m.script ? Boolean(m.script.scenes[i]?.soundPrompt) : true);
 
+/**
+ * A run made with scene sound some of whose scenes have no sound made, as it would be with sound effects on: what a
+ * re-render cannot turn on (it buys nothing), so the studio says so before it starts one.
+ */
+export function soundNotMade(m: Manifest): boolean {
+  const on: Manifest = { ...m, request: { ...m.request, render: { ...m.request.render, sfx: true } } };
+  return m.scenes.some((s) => hasSceneSound(on, s.idx) && s.stages.sound?.status !== "done");
+}
+
 const isStill = (m: Manifest, i: number) => m.scenes[i].mode === 2;
 
 /** Scene i's length in the video, in seconds: its frames (what the fit made it, or what a still is shown for). */

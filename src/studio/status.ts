@@ -75,6 +75,8 @@ export type RunStatus = {
   localized?: true;
   /** The run this one is a version of, in another language (phase 8 spec §4). */
   versionOf?: string;
+  /** Made with scene sound (phase 14 spec §6): only then do its sound effects switch anything. */
+  sceneSound?: true;
 };
 
 const step = (stage: StageName, r?: StageRecord): StepStatus =>
@@ -102,6 +104,7 @@ export function statusOf(m: Manifest): RunStatus {
     voiceId: r.voiceId,
     ...(r.localize ? { localized: true as const } : {}),
     ...(r.versionOf ? { versionOf: r.versionOf.runId } : {}),
+    ...(r.sceneSound ? { sceneSound: true as const } : {}),
     render: r.render,
     characters: r.characters,
     seed: r.seed,
