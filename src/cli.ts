@@ -270,9 +270,10 @@ program
     const kit: BrandKit | undefined = o.brand ? await loadBrandKit(o.brand) : undefined;
     const providers = newRunProviders(env, o.clips, loadPrices());
     const voice = newRunVoice(env, o.language);
-    // scene sound is frozen now, on only when everything it needs is here (phase 14 spec §3); a run without it says why once
+    // scene sound is frozen now, on only when everything it needs is here (phase 14 spec §3); a switch that is on without
+    // what it needs says so once, and nothing is said otherwise
     const sound = newRunSound(env, loadPrices(), o.sfx !== false);
-    if ("off" in sound) console.log(`scene sound is off: ${sound.off}`);
+    if ("say" in sound && sound.say) console.log(sound.say);
     const request = RunRequest.parse({
       topic: o.topic,
       aspect: o.aspect,

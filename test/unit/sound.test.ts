@@ -12,7 +12,7 @@ import type { R2 } from "../../src/providers/r2.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
 import { RunpodFoley, type RunpodDeps } from "../../src/providers/runpod-providers.js";
 import {
-  gainFor, guidanceFor, LOUDNESS_TARGET_LUFS, parseLoudness, SCENE_SOUND_MAX_SEC, SOUND_NEGATIVE_PROMPT, SOUND_STEPS, soundCost, soundSeconds, soundSeed,
+  gainFor, guidanceFor, LOUDNESS_TARGET_LUFS, parseLoudness, SCENE_SOUND_MAX_SEC, SOUND_NEGATIVE_PROMPT, SOUND_STEPS, soundAskSeconds, soundCost, soundSeconds, soundSeed,
 } from "../../src/sound.js";
 import { FakeRunpodApi } from "../fakes/runpod.js";
 import { tempDir } from "../helpers/media.js";
@@ -53,6 +53,14 @@ describe("the settings a scene's sound is asked with", () => {
     expect(SCENE_SOUND_MAX_SEC).toBe(10);
     expect(soundSeconds(12)).toBe(10);
     expect(soundSeconds(4.26)).toBe(4.3);
+  });
+
+  it("never ask the worker for less than the 1 s it makes, however short the scene", () => {
+    expect(soundAskSeconds(0.4)).toBe(1);
+    expect(soundAskSeconds(0.99)).toBe(1);
+    expect(soundAskSeconds(1)).toBe(1);
+    expect(soundAskSeconds(4.26)).toBe(4.3);
+    expect(soundAskSeconds(12)).toBe(10);
   });
 
   it("always forbid speech and music, at a fixed number of steps", () => {
@@ -163,12 +171,20 @@ describe("whether a new run is made with scene sound", () => {
     expect(RUNPOD_WORKFLOWS.sound).toEqual({ workflow: "sound-foley", version: 1 });
   });
 
-  it("is off, and says why, without any one of them", () => {
+  it("is off, and says nothing, in the ordinary cases: the switch off or the run without sound effects", () => {
     expect(loadEnv({ GEMINI_API_KEY: "g" }).FLOWCHAIN_SCENE_SOUND).toBe("off");
-    expect(newRunSound(env(on), Prices.parse(RATES), false)).toEqual({ off: "the run has no sound effects (--no-sfx)" });
-    expect(newRunSound(env({ RUNPOD_FOLEY_ENDPOINT: "fo1" }), Prices.parse(RATES), true)).toEqual({ off: "FLOWCHAIN_SCENE_SOUND is not on" });
-    expect(newRunSound(env({ FLOWCHAIN_SCENE_SOUND: "on" }), Prices.parse(RATES), true)).toEqual({ off: "RUNPOD_FOLEY_ENDPOINT is not set" });
-    expect(newRunSound(env(on), Prices.parse({}), true)).toEqual({ off: FOLEY_RATES_MISSING });
+    expect(newRunSound(env(on), Prices.parse(RATES), false)).toEqual({});
+    expect(newRunSound(env({ RUNPOD_FOLEY_ENDPOINT: "fo1" }), Prices.parse(RATES), true)).toEqual({});
+    expect(newRunSound(env(), Prices.parse({}), true)).toEqual({});
+  });
+
+  it("is off, and says what is missing in plain words, when the switch is on without the endpoint or the prices", () => {
+    const noEndpoint = newRunSound(env({ FLOWCHAIN_SCENE_SOUND: "on" }), Prices.parse(RATES), true);
+    expect(noEndpoint).toEqual({ say: "scene sound is on but no sound endpoint is set; this run is made without it" });
+    const noPrices = newRunSound(env(on), Prices.parse({}), true);
+    expect(noPrices).toEqual({ say: "scene sound is on but its prices are not set; this run is made without it" });
+    // (the line reaches a customer's job log: it names no setting, flag, model or provider)
+    for (const said of [noEndpoint, noPrices]) expect((said as { say: string }).say).not.toMatch(/FLOWCHAIN_|RUNPOD|_ENDPOINT|--|prices\.json|runpodFoley/i);
   });
 });
 

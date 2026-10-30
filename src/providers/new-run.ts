@@ -1,4 +1,4 @@
-import { type Env, FOLEY_RATES_MISSING, foleyRates, flux3Rates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
+import { type Env, foleyRates, flux3Rates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
 import type { ImageProfileId } from "../image-profiles.js";
 import { CLIP_QUALITIES, type ClipQuality, type VideoProfileId } from "../video-profiles.js";
 import { hostedModelFor } from "../voice/hosted.js";
@@ -53,14 +53,14 @@ export function restorerFor(opts: { fps?: string; upscale?: boolean }, env: Env,
 
 /**
  * Whether a new run is made with scene sound (phase 14 spec §3, plan ruling 4), and on which model: only while the run
- * has sound effects, the switch is on, the Foley endpoint is set and its three prices are there. Otherwise the reason it
- * is off, for the one line the run says it with.
+ * has sound effects, the switch is on, the Foley endpoint is set and its three prices are there. Off says nothing in the
+ * ordinary cases (the switch off, a run without sound effects); only a switch that is on with something it needs missing
+ * gives the one line `say`, for the owner. That line reaches a customer's job log, so it names no setting or flag.
  */
-export function newRunSound(env: Env, prices: Prices, sfx: boolean): { model: string } | { off: string } {
-  if (!sfx) return { off: "the run has no sound effects (--no-sfx)" };
-  if (env.FLOWCHAIN_SCENE_SOUND !== "on") return { off: "FLOWCHAIN_SCENE_SOUND is not on" };
-  if (!env.RUNPOD_FOLEY_ENDPOINT) return { off: "RUNPOD_FOLEY_ENDPOINT is not set" };
-  if (!foleyRates(prices)) return { off: FOLEY_RATES_MISSING };
+export function newRunSound(env: Env, prices: Prices, sfx: boolean): { model: string } | { say?: string } {
+  if (!sfx || env.FLOWCHAIN_SCENE_SOUND !== "on") return {};
+  if (!env.RUNPOD_FOLEY_ENDPOINT) return { say: "scene sound is on but no sound endpoint is set; this run is made without it" };
+  if (!foleyRates(prices)) return { say: "scene sound is on but its prices are not set; this run is made without it" };
   const { sound } = RUNPOD_WORKFLOWS;
   return { model: runpodModelId(env.RUNPOD_FOLEY_ENDPOINT, sound.workflow, sound.version) };
 }

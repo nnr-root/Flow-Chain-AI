@@ -1,4 +1,3 @@
-import { copyFile } from "node:fs/promises";
 import { gainFor, LOUDNESS_TARGET_LUFS, parseLoudness } from "../sound.js";
 import { ffmpeg } from "./ffmpeg.js";
 
@@ -28,7 +27,7 @@ export async function measureLoudness(path: string): Promise<number | undefined>
 
 /**
  * Brings a scene's sound to one loudness (`LOUDNESS_TARGET_LUFS`) with a measured static gain: single-pass loudnorm is
- * unreliable on files of a few seconds (plan ruling 3). A silent answer is kept as it is: no gain makes it a sound.
+ * unreliable on files of a few seconds (plan ruling 3). A silent answer gets no gain: none makes it a sound.
  */
 export async function levelSound(
   input: string,
@@ -37,8 +36,9 @@ export async function levelSound(
 ): Promise<{ measuredLufs?: number; gainDb: number }> {
   const measured = await measureLoudness(input);
   if (measured === undefined || !(measured > SILENT_LUFS)) {
-    o.log(`scene sound ${input}: silent (${measured ?? "no reading"} LUFS); kept as it is`);
-    await copyFile(input, out);
+    o.log(`scene sound ${input}: silent (${measured ?? "no reading"} LUFS); kept without gain`);
+    // (still cut to the scene: a track is never longer than its scene)
+    await ffmpeg(levelArgs(input, out, { gainDb: 0, seconds: o.seconds, fadeOut: o.fadeOut }));
     return { gainDb: 0, ...(measured === undefined ? {} : { measuredLufs: measured }) };
   }
   const gainDb = gainFor(measured, LOUDNESS_TARGET_LUFS);

@@ -7,7 +7,7 @@ import { movingInputArgs, soundInputSize, stillInputArgs } from "../media/sound-
 import { download } from "../providers/download.js";
 import { NonRetryableError, TIMEOUTS } from "../providers/retry.js";
 import { MAX_INPUT_BYTES } from "../providers/runpod-providers.js";
-import { guidanceFor, SCENE_SOUND_MAX_SEC, SOUND_NEGATIVE_PROMPT, SOUND_STEPS, soundCost, soundSeconds, soundSeed } from "../sound.js";
+import { guidanceFor, SCENE_SOUND_MAX_SEC, SOUND_NEGATIVE_PROMPT, SOUND_STEPS, soundAskSeconds, soundCost, soundSeed } from "../sound.js";
 import { runProviderJob } from "./job.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireFitted, requireKeyframe } from "./require.js";
@@ -39,7 +39,9 @@ function soundAsk(ctx: StageContext, i: number) {
     seed: soundSeed(m.request.seed ?? 0, i, nonce),
     guidanceScale: guidanceFor(spec.actionLevel),
     steps: SOUND_STEPS,
-    audioLengthSec: soundSeconds(sceneSec),
+    audioLengthSec: soundAskSeconds(sceneSec),
+    // the stored track: the scene's seconds, never longer (a scene under the worker's 1 s has its answer cut to it)
+    trackSec: Math.round(Math.min(sceneSec, SCENE_SOUND_MAX_SEC) * 1000) / 1000,
     // (a scene longer than the model makes has its first seconds made and faded, plan ruling 5)
     fadeOut: sceneSec > SCENE_SOUND_MAX_SEC,
   };
@@ -66,7 +68,9 @@ export const soundStage: Stage = {
       : [{ stage: "fit", scene }],
   async inputsFor(ctx, scene) {
     const i = scene!;
-    const { fadeOut: _derived, ...ask } = soundAsk(ctx, i);
+    // (the track's length and its fade are in the key too: a scene whose length crosses 10 s, or a still scene whose
+    // length changes, has its track cut again rather than keep one of another length or without its fade)
+    const ask = soundAsk(ctx, i);
     return { model: ctx.manifest.models.sound, ...ask, still: isStill(ctx.manifest, i), picture: await fileSha256(abs(ctx, pictureOf(ctx.manifest, i))) };
   },
   outputsFor: (_m, scene) => [paths.sound(scene!)],
@@ -74,7 +78,7 @@ export const soundStage: Stage = {
     const m = ctx.manifest;
     const s = m.scenes[scene!];
     // (before the voice the scene's length is unknown: the longest the model makes is assumed)
-    const seconds = soundSeconds(s.audio ? s.audio.duration : SCENE_SOUND_MAX_SEC);
+    const seconds = soundAskSeconds(s.audio ? s.audio.duration : SCENE_SOUND_MAX_SEC);
     return soundCost(ctx.prices, seconds, firstSoundScene(m) === scene);
   },
   async run(ctx, scene) {
@@ -97,7 +101,7 @@ export const soundStage: Stage = {
     if (Math.ceil(bytes / 3) * 4 > MAX_INPUT_BYTES) {
       throw new NonRetryableError(`scene ${i + 1}'s video for its sound is ${(bytes / 1048576).toFixed(1)} MB; a request carries at most 9 MB`);
     }
-    const { fadeOut, ...request } = ask;
+    const { fadeOut, trackSec, ...request } = ask;
     const result = await runProviderJob(ctx, i, "sound", {
       label: `sound scene ${i + 1}`,
       costUsd: soundCost(ctx.prices, ask.audioLengthSec, firstSoundScene(m) === i),
@@ -110,14 +114,14 @@ export const soundStage: Stage = {
     const raw = await outPath(ctx, paths.soundRaw(i));
     const out = abs(ctx, paths.sound(i));
     await download(result.url, raw);
-    await levelSound(raw, out, { seconds: ask.audioLengthSec, fadeOut, log: ctx.log });
+    await levelSound(raw, out, { seconds: trackSec, fadeOut, log: ctx.log });
     await rm(raw, { force: true });
     // (taken out of the bucket only once the levelled file is here: a failed pass downloads it again for nothing)
     await result.remove?.();
     m.scenes[i].sound = {
       path: paths.sound(i),
       sha256: await fileSha256(out),
-      seconds: ask.audioLengthSec,
+      seconds: trackSec,
       seed: ask.seed,
       guidance: ask.guidanceScale,
       steps: ask.steps,

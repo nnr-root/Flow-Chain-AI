@@ -65,6 +65,13 @@ describe("what a customer is sent names no model, no provider and no key", () =>
 });
 
 describe("a job's output as a customer may read it", () => {
+  it("hides a line that names one of the studio's own settings", () => {
+    const log = publicLog(["✓ fit — done", "scene sound is off: FLOWCHAIN_SCENE_SOUND is not on", "✓ captions — done", "RUNPOD_FOLEY_ENDPOINT is not set"]);
+    expect(log.join("\n")).not.toMatch(/FLOWCHAIN_SCENE_SOUND|RUNPOD_FOLEY_ENDPOINT/);
+    expect(log[1]).toMatch(/details are kept with the studio/);
+    expect(log[3]).toMatch(/details are kept with the studio/);
+  });
+
   it("keeps the pipeline's own words and replaces every line that says how the studio is built", () => {
     const log = publicLog([
       "Run 20261009-101010-abc123 → runs/20261009-101010-abc123",

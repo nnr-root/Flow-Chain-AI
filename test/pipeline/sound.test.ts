@@ -118,6 +118,33 @@ describe("a run made with scene sound", () => {
     expect(await key()).not.toBe(first);
   });
 
+  it("asks for at least 1 s for a scene shorter than that, and keeps a track no longer than the scene", async () => {
+    const { ctx, sound } = await soundRun();
+    await runPipeline(ctx, STAGES.slice(0, STAGES.findIndex((s) => s.name === "fit") + 1), auto);
+    // (the still scene, so its picture does not have to be fitted again to the new length)
+    ctx.manifest.scenes[2].audio!.duration = 0.8;
+    const sceneSec = sceneFrames(ctx.manifest, ctx.fps)[2] / ctx.fps;
+    expect(sceneSec).toBeLessThan(1);
+    await runPipeline(ctx, [soundStage], auto);
+    const asked = sound.submits.find((r) => r.videoPath.endsWith("input_03.mp4"))!;
+    expect(asked.audioLengthSec).toBe(1);
+    expect(await probeDuration(join(ctx.dir, ctx.manifest.scenes[2].sound!.path))).toBeCloseTo(sceneSec, 1);
+    expect(ctx.manifest.scenes[2].sound!.seconds).toBeCloseTo(sceneSec, 2);
+  });
+
+  it("keys a scene's sound on whether its track is cut and faded at the model's limit", async () => {
+    const { ctx } = await soundRun();
+    await runPipeline(ctx, STAGES.slice(0, STAGES.findIndex((s) => s.name === "fit") + 1), auto);
+    const keyAt = async (sec: number) => {
+      ctx.manifest.scenes[2].audio!.duration = sec;
+      return (await soundStage.inputsFor(ctx, 2)) as { audioLengthSec: number };
+    };
+    const under = await keyAt(9.97);
+    const over = await keyAt(10.03);
+    expect(under.audioLengthSec).toBe(over.audioLengthSec);
+    expect(JSON.stringify(over)).not.toBe(JSON.stringify(under));
+  });
+
   it("shows the sound step in the studio's list of a scene's steps", async () => {
     const { ctx } = await soundRun();
     await runPipeline(ctx, STAGES.slice(0, 2), auto);

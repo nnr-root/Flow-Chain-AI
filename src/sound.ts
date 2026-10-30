@@ -30,6 +30,15 @@ export function soundSeed(runSeed: number, scene: number, nonce: number): number
 /** The seconds asked for: the scene's, to a tenth, and never more than the model makes. */
 export const soundSeconds = (sceneSec: number): number => Math.min(Math.round(sceneSec * 10) / 10, SCENE_SOUND_MAX_SEC);
 
+/** The shortest sound the worker makes: it refuses less, and a refused job is still charged. */
+export const SOUND_MIN_SEC = 1;
+
+/**
+ * The seconds the worker is asked for: the scene's (`soundSeconds`), but never under its minimum. A scene shorter than
+ * that has its track cut to the scene afterwards, when it is levelled.
+ */
+export const soundAskSeconds = (sceneSec: number): number => Math.max(SOUND_MIN_SEC, soundSeconds(sceneSec));
+
 /** What `seconds` of sound costs: the GPU seconds measured for each second, and the worker's start for the first scene. */
 export function soundCost(p: Prices, seconds: number, first = false): number {
   const r = foleyRates(p);
