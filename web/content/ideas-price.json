@@ -1,1 +1,5 @@
-{ "usd": null, "measuredOn": null, "basis": "Not measured yet: set by the owner after the first real calls (phase 13 spec §8)." }
+{
+  "usd": 0.1,
+  "measuredOn": "2026-10-30",
+  "basis": "Three real calls on 2026-10-30 (model gemini-flash-latest, web search on, prompt 2026-10-30.19): 39, 59 and 43 s; 655-1,258 tokens in, 1,196-2,291 out (under a cent); the number of searches was not reported in that run (the first measurement, with no limit asked for, ran 9), and the prompt asks for 1 to 3. Worst case priced: 3 searches at the published upper US$35 per 1,000 queries (ai.google.dev/pricing, looked up 2026-10-30) = US$0.105, plus tokens. The owner chose US$0.10 (200 credits at 2,000 credits a dollar). Check the search count and the price again after the first week of real use."
+}
