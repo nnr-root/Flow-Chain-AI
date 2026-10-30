@@ -69,8 +69,9 @@ export const SceneSpec = z.object({
   showsCharacter: showsCharacter.optional(),
   /** Optional when stored: absent means none. Sounds the scene would have, from a closed library (phase 12 spec §2). */
   soundCues: z
+    // (no .max(2) here: Gemini refuses a response schema that has both this enum and a maxItems, "invalid argument", the
+    // whole script with it, measured live on 2026-10-30; the limit of two is asked for in the prompt and kept by `sceneSfxCues`)
     .array(z.object({ sound: z.enum(SCENE_SOUNDS), at: z.enum(["start", "middle", "end"]) }))
-    .max(2)
     .optional()
     .describe("Up to 2 sounds this scene would clearly have, each with where it plays; leave empty or omit when unsure"),
 });

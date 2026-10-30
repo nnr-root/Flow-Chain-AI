@@ -59,6 +59,11 @@ describe("sceneSfxCues (phase 12 spec §2)", () => {
     expect(frames(r)).toEqual([0, 60]);
   });
 
+  it("plays at most two of a scene's cues, since the schema cannot say so (a third is ignored)", () => {
+    const r = sceneSfxCues([{ ...s1, cues: [{ sound: "door", at: "start" }, { sound: "knock", at: "middle" }, { sound: "glass", at: "end" }] }], [], o);
+    expect(r.map((c) => c.sound)).toEqual(["door", "knock"]);
+  });
+
   it("floors the middle of an odd-length scene", () => {
     expect(frames(sceneSfxCues([{ ...s1, frames: 91, cues: [{ sound: "door", at: "middle" }] }], [], o))).toEqual([45]);
   });

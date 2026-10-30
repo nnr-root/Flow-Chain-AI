@@ -1,5 +1,5 @@
 {
-  "version": "2026-10-30.19",
+  "version": "2026-10-30.20",
   "hashes": {
     "temperatures": "da84bf446ccf8e88",
     "whole": "82e431447f75c21f",
@@ -21,10 +21,10 @@
     "layered:outline": "2d064eb69a3c03ea",
     "layered:part:1": "e322a20d651a6aeb",
     "whole:reframe": "e7cfbd69398fb859",
-    "schema:script": "0e182933a3fd3969",
-    "schema:script:reframe": "b6537c5f06213784",
-    "schema:part": "a592f982afb55986",
-    "schema:part:reframe": "3a3dd93ba6b1f589",
+    "schema:script": "812aa661c9211325",
+    "schema:script:reframe": "a32b1ee91c0f0bcc",
+    "schema:part": "93e1c8cd0d6f3207",
+    "schema:part:reframe": "59e9268ed2d0866a",
     "schema:outline": "88c64bf91e1ed408",
     "schema:translate": "e41c0ca6528749f5",
     "schema:inspect": "5b2771e629e98cdf",

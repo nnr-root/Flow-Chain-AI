@@ -62,6 +62,9 @@ export function sfxFiles(sfxDir: string): string[] {
   return Object.values(SFX).map((s) => join(sfxDir, s.file));
 }
 
+/** How many sounds one scene may play (the script is asked for at most two; the schema cannot say so, see `SceneSpec.soundCues`). */
+export const MAX_SCENE_CUES = 2;
+
 export type SceneSfxInput = { from: number; frames: number; lead: number; cues: SceneSoundCue[] };
 
 /**
@@ -77,7 +80,7 @@ export function sceneSfxCues(scenes: SceneSfxInput[], taken: SfxCuePlan[], opts:
     const start = Math.min(sc.from + sc.lead, end - 1);
     const seen = new Set<string>();
     let hasBed = false;
-    for (const c of sc.cues) {
+    for (const c of sc.cues.slice(0, MAX_SCENE_CUES)) {
       if (seen.has(c.sound)) continue;
       seen.add(c.sound);
       const e = SFX[c.sound];
