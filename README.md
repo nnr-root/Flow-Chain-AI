@@ -169,7 +169,7 @@ licence does not apply in the European Union, the United Kingdom and South Korea
 above 100 million monthly active users a separate licence is needed. You accepted this knowing it. Whether to offer the layer to users in
 those three places is yours to decide (spec §7); `FLOWCHAIN_SCENE_SOUND` is the one switch, and a video without sound is complete.
 
-Settings, in `.env`. On a server they are the worker's: `npm run server:setup` and `server:deploy` write them (with whatever
+Settings, in `.env`. On a server they are the worker's: `npm run server:setup` writes them (with whatever
 `deploy/server.env` sets over them) into the worker's settings file, and the web app's file never carries them. The web app does not need
 them: with the queue it learns whether scene sound is offered from the worker's health answer, the form shows the switch only then, and a
 new draft carries `--no-sfx` whenever that answer does not offer it, so a customer who was shown no switch is never sold sound (a series on
@@ -192,11 +192,12 @@ In order:
    enough?); a 10 s and a 15 s clip (what the model does at its limit); the job's `executionTime` and `delayTime` from RunPod's status
    right after a run on a warm worker, then a cold one, for the three prices; then one whole four-scene video, its cost, and how the layer sits
    under the narration (tune `SOUND_MIX` and `LOUDNESS_TARGET_LUFS` by ear). Update `web/content/measured.json` with the new full-video cost.
-5. Set `runpodFoley*` in `prices.json`, then `FLOWCHAIN_SCENE_SOUND=on` in `.env` (on a server: then `npm run server:deploy`, which
+5. Set `runpodFoley*` in `prices.json`, then `FLOWCHAIN_SCENE_SOUND=on` in `.env` (on a server: then `npm run server:setup`, which
    writes it into the worker's settings).
 
 Rollback: set `FLOWCHAIN_SCENE_SOUND=off` in `.env` (on a server: in `deploy/server.env`, which wins over `.env`, then
-`npm run server:deploy`). The form hides the control and new videos are made without sound; a video already made keeps its sound and plays it.
+`npm run server:setup`, which rewrites the worker's settings; `server:deploy` does not). The form hides the control and new videos are
+made without sound; a video already made keeps its sound and plays it.
 
 Runs with characters get one generated reference portrait (or a brand kit's `reference` image), made after the
 voice and straight before the pictures so the picture worker starts once; every keyframe of a scene the

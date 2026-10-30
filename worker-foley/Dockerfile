@@ -47,7 +47,8 @@ RUN python -c "from huggingface_hub import snapshot_download as d; d('laion/larg
 RUN printf %s a89f5c5093f902bf39d3cd4d81d2c09867f0724b > /models/foley/hf/hub/models--google--siglip2-base-patch16-512/refs/main \
  && printf %s ada0c23a36c4e8582805bb38fec3905903f18b41 > /models/foley/hf/hub/models--laion--larger_clap_general/refs/main
 # The two encoders must load offline from the cache above, or the first paid job fails instead of this build: load them here
-# the way load_model does with enable_offload=False (model_utils.py, the pinned commit), on the CPU, with the network cut off.
+# the way load_model does with enable_offload=False (model_utils.py, the pinned commit), on the CPU, with HF_HUB_OFFLINE=1 (the Hub
+# library then reads only its cache, as the worker does at run time).
 RUN HF_HUB_OFFLINE=1 python -c "from transformers import AutoModel, AutoTokenizer, ClapTextModelWithProjection; AutoModel.from_pretrained('google/siglip2-base-patch16-512').to('cpu').eval(); AutoTokenizer.from_pretrained('laion/larger_clap_general'); ClapTextModelWithProjection.from_pretrained('laion/larger_clap_general').to('cpu')" \
  || { echo "the SigLIP 2 or CLAP encoder does not load offline from /models/foley/hf: check the cache and its refs/main files" >&2; exit 1; }
 RUN printf %s 3abd4e833b95b8db0fc9c687afc52483a48e9a97 > /models/foley/.verified

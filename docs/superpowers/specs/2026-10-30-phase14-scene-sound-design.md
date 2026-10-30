@@ -163,7 +163,7 @@ retrofitting sound onto runs that exist.
 1. Push (the owner's click); the worker-image workflow builds `flowchain-foley` (large, may take long, and its first build may need
    fixes, §12); make the package public in GitHub's web UI; then `npm run runpod:deploy` (it prints its plan).
 2. The measurements of §8, with the controller; set the three prices.
-3. Set `FLOWCHAIN_SCENE_SOUND=on` in `.env` (on a server, then `npm run server:deploy`, which writes it into the worker's settings; §12).
+3. Set `FLOWCHAIN_SCENE_SOUND=on` in `.env` (on a server, then `npm run server:setup`, which writes it into the worker's settings; §12).
 4. Decide on offering the layer in the EU, the UK and South Korea (§7), and confirm the platform you post to accepts the audio.
 
 ## 12. What was found and changed
@@ -221,10 +221,10 @@ cost is the measured execution time at `runpodFoleyUsdPerSec`.
   worker's, through the queue, remembered for a while; unknown while the worker does not answer). They could disagree: a customer shown no
   switch, whose form still sends `sfx: true`, could be sold sound. `draftArgs` now takes the studio's `sound` flag and adds `--no-sfx`
   whenever it is not offered; `createDraft` passes its health answer's, and a series on a schedule (begun by the worker) its own
-  `health()`. On a server both settings are the worker's alone: `server:setup` and `server:deploy` write them into the worker's settings
+  `health()`. On a server both settings are the worker's alone: `server:setup` writes them into the worker's settings
   file and never the web app's, which does not read them (the review's "both env files" was checked against `src/deploy/server.ts`:
   the web app's file carries only its own keys). Rolling back is `FLOWCHAIN_SCENE_SOUND=off` in `deploy/server.env` (or `.env`), then
-  `server:deploy`.
+  `server:setup`, which rewrites the worker's settings file (`server:deploy` does not: it copies the code and restarts).
 - A silent answer is logged by its scene's number, not its file's path; a prompt of only spaces buys no sound, and a prompt is sent
   trimmed.
 - The image gains two build-time checks: the two encoders are loaded offline on the CPU exactly as `load_model` loads them, and the
