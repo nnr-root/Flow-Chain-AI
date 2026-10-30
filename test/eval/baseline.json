@@ -1,0 +1,182 @@
+{
+  "promptVersion": "2026-10-30.20",
+  "judgeModel": "gemini-3.8-flash",
+  "repeats": 3,
+  "metrics": {
+    "accepted": {
+      "mean": 0.9761904761904763,
+      "spread": 0.020619652471058052,
+      "n": 3
+    },
+    "extra": {
+      "mean": 0.9761904761904763,
+      "spread": 0.041239304942116105,
+      "n": 3
+    },
+    "accepted:animal-falcon": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:period-constantinople": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:eras-wars": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:injection-topic": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:science-explainer": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:horror-story": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:true-crime": {
+      "mean": 0.6666666666666666,
+      "spread": 0.5773502691896258,
+      "n": 3
+    },
+    "accepted:reframe-story": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:no-reframe-explainer": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:myth-story": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:did-you-know": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:psychology": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:motivation": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:money": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:tech": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:mysteries": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:what-if": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:places-pov": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:life-story": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:own-niche": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:short-15s": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:scene-count": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:lang-tr": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:lang-zh": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:lang-ja": {
+      "mean": 0.6666666666666666,
+      "spread": 0.5773502691896258,
+      "n": 3
+    },
+    "accepted:lang-ar": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:parts-120": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "accepted:translate-de": {
+      "mean": 1,
+      "spread": 0,
+      "n": 3
+    },
+    "judge:paintable": {
+      "mean": 4.824691358024691,
+      "spread": 0.10185746336954697,
+      "n": 3
+    },
+    "judge:plausible": {
+      "mean": 4.776543209876543,
+      "spread": 0.03149963165968683,
+      "n": 3
+    },
+    "judge:continuity": {
+      "mean": 1.5,
+      "spread": 0.7071067811865476,
+      "n": 2
+    },
+    "judge:flow": {
+      "mean": 4.7592592592592595,
+      "spread": 0.12143404674633321,
+      "n": 3
+    },
+    "judge:fit": {
+      "mean": 4.851851851851852,
+      "spread": 0.0370370370370372,
+      "n": 3
+    }
+  }
+}
