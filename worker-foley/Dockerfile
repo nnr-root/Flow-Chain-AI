@@ -46,8 +46,15 @@ RUN python -c "from huggingface_hub import snapshot_download as d; d('laion/larg
 # a download by commit writes no "main" pointer, which an offline load looks for
 RUN printf %s a89f5c5093f902bf39d3cd4d81d2c09867f0724b > /models/foley/hf/hub/models--google--siglip2-base-patch16-512/refs/main \
  && printf %s ada0c23a36c4e8582805bb38fec3905903f18b41 > /models/foley/hf/hub/models--laion--larger_clap_general/refs/main
+# The two encoders must load offline from the cache above, or the first paid job fails instead of this build: load them here
+# the way load_model does with enable_offload=False (model_utils.py, the pinned commit), on the CPU, with the network cut off.
+RUN HF_HUB_OFFLINE=1 python -c "from transformers import AutoModel, AutoTokenizer, ClapTextModelWithProjection; AutoModel.from_pretrained('google/siglip2-base-patch16-512').to('cpu').eval(); AutoTokenizer.from_pretrained('laion/larger_clap_general'); ClapTextModelWithProjection.from_pretrained('laion/larger_clap_general').to('cpu')" \
+ || { echo "the SigLIP 2 or CLAP encoder does not load offline from /models/foley/hf: check the cache and its refs/main files" >&2; exit 1; }
 RUN printf %s 3abd4e833b95b8db0fc9c687afc52483a48e9a97 > /models/foley/.verified
 ENV HF_HUB_OFFLINE=1 PYTHONPATH=/foley-src:/flowchain/src PYTHONUNBUFFERED=1
+# engine.py calls the model program's functions with these parameters, by position and by name: if the program ever differs, the
+# build fails here rather than the first paid job
+RUN python -c "import inspect; from hunyuanvideo_foley.utils.model_utils import load_model, denoise_process; from hunyuanvideo_foley.utils.feature_utils import feature_process; want = {load_model: ['model_path', 'config_path', 'device', 'enable_offload', 'model_size'], feature_process: ['video_path', 'prompt', 'model_dict', 'cfg', 'neg_prompt'], denoise_process: ['visual_feats', 'text_feats', 'audio_len_in_s', 'model_dict', 'cfg', 'guidance_scale', 'num_inference_steps']}; bad = [f.__name__ for f, names in want.items() if list(inspect.signature(f).parameters)[:len(names)] != names]; assert not bad, 'the model program does not take the parameters engine.py passes: ' + ', '.join(bad)"
 COPY requirements.txt /flowchain/requirements.txt
 RUN pip install --no-cache-dir -c /constraints.txt -r /flowchain/requirements.txt && pip freeze > /flowchain/versions.txt
 COPY src/ /flowchain/src/

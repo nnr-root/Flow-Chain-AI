@@ -186,6 +186,10 @@ cost is the measured execution time at `runpodFoleyUsdPerSec`.
 - `models.sound` is `runpod:<endpoint>/sound-foley@1`, not a short name: a run is rebuilt from its frozen model id and so stays on the
   endpoint it was made with.
 - A translated version buys each scene's sound again (a version's narration changes the lengths); it is priced through `versionCapUsd`.
+- **Re-bought sound after a narration reroll is not fixed now** (final review). A narration reroll of scene k can shift later scene
+  boundaries by a frame through rounding, which refits later scenes and re-buys their sound (priced in the plan, a few cents); keying the
+  paid job on what the model hears (the source clip or keyframe hash, the length to a tenth, seed, prompt, guidance, steps) with a free
+  re-level step is the fix if the first real runs show it matters. Ruling by the controller; the owner may overrule.
 
 ### What the tasks found
 
@@ -208,6 +212,25 @@ cost is the measured execution time at `runpodFoleyUsdPerSec`.
   an estimate of 0 fails the tests). `Health.sound` is the only web-facing flag. A re-render that turns sound on for a finished video
   that never had it is refused in plain words (the CLI says "use resume"); the studio has no path to buy a finished video's missing sound.
 
+### The final review, and what it changed
+
+- **The Foley endpoint asks for a driver for CUDA 12.8** (`minCudaVersion`, as the picture and restorer endpoints do), and the worker's
+  loader refuses at once when PyTorch sees no GPU ("no GPU with a driver for CUDA 12.8 is available on this worker") instead of loading
+  on the CPU and running a charged job until the endpoint's limit.
+- **One gate for the switch.** The CLI decides by its own environment, and the form by the studio's health answer (on a server, the
+  worker's, through the queue, remembered for a while; unknown while the worker does not answer). They could disagree: a customer shown no
+  switch, whose form still sends `sfx: true`, could be sold sound. `draftArgs` now takes the studio's `sound` flag and adds `--no-sfx`
+  whenever it is not offered; `createDraft` passes its health answer's, and a series on a schedule (begun by the worker) its own
+  `health()`. On a server both settings are the worker's alone: `server:setup` and `server:deploy` write them into the worker's settings
+  file and never the web app's, which does not read them (the review's "both env files" was checked against `src/deploy/server.ts`:
+  the web app's file carries only its own keys). Rolling back is `FLOWCHAIN_SCENE_SOUND=off` in `deploy/server.env` (or `.env`), then
+  `server:deploy`.
+- A silent answer is logged by its scene's number, not its file's path; a prompt of only spaces buys no sound, and a prompt is sent
+  trimmed.
+- The image gains two build-time checks: the two encoders are loaded offline on the CPU exactly as `load_model` loads them, and the
+  parameter names `engine.py` passes to `load_model`, `feature_process` and `denoise_process` are asserted. Both are verified only by the
+  first CI build.
+
 ### Facts, said plainly
 
 - The trial of §1 ran on an **RTX 4090**.
@@ -228,10 +251,11 @@ cost is the measured execution time at `runpodFoleyUsdPerSec`.
 - An engine exception can carry paths in the worker's own text (the pipeline does not show worker text to users, as with the other
   workers); seven dev and UI packages from the model's requirements add image size; the 60 fps case in the render proves only that the
   ramp helper scales, and `AudioLayer`'s own scaling has no direct test at 60 fps.
-- `web/server/actions.ts` imports `soundNotMade` from the stage module, the web server's first runtime import of a stage (it pulls ffmpeg
-  and providers into the Next bundle): move `hasSceneSound` and `soundNotMade` to the pure `src/sound.ts` and re-export.
-- When the sound switch is off the hidden form still sends `sfx: true` (harmless: `sceneSound` is not frozen and the Look control is
-  hidden for such a run). A stale sound record (done, but its hash changed) is not caught by `soundNotMade`.
+- `web/server/actions.ts` imports `soundNotMade` from the stage module. It is not the web server's first runtime import of a stage
+  (`src/studio/status.ts` already brings `stages/interpolate` and `stages/reference` into the web), so moving `hasSceneSound` and
+  `soundNotMade` to the pure `src/sound.ts` and re-exporting them is a tidy-up, not a fix.
+- When the sound switch is off the hidden form still sends `sfx: true` (harmless: the draft then carries `--no-sfx`, see the final
+  review below, and the Look control is hidden for such a run). A stale sound record (done, but its hash changed) is not caught by `soundNotMade`.
 - Small test cleanups: the schema test's title claims "no maxItems" but checks only `soundBible`'s subtree for an enum; a loop's braces in
   `restyle.test.ts` are misindented; the reroll total is asserted with `toBeGreaterThanOrEqual`; two web cases only characterize
   `assertApproved`. `web:e2e` and `test:accounts` were not run (only the draft note's text changed); `store.test.ts` and the bucket group of
