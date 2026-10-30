@@ -25,12 +25,18 @@ GOOD = {
 
 @pytest.fixture
 def world(monkeypatch, tmp_path):
-    seen = {"files": [], "uploads": [], "calls": []}
+    seen = {"files": [], "uploads": [], "calls": [], "order": []}
     monkeypatch.setattr(h, "TMP_DIR", str(tmp_path))
     for name in storage.REQUIRED_ENV:
         monkeypatch.setenv(name, "secret-value")
     monkeypatch.setattr(weights, "present", lambda root=weights.ROOT: True)
-    monkeypatch.setattr(engine, "model", lambda root, loader=None: "MODEL")
+    monkeypatch.setattr(weights, "assemble", lambda root=weights.ROOT: seen["order"].append("assemble"))
+
+    def fake_model(root, loader=None):
+        seen["order"].append("load")
+        return "MODEL"
+
+    monkeypatch.setattr(engine, "model", fake_model)
 
     def fake_sound(model, video_path, prompt, negative_prompt, seed, guidance_scale, steps, audio_length, out_path, sampler=None):
         seen["calls"].append((model, prompt, negative_prompt, seed, guidance_scale, steps, audio_length))
@@ -87,3 +93,8 @@ def test_removes_what_it_wrote_when_the_model_fails(world):
     with pytest.raises(RuntimeError):
         h.handler({"id": "job1", "input": GOOD})
     assert world["files"] and not any(os.path.exists(p) for p in world["files"])
+
+
+def test_joins_the_model_before_it_is_loaded(world):
+    h.handler({"id": "job1", "input": GOOD})
+    assert world["order"] == ["assemble", "load"]

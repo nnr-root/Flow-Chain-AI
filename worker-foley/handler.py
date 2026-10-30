@@ -39,6 +39,9 @@ def handler(job):
     try:
         with open(src, "wb") as f:
             f.write(req["video"])
+        # the image holds the main model in two halves (GHCR's layer limit); joining them is a one-time copy of about
+        # 10 GB at a cold start, and the model is loaded once per worker
+        weights.assemble(weights.ROOT)
         loaded = engine.model(weights.ROOT)
         made = engine.sound(
             loaded, src, req["prompt"], req["negative_prompt"], req["seed"], req["guidance_scale"], req["steps"], req["audio_length"], out

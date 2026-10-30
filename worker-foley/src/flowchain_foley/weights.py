@@ -8,6 +8,7 @@ holds them too, in a Hub cache under ROOT, and sets HF_HUB_OFFLINE so nothing is
 
 import hashlib
 import os
+import shutil
 
 REPO = "tencent/HunyuanVideo-Foley"
 # one exact version of each repository: a later upload under the same name is not what was tested (read 2026-10-31)
@@ -23,13 +24,45 @@ CLAP_DIR = f"hf/hub/models--laion--larger_clap_general/snapshots/{CLAP_REVISION}
 # the large files (LFS) with what they must be (size, first 16 hex of SHA-256), from the repositories' own file records;
 # the XL model (hunyuanvideo_foley_xl.pth) is not used and not downloaded
 BIG = {
-    "hunyuanvideo_foley.pth": (10301204679, "2900021f8ee562a8"),
     "synchformer_state_dict.pth": (950058171, "8aff082f2df5c3bc"),
     "vae_128d_48k.pth": (1486465965, "07e6139ff33bd21b"),
     f"{SIGLIP_DIR}/model.safetensors": (1503344520, "fe0e601c625e69ee"),
     f"{CLAP_DIR}/pytorch_model.bin": (776444665, "314eb00cce6ad68d"),
 }
+# The main model is over 10 GB, the most one image layer may hold on GHCR (review of 2026-10-30), so the image holds it as two
+# byte ranges, each in a layer of its own, and the worker joins them on its own disk (assemble) before the first job.
+MODEL = "hunyuanvideo_foley.pth"
+MODEL_SIZE = 10301204679
+MODEL_SHA = "2900021f8ee562a8"
+PART_BYTES = 5200000000
+PARTS = {f"{MODEL}.part00": PART_BYTES, f"{MODEL}.part01": MODEL_SIZE - PART_BYTES}
 MARKER = ".verified"
+
+
+def _size(root, name):
+    path = os.path.join(root, name)
+    return os.path.getsize(path) if os.path.exists(path) else None
+
+
+def _model_here(root):
+    """The main model is there whole, or both of its parts are, each at its size."""
+    return _size(root, MODEL) == MODEL_SIZE or all(_size(root, name) == size for name, size in PARTS.items())
+
+
+def assemble(root=ROOT):
+    """Joins the two parts into the model file, streaming (never the whole file in memory); safe to repeat."""
+    if _size(root, MODEL) == MODEL_SIZE:
+        return
+    for name, size in PARTS.items():
+        if _size(root, name) != size:
+            raise ValueError(f"{name} is missing or has the wrong size")
+    joined = os.path.join(root, MODEL)
+    tmp = joined + ".tmp"
+    with open(tmp, "wb") as out:
+        for name in PARTS:
+            with open(os.path.join(root, name), "rb") as part:
+                shutil.copyfileobj(part, out, 64 * 1024 * 1024)
+    os.replace(tmp, joined)  # a half-written file never has the model's name
 
 
 def present(root=ROOT):
@@ -40,7 +73,7 @@ def present(root=ROOT):
                 return False
     except FileNotFoundError:
         return False
-    return all(os.path.exists(os.path.join(root, name)) and os.path.getsize(os.path.join(root, name)) == size for name, (size, _) in BIG.items())
+    return _model_here(root) and all(_size(root, name) == size for name, (size, _) in BIG.items())
 
 
 def _sha256(path, chunk=8 * 1024 * 1024):
@@ -54,8 +87,8 @@ def _sha256(path, chunk=8 * 1024 * 1024):
 
 
 def verify(root=ROOT, sha256=_sha256):
-    """Checks the big files' sizes and hashes and writes the marker. Raises on the first that is wrong."""
-    for name, (size, start) in BIG.items():
+    """Checks the big files' sizes and hashes (the model joined) and writes the marker. Raises on the first that is wrong."""
+    for name, (size, start) in {MODEL: (MODEL_SIZE, MODEL_SHA), **BIG}.items():
         path = os.path.join(root, name)
         if not os.path.exists(path) or os.path.getsize(path) != size:
             raise ValueError(f"{name} is missing or has the wrong size")

@@ -118,3 +118,25 @@ def test_loads_the_model_once_through_the_loader_it_is_given():
     assert engine.model("/models/foley", loader=loader) == "M"
     assert calls == ["/models/foley"]
     engine._MODEL = None
+
+
+def test_seeds_python_numpy_and_torch_with_the_requests_seed_before_sampling(tmp_path, monkeypatch):
+    import sys
+    import types
+
+    log = []
+    numpy = types.ModuleType("numpy")
+    numpy.random = types.SimpleNamespace(seed=lambda n: log.append(("numpy", n)))
+    torch = types.ModuleType("torch")
+    torch.manual_seed = lambda n: log.append(("torch", n))
+    monkeypatch.setitem(sys.modules, "numpy", numpy)
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setattr(engine.random, "seed", lambda n: log.append(("random", n)))
+
+    def sampler(*a):
+        log.append(("sample", None))
+        return [0.0] * RATE, RATE
+
+    run(tmp_path, "a.wav", 4242, sampler)
+    assert log[-1] == ("sample", None)
+    assert sorted(log[:-1]) == [("numpy", 4242), ("random", 4242), ("torch", 4242)]

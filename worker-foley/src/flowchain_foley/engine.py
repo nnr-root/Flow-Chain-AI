@@ -5,8 +5,8 @@ asked for and cuts the sound to the length it is asked for. The loader and the s
 runs with a fake and no torch (the real ones import torch only when called).
 """
 
+import importlib
 import random
-import sys
 import wave
 from array import array
 
@@ -45,11 +45,13 @@ def _sample(loaded, video_path, prompt, negative_prompt, seed, guidance_scale, s
 
 def _seed_all(seed):
     random.seed(seed)
-    # numpy and torch are seeded only where the real sampler has loaded them
-    if "numpy" in sys.modules:
-        sys.modules["numpy"].random.seed(seed)
-    if "torch" in sys.modules:
-        sys.modules["torch"].manual_seed(seed)
+    # numpy and torch are imported here when they are installed (the image has both; the tests' fakes need neither), so
+    # the real sampler can never run unseeded because nothing had imported them yet
+    for name, seeder in (("numpy", lambda m: m.random.seed(seed)), ("torch", lambda m: m.manual_seed(seed))):
+        try:
+            seeder(importlib.import_module(name))
+        except ImportError:
+            pass
 
 
 def _mono(samples):
