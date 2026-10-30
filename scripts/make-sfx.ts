@@ -80,7 +80,7 @@ export const RECIPES: Recipe[] = [
     file: "heartbeat.mp3",
     seconds: 0.9,
     expr: "0.9*sin(2*PI*55*t)*(exp(-14*t)+0.7*gte(t,0.28)*exp(-14*max(0,t-0.28)))",
-    filters: "lowpass=f=200,volume=2",
+    filters: "lowpass=f=200,volume=1.4",
   },
   {
     // a burst of band-limited noise
@@ -127,7 +127,7 @@ export const RECIPES: Recipe[] = [
     file: "fire.mp3",
     seconds: 4,
     expr: "(2*random(0)-1)*(0.15+0.85*pow(random(1),12))",
-    filters: "highpass=f=800,volume=2,afade=t=in:d=0.03,afade=t=out:st=3.97:d=0.03",
+    filters: "highpass=f=800,volume=1.4,afade=t=in:d=0.03,afade=t=out:st=3.97:d=0.03",
   },
 ];
 
