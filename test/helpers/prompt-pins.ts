@@ -7,6 +7,7 @@ import { PRESETS } from "../../src/presets.js";
 import { buildScriptPrompt, inspectPrompt, inspectSchema, scriptJsonSchema, upsampleInstructions, upsampleUserText } from "../../src/providers/gemini.js";
 import { TEMPERATURE, UPSAMPLE_DECODING } from "../../src/providers/prompt-version.js";
 import type { ScriptRequest } from "../../src/providers/types.js";
+import { ideasPrompt } from "../../src/trends/prompt.js";
 import { REFERENCE_NOTE } from "../../src/stages/references.js";
 import { imagePrompt, motionPrompt } from "../../src/stages/visual.js";
 import type { SpeechLanguage } from "../../src/voice/language.js";
@@ -33,6 +34,10 @@ export function pinnedPrompts(): Record<string, string> {
     "inspect:references": inspectPrompt({ images: ["a.png"], expected: "x", references: ["r.png"], checkContent: true }),
     "inspect:clip": inspectPrompt({ images: ["a.png", "b.png", "c.png"], expected: "a red fox standing" }),
   };
+  // the topic-ideas prompt (phase 13): a known niche with a chart, and a niche of the user's own with none
+  const ideasBase = { language: "en", region: "US", today: "2026-10-30" };
+  out["ideas"] = ideasPrompt({ ...ideasBase, niche: "history", chart: [{ title: "The lost city under the lake", channel: "Deep Time", categoryId: "27", views: 1200000 }, { title: "Why bridges hum", channel: "Spans", categoryId: "28", views: 85000 }] });
+  out["ideas:custom"] = ideasPrompt({ ...ideasBase, nicheText: "a channel about retro handheld consoles", chart: [] });
   // the layered branches: a niche with a type, and an outline or a part with every layer
   const layers = { niche: "history", format: "documentary", edit: "calm", language: "de", localize: true } as const;
   out["layered:history+countdown"] = buildScriptPrompt({ ...base, niche: "history", format: "countdown" });

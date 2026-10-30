@@ -3,6 +3,7 @@ import type { Timing } from "../duration.js";
 import type { SpeechLanguage } from "../voice/language.js";
 import type { LlmOutline, Shot, StoredOutline, WordTiming } from "../manifest/schema.js";
 import type { PresetName } from "../presets.js";
+import type { ChartItem } from "../trends/chart.js";
 
 export type ScriptRequest = {
   topic: string;
@@ -52,6 +53,11 @@ export type ScriptRequest = {
 };
 /** Pictures to look at before they are used (phase 8 spec §9): what they should show, and the files. */
 export type InspectRequest = { images: string[]; expected: string; references?: string[]; checkContent?: boolean };
+
+/** What the topic-ideas call is given (phase 13 spec §2): the chart is data for the prompt, not instructions. */
+export type IdeasRequest = { niche?: string; nicheText?: string; format?: string; language: string; region: string; chart: ChartItem[]; today: string };
+/** What it gives back: the model's text, the hosts its search visited (the only hosts a source may name), and what it used. */
+export type IdeasAnswer = { text: string; hosts: string[]; usage?: { inputTokens?: number; outputTokens?: number; searches?: number } };
 
 export interface LlmProvider {
   /** Which prompts this provider writes with (phase 9 spec §4); recorded with the script, never hashed. */
