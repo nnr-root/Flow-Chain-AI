@@ -2,7 +2,7 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  applyDeploy, applyVoiceDeploy, assertImageInGhcr, chooseFoleyImage, DEFAULTS, envValuesOf, ImageMissing, fetchModels, foleyImageTag, NAMES, planDeploy, planVoiceDeploy, removeRetiredVolumes, RunpodRest, VOICE_DEFAULTS, voiceImageTag,
+  applyDeploy, applyVoiceDeploy, assertImageInGhcr, chooseFoleyImage, DEFAULTS, envValuesOf, ImageMissing, fetchModels, foleyImageTag, NAMES, picture3GpusOf, planDeploy, planVoiceDeploy, removeRetiredVolumes, RunpodRest, VOICE_DEFAULTS, voiceImageTag,
   workerImageTag, writeEnvValues,
 } from "../../src/deploy/runpod.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
@@ -438,5 +438,19 @@ describe("runpod deploy of the FLUX 3 picture endpoint (phase 10 spec §3)", () 
     const api = new FakeRunpodApi(() => [{ status: "COMPLETED", output: { downloaded: ["w"], skipped: [] } }]);
     await fetchModels(new RunpodClient("k", { fetch: api.fetch }), "ep-f", "keyframe3", { pollMs: 1, sleep: async () => {} });
     expect(api.runs[0].input).toEqual({ task: "fetch-models", only: "keyframe3" });
+  });
+});
+
+describe("the cards named for the FLUX 3 endpoint", () => {
+  it("are none when unset or blank, the studio's list for \"default\", and the owner's own list otherwise", () => {
+    expect(picture3GpusOf(undefined)).toBeUndefined();
+    expect(picture3GpusOf("  ")).toBeUndefined();
+    expect(picture3GpusOf("default")).toEqual(DEFAULTS.picture3Gpus);
+    expect(picture3GpusOf("DEFAULT")).toEqual(DEFAULTS.picture3Gpus);
+    expect(picture3GpusOf("NVIDIA L40S , NVIDIA A40,,")).toEqual(["NVIDIA L40S", "NVIDIA A40"]);
+    // a copy: the caller may change it
+    expect(picture3GpusOf("default")).not.toBe(DEFAULTS.picture3Gpus);
+    // every card is one the 48 GB endpoint can run on: the 80 GB and 48 GB classes only
+    expect(DEFAULTS.picture3Gpus.every((n) => /A100|6000 Ada|L40S|A40|A6000/.test(n))).toBe(true);
   });
 });

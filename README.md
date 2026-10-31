@@ -124,8 +124,8 @@ picture models; the text encoder and VAE, which are inside the clip image now).
 A second picture model, on its own endpoint beside the 4B above; a run keeps the model it was made with. In order:
 
 1. On Hugging Face, accept the terms of `black-forest-labs/flux-3-image-klein`, make a read token, and read the model's `LICENSE.md`.
-2. Deploy its endpoint on a 48 GB card (names as RunPod lists them; the token is passed through the shell for this command only):
-   `RUNPOD_PICTURE3_GPUS="<48 GB card names, comma separated>" HF_TOKEN=… npm run runpod:deploy`. It writes `RUNPOD_PICTURE3_ENDPOINT` into `.env`.
+2. Deploy its endpoint on 48 GB or larger cards (the token is passed through the shell for this command only):
+   `RUNPOD_PICTURE3_GPUS=default HF_TOKEN=… npm run runpod:deploy`. `default` is the studio's list (two A100 80 GB, RTX 6000 Ada, L40S, A40, RTX A6000: a single card type was unavailable for hours on 2026-10-30 and the endpoint's jobs waited in line); or name your own cards, comma separated, in RunPod's spelling. It writes `RUNPOD_PICTURE3_ENDPOINT` into `.env`. A deploy that does not set `RUNPOD_PICTURE3_GPUS` leaves this endpoint as it is.
 3. Measure one real video and set the four `runpodPicture3UsdPerSec`, `runpodPicture3Sec`, `runpodPortrait3Sec`, `runpodPicture3ColdStartSec` prices in `prices.json`. The model is not offered until all four are set; keep them while any run made with it may be resumed or remade.
 4. `FLOWCHAIN_IMAGE_MODEL=flux3` insists on it and `klein4b` forces the 4B. To try references between cuts, make the same script and seed twice, with `FLOWCHAIN_CUT_REFERENCES=off` and `on`, then compare: `npm run eval:cuts -- <runOn> <runOff>` (free). Set it to `on` in `.env` if that shows a gain.
 

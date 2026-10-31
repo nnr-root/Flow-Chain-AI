@@ -58,6 +58,10 @@ export const DEFAULTS = {
   // 24 GB: Wan 2.2 fp8 loads one expert at a time; no 48 GB card was in stock in the volume's data centre (spec §16)
   clipGpus: ["NVIDIA GeForce RTX 4090"],
   // 24 GB: SeedVR2's 3B model fits with full HD decoded in tiles; it reads no volume, so any data centre will do
+  // FLUX 3 klein (phase 10 spec §3): 48 GB or more. The volume sits in one data centre, so a short list of one card type
+  // was throttled for hours on 2026-10-30 (the A100 80 GB was not to be had): every card RunPod accepts here that holds the
+  // model. `RUNPOD_PICTURE3_GPUS=default` means this list.
+  picture3Gpus: ["NVIDIA A100 80GB PCIe", "NVIDIA A100-SXM4-80GB", "NVIDIA RTX 6000 Ada Generation", "NVIDIA L40S", "NVIDIA A40", "NVIDIA RTX A6000"],
   upscaleGpus: ["NVIDIA GeForce RTX 4090", "NVIDIA RTX A5000", "NVIDIA GeForce RTX 3090"],
   // 24 GB cards, spelled as RunPod takes them for the upscale endpoint; it reads no volume either. NVIDIA L4 is left
   // out on purpose: the names RunPod accepts were not checked for it, and a wrong name would fail the whole create.
@@ -516,4 +520,13 @@ export async function applyVoiceDeploy(rest: RunpodRest, cfg: VoiceDeployConfig)
   };
   const made = await upsert(rest, "endpoints", found.endpoint, VOICE_NAMES.endpoint, endpoint, endpoint);
   return { templateId: template.id, endpointId: made.id };
+}
+
+/** The cards named for the FLUX 3 endpoint: the list the owner wrote, or the studio's own for "default"; none when unset. */
+export function picture3GpusOf(value: string | undefined): string[] | undefined {
+  const text = value?.trim();
+  if (!text) return undefined;
+  if (text.toLowerCase() === "default") return [...DEFAULTS.picture3Gpus];
+  const names = text.split(",").map((n) => n.trim()).filter(Boolean);
+  return names.length ? names : undefined;
 }

@@ -6,7 +6,7 @@
 import { createInterface } from "node:readline/promises";
 import { execa } from "execa";
 import {
-  applyDeploy, assertImageInGhcr, chooseFoleyImage, DEFAULTS, envValuesOf, fetchModels, foleyImageTag, NAMES, pictureImageTag, planDeploy, removeRetiredVolumes, RETIRED_VOLUMES, RunpodRest, upscaleImageTag, workerImageTag, writeEnvValues,
+  applyDeploy, assertImageInGhcr, chooseFoleyImage, DEFAULTS, envValuesOf, fetchModels, picture3GpusOf, foleyImageTag, NAMES, pictureImageTag, planDeploy, removeRetiredVolumes, RETIRED_VOLUMES, RunpodRest, upscaleImageTag, workerImageTag, writeEnvValues,
 } from "../src/deploy/runpod.js";
 import { R2 } from "../src/providers/r2.js";
 import { RunpodClient } from "../src/providers/runpod.js";
@@ -51,18 +51,19 @@ async function main(): Promise<void> {
     probe: (image) => assertImageInGhcr(image, console.warn),
   });
   if (foley.message) console.log(foley.message);
+  const picture3Gpus = picture3GpusOf(process.env.RUNPOD_PICTURE3_GPUS);
   const cfg = {
     image: process.env.RUNPOD_WORKER_IMAGE ?? (await defaultImage("clip")),
     pictureImage: process.env.RUNPOD_PICTURE_IMAGE ?? (await defaultImage("picture")),
     dataCenterId: process.env.RUNPOD_DATACENTER ?? DEFAULTS.dataCenterId,
-    volumeGb: process.env.RUNPOD_PICTURE3_GPUS ? DEFAULTS.volumeGbWithFlux3 : DEFAULTS.volumeGb,
+    volumeGb: picture3Gpus ? DEFAULTS.volumeGbWithFlux3 : DEFAULTS.volumeGb,
     keyframeGpus: DEFAULTS.keyframeGpus,
     clipGpus: DEFAULTS.clipGpus,
     // full HD (phase 8 spec §8): `-- --no-upscale` leaves its endpoint out
     ...(process.argv.includes("--no-upscale") ? {} : { upscaleImage: process.env.RUNPOD_UPSCALE_IMAGE ?? (await defaultImage("upscale")), upscaleGpus: DEFAULTS.upscaleGpus }),
     ...(foley.image ? { foleyImage: foley.image, foleyGpus: DEFAULTS.foleyGpus } : {}),
     // FLUX 3 (phase 10 spec §3): its endpoint is made only when the owner names its cards
-    ...(process.env.RUNPOD_PICTURE3_GPUS ? { keyframe3Gpus: process.env.RUNPOD_PICTURE3_GPUS.split(",").map((s) => s.trim()).filter(Boolean), hfToken: need("HF_TOKEN") } : {}),
+    ...(picture3Gpus ? { keyframe3Gpus: picture3Gpus, hfToken: need("HF_TOKEN") } : {}),
     r2: {
       accountId: need("R2_ACCOUNT_ID"),
       bucket: need("R2_BUCKET"),
