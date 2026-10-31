@@ -33,6 +33,8 @@ export const INTERNAL_NAMES: RegExp[] = [
   /seedvr/i, /\bRIFE\b/,
   // the scene sound's model (phase 14), and the workflow name its run records carry
   /hunyuan/i, /foley/i,
+  // the clip model (phase 15) and the company behind it
+  /\bltx\b/i, /lightricks/i,
   // the studio's own settings and its GPU endpoints' settings, whatever they are called next
   /\bFLOWCHAIN_[A-Z_]+\b/, /\bRUNPOD_[A-Z_]+\b/,
 ];

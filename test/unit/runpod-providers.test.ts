@@ -49,6 +49,9 @@ describe("model ids", () => {
       version: 1,
     });
     expect(() => parseModelId("runpod:abc")).toThrow(/invalid RunPod model id/);
+    // the LTX clip's workflow id (phase 15) is admitted and round-trips
+    expect(parseModelId("runpod:abc/clip-ltx25@1")).toEqual({ provider: "runpod", endpointId: "abc", workflow: "clip-ltx25", version: 1 });
+    expect(runpodModelId("abc", "clip-ltx25", 1)).toBe("runpod:abc/clip-ltx25@1");
   });
 });
 

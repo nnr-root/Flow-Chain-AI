@@ -51,6 +51,10 @@ const Env = z.object({
   FLOWCHAIN_SCENE_SOUND: z.enum(["on", "off"]).default("off"),
   /** The Foley worker (phase 14 spec §4): makes a scene's sound from its picture. */
   RUNPOD_FOLEY_ENDPOINT: z.string().min(1).optional(),
+  /** The LTX worker (phase 15): makes a clip, with its sound and the words of its speech, on the studio's own endpoint. */
+  RUNPOD_LTX_ENDPOINT: z.string().min(1).optional(),
+  /** `on` lets a scene speak in its own clip (phase 15); anything else, or unset, leaves speech off. */
+  FLOWCHAIN_SPEECH: z.enum(["on", "off"]).optional(),
   /** Topic ideas from the web and the public chart (phase 13): the studio offers them only while this is on. */
   FLOWCHAIN_TREND_IDEAS: z.enum(["on", "off"]).default("off"),
   /** The public chart's key: without it the ideas call uses the web alone. */
@@ -123,6 +127,11 @@ export const Prices = z.strictObject({
   runpodFoleyUsdPerSec: z.number().positive().optional(),
   runpodFoleySecPerClipSec: z.number().positive().optional(),
   runpodFoleyColdStartSec: z.number().positive().optional(),
+  // LTX clips (phase 15): no default on purpose, as above. LTX is not offered until the owner has measured these on the
+  // LTX endpoint and set all three; keep them while any run made with it may be resumed or remade.
+  runpodLtxUsdPerSec: z.number().positive().optional(),
+  runpodLtxSecPerClipSec: z.number().positive().optional(),
+  runpodLtxColdStartSec: z.number().positive().optional(),
 });
 export type Prices = z.infer<typeof Prices>;
 
@@ -213,3 +222,15 @@ export function foleyRates(p: Prices): FoleyRates | undefined {
 /** The plain refusal every part of the pipeline gives while the Foley rates are missing (one text, one message to the owner). */
 export const FOLEY_RATES_MISSING =
   "scene sound is not set up: the three rates runpodFoleyUsdPerSec, runpodFoleySecPerClipSec and runpodFoleyColdStartSec are not all set in prices.json";
+
+export type LtxRates = { usdPerSec: number; secPerClipSec: number; coldStartSec: number };
+
+/** The LTX worker's rates, or undefined while any of the three is not set (a zero or negative one never gets this far: `Prices` refuses it). */
+export function ltxRates(p: Prices): LtxRates | undefined {
+  const { runpodLtxUsdPerSec: usdPerSec, runpodLtxSecPerClipSec: secPerClipSec, runpodLtxColdStartSec: coldStartSec } = p;
+  return usdPerSec === undefined || secPerClipSec === undefined || coldStartSec === undefined ? undefined : { usdPerSec, secPerClipSec, coldStartSec };
+}
+
+/** The plain refusal every part of the pipeline gives while the LTX rates are missing (one text, one message to the owner). */
+export const LTX_RATES_MISSING =
+  "LTX clips are not set up: the three rates runpodLtxUsdPerSec, runpodLtxSecPerClipSec and runpodLtxColdStartSec are not all set in prices.json";

@@ -59,6 +59,8 @@ describe("what a customer is sent names no model, no provider and no key", () =>
     expect(shipped('<p>Voices by ElevenLabs</p>').split("\n").some(namesInternals)).toBe(true);
     expect(shipped('const hint = "Empty = GEMINI_API_KEY from .env";').split("\n").some(namesInternals)).toBe(true);
     expect(shipped('// RunPod bills by the second\nimport { x } from "@/lib/accounts";\n/* Wan 2.2 */ const a = 1;').split("\n").some(namesInternals)).toBe(false);
+    // the LTX model and the company behind it (phase 15)
+    for (const said of ["LTX-2.5", "Made with LTX", "Lightricks"]) expect(namesInternals(said), said).toBe(true);
     // the names customers are given are not internal names, and neither is where they pay
     for (const said of ["Paid on Stripe's pages", "Flow Chain", "Runway", "a falling leaf", "Run a pod of dolphins"]) expect(namesInternals(said), said).toBe(false);
   });

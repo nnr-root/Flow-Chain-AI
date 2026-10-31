@@ -34,4 +34,6 @@ export const RUNPOD_WORKFLOWS = {
   restore: { workflow: "restore-video", version: 1 },
   // the Foley worker (phase 14 spec §4): a scene's sound from its picture
   sound: { workflow: "sound-foley", version: 1 },
+  // the LTX worker (phase 15): a clip with its sound and speech, beside Wan's, which stays for old runs
+  clipLtx: { workflow: "clip-ltx25", version: 1 },
 } as const;
