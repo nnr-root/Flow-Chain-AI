@@ -1,3 +1,5 @@
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Prices } from "../../src/config.js";
 import { scriptCost } from "../../src/cost.js";
@@ -230,6 +232,37 @@ describe("a long video's script, written in parts", () => {
     expect(done.script!.scenes).toHaveLength(45);
     expect(spent(done)).toHaveLength(4);
     expect(done.scriptParts).toBeUndefined();
+  });
+
+  it("continues a run stopped before a scene had a sound prompt, a prompt for LTX or a sentence, and keeps those scenes without them", async () => {
+    let down = true;
+    const { ctx } = await makeTestContext({
+      modes: "auto", timing: { targetSec: 180, sceneSec: { min: 3, max: 5 } },
+      script: (_n, req) => {
+        if (down && req.ask?.kind === "part" && req.ask.index === 1) throw new NonRetryableError("the model is away");
+        return inParts(req);
+      },
+    });
+    await expect(runPipeline(ctx, [scriptStage], auto)).rejects.toThrow(/the model is away/);
+    // the part kept on disk is written as a run made before phases 14 and 15 wrote it
+    const file = join(ctx.dir, "manifest.json");
+    const json = JSON.parse(await readFile(file, "utf8"));
+    for (const scene of json.scriptParts.parts[0]) {
+      delete scene.soundPrompt;
+      delete scene.videoPrompt;
+      delete scene.speech;
+    }
+    await writeFile(file, JSON.stringify(json));
+    const stopped = await loadManifest(ctx.dir);
+    expect(stopped.scriptParts?.parts[0][0]).not.toHaveProperty("videoPrompt");
+    down = false;
+    await runPipeline({ ...ctx, manifest: stopped }, [scriptStage], auto);
+    const done = await loadManifest(ctx.dir);
+    expect(done.script!.scenes).toHaveLength(45);
+    for (const field of ["soundPrompt", "videoPrompt", "speech"]) {
+      expect(done.script!.scenes[0], field).not.toHaveProperty(field);
+      expect(done.script!.scenes[15], field).toHaveProperty(field);
+    }
   });
 
   it("does not use answers kept for other inputs", async () => {

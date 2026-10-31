@@ -412,6 +412,8 @@ describe("the LTX clip worker (phase 15)", () => {
     expect(silent).toMatchObject({ fps: 24, hasAudio: false });
     expect(silent.words).toBeUndefined();
     expect((await collected({ url: "https://r2/c.mp4", seconds: 5.04, has_audio: true, words: [] })).words).toEqual([]);
+    // a word said in an instant (a start equal to its end) is a word, not a malformed answer
+    expect((await collected({ url: "https://r2/c.mp4", has_audio: true, words: [{ text: "a", start: 0, end: 0 }] })).words).toEqual([{ text: "a", start: 0, end: 0 }]);
   });
 
   it("returns none of the three for a Wan clip, whatever its answer carries", async () => {
@@ -428,6 +430,11 @@ describe("the LTX clip worker (phase 15)", () => {
       { has_audio: true, words: [{ text: "a", start: 0 }] },
       { has_audio: true, words: [{ text: 1, start: 0, end: 1 }] },
       { has_audio: true, words: [{ text: "a", start: Number.NaN, end: 1 }] },
+      // (times are caption timings: JSON has no NaN or Infinity, so a non-number, a negative time and an end before its start are what can arrive)
+      { has_audio: true, words: [{ text: "a", start: "0", end: 1 }] },
+      { has_audio: true, words: [{ text: "a", start: -0.1, end: 1 }] },
+      { has_audio: true, words: [{ text: "a", start: 0, end: -1 }] },
+      { has_audio: true, words: [{ text: "a", start: 1.2, end: 1.1 }] },
     ]) {
       const err = await collected({ url: "https://r2/c.mp4", ...bad }).catch((e: unknown) => e);
       expect(err, JSON.stringify(bad)).toBeInstanceOf(UnusableResultError);

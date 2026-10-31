@@ -208,6 +208,15 @@ describe("what an LTX run adds to the manifest (phase 15)", () => {
     expect(loaded.request.speech).toBe(true);
   });
 
+  it("loads a script being written in parts that was stopped before scenes had a sound prompt, a prompt for LTX or a sentence", () => {
+    const answered = { ...scene, actionLevel: "high", suggestedTransition: "fade", showsCharacter: true };
+    const m = { ...createManifest("run-1", request, models), scriptParts: { inputHash: "h", parts: [[{ ...answered, soundPrompt: "wind" }], [answered]] } };
+    const loaded = Manifest.parse(JSON.parse(JSON.stringify(m)));
+    expect(loaded.scriptParts?.parts[0][0]).toMatchObject({ soundPrompt: "wind" });
+    expect(loaded.scriptParts?.parts[1][0]).not.toHaveProperty("videoPrompt");
+    expect(loaded.scriptParts?.parts[1][0]).not.toHaveProperty("soundPrompt");
+  });
+
   it("holds a prompt for LTX to 1200 characters and a sentence to 240", () => {
     expect(Manifest.safeParse(withScript([{ ...scene, videoPrompt: "x".repeat(1200), speech: "x".repeat(240) }])).success).toBe(true);
     expect(Manifest.safeParse(withScript([{ ...scene, videoPrompt: "x".repeat(1201) }])).success).toBe(false);

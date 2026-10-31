@@ -5,7 +5,7 @@ import { LlmOutline, LlmPart, LlmScript, LlmTranslation, MAX_HOOK_WORDS, MAX_NAR
 import { layOutScenes } from "../manifest/store.js";
 import { formatById } from "../formats.js";
 import { takesSeveralReferences } from "../image-profiles.js";
-import type { Manifest } from "../manifest/schema.js";
+import type { Manifest, Script, StoredPartScene } from "../manifest/schema.js";
 import { PRESETS } from "../presets.js";
 import { voicePace } from "../voice/language.js";
 import { countUnits, hookCap, isUnspaced, lengthUnit, unitsPerWord } from "../voice/words.js";
@@ -173,8 +173,12 @@ async function answer<T>(ctx: RunContext, key: string, usd: number, req: ScriptR
   throw new Error(`the script failed validation twice:\n${feedback}`);
 }
 
-/** A long video's script: the outline, then each part with the last lines of the one before it. Bought answers are kept. */
-async function writeInParts(ctx: RunContext, req: ScriptRequest, timing: Timing, partSec: number[]): Promise<LlmScript> {
+/**
+ * A long video's script: the outline, then each part with the last lines of the one before it. Bought answers are kept.
+ * Its scenes are typed as kept, not as a model's answer: parts kept by a run stopped before a field was asked for do not have it.
+ */
+type JoinedScript = Omit<LlmScript, "scenes" | "styleBible" | "soundBible" | "hashtags"> & Pick<Script, "styleBible" | "soundBible" | "hashtags"> & { scenes: StoredPartScene[] };
+async function writeInParts(ctx: RunContext, req: ScriptRequest, timing: Timing, partSec: number[]): Promise<JoinedScript> {
   const m = ctx.manifest;
   // answers kept from an earlier, stopped execution are for these same inputs, or they are not used
   if (m.scriptParts?.inputHash !== ctx.inputHash) m.scriptParts = { inputHash: ctx.inputHash, parts: [] };
@@ -192,7 +196,7 @@ async function writeInParts(ctx: RunContext, req: ScriptRequest, timing: Timing,
     part[0].shot = "cut";
     part[0].reframe = part[0].reframe === undefined ? undefined : false;
   }
-  return { title: outline.title, stylePreset: outline.stylePreset, styleBible: outline.styleBible, ...(outline.soundBible ? { soundBible: outline.soundBible } : {}), hook: outline.hook, ...(outline.hashtags ? { hashtags: outline.hashtags } : {}), scenes: kept.parts.flat() } as LlmScript;
+  return { title: outline.title, stylePreset: outline.stylePreset, styleBible: outline.styleBible, ...(outline.soundBible ? { soundBible: outline.soundBible } : {}), hook: outline.hook, ...(outline.hashtags ? { hashtags: outline.hashtags } : {}), scenes: kept.parts.flat() };
 }
 
 /** Whether a run's script may mark reframes: a type that may, a picture profile that takes several references, and the frozen setting (phase 10 spec §4). */

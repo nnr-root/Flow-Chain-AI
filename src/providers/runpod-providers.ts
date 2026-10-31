@@ -237,11 +237,12 @@ export function ltxClipFrames(durationSec: number): number {
 function ltxWords(raw: unknown): WordTiming[] | undefined | "malformed" {
   if (raw === undefined || raw === null) return undefined;
   if (!Array.isArray(raw)) return "malformed";
-  const ok = raw.every(
-    (w: unknown) =>
-      typeof w === "object" && w !== null &&
-      typeof (w as WordTiming).text === "string" && Number.isFinite((w as WordTiming).start) && Number.isFinite((w as WordTiming).end),
-  );
+  // (the times become caption timings: a negative one, or a word that ends before it starts, would place a caption wrongly)
+  const ok = raw.every((w: unknown) => {
+    if (typeof w !== "object" || w === null) return false;
+    const { text, start, end } = w as WordTiming;
+    return typeof text === "string" && Number.isFinite(start) && Number.isFinite(end) && start >= 0 && end >= start;
+  });
   return ok ? raw.map((w: WordTiming) => ({ text: w.text, start: w.start, end: w.end })) : "malformed";
 }
 

@@ -158,6 +158,13 @@ export const StoredOutline = LlmOutline.extend({ styleBible: Script.shape.styleB
 export type StoredOutline = z.infer<typeof StoredOutline>;
 export const LlmPart = z.object({ scenes: z.array(LlmSceneSpec).min(1).max(60) });
 export type LlmPart = z.infer<typeof LlmPart>;
+/**
+ * A part's scenes as a stopped run keeps them (`scriptParts`): what the model answered then, so the fields its answer
+ * gained since (a sound prompt in phase 14, a prompt for LTX and a sentence in phase 15) are optional here, or a run
+ * stopped mid-script before them could not even be loaded. Missing means none, as in a stored script.
+ */
+export const StoredPartScene = LlmSceneSpec.extend({ soundPrompt: soundPrompt.optional(), videoPrompt: videoPrompt.optional(), speech: speech.optional() });
+export type StoredPartScene = z.infer<typeof StoredPartScene>;
 
 /** A version's translation (phase 8 spec §4): what is said in the video, scene by scene, in its new language. */
 export const LlmTranslation = z.object({
@@ -438,7 +445,7 @@ export const Manifest = z.object({
    * `inputHash` stands for. Each is saved with its charge, so continuing a stopped run buys none of them again.
    * Gone once the script is whole.
    */
-  scriptParts: z.object({ inputHash: z.string(), outline: StoredOutline.optional(), parts: z.array(LlmPart.shape.scenes) }).optional(),
+  scriptParts: z.object({ inputHash: z.string(), outline: StoredOutline.optional(), parts: z.array(z.array(StoredPartScene)) }).optional(),
   /** Which prompt version wrote the script (phase 9 spec §4). Diagnostic only, and in no input hash. Absent on older runs. */
   scriptPromptVersion: z.string().optional(),
 });
