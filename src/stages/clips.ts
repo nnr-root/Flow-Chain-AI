@@ -1,20 +1,24 @@
 import { editById } from "../edits.js";
 import { fileSha256 } from "../manifest/hash.js";
-import type { Manifest } from "../manifest/schema.js";
+import type { Manifest, SceneState } from "../manifest/schema.js";
+import { extractAudio } from "../media/audio.js";
 import { probeDuration } from "../media/ffmpeg.js";
 import { planFit } from "../media/fit.js";
 import { extractSeamFrame } from "../media/frames.js";
 import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
+import type { VideoOutput } from "../providers/types.js";
 import { soundSeed } from "../sound.js";
 import { LTX_FPS, videoProfileOf } from "../video-profiles.js";
+import { speechLanguage } from "../voice/language.js";
 import { runProviderJob } from "./job.js";
 import { settleWarmup } from "./warmup.js";
 import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireAudio, requireClip, requireScript } from "./require.js";
-import type { Dep, Stage, StageContext } from "./types.js";
-import { autoModeDeps, clipPrompt, expectedOf, needsKeyframe, sceneFrames } from "./visual.js";
+import { paramsOf, trimSpeech } from "./silence.js";
+import type { Dep, RunContext, Stage, StageContext } from "./types.js";
+import { autoModeDeps, clipPrompt, durationDep, expectedOf, isSpeaking, needsKeyframe, sceneFrames } from "./visual.js";
 import { clipFrames, inspect, MAX_REMAKES, noteRemake, remakeOf } from "./inspect.js";
 
 /**
@@ -23,7 +27,7 @@ import { clipFrames, inspect, MAX_REMAKES, noteRemake, remakeOf } from "./inspec
  */
 async function writeSeam(ctx: StageContext, i: number): Promise<string> {
   const prev = requireClip(ctx.manifest.scenes[i - 1]);
-  const frames = sceneFrames(ctx.manifest, ctx.fps)[i - 1];
+  const frames = sceneFrames(ctx.manifest, ctx.fps, i - 1)[i - 1];
   const plan = planFit(prev.duration, frames / ctx.fps);
   const seam = await outPath(ctx, paths.seam(i - 1));
   await extractSeamFrame(abs(ctx, prev.path), seam, plan, frames, ctx.size, ctx.fps);
@@ -44,6 +48,47 @@ export function clipSeed(m: Manifest, i: number, remake = 0): number {
 /** Only an LTX clip is asked with a seed of the studio's; a Wan clip is asked as it always was. */
 const seeded = (m: Manifest): boolean => m.request.videoProfile === "ltx25@1";
 
+/** The longest a speaking scene's sentence may run once trimmed (phase 15 spec §4, §5: 14 words were measured at 5–6 s). */
+export const MAX_SPOKEN_SEC = 6.5;
+
+/**
+ * A speaking scene's clip length, asked for before anything of it is heard: the shortest LTX length (8k+1 frames at 24)
+ * that holds the longest sentence allowed with half a second to spare, 169 frames. The scene is then as long as its
+ * trimmed sentence, and the fit shortens the clip to it; a sentence is never cut to fit a clip.
+ */
+export const SPEAKING_CLIP_SEC = 169 / LTX_FPS;
+
+/** The language a speaking scene's words are heard in: the video's, or for a run that asked for none, its script's. */
+function spokenLanguage(m: Manifest, i: number): string {
+  const language = m.request.language ?? speechLanguage(requireScript(m).scenes.map((s) => s.narration).join(" "));
+  if (!language) throw new Error(`scene ${i + 1} speaks, and the video's language is not known: give the run a language`);
+  return language;
+}
+
+/** The clip length scene i is bought at: a speaking scene's is fixed, every other scene's follows its trimmed voiceover. */
+function clipSeconds(m: Manifest, i: number): number {
+  return isSpeaking(m, i) ? SPEAKING_CLIP_SEC : videoProfileOf(m.request.videoProfile).clipSec(requireAudio(m.scenes[i]).duration);
+}
+
+/**
+ * A speaking scene's audio, made from its clip as a narrator's line is made from its voiceover (phase 15 spec §13.2): the
+ * clip's sound, its silence trimmed by the code that trims a voiceover, and the words the worker heard in it. A clip
+ * that cannot give all of that fails the scene with what to do: it is paid for already, and nothing is guessed (no
+ * speech is shown without its captions) or bought again here.
+ */
+async function speakingAudio(ctx: RunContext, i: number, clip: VideoOutput): Promise<NonNullable<SceneState["audio"]>> {
+  const again = "make the scene's clip again";
+  if (clip.words === undefined) throw new Error(`scene ${i + 1}: this scene's clip came back without its speech words; ${again}`);
+  const raw = await outPath(ctx, paths.clipAudio(i));
+  if (clip.hasAudio === false || !(await extractAudio(abs(ctx, paths.clip(i)), raw))) {
+    throw new Error(`scene ${i + 1}: its clip came back with no sound; ${again}`);
+  }
+  if (clip.words.length === 0) throw new Error(`scene ${i + 1}: no words were heard in its clip; ${again}`);
+  const audio = await trimSpeech(ctx, i, raw, clip.words);
+  if (audio.duration > MAX_SPOKEN_SEC) throw new Error(`scene ${i + 1}'s sentence does not fit; the script wrote too many words`);
+  return audio;
+}
+
 /** Clips exist for Mode 1 only; Mode 2 scenes are animated from their keyframe at render time. */
 export const isMode1 = (m: Manifest, i: number): boolean => m.scenes[i].mode === 1;
 
@@ -54,12 +99,13 @@ export const clipsStage: Stage = {
   appliesTo: isMode1,
   deps: (m, scene) => {
     const i = scene!;
-    const deps: Dep[] = [{ stage: "script" }, { stage: "silence", scene: i }, ...autoModeDeps(m)];
+    // (a speaking scene's own length is made here, from its clip: it waits for no voiceover of its own)
+    const deps: Dep[] = [{ stage: "script" }, ...(isSpeaking(m, i) ? [] : [durationDep(m, i)]), ...autoModeDeps(m)];
     if (needsKeyframe(m, i)) deps.push({ stage: "keyframes", scene: i });
     // A continuing clip starts from clip i-1's seam frame, which depends on frames_{i-1} (durations 0..i-1).
     else deps.push({ stage: "clips", scene: i - 1 });
     // A seam frame is rendered at frames_{i-1}, which depends on every earlier duration.
-    if (!needsKeyframe(m, i)) for (let k = 0; k < i; k++) deps.push({ stage: "silence", scene: k });
+    if (!needsKeyframe(m, i)) for (let k = 0; k < i; k++) deps.push(durationDep(m, k));
     return deps;
   },
   async inputsFor(ctx, scene) {
@@ -71,11 +117,13 @@ export const clipsStage: Stage = {
       mode: 1,
       model: m.models.video,
       prompt: clipPrompt(script, i, effectivePreset(m), editById(m.request.edit), m.request.videoProfile),
-      requestedSec: profile.clipSec(requireAudio(m.scenes[i]).duration),
+      requestedSec: clipSeconds(m, i),
       // (only where the run chose a size: Wan 480p has none, so every earlier run's cache keys stay as they were)
       ...(profile.clipHeight ? { height: profile.clipHeight } : {}),
       // the seed decides the clip; only an LTX run sends one, so a Wan run's key is unchanged
       ...(seeded(m) ? { seed: clipSeed(m, i) } : {}),
+      // a speaking scene's audio is made here too: its sentence, the language it is heard in and how it is trimmed decide it
+      ...(isSpeaking(m, i) ? { speech: script.scenes[i].speech!.trim(), speechLanguage: spokenLanguage(m, i), silence: paramsOf(m) } : {}),
     };
     if (needsKeyframe(m, i)) return { ...base, imageSha: await fileSha256(abs(ctx, paths.keyframe(i))) };
     // The seam file does not exist yet when this is hashed; key on everything that determines it instead.
@@ -83,19 +131,20 @@ export const clipsStage: Stage = {
       ...base,
       seam: {
         prevClipSha: await fileSha256(abs(ctx, requireClip(m.scenes[i - 1]).path)),
-        prevFrames: sceneFrames(m, ctx.fps)[i - 1],
+        prevFrames: sceneFrames(m, ctx.fps, i - 1)[i - 1],
         size: ctx.size,
         fps: ctx.fps,
       },
     };
   },
-  outputsFor: (_m, scene) => [paths.clip(scene!)],
+  outputsFor: (m, scene) => (isSpeaking(m, scene!) ? [paths.clip(scene!), paths.clipAudio(scene!), paths.audio(scene!)] : [paths.clip(scene!)]),
   estimateCostUsd(ctx, scene) {
     const profile = videoProfileOf(ctx.manifest.request.videoProfile);
     // before the audio exists, assume the longest clip the profile buys; the first clip also pays the cold start
     const first = ctx.manifest.scenes.findIndex((x) => x.mode === 1) === scene;
     const s = ctx.manifest.scenes[scene!];
-    const clip = profile.costUsd(ctx.prices, profile.clipSec(s.audio ? s.audio.duration : Number.POSITIVE_INFINITY));
+    const seconds = isSpeaking(ctx.manifest, scene!) ? SPEAKING_CLIP_SEC : profile.clipSec(s.audio ? s.audio.duration : Number.POSITIVE_INFINITY);
+    const clip = profile.costUsd(ctx.prices, seconds);
     return clip + (first ? profile.runOverheadUsd(ctx.prices) : 0);
   },
   async run(ctx, scene) {
@@ -106,7 +155,12 @@ export const clipsStage: Stage = {
     const out = await outPath(ctx, paths.clip(i));
 
     const profile = videoProfileOf(m.request.videoProfile);
-    const seconds = profile.clipSec(requireAudio(state).duration);
+    const seconds = clipSeconds(m, i);
+    const speaking = isSpeaking(m, i);
+    const language = speaking ? spokenLanguage(m, i) : undefined;
+    // (an earlier clip's sound is not this one's: until this clip gives the scene its audio, the scene has none)
+    if (speaking) delete state.audio;
+    let made: VideoOutput | undefined;
     // the worker's early start (asked for while the pictures were made) is paid for with the first clip after it
     await settleWarmup(ctx);
     // each clip is looked at before it is fitted, upscaled or carried on from, and made again once when it is
@@ -125,6 +179,7 @@ export const clipsStage: Stage = {
             durationSec: seconds,
             ...(profile.clipHeight ? { height: profile.clipHeight } : {}),
             ...(seeded(m) ? { seed: clipSeed(m, i, remake) } : {}),
+            ...(language === undefined ? {} : { speechLanguage: language }),
           });
         },
         submit: (job, signal) => ctx.providers.video.submit(job, { signal }),
@@ -132,6 +187,7 @@ export const clipsStage: Stage = {
         waitMs: ctx.providers.video.waitMs ?? TIMEOUTS.video,
         submitTimeoutMs: ctx.providers.video.submitMs,
       });
+      made = result;
       await download(result.url, out);
       // the run has its own copy now: the one the worker uploaded is taken out of the bucket
       await result.remove?.();
@@ -154,5 +210,6 @@ export const clipsStage: Stage = {
       ctx.log(`clip scene ${i + 1} is malformed (${verdict.problems.join("; ")}): making it again`);
       await noteRemake(ctx, i, "clips", remake + 1);
     }
+    if (speaking) state.audio = await speakingAudio(ctx, i, made!);
   },
 };

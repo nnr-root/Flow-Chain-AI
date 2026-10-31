@@ -5,7 +5,7 @@ import { isMode1 } from "./clips.js";
 import { requireClip, requireSmoothed, requireUpscaled } from "./require.js";
 import { playedClip } from "./source.js";
 import type { Stage } from "./types.js";
-import { sceneFrames } from "./visual.js";
+import { durationDep, sceneFrames } from "./visual.js";
 
 export const fitStage: Stage = {
   name: "fit",
@@ -17,11 +17,11 @@ export const fitStage: Stage = {
     { stage: "clips", scene },
     // (the clip it plays may be the upscaled or the smoothed one: phase 8 spec §8, phase 11 spec §4)
     ...(playedClip(m, scene!).stage === "clips" ? [] : [{ stage: playedClip(m, scene!).stage, scene }]),
-    ...m.scenes.slice(0, scene! + 1).map((s) => ({ stage: "silence" as const, scene: s.idx })),
+    ...m.scenes.slice(0, scene! + 1).map((s) => durationDep(m, s.idx)),
   ],
   inputsFor: async (ctx, scene) => ({
     clip: await fileSha256(abs(ctx, playedClip(ctx.manifest, scene!).path)),
-    frames: sceneFrames(ctx.manifest, ctx.fps)[scene!],
+    frames: sceneFrames(ctx.manifest, ctx.fps, scene!)[scene!],
     size: ctx.size,
     fps: ctx.fps,
   }),
@@ -32,7 +32,7 @@ export const fitStage: Stage = {
     const state = ctx.manifest.scenes[i];
     const played = playedClip(ctx.manifest, i);
     const clip = played.stage === "upscale" ? requireUpscaled(state) : played.stage === "interpolate" ? requireSmoothed(state) : requireClip(state);
-    const frames = sceneFrames(ctx.manifest, ctx.fps)[i];
+    const frames = sceneFrames(ctx.manifest, ctx.fps, i)[i];
     const plan = planFit(clip.duration, frames / ctx.fps);
     await applyFit(abs(ctx, clip.path), await outPath(ctx, paths.fitted(i)), plan, frames, ctx.size, ctx.fps);
     state.fitted = { path: paths.fitted(i), frames, plan };

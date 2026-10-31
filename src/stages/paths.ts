@@ -9,6 +9,8 @@ export const paths = {
   script: "script.json",
   rawAudio: (i: number) => `audio/scene_${n(i)}.raw.mp3`,
   audio: (i: number) => `audio/scene_${n(i)}.wav`,
+  /** A speaking scene's sound as its clip carried it, before its silence is trimmed (phase 15 spec §13.2). */
+  clipAudio: (i: number) => `audio/scene_${n(i)}.clip.wav`,
   keyframe: (i: number) => `images/keyframe_${n(i)}.png`,
   /** The character portrait every keyframe is conditioned on (RunPod runs with characters). */
   reference: "images/reference.png",

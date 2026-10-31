@@ -6,6 +6,7 @@ import { captionStyleFor } from "./look.js";
 import { outPath, paths } from "./paths.js";
 import { requireAudio } from "./require.js";
 import type { Stage } from "./types.js";
+import { durationDep } from "./visual.js";
 
 /** Captions follow the speech, so they use cumulative audio starts (≤ ½ frame from the video cuts). */
 export function globalWords(m: Manifest): TimedWord[] {
@@ -21,7 +22,8 @@ export const captionsStage: Stage = {
   name: "captions",
   perScene: false,
   paid: false,
-  deps: (m) => m.scenes.map((s) => ({ stage: "silence" as const, scene: s.idx })),
+  // (a speaking scene's words are its clip's, made with its audio by the clips stage)
+  deps: (m) => m.scenes.map((s) => durationDep(m, s.idx)),
   inputsFor: async (ctx) => ({ words: globalWords(ctx.manifest), maxWordsPerPage: maxWordsPerPage(ctx.manifest) }),
   outputsFor: () => [paths.captions],
   estimateCostUsd: () => 0,

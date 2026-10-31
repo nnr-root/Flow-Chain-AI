@@ -12,6 +12,7 @@ import { outPath, paths } from "./paths.js";
 import { requireScript } from "./require.js";
 import type { Stage, StageContext } from "./types.js";
 import { withExpectedSpend } from "./inflight.js";
+import { isSpeaking } from "./visual.js";
 
 /** Whether the run is spoken by the studio's own voice (its model id says so; every earlier run's does not). */
 const ownVoice = (m: Manifest): boolean => m.models.tts.startsWith("runpod:");
@@ -68,6 +69,8 @@ export const ttsStage: Stage = {
   name: "tts",
   perScene: true,
   paid: true,
+  // a scene in which a person speaks has no narrator: its voice is its clip's (phase 15 spec §13.2)
+  appliesTo: (m, scene) => !isSpeaking(m, scene),
   deps: () => [{ stage: "script" }],
   inputsFor: async (ctx, scene) => lineInputs(ctx.manifest, scene!),
   outputsFor: (_m, scene) => [paths.rawAudio(scene!)],

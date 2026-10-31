@@ -11,7 +11,7 @@ import { abs, outPath, paths } from "./paths.js";
 import { requireAudio, requireClip, requireFitted } from "./require.js";
 import { hasSceneSound } from "./sound.js";
 import type { Dep, Stage, StageContext } from "./types.js";
-import { autoModeDeps } from "./visual.js";
+import { autoModeDeps, durationDep } from "./visual.js";
 
 async function renderInputs(ctx: StageContext): Promise<RenderInputs> {
   const captions = JSON.parse(await readFile(abs(ctx, paths.captions), "utf8")) as Caption[];
@@ -50,7 +50,7 @@ export const renderStage: Stage = {
   deps: (m) => [
     { stage: "captions" },
     ...autoModeDeps(m),
-    ...m.scenes.map((s): Dep => ({ stage: "silence", scene: s.idx })),
+    ...m.scenes.map((s): Dep => durationDep(m, s.idx)),
     // a scene with scene sound is rendered only once its sound is made (the stage exists only on a run that has it)
     ...m.scenes.filter((s) => hasSceneSound(m, s.idx)).map((s): Dep => ({ stage: "sound", scene: s.idx })),
     ...m.scenes.map((s): Dep => (s.mode === 1 ? { stage: "fit", scene: s.idx } : { stage: "keyframes", scene: s.idx })),

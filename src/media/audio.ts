@@ -1,5 +1,5 @@
 import { rename, rm } from "node:fs/promises";
-import { ffmpeg } from "./ffmpeg.js";
+import { ffmpeg, hasAudioStream } from "./ffmpeg.js";
 
 /** Sample-accurate audio concat to 48 kHz mono PCM (the narration track starts at frame 0). */
 export async function concatAudio(inputs: string[], out: string): Promise<void> {
@@ -35,4 +35,14 @@ export async function loudnessPass(input: string, out: string, totalSec: number)
     await rm(tmp, { force: true });
     throw error;
   }
+}
+
+/**
+ * Writes a clip's sound as 48 kHz mono PCM, what the silence trimming works in (phase 15 spec §13.2); false, and no
+ * file, when the clip has no sound. Only the sound is copied out: the clip itself is read and never rewritten.
+ */
+export async function extractAudio(clip: string, out: string): Promise<boolean> {
+  if (!(await hasAudioStream(clip))) return false;
+  await ffmpeg(["-i", clip, "-vn", "-map", "0:a:0", "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", out]);
+  return true;
 }

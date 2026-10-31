@@ -10,7 +10,7 @@ import type {
   TtsProvider, VideoOutput, VideoProvider, VideoRequest, WaitOptions,
 } from "../../src/providers/types.js";
 import { ffmpeg, probeVideo } from "../../src/media/ffmpeg.js";
-import { makeAudio, makeImage, makeVideo } from "../helpers/media.js";
+import { type AudioPart, makeAudio, makeImage, makeVideo } from "../helpers/media.js";
 
 export type Shot = "continue" | "cut";
 
@@ -211,21 +211,48 @@ export class FakeVideo extends FakeQueue<VideoRequest, VideoOutput> implements V
   }
 }
 
+/** What a speaking clip says (phase 15 spec §13.1): its sound, from the clip's start, and the words the worker heard in it. */
+export type FakeSpeech = { audio: AudioPart[]; words: Array<{ text: string; start: number; end: number }> | undefined };
+
+/** Three words in two seconds of tone, with 0.6 s of silence before them and the rest of the clip silent after. */
+export const SPOKEN: FakeSpeech = {
+  audio: [{ silence: 0.6 }, { tone: 2 }],
+  words: [
+    { text: "Hello", start: 0.62, end: 1.1 },
+    { text: "there", start: 1.15, end: 1.6 },
+    { text: "friend", start: 1.65, end: 2.55 },
+  ],
+};
+
 /**
  * The LTX worker (phase 15): a 24 fps clip with its own sound (a tone), answered with `fps: 24` and `hasAudio: true`
  * as the real provider answers. Frames are flat grey levels like FakeVideo's, so seam frames compare exactly.
+ * A clip asked for with `speechLanguage` says `speech` instead, and is answered with its words (none when they are
+ * `undefined`: unknown, as a clip recovered from the bucket); `silent` answers a clip with no sound at all.
  */
 export class FakeLtxVideo extends FakeQueue<VideoRequest, VideoOutput> implements VideoProvider {
+  speech: FakeSpeech = SPOKEN;
+  silent = false;
   protected async render(req: VideoRequest, n: number, path: (name: string) => string) {
     const file = path(`ltx_${n}.mp4`);
     const frames = Math.round(req.durationSec * 24);
+    const video = ["-f", "lavfi", "-i", `color=black:s=180x320:r=24,geq=lum='16+mod(N*37+${(n * 53) % 200}\\,200)':cb=128:cr=128`];
+    const speaking = req.speechLanguage !== undefined;
+    let audio = ["-f", "lavfi", "-i", `sine=frequency=${300 + 40 * n}:sample_rate=48000`];
+    if (speaking) {
+      const said = this.speech.audio.reduce((sum, p) => sum + ("tone" in p ? p.tone : p.silence), 0);
+      const wav = path(`ltx_${n}.speech.wav`);
+      await makeAudio(wav, [...this.speech.audio, { silence: Math.max(0.05, frames / 24 - said + 0.5) }]);
+      audio = ["-i", wav];
+    }
     await ffmpeg([
-      "-f", "lavfi", "-i", `color=black:s=180x320:r=24,geq=lum='16+mod(N*37+${(n * 53) % 200}\\,200)':cb=128:cr=128`,
-      "-f", "lavfi", "-i", `sine=frequency=${300 + 40 * n}:sample_rate=48000`,
+      ...video,
+      ...(this.silent ? [] : audio),
       "-vf", "format=yuv420p", "-frames:v", String(frames), "-t", String(frames / 24),
-      "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-shortest", file,
+      "-c:v", "libx264", "-preset", "ultrafast", ...(this.silent ? ["-an"] : ["-c:a", "aac", "-shortest"]), file,
     ]);
-    return { out: { url: pathToFileURL(file).href, fps: 24, hasAudio: true }, file };
+    const words = speaking && this.speech.words !== undefined ? { words: this.speech.words } : {};
+    return { out: { url: pathToFileURL(file).href, fps: 24, hasAudio: !this.silent, ...words }, file };
   }
 }
 

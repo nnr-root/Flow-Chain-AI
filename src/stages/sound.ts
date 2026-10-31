@@ -12,7 +12,7 @@ import { runProviderJob } from "./job.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireFitted, requireKeyframe } from "./require.js";
 import type { Stage, StageContext } from "./types.js";
-import { sceneFrames } from "./visual.js";
+import { durationDep, sceneFrames } from "./visual.js";
 
 /**
  * Whether scene i has a sound of its own made (phase 14 spec §3): only in a run made with scene sound and with sound
@@ -35,7 +35,7 @@ export function soundNotMade(m: Manifest): boolean {
 const isStill = (m: Manifest, i: number) => m.scenes[i].mode === 2;
 
 /** Scene i's length in the video, in seconds: its frames (what the fit made it, or what a still is shown for). */
-const sceneSeconds = (ctx: StageContext, i: number): number => sceneFrames(ctx.manifest, ctx.fps)[i] / ctx.fps;
+const sceneSeconds = (ctx: StageContext, i: number): number => sceneFrames(ctx.manifest, ctx.fps, i)[i] / ctx.fps;
 
 /** What scene i's sound is asked with: everything here is in its key. */
 function soundAsk(ctx: StageContext, i: number) {
@@ -74,7 +74,7 @@ export const soundStage: Stage = {
   appliesTo: hasSceneSound,
   deps: (m, scene) =>
     isStill(m, scene!)
-      ? [{ stage: "keyframes", scene }, ...m.scenes.slice(0, scene! + 1).map((s) => ({ stage: "silence" as const, scene: s.idx }))]
+      ? [{ stage: "keyframes", scene }, ...m.scenes.slice(0, scene! + 1).map((s) => durationDep(m, s.idx))]
       : [{ stage: "fit", scene }],
   async inputsFor(ctx, scene) {
     const i = scene!;

@@ -49,3 +49,8 @@ export async function streamDuration(path: string, kind: "v" | "a"): Promise<num
   const out = await ffprobe(["-select_streams", `${kind}:0`, "-show_entries", "stream=duration", "-of", "csv=p=0", path]);
   return Number.parseFloat(out);
 }
+
+/** Whether a file has a sound stream at all. */
+export async function hasAudioStream(path: string): Promise<boolean> {
+  return (await ffprobe(["-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0", path])) !== "";
+}

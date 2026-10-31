@@ -5,7 +5,7 @@ import { effectivePreset, hookTextFor } from "../stages/look.js";
 import { isSmoothed } from "../stages/interpolate.js";
 import { referenceApplies } from "../stages/reference.js";
 import { hasSceneSound } from "../stages/sound.js";
-import { needsKeyframe } from "../stages/visual.js";
+import { isSpeaking, needsKeyframe } from "../stages/visual.js";
 import { videoProfileOf } from "../video-profiles.js";
 import { isDraft } from "./draft.js";
 
@@ -17,6 +17,8 @@ export function sceneStagesShown(m: Manifest, idx: number): StageName[] {
   return SCENE_STAGES.filter(
     (s) =>
       (s !== "reference" || referenceApplies(m, idx)) &&
+      // (a speaking scene's voice is its clip's: it has no voiceover to wait for)
+      ((s !== "tts" && s !== "silence") || !isSpeaking(m, idx)) &&
       (s !== "keyframes" || needsKeyframe(m, idx)) &&
       ((s !== "clips" && s !== "fit") || m.scenes[idx].mode === 1) &&
       (s !== "upscale" || (m.request.upscale === true && m.scenes[idx].mode === 1)) &&

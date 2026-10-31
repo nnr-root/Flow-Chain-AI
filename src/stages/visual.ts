@@ -75,9 +75,30 @@ export function autoModeDeps(m: Manifest): Dep[] {
   return m.request.modes ? [] : [{ stage: "modes" }];
 }
 
-export function sceneFrames(m: Manifest, fps: number): number[] {
+/**
+ * Whether a person speaks in scene i (phase 15 spec §5, §13.2): its clip is made with the sentence, and its sound, its
+ * length and its words come from that clip. Only in a run that allows speech: a sentence a script wrote in one that
+ * does not would buy a clip of its own, so it is not read at all.
+ */
+export function isSpeaking(m: Manifest, i: number): boolean {
+  return m.request.speech === true && (m.script?.scenes[i]?.speech?.trim() ?? "") !== "";
+}
+
+/**
+ * What decides scene k's length (phase 15 spec §13.3), and the only place that says it: its trimmed voiceover, or the
+ * clip of a scene that speaks. Every stage that reads an earlier scene's length depends on this.
+ */
+export function durationDep(m: Manifest, k: number): Dep {
+  return isSpeaking(m, k) ? { stage: "clips", scene: k } : { stage: "silence", scene: k };
+}
+
+/**
+ * Frames per scene. A scene's count depends only on the lengths up to its own, so `upTo` reads no later scene: a later
+ * scene that speaks has no length until its clip is made, which is after the clips before it.
+ */
+export function sceneFrames(m: Manifest, fps: number, upTo = m.scenes.length - 1): number[] {
   return sceneFrameCounts(
-    m.scenes.map((s) => requireAudio(s).duration),
+    m.scenes.slice(0, upTo + 1).map((s) => requireAudio(s).duration),
     fps,
   );
 }
