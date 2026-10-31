@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { type Prices, runpodRates } from "./config.js";
+import { LTX_RATES_MISSING, ltxRates, type Prices, runpodRates } from "./config.js";
 import { round4, videoCost } from "./cost.js";
 
-export const VideoProfileId = z.enum(["kling-v1", "kling-v2", "wan22-480p@1", "wan22-720p@1"]);
+export const VideoProfileId = z.enum(["kling-v1", "kling-v2", "wan22-480p@1", "wan22-720p@1", "ltx25@1"]);
 export type VideoProfileId = z.infer<typeof VideoProfileId>;
 
 /**
@@ -19,9 +19,28 @@ export type VideoProfile = {
   clipHeight?: number;
 };
 
-/** Wan's frame rate and the fit step's largest stretch (2.4 spec §5.3). */
+/** Wan's frame rate and the fit step's largest stretch (2.4 spec §5.3); LTX uses the same stretch. */
 const WAN_FPS = 16;
 const MAX_STRETCH = 1.25;
+
+/** LTX 2.5's frame rate, and the frame counts it takes: 8k+1, from 2 to 15 seconds (phase 15 spec §3). */
+export const LTX_FPS = 24;
+export const LTX_MIN_FRAMES = 49;
+export const LTX_MAX_FRAMES = 361;
+
+/** Frames for an LTX clip covering `narrationSec` after the fit step's stretch: 8k+1, between 49 and 361. A longer scene is chained. */
+export function ltxFrames(narrationSec: number): number {
+  const needed = Math.ceil((narrationSec / MAX_STRETCH) * LTX_FPS) + 1;
+  const frames = 8 * Math.ceil((needed - 1) / 8) + 1;
+  return Math.min(LTX_MAX_FRAMES, Math.max(LTX_MIN_FRAMES, frames));
+}
+
+/** The rates are read when a price is asked for, so a missing one stops the run with a reason instead of costing 0. */
+function ltxRatesOf(p: Prices) {
+  const r = ltxRates(p);
+  if (!r) throw new Error(LTX_RATES_MISSING);
+  return r;
+}
 
 /** Frames for a Wan clip covering `narrationSec` after the fit step's stretch: 4k+1, between 33 and 81. */
 export function wanFrames(narrationSec: number): number {
@@ -51,6 +70,15 @@ export const VIDEO_PROFILES: Record<VideoProfileId, VideoProfile> = {
     costUsd: (p, clipSec) => round4(Math.round(clipSec * WAN_FPS) * runpodRates(p).clip720SecPerFrame * runpodRates(p).clipUsdPerSec),
     runOverheadUsd: (p) => round4(runpodRates(p).coldStartSec * runpodRates(p).clipUsdPerSec),
     clipHeight: 720,
+  },
+  /** LTX 2.5 on RunPod (phase 15): one size, clips with their own sound, priced by GPU seconds a clip second. */
+  "ltx25@1": {
+    id: "ltx25@1",
+    clipSec: (s) => ltxFrames(s) / LTX_FPS,
+    costUsd: (p, clipSec) => round4(clipSec * ltxRatesOf(p).secPerClipSec * ltxRatesOf(p).usdPerSec),
+    runOverheadUsd: (p) => round4(ltxRatesOf(p).coldStartSec * ltxRatesOf(p).usdPerSec),
+    // The SHORT side, as 480/720 are for Wan; the provider derives the long side (1152) from the picture's orientation.
+    clipHeight: 640,
   },
 };
 

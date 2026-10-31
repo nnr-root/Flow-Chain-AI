@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadEnv, Prices } from "../../src/config.js";
+import { loadEnv, LTX_RATES_MISSING, Prices } from "../../src/config.js";
 import { checkR2RoundTrip, checkRunpodEndpoints, usesGpu } from "../../src/doctor.js";
 import { frozenModePrices, newRunProviders } from "../../src/providers/new-run.js";
 import type { R2 } from "../../src/providers/r2.js";
@@ -25,6 +25,24 @@ describe("newRunProviders", () => {
     const env = loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c" });
     expect(newRunProviders(env).videoProfile).toBe("wan22-480p@1");
     expect(newRunProviders(env, "720p")).toMatchObject({ videoProfile: "wan22-720p@1", video: "runpod:ep-c/clip-wan22-480p@1" });
+  });
+
+  describe("with the LTX endpoint", () => {
+    const rates = Prices.parse({ runpodLtxUsdPerSec: 0.00016, runpodLtxSecPerClipSec: 29, runpodLtxColdStartSec: 120 });
+    const withLtx = { ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_LTX_ENDPOINT: "ep-l" };
+
+    it("freezes ltx25@1 and needs no Wan endpoint, whatever clip size was asked for", () => {
+      const env = loadEnv(withLtx);
+      for (const q of ["480p", "720p"] as const) {
+        expect(newRunProviders(env, q, rates)).toMatchObject({ videoProfile: "ltx25@1", video: "runpod:ep-l/clip-ltx25@1" });
+      }
+    });
+
+    it("says why when the endpoint is set but a rate is not, instead of falling back to Wan", () => {
+      const env = loadEnv({ ...withLtx, RUNPOD_CLIP_ENDPOINT: "ep-c" });
+      expect(() => newRunProviders(env, "480p", Prices.parse({}))).toThrow(LTX_RATES_MISSING);
+      expect(() => newRunProviders(env)).toThrow(LTX_RATES_MISSING);
+    });
   });
 
   it("asks for a deploy when the endpoints are not configured", () => {

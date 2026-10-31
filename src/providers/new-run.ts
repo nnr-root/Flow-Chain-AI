@@ -1,4 +1,4 @@
-import { type Env, foleyRates, flux3Rates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
+import { type Env, foleyRates, flux3Rates, LTX_RATES_MISSING, ltxRates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
 import type { ImageProfileId } from "../image-profiles.js";
 import { CLIP_QUALITIES, type ClipQuality, type VideoProfileId } from "../video-profiles.js";
 import { hostedModelFor } from "../voice/hosted.js";
@@ -14,15 +14,22 @@ export function newRunProviders(env: Env, clips: ClipQuality = "480p", prices?: 
     throw new Error("FLOWCHAIN_IMAGE_MODEL=flux3 but FLUX 3 is not set up: set RUNPOD_PICTURE3_ENDPOINT and the four runpodPicture3* prices in prices.json");
   }
   const flux3 = ready && env.FLOWCHAIN_IMAGE_MODEL !== "klein4b";
-  const needed = flux3 ? (["RUNPOD_CLIP_ENDPOINT"] as const) : (["RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT"] as const);
+  // LTX takes the clips when its endpoint is set; a missing rate says so rather than quietly buying Wan (phase 15 spec §7).
+  const ltx = Boolean(env.RUNPOD_LTX_ENDPOINT);
+  if (ltx && !(prices !== undefined && ltxRates(prices))) throw new Error(LTX_RATES_MISSING);
+  const needed = ltx
+    ? flux3
+      ? ([] as const)
+      : (["RUNPOD_KEYFRAME_ENDPOINT"] as const)
+    : flux3 ? (["RUNPOD_CLIP_ENDPOINT"] as const) : (["RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT"] as const);
   const missing = needed.filter((k) => !env[k]);
   if (missing.length) throw new Error(`${missing.join(" and ")} not set; run npm run runpod:deploy first`);
-  const { keyframe, keyframe3, clip } = RUNPOD_WORKFLOWS;
+  const { keyframe, keyframe3, clip, clipLtx } = RUNPOD_WORKFLOWS;
   return {
     image: flux3 ? runpodModelId(env.RUNPOD_PICTURE3_ENDPOINT!, keyframe3.workflow, keyframe3.version) : runpodModelId(env.RUNPOD_KEYFRAME_ENDPOINT!, keyframe.workflow, keyframe.version),
-    video: runpodModelId(env.RUNPOD_CLIP_ENDPOINT!, clip.workflow, clip.version),
+    video: ltx ? runpodModelId(env.RUNPOD_LTX_ENDPOINT!, clipLtx.workflow, clipLtx.version) : runpodModelId(env.RUNPOD_CLIP_ENDPOINT!, clip.workflow, clip.version),
     imageProfile: flux3 ? "runpod-flux3-klein@1" : "runpod-klein@1",
-    videoProfile: CLIP_QUALITIES[clips],
+    videoProfile: ltx ? "ltx25@1" : CLIP_QUALITIES[clips],
   };
 }
 
