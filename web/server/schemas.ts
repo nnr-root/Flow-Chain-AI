@@ -4,7 +4,7 @@ import { Aspect } from "@src/config";
 import { NICHE_IDS, NICHE_TEXT_MAX, nicheById } from "@src/niches";
 import { FORMAT_IDS, formatClash } from "@src/formats";
 import { EDIT_IDS } from "@src/edits";
-import { SPEECH_LANGUAGE_CODES, type VoiceId, VOICES } from "@src/voice/language";
+import { canSpeakIn, SPEECH_LANGUAGE_CODES, type VoiceId, VOICES } from "@src/voice/language";
 import { DEFAULT_SCENE_SECONDS, DEFAULT_VIDEO_SECONDS, SCENE_SECONDS, VIDEO_SECONDS } from "@src/duration";
 import { MAX_SCENES, MAX_SEED, Mode } from "@src/manifest/schema";
 import { CaptionStyleName, Transition } from "@src/media/remotion/props";
@@ -165,7 +165,8 @@ export function draftArgs(input: NewVideo, runId: string, soundOffered: boolean,
   if (input.localize === false) args.push("--no-localize");
   if (input.clips === "1080p") args.push("--upscale");
   if (input.fps === 60) args.push("--fps", "60");
-  args.push(input.speech && speechOffered ? "--speech" : "--no-speech");
+  // (a series' recipe in a language speech was not measured in asks for none, rather than having the CLI refuse its video)
+  args.push(input.speech && speechOffered && canSpeakIn(input.language) ? "--speech" : "--no-speech");
   return args;
 }
 

@@ -98,7 +98,11 @@ export type Health = {
 export function health(): Health {
   const env = pipelineEnv();
   const unset = (names: readonly string[]) => names.filter((n) => !env[n]?.trim());
-  // while the LTX endpoint is set it makes every new run's clips (phase 15 spec §7), so the older clip endpoint is not needed
+  // While the LTX endpoint is set it makes new runs' clips (phase 15 spec §7), so the older clip endpoint is not asked for.
+  // The trade-off: LTX is used only with its three rates too, and the web never reads `prices.json`. Between a deploy
+  // (which writes the endpoint) and the owner setting the rates, a studio without the older clip endpoint says nothing
+  // is missing, offers sound and (switched on) speech, and its runs are refused by the CLI's own check; a studio that has
+  // both endpoints makes its runs on Wan as before, and `--speech` is refused at creation in one plain sentence.
   const ltx = Boolean(env.RUNPOD_LTX_ENDPOINT?.trim());
   return {
     missing: [...unset(ltx ? NEEDS.filter((n) => n !== "RUNPOD_CLIP_ENDPOINT") : NEEDS), ...(unset(VOICE_NEEDS).length === VOICE_NEEDS.length ? [`${VOICE_NEEDS[0]} (or ${VOICE_NEEDS[1]})`] : [])],

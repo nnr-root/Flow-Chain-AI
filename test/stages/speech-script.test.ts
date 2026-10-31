@@ -77,6 +77,19 @@ describe("the script stage", () => {
   });
 });
 
+describe("the script stage, for a run in a language speech was not measured in", () => {
+  it("treats speech as not allowed: it does not ask for it, and clears every sentence", async () => {
+    const script = fakeScript(3);
+    script.scenes[1].speech = "Hello there friend";
+    const { ctx, fakes } = await makeTestContext({ modes: [1, 1, 1], script: () => script });
+    ctx.manifest.request.speech = true;
+    ctx.manifest.request.language = "de";
+    await runPipeline(ctx, [scriptStage], auto);
+    expect(fakes.llm.calls[0].speech).toBeUndefined();
+    expect(ctx.manifest.script!.scenes.map((s) => s.speech)).toEqual(["", "", ""]);
+  });
+});
+
 describe("the script's word range", () => {
   // seven scenes of 11 words and one short sentence spoken in its own clip
   const answer = () => {

@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { GET as health } from "@/app/api/health/route";
 import { POST as createDraft } from "@/app/api/drafts/route";
-import { NewVideoForm, speechToSend } from "@/components/NewVideoForm";
+import { NewVideoForm, speechShown, speechToSend } from "@/components/NewVideoForm";
 import { namesInternals, SELF_NAMES } from "@/lib/engines";
 import { SPEECH_SWITCH } from "@/lib/labels";
 import { readJob, type StudioHealth } from "@/server/jobs";
@@ -96,10 +96,25 @@ describe("the new-video form's speaking character", () => {
 
 describe("the speech a form sends, for a draft or a series' recipe", () => {
   it("is off wherever speech is not offered, whatever the hidden switch holds, and the switch's value where it is", () => {
-    expect(speechToSend({}, true)).toBe(false);
-    expect(speechToSend({}, false)).toBe(false);
-    expect(speechToSend({ speech: true }, true)).toBe(true);
-    expect(speechToSend({ speech: true }, false)).toBe(false);
+    expect(speechToSend({}, true, "en")).toBe(false);
+    expect(speechToSend({}, false, "en")).toBe(false);
+    expect(speechToSend({ speech: true }, true, "en")).toBe(true);
+    expect(speechToSend({ speech: true }, true, "tr")).toBe(true);
+    expect(speechToSend({ speech: true }, false, "en")).toBe(false);
+  });
+
+  it("is off in a language speech was not measured in, whatever the hidden switch holds", () => {
+    for (const language of ["ja", "de", "ar"] as const) expect(speechToSend({ speech: true }, true, language)).toBe(false);
+  });
+});
+
+describe("the new-video form's speaking character, by the video's language", () => {
+  it("is not shown for a language speech was not measured in, though the studio offers speech", () => {
+    // (the form starts in English and a change of language happens in the browser: this is the check it renders by)
+    expect(speechShown({ speech: true }, "en")).toBe(true);
+    expect(speechShown({ speech: true }, "tr")).toBe(true);
+    expect(speechShown({ speech: true }, "ja")).toBe(false);
+    expect(speechShown({}, "en")).toBe(false);
   });
 });
 
@@ -126,6 +141,11 @@ describe("a draft's command for speech", () => {
   it("asks for no sound effects only when neither sound source is offered", () => {
     expect(args({}, true, false)).not.toContain("--no-sfx");
     expect(args({}, false, false)).toContain("--no-sfx");
+  });
+
+  it("is --no-speech for a video in a language speech was not measured in, even where it is offered and asked for", () => {
+    expect(args({ speech: true, language: "ja" }, true, true)).toContain("--no-speech");
+    expect(args({ speech: true, language: "tr" }, true, true)).toContain("--speech");
   });
 
   it("is accepted by the worker either way, once, and never both together", () => {
@@ -166,6 +186,18 @@ describe("a new draft's speech", () => {
     expect(error.code).toBe("validation");
     expect(error.message).toMatch(/^speech: /);
     expect(namesInternals(error.message)).toBe(false);
+    expect(await calls(studio)).toEqual([]);
+  });
+});
+
+describe("a new draft that asks for speech in a language it was not measured in", () => {
+  it("is refused in plain words, before anything is started", async () => {
+    withKeys();
+    await writeFile(join(studio.root, ".env"), `${LTX}FLOWCHAIN_SPEECH=on\n`);
+    const res = await createDraft(request("/api/drafts", { json: { topic: "foxes", speech: true, language: "de" } }), undefined);
+    expect(res.status).toBe(400);
+    const { error } = await res.json();
+    expect(error).toMatchObject({ code: "validation", message: "speech: a character can speak only in a video in English or Turkish" });
     expect(await calls(studio)).toEqual([]);
   });
 });

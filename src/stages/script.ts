@@ -7,7 +7,7 @@ import { formatById } from "../formats.js";
 import { takesSeveralReferences } from "../image-profiles.js";
 import type { Manifest, Script, StoredPartScene } from "../manifest/schema.js";
 import { PRESETS } from "../presets.js";
-import { voicePace } from "../voice/language.js";
+import { canSpeakIn, voicePace } from "../voice/language.js";
 import { countUnits, hookCap, isUnspaced, lengthUnit, MAX_SPEAKING_SCENES, speechCap, unitsPerWord } from "../voice/words.js";
 import { normalizeHashtags } from "../hashtags.js";
 import { anachronisms, handMotions } from "../anachronism.js";
@@ -30,6 +30,15 @@ function hookProblems(hook: string, language?: string): string[] {
   const most = isUnspaced(language) ? hookCap(language) : MAX_HOOK_WORDS;
   return words === 0 || words > most ? [`hook has ${words} ${lengthUnit(language)} (1-${most})`] : [];
 }
+
+/**
+ * Whether a run's script may give a character a sentence: it was frozen with speech and its language is one speech was
+ * measured in (phase 15 spec §5). The CLI refuses any other at creation; this keeps a run that got past it (a manifest
+ * edited by hand) from asking for speech the clip cannot be trusted to say. A run with no language is left to the CLI,
+ * which never makes one with speech.
+ */
+export const speechAllowed = (request: { speech?: boolean; language?: string }): boolean =>
+  request.speech === true && (request.language === undefined || canSpeakIn(request.language));
 
 /**
  * The scenes whose sentence a run keeps (phase 15 spec §5): none where the run does not allow speech, else the first
@@ -275,7 +284,7 @@ export const scriptStage: Stage = {
       ...(localize ? { localize } : {}),
       ...(allowsReframe(ctx.manifest) ? { reframe: true } : {}),
       // (speech changes what the script is asked for, so it is in the key; only when on, so every earlier run keeps its key)
-      ...(ctx.manifest.request.speech ? { speech: true } : {}),
+      ...(speechAllowed(ctx.manifest.request) ? { speech: true } : {}),
     };
     // a run asked for by its length is keyed on that: its number of scenes is the script's own answer
     if (timing) return { model: ctx.manifest.models.llm, topic, timing, aspect, shots, style, characters, ...asked };
@@ -287,7 +296,7 @@ export const scriptStage: Stage = {
     if (ctx.manifest.request.versionOf) return translate(ctx);
     const { topic, sceneCount, aspect, shots, style, characters, timing, language, niche, nicheText, format, edit, localize, wordsPerSecond: frozen } = ctx.manifest.request;
     const voiceId = ctx.manifest.request.voiceId;
-    const req: ScriptRequest = { topic, sceneCount, aspect, shots, style, characters, timing, language, voiceId, niche, nicheText, format, edit, localize, ...(frozen ? { wordsPerSecond: frozen } : {}), ...(allowsReframe(ctx.manifest) ? { reframe: true } : {}), ...(ctx.manifest.request.speech ? { speech: true } : {}) };
+    const req: ScriptRequest = { topic, sceneCount, aspect, shots, style, characters, timing, language, voiceId, niche, nicheText, format, edit, localize, ...(frozen ? { wordsPerSecond: frozen } : {}), ...(allowsReframe(ctx.manifest) ? { reframe: true } : {}), ...(speechAllowed(ctx.manifest.request) ? { speech: true } : {}) };
     const partSec = timing ? scriptParts(timing.targetSec) : null;
     const script = timing && partSec
       ? await writeInParts(ctx, req, timing, partSec)
@@ -302,7 +311,7 @@ export const scriptStage: Stage = {
     // a reframe is only a cut after the first scene, and only where the run may (put right here, never sent back)
     settleReframes(script.scenes, allowsReframe(ctx.manifest));
     // and a sentence only where the run allows speech, in two scenes at most, each within the cap (the same way)
-    settleSpeech(script.scenes, ctx.manifest.request.speech === true, language);
+    settleSpeech(script.scenes, req.speech === true, language);
     // --style is enforced the same way, and the preset leads the art style (spec §2)
     if (style) script.stylePreset = style;
     const preset = PRESETS[script.stylePreset];

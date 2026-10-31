@@ -46,6 +46,16 @@ export const SPEECH_LANGUAGE_CODES = Object.keys(SPEECH_LANGUAGES) as [SpeechLan
 /** The languages the studio's own voice speaks (phase 7 spec §14): without the hosted voice, only these are offered. */
 export const OWN_VOICE_LANGUAGES: readonly SpeechLanguage[] = ["en", "tr", "es", "fr", "de", "it", "pt", "nl", "pl", "ru", "sv", "da", "no", "fi", "el", "id", "ms", "tl", "vi"];
 
+/**
+ * The languages a character may speak in its own clip (phase 15 spec §5): the two that were tried on a real clip.
+ * Another is added only after a measurement, with its test. (Named apart from `SPEECH_LANGUAGES`, which is every
+ * language a video can be told in.)
+ */
+export const CHARACTER_SPEECH_LANGUAGES = ["en", "tr"] as const satisfies readonly SpeechLanguage[];
+
+/** Whether a character may speak in a video in this language; no for a video whose language was not given. */
+export const canSpeakIn = (language: string | undefined): boolean => (CHARACTER_SPEECH_LANGUAGES as readonly string[]).includes(language ?? "");
+
 /** How a script's model is told the language: its English name. */
 export const LANGUAGE_IN_ENGLISH: Record<SpeechLanguage, string> = {
   en: "English", tr: "Turkish", es: "Spanish", fr: "French", de: "German", it: "Italian", pt: "Portuguese",

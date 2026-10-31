@@ -11,7 +11,7 @@ import { multiTenant } from "./tenant";
 import { nativeVoices, offeredLanguages, readyVoices } from "./voices";
 import { soundNotMade } from "@src/stages/sound";
 import { versionProblem } from "@src/versions";
-import type { SpeechLanguage } from "@src/voice/language";
+import { canSpeakIn, type SpeechLanguage } from "@src/voice/language";
 import { draftArgs, formProblem, kitDir, type Look, modesArg, musicPath, type NewVideo, rerenderArgs } from "./schemas";
 
 /** The run has a job that is running or waiting its turn. */
@@ -49,6 +49,7 @@ export async function createDraft(input: NewVideo, seriesId?: string): Promise<{
   // a speaking character only where the studio offers it (phase 15 spec §7): a customer who asked for one is told, not
   // given a silent video
   if (input.speech && !speech) throw new ApiError("validation", "speech: a speaking character is not available in this studio yet");
+  if (input.speech && !canSpeakIn(input.language)) throw new ApiError("validation", "speech: a character can speak only in a video in English or Turkish");
   const problem = formProblem(input);
   if (problem) throw new ApiError("validation", problem);
   if (multiTenant()) {

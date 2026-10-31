@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadEnv, LTX_RATES_MISSING, Prices } from "../../src/config.js";
+import { loadEnv, Prices } from "../../src/config.js";
 import { checkR2RoundTrip, checkRunpodEndpoints, usesGpu } from "../../src/doctor.js";
 import { frozenModePrices, newRunImage, newRunProviders, newRunSpeech } from "../../src/providers/new-run.js";
 import type { R2 } from "../../src/providers/r2.js";
@@ -38,10 +38,16 @@ describe("newRunProviders", () => {
       }
     });
 
-    it("says why when the endpoint is set but a rate is not, instead of falling back to Wan", () => {
+    it("makes the run on Wan exactly as before while a rate is missing, since a deploy writes the endpoint before the prices are measured", () => {
       const env = loadEnv({ ...withLtx, RUNPOD_CLIP_ENDPOINT: "ep-c" });
-      expect(() => newRunProviders(env, "480p", Prices.parse({}))).toThrow(LTX_RATES_MISSING);
-      expect(() => newRunProviders(env)).toThrow(LTX_RATES_MISSING);
+      const before = newRunProviders(loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c" }));
+      expect(newRunProviders(env, "480p", Prices.parse({}))).toEqual(before);
+      expect(newRunProviders(env)).toEqual(before);
+      expect(newRunProviders(env, "480p", Prices.parse({ runpodLtxUsdPerSec: 0.00016, runpodLtxSecPerClipSec: 29 }))).toEqual(before);
+    });
+
+    it("then needs the Wan clip endpoint again, as before", () => {
+      expect(() => newRunProviders(loadEnv(withLtx), "480p", Prices.parse({}))).toThrow("RUNPOD_CLIP_ENDPOINT not set; run npm run runpod:deploy first");
     });
   });
 
@@ -54,32 +60,45 @@ describe("newRunProviders", () => {
 
 describe("newRunSpeech", () => {
   const on = loadEnv({ ...base, FLOWCHAIN_SPEECH: "on" });
+  const NOT_HERE = "speaking characters are not available in this studio";
 
-  it("is off, and says nothing, when the run did not ask for it, on any clip profile", () => {
+  it("is off, and says nothing, when the run did not ask for it, on any clip profile or language", () => {
     for (const env of [loadEnv(base), on]) {
       for (const profile of ["ltx25@1", "wan22-480p@1"] as const) {
-        expect(newRunSpeech(env, profile, undefined)).toBe(false);
-        expect(newRunSpeech(env, profile, false)).toBe(false);
+        for (const language of ["en", "ja", undefined]) {
+          expect(newRunSpeech(env, profile, undefined, language)).toBe(false);
+          expect(newRunSpeech(env, profile, false, language)).toBe(false);
+        }
       }
     }
   });
 
-  it("is on only for a run whose clips are made with LTX while the owner switched speech on", () => {
-    expect(newRunSpeech(on, "ltx25@1", true)).toBe(true);
+  it("is on only for a run whose clips are made with LTX while the owner switched speech on, in a language speech was measured in", () => {
+    expect(newRunSpeech(on, "ltx25@1", true, "en")).toBe(true);
+    expect(newRunSpeech(on, "ltx25@1", true, "tr")).toBe(true);
   });
 
-  it("refuses a speaking character on any other clip profile, plainly and naming no model, so no such run is made", () => {
+  it("refuses a speaking character on any other clip profile (no endpoint, or its rates missing), in one plain sentence", () => {
     for (const profile of ["wan22-480p@1", "wan22-720p@1", "kling-v2"] as const) {
-      expect(() => newRunSpeech(on, profile, true)).toThrow(/speaking character/);
-      expect(() => newRunSpeech(on, profile, true)).not.toThrow(/ltx|lightricks|wan|FLOWCHAIN/i);
+      expect(() => newRunSpeech(on, profile, true, "en")).toThrow(NOT_HERE);
     }
   });
 
-  it("refuses a speaking character while the owner has not switched speech on, plainly and naming no setting", () => {
+  it("refuses a speaking character while the owner has not switched speech on, in the same sentence", () => {
     for (const env of [loadEnv(base), loadEnv({ ...base, FLOWCHAIN_SPEECH: "off" })]) {
-      expect(() => newRunSpeech(env, "ltx25@1", true)).toThrow(/speaking character/);
-      expect(() => newRunSpeech(env, "ltx25@1", true)).not.toThrow(/ltx|lightricks|FLOWCHAIN/i);
+      expect(() => newRunSpeech(env, "ltx25@1", true, "en")).toThrow(NOT_HERE);
     }
+  });
+
+  it("refuses a speaking character in a language speech was not measured in, or with no language given, plainly", () => {
+    for (const language of ["ja", "de", "ar", undefined]) {
+      expect(() => newRunSpeech(on, "ltx25@1", true, language)).toThrow(/a character can speak only in a video in English or Turkish/);
+    }
+  });
+
+  it("names no model and no setting in any refusal, since the words reach a customer's job log", () => {
+    const refusals = [() => newRunSpeech(on, "wan22-480p@1", true, "en"), () => newRunSpeech(loadEnv(base), "ltx25@1", true, "en"), () => newRunSpeech(on, "ltx25@1", true, "ja")];
+    for (const refuse of refusals) expect(refuse).not.toThrow(/ltx|lightricks|wan|FLOWCHAIN|RUNPOD|price/i);
   });
 });
 
@@ -101,7 +120,8 @@ describe("newRunImage", () => {
   it("does not need the clip endpoint, nor the LTX rates, which a picture-only tool never uses", () => {
     const env = loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_LTX_ENDPOINT: "ep-l" });
     expect(() => newRunImage(env)).not.toThrow();
-    expect(() => newRunProviders(env)).toThrow(LTX_RATES_MISSING);
+    // (a new run without the LTX rates is a Wan run, which does need its clip endpoint)
+    expect(() => newRunProviders(env)).toThrow("RUNPOD_CLIP_ENDPOINT not set");
   });
 
   it("keeps the 4B when klein4b is forced, and takes FLUX 3 when it is ready", () => {

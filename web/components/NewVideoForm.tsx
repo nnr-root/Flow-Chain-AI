@@ -1,6 +1,6 @@
 "use client";
 import { DEFAULT_SCENE_SECONDS, DEFAULT_VIDEO_SECONDS, lengthInWords, VIDEO_SECONDS } from "@src/duration";
-import type { SpeechLanguage, VoiceId } from "@src/voice/language";
+import { canSpeakIn, type SpeechLanguage, type VoiceId } from "@src/voice/language";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { amount, errorText, getJson, sendForm, sendJson } from "@/lib/api";
@@ -31,11 +31,15 @@ export type PresetCard = StyleCard;
  */
 export const sfxToSend = (health: Pick<StudioHealth, "sound">, switchOn: boolean): boolean => health.sound === true && switchOn;
 
+/** Whether the form shows the speaking-character switch: the studio offers it and the video's language is one it was measured in (phase 15 spec §5). */
+export const speechShown = (health: Pick<StudioHealth, "speech">, language: SpeechLanguage): boolean => health.speech === true && canSpeakIn(language);
+
 /**
  * The `speech` a form sends, for a draft and for a series' recipe alike (phase 15 spec §7): the switch's value only where
- * the studio offers a speaking character, else off, so a recipe saved now never starts speaking once the owner turns it on.
+ * it is shown, else off, so a recipe saved now never starts speaking once the owner turns it on, and a switch left on
+ * before the language was changed to one speech was not measured in sends nothing.
  */
-export const speechToSend = (health: Pick<StudioHealth, "speech">, switchOn: boolean): boolean => health.speech === true && switchOn;
+export const speechToSend = (health: Pick<StudioHealth, "speech">, switchOn: boolean, language: SpeechLanguage): boolean => speechShown(health, language) && switchOn;
 
 const CAPTION_STYLES = ["preset", "hormozi", "mrbeast", "minimalist"];
 const TRANSITIONS = ["auto", "cut", "fade", "dissolve", "blur", "zoom", "glitch"];
@@ -118,7 +122,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         aspect: f.aspect, durationSec: f.durationSec, sceneSec: { min: f.sceneMin, max: f.sceneMax }, style: f.style, motion: f.motion, clips: f.clips, fps: f.fps,
         brandKit: f.brandKit || null, music: f.music || null, musicGain: f.musicGain,
         hook: f.hookMode === "custom" ? { mode: "custom", text: f.hookText } : { mode: f.hookMode },
-        sfx: sfxToSend(health, f.sfx), sfxGain: f.sfxGain, speech: speechToSend(health, f.speech), captionStyle: f.captionStyle, transition: f.transition,
+        sfx: sfxToSend(health, f.sfx), sfxGain: f.sfxGain, speech: speechToSend(health, f.speech, f.language), captionStyle: f.captionStyle, transition: f.transition,
         ...(f.characters.trim() ? { characters: f.characters } : {}),
         ...(f.seed.trim() ? { seed: Number(f.seed) } : {}),
         language: f.language, voiceId: f.voiceId,
@@ -267,7 +271,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
           </label>
         )}
         {/* (only where the studio can make it: elsewhere there is nothing for the switch to turn on) */}
-        {health.speech && (
+        {speechShown(health, f.language) && (
           <label className="mt-5 flex items-start gap-2.5 text-[0.95rem]">
             <input type="checkbox" aria-label={SPEECH_SWITCH.label} checked={f.speech} onChange={(e) => set("speech", e.target.checked)} className="mt-1" />
             <span>

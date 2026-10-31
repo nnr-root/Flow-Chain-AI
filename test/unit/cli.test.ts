@@ -33,24 +33,34 @@ async function run(env: Record<string, string>, prices?: object, ...args: string
 const LTX_RATES = { runpodLtxUsdPerSec: 0.00016, runpodLtxSecPerClipSec: 29, runpodLtxColdStartSec: 120 };
 
 describe("the run command's speech flags", () => {
+  const NOT_HERE = "speaking characters are not available in this studio";
+
   it("refuses --speech for a run whose clips are not made with LTX, before any run is made", async () => {
-    const r = await run({ RUNPOD_CLIP_ENDPOINT: "ep-c", FLOWCHAIN_SPEECH: "on" }, undefined, "--speech");
+    const r = await run({ RUNPOD_CLIP_ENDPOINT: "ep-c", FLOWCHAIN_SPEECH: "on" }, undefined, "--speech", "--language", "en");
     expect(r.code).toBe(1);
-    expect(r.out).toMatch(/speaking character/);
+    expect(r.out).toContain(NOT_HERE);
     expect(r.runs).toEqual([]);
   });
 
   it("refuses --speech while the owner has not switched speech on, before any run is made", async () => {
-    const r = await run({ RUNPOD_LTX_ENDPOINT: "ep-l" }, LTX_RATES, "--speech");
+    const r = await run({ RUNPOD_LTX_ENDPOINT: "ep-l" }, LTX_RATES, "--speech", "--language", "en");
     expect(r.code).toBe(1);
-    expect(r.out).toMatch(/speaking character/);
+    expect(r.out).toContain(NOT_HERE);
     expect(r.runs).toEqual([]);
   });
 
-  it("refuses --speech while the LTX rates are missing, with the one refusal every part gives", async () => {
-    const r = await run({ RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_SPEECH: "on" }, undefined, "--speech");
+  it("refuses --speech while the LTX rates are missing, in the same sentence, and not as a refusal of every run", async () => {
+    const r = await run({ RUNPOD_LTX_ENDPOINT: "ep-l", RUNPOD_CLIP_ENDPOINT: "ep-c", FLOWCHAIN_SPEECH: "on" }, undefined, "--speech", "--language", "en");
     expect(r.code).toBe(1);
-    expect(r.out).toContain(LTX_RATES_MISSING);
+    expect(r.out).toContain(NOT_HERE);
+    expect(r.out).not.toContain(LTX_RATES_MISSING);
+    expect(r.runs).toEqual([]);
+  });
+
+  it("refuses --speech in a language speech was not measured in, before any run is made", async () => {
+    const r = await run({ RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_SPEECH: "on" }, LTX_RATES, "--speech", "--language", "ja");
+    expect(r.code).toBe(1);
+    expect(r.out).toMatch(/a character can speak only in a video in English or Turkish/);
     expect(r.runs).toEqual([]);
   });
 

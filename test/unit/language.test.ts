@@ -6,7 +6,7 @@ import { buildScriptPrompt } from "../../src/providers/gemini.js";
 import { timingProblems } from "../../src/stages/script.js";
 import { PRESETS } from "../../src/presets.js";
 import { captionStyleFor } from "../../src/stages/look.js";
-import { BUILT_IN_VOICES, fontCovers, voicePace, LANGUAGE_IN_ENGLISH, OWN_VOICE_IDS, SPEECH_LANGUAGES, VOICE_DESIGNS, VOICES } from "../../src/voice/language.js";
+import { BUILT_IN_VOICES, canSpeakIn, CHARACTER_SPEECH_LANGUAGES, fontCovers, voicePace, LANGUAGE_IN_ENGLISH, OWN_VOICE_IDS, SPEECH_LANGUAGES, VOICE_DESIGNS, VOICES } from "../../src/voice/language.js";
 import { hostedCatalogue, hostedLanguages } from "../../src/voice/hosted.js";
 import { countUnits, isUnspaced } from "../../src/voice/words.js";
 import { VOICE_PACE } from "../../src/voice/rates.js";
@@ -174,3 +174,16 @@ describe("a script in a language that was asked for", () => {
 
 /** The hosted voices whose samples are not made yet (the account ran out on 2026-10-12; made on 2026-10-15). */
 const SAMPLES_NOT_MADE: string[] = [];
+
+describe("the languages a character may speak in its own clip (phase 15 spec §5)", () => {
+  it("are English and Turkish only, the two that were measured, each one a language a video can be asked for", () => {
+    expect([...CHARACTER_SPEECH_LANGUAGES]).toEqual(["en", "tr"]);
+    for (const code of CHARACTER_SPEECH_LANGUAGES) expect(Object.keys(SPEECH_LANGUAGES)).toContain(code);
+  });
+
+  it("answer whether a video's language is one of them, and no for a video whose language was not given", () => {
+    expect(canSpeakIn("en")).toBe(true);
+    expect(canSpeakIn("tr")).toBe(true);
+    for (const other of ["ja", "de", "ar", "", undefined]) expect(canSpeakIn(other)).toBe(false);
+  });
+});

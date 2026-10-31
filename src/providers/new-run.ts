@@ -1,8 +1,8 @@
-import { type Env, foleyRates, flux3Rates, LTX_RATES_MISSING, ltxRates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
+import { type Env, foleyRates, flux3Rates, ltxRates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
 import type { ImageProfileId } from "../image-profiles.js";
 import { CLIP_QUALITIES, type ClipQuality, type VideoProfileId } from "../video-profiles.js";
 import { hostedModelFor } from "../voice/hosted.js";
-import { OWN_VOICE_LANGUAGES } from "../voice/language.js";
+import { canSpeakIn, OWN_VOICE_LANGUAGES } from "../voice/language.js";
 import { RUNPOD_WORKFLOWS, runpodModelId } from "./model-id.js";
 
 export type NewRunProviders = { image: string; video: string; imageProfile: ImageProfileId; videoProfile: VideoProfileId };
@@ -26,10 +26,11 @@ export function newRunImage(env: Env, prices?: Prices): { image: string; imagePr
 
 /** The models and cost profiles a new run is frozen with: the studio's own GPU endpoints (2.4 spec §3.4). */
 export function newRunProviders(env: Env, clips: ClipQuality = "480p", prices?: Prices): NewRunProviders {
-  // LTX takes the clips when its endpoint is set; a missing rate says so rather than quietly buying Wan (phase 15 spec §7).
-  // The requested clip quality (`clips`) is ignored for an LTX run: it has one size.
-  const ltx = Boolean(env.RUNPOD_LTX_ENDPOINT);
-  if (ltx && !(prices !== undefined && ltxRates(prices))) throw new Error(LTX_RATES_MISSING);
+  // LTX takes the clips when its endpoint and all three of its rates are set: `runpod:deploy` writes the endpoint before
+  // the owner has measured the rates, and in between every new run is made on Wan exactly as before (phase 15 spec §7).
+  // A run already made on LTX still refuses to resume without them (`createProviders`, the profile's cost). The
+  // requested clip quality (`clips`) is ignored for an LTX run: it has one size.
+  const ltx = Boolean(env.RUNPOD_LTX_ENDPOINT) && prices !== undefined && ltxRates(prices) !== undefined;
   // The clip endpoint is checked first and the picture side after, as the two were named together in one message before.
   const needClip = !ltx && !env.RUNPOD_CLIP_ENDPOINT;
   let image: ReturnType<typeof newRunImage>;
@@ -96,14 +97,15 @@ export function newRunSound(env: Env, prices: Prices, sfx: boolean): { model: st
 
 /**
  * Whether a new run lets a character speak (phase 15 spec §5): only when it asked to, its clips are made on LTX (the one
- * engine whose clip carries speech) and the owner switched speech on. Anything else that asks is refused here, at
- * creation, before anything is bought, so no run that cannot speak is ever frozen with speech. The words reach a
- * customer's job log, so they name no model and no setting.
+ * engine whose clip carries speech: its endpoint and rates are set), the owner switched speech on, and the video is in
+ * a language speech was measured in (`canSpeakIn`). Anything else that asks is refused here, at creation, before
+ * anything is bought, so no run is ever frozen with speech it cannot have. The words reach a customer's job log, so they
+ * name no model and no setting.
  */
-export function newRunSpeech(env: Env, videoProfile: VideoProfileId, asked: boolean | undefined): boolean {
+export function newRunSpeech(env: Env, videoProfile: VideoProfileId, asked: boolean | undefined, language: string | undefined): boolean {
   if (!asked) return false;
-  if (videoProfile !== "ltx25@1") throw new Error("a speaking character is not available: this studio's clips are not made with sound");
-  if (env.FLOWCHAIN_SPEECH !== "on") throw new Error("a speaking character is not switched on in this studio");
+  if (videoProfile !== "ltx25@1" || env.FLOWCHAIN_SPEECH !== "on") throw new Error("speaking characters are not available in this studio");
+  if (!canSpeakIn(language)) throw new Error("a character can speak only in a video in English or Turkish");
   return true;
 }
 

@@ -240,7 +240,7 @@ program
   .option("--no-hook", "no hook title or snap zoom")
   .option("--no-sfx", "no sound effects")
   .option("--sfx-gain <0-1>", "scene-sound level relative to the narration (default: 0.6)")
-  .option("--speech", "let a character speak in up to two scenes, in its own clip (phase 15 spec §5): LTX clips with FLOWCHAIN_SPEECH=on only")
+  .option("--speech", "let a character speak in up to two scenes, in its own clip (phase 15 spec §5): LTX clips with FLOWCHAIN_SPEECH=on, --language en or tr")
   .option("--no-speech", "no speaking character (the default)")
   .option("--brand <dir>", "brand kit folder (brand.json, logo, optional font): watermark, font, colours, characters")
   .option("--characters <text>", "character bible used in every prompt (default: the brand kit's, else Gemini's)")
@@ -273,7 +273,7 @@ program
     const kit: BrandKit | undefined = o.brand ? await loadBrandKit(o.brand) : undefined;
     const providers = newRunProviders(env, o.clips, loadPrices());
     // refused now, before anything is bought, where the run's clips cannot speak (phase 15 spec §5, §7)
-    const speech = newRunSpeech(env, providers.videoProfile, o.speech);
+    const speech = newRunSpeech(env, providers.videoProfile, o.speech, o.language);
     const voice = newRunVoice(env, o.language);
     // scene sound is frozen now, on only when everything it needs is here (phase 14 spec §3); a switch that is on without
     // what it needs says so once, and nothing is said otherwise
