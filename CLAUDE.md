@@ -394,6 +394,7 @@ graphify god-nodes --top 20       # the hubs
 | Scene sound effects: a closed synthesized library the script names (§1–§2 replaced by phase 14) | `2026-10-29-phase12-scene-sfx-design.md` |
 | Scene sound: a sound made for each scene from its picture, on the studio's own endpoint (§12 wins) | `2026-10-30-phase14-scene-sound-design.md` |
 | Topic ideas: "Suggest a topic" paid by a fixed credit | `2026-10-30-phase13-trend-ideas-design.md` (§10 wins) |
+| LTX-2.5 as the clip engine (replacing Wan 2.2) and a character who speaks; the licence reading | `2026-10-31-phase15-ltx-engine-design.md` (design only; nothing built yet) |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.
 
