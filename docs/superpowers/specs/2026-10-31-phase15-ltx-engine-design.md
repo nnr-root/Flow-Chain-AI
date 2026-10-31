@@ -246,3 +246,25 @@ stop the phase.**
 5. Decide Foley (§6.3) and Wan (§8) after watching.
 6. Revoke the Hugging Face token pasted into the chat on 2026-10-29 **and** the one used on 2026-10-31, and make one new
    token that is only passed through the shell (§2 needs it only for `fetch-models`/the image build).
+
+## 13. Found while writing the plan (this section wins over every earlier one)
+
+1. **Captions of a speaking scene need word times, and nothing in §5 made them.** The voiceover's words come from the voice
+   worker (own voice: Whisper on what was heard) or from ElevenLabs' alignment; a clip's speech has neither. **`worker-ltx`
+   runs Whisper over the clip's audio itself** (faster-whisper, `large-v3-turbo`, on the card, about 1.6 GB more in the image)
+   when the request carries `speech_language`, and returns `words` (`text`, `start`, `end`, in seconds) with the mp4. The studio
+   needs no voice endpoint for a speaking scene. The contract and its tests gain `speech_language` and `words`.
+2. **A speaking scene is made to look like a spoken one.** For a scene with `speech`, the stages `tts` and `silence` do not apply
+   (`appliesTo`); the `clips` stage, after the picture is made, extracts the clip's sound to the scene's audio file, trims its
+   silence with the code `silence` uses, and writes `scenes[i].audio` (path, trimmed duration) and `scenes[i].words`.
+   Every stage after `clips` (`fit`, `captions`, `render`) then reads an audio and words as it always does and **needs no change**.
+3. **Dependencies change in one place.** Where a stage depends on the duration of an earlier scene `k` (the seam frame, the
+   scene frame counts, the auto modes) it names `{stage:"silence",scene:k}` today; it must name `{stage:"clips",scene:k}` when
+   scene `k` speaks. One function (`durationDep(m, k)` in `src/stages/visual.ts`) is the only place that says it. A speaking
+   scene is **always Mode 1** (it needs a clip); the `modes` stage may not decide otherwise for it.
+4. **The place of a new engine is `VIDEO_PROFILES`** (`src/video-profiles.ts`), not the provider: "a provider billed per second
+   adds a profile here; nothing else changes". LTX is the profile `ltx25@1` (24 fps, `8k+1` frames, 49 to 361, 640×1152);
+   `wan22-*` and `wanFrames` are removed with Wan (§8) and their ids stay in the `VideoProfileId` enum as retired so old runs
+   load (as the two Kling ids do).
+5. **A clip is no longer 16 fps.** `fit`, `planFit`, `extractSeamFrame` and the interpolate stage read the clip's own `fps`
+   (recorded on the clip, §3); a test with a 24 fps clip and a 16 fps clip covers each.
