@@ -278,3 +278,11 @@ stop the phase.**
    of up to 6.5 s; a real run must check that LTX does not stretch the sentence to fill the clip. The `modes` stage leaves
    speaking scenes out of its dependencies, because it runs before `clips` and does not read their length (§13.3's
    `durationDep` is used everywhere else).
+
+### 13.7 Clip sound: how it was built (Task 10; wins over §6)
+
+1. The clip's own sound is a **free branch of the `sound` stage**, not a new stage (a new stage name would reach status, rerender and the studio's lists). `request.sceneSound` (Foley in use for the run) wins for the **whole run**, not scene by scene: a Foley run's plan and hashes stay byte-for-byte what they were, and a scene whose `soundPrompt` is empty then has no sound at all.
+2. The clip's sound is **extracted even when sound effects are off** (cost 0, one wav per scene, a stage record, no ledger line): `rerender` refuses every stage but modes, captions and render, so turning sound effects on later would otherwise be refused.
+3. The sound is never time-stretched. When the fit plan slows the picture, the sound plays at its own speed, fades over 0.5 s where it ends (up to about 20 % before the scene's end) and may drift up to 25 % from the picture. Only a real run shows whether that sounds acceptable.
+4. The clip's recorded length for a clip with an audio stream is its **video stream's** length (the container's is the longer of the two).
+5. **Studio (Task 11):** "sound effects are offered" is true when Foley is on **or** LTX is on, so the form no longer sends `--no-sfx` for an LTX video and its clip sound is heard.
