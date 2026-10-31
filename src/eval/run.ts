@@ -2,7 +2,7 @@ import { z } from "zod";
 import { scriptParts, wordsPerSecond } from "../duration.js";
 import type { LlmProvider } from "../providers/types.js";
 import { validateOutline, validatePart, validateScript, validateTranslation } from "../stages/script.js";
-import { type Finding, rawHashtags, startsFromRest, textAsked } from "./checks.js";
+import { type Finding, rawHashtags, speechFaults, startsFromRest, textAsked, videoPromptFaults } from "./checks.js";
 import type { EvalCase } from "./cases.js";
 
 export type StepResult = { step: string; accepted: boolean; problems: string[]; extra: Finding[] };
@@ -15,6 +15,16 @@ const Tags = z.object({ hashtags: z.array(z.string()).optional() }).passthrough(
 const scenesOf = (raw: unknown): JudgeScene[] => {
   const parsed = Scenes.safeParse(raw);
   return parsed.success ? parsed.data.scenes.map(({ narration, imagePrompt, motionPrompt, shot }) => ({ narration, imagePrompt, motionPrompt, shot })) : [];
+};
+// (the clip model's prompt and the sentence a person says, phase 15: checked offline, not shown to the judge)
+const Clips = z.object({ scenes: z.array(z.object({ videoPrompt: z.string().optional(), speech: z.string().optional() }).passthrough()) });
+const clipsOf = (raw: unknown): Array<{ videoPrompt?: string; speech?: string }> => {
+  const parsed = Clips.safeParse(raw);
+  return parsed.success ? parsed.data.scenes.map(({ videoPrompt, speech }) => ({ videoPrompt, speech })) : [];
+};
+const clipChecks = (raw: unknown, allowed: boolean, language?: string): Finding[] => {
+  const clips = clipsOf(raw);
+  return [...videoPromptFaults(clips), ...speechFaults(clips, allowed, language)];
 };
 const tagsOf = (raw: unknown): string[] | undefined => {
   const parsed = Tags.safeParse(raw);
@@ -51,7 +61,7 @@ export async function runCase(llm: Pick<LlmProvider, "generateScript">, c: EvalC
     const raw = await llm.generateScript(req);
     const found = scenesOf(raw);
     scenes.push(...found);
-    steps.push(step("script", validateScript(raw, req.sceneCount, req.timing, language, voiceId, req.wordsPerSecond), [...textAsked(found), ...startsFromRest(found), ...rawHashtags(tagsOf(raw))]));
+    steps.push(step("script", validateScript(raw, req.sceneCount, req.timing, language, voiceId, req.wordsPerSecond), [...textAsked(found), ...startsFromRest(found), ...clipChecks(raw, req.speech === true, language), ...rawHashtags(tagsOf(raw))]));
     return { steps, scenes };
   }
 
@@ -65,7 +75,9 @@ export async function runCase(llm: Pick<LlmProvider, "generateScript">, c: EvalC
     const raw = await llm.generateScript({ ...req, ask: { kind: "part", index: i, partSec, outline: outline.value, previous } });
     const found = scenesOf(raw);
     const checked = validatePart(raw, i, partSec[i], req.timing.sceneSec, language, voiceId, req.wordsPerSecond, outline.value.styleBible.setting);
-    steps.push(step(`part:${i + 1}`, checked, [...textAsked(found), ...startsFromRest(found)]));
+    // (a part may speak only as its prompt allowed: the first and the last part, as gemini.ts tells it)
+    const speaks = req.speech === true && (i === 0 || i === partSec.length - 1);
+    steps.push(step(`part:${i + 1}`, checked, [...textAsked(found), ...startsFromRest(found), ...clipChecks(raw, speaks, language)]));
     scenes.push(...found);
     if (!checked.ok) return { steps, scenes };
     previous = found.slice(-2).map((s) => s.narration);

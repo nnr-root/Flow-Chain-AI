@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rawHashtags, startsFromRest, textAsked } from "../../src/eval/checks.js";
+import { rawHashtags, speechFaults, startsFromRest, textAsked, videoPromptFaults } from "../../src/eval/checks.js";
 
 describe("a picture prompt that asks for writing", () => {
   it("is found, naming the scene", () => {
@@ -31,5 +31,45 @@ describe("a continue scene that starts from rest", () => {
     expect(startsFromRest([moving, { motionPrompt: "the push-in continues toward the door", shot: "continue" }])).toEqual([]);
     expect(startsFromRest([moving, { motionPrompt: "a static camera on the keeper", shot: "cut" }])).toEqual([]);
     expect(startsFromRest([{ motionPrompt: "a static camera", shot: "cut" }, { motionPrompt: "a static camera", shot: "continue" }])).toEqual([]);
+  });
+});
+
+describe("a prompt for the clip model that asks for what it draws wrong", () => {
+  const good = "A keeper stands still at the rail of the lighthouse gallery while the camera pushes in slowly; his hands stay on the rail and his body does not turn. Late blue dusk light. Audio: wind over the gallery, surf on rock below.";
+  it("is found when it asks for a cut, a widescreen look or film, naming the scene and the word", () => {
+    const found = videoPromptFaults([
+      { videoPrompt: good },
+      { videoPrompt: "A cinematic shot of the keeper. Audio: wind." },
+      { videoPrompt: "The keeper turns, then a hard cut to the lamp room. Audio: wind." },
+      { videoPrompt: "A widescreen view with black bars of the coast. Audio: surf." },
+    ]);
+    expect(found.map((f) => f.where)).toEqual(["scene 2", "scene 3", "scene 4", "scene 4"]);
+    expect(found.map((f) => f.detail.toLowerCase())).toEqual(["cinematic", "cut to", "widescreen", "black bars"]);
+  });
+  it("is found when its last sentence does not begin with Audio:", () => {
+    expect(videoPromptFaults([{ videoPrompt: "A keeper stands still at the rail. Wind blows." }]).map((f) => f.check)).toEqual(["video-audio"]);
+  });
+  it("lets through a good one, a scene with no videoPrompt, and a cut that is not a cut of the picture", () => {
+    expect(videoPromptFaults([{ videoPrompt: good }, {}, { videoPrompt: "A baker cuts the bread on a board. Audio: a knife on crust." }])).toEqual([]);
+  });
+});
+
+describe("the sentences people say", () => {
+  const says = (speech: string, videoPrompt = `A woman looks into the camera and says "${speech}", lips moving precisely with every word. Audio: a quiet kitchen.`) => ({ speech, videoPrompt });
+  it("are found when the run did not allow speech", () => {
+    expect(speechFaults([says("Hello there."), { speech: "" }], false).map((f) => f.check)).toEqual(["speech-not-allowed"]);
+  });
+  it("are found when more than two scenes speak, or one says more than 14 words, counted by the words module", () => {
+    const long = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen";
+    expect(speechFaults([says("Hi."), says("Hi."), says("Hi.")], true).map((f) => f.check)).toEqual(["speech-scenes"]);
+    expect(speechFaults([says(long)], true).map((f) => f.check)).toEqual(["speech-words"]);
+    expect(speechFaults([says("あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみ")], true, "ja").map((f) => f.check)).toEqual(["speech-words"]);
+  });
+  it("are found when the scene's videoPrompt does not quote the sentence with its lips moving with every word", () => {
+    expect(speechFaults([{ speech: "Hello there.", videoPrompt: "A woman smiles. Audio: wind." }], true).map((f) => f.check)).toEqual(["speech-unquoted"]);
+  });
+  it("let through up to two short quoted sentences, and scenes that say nothing", () => {
+    expect(speechFaults([says("I kept the light burning for forty years."), { speech: "" }, says("And it never once went out.")], true)).toEqual([]);
+    expect(speechFaults([{ speech: "" }, {}], false)).toEqual([]);
   });
 });

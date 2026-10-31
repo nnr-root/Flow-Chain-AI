@@ -29,3 +29,13 @@ describe("the eval cases", () => {
     expect(ask.seconds).toHaveLength(ask.source.narrations.length);
   });
 });
+
+describe("the eval cases for the clip model's prompt and for speech (phase 15)", () => {
+  it("have a speaking scene's case that allows speech, one that does not, and one that invites a widescreen look", () => {
+    const of = (id: string) => CASES.find((c) => c.id === id)?.request;
+    expect(of("speech-speaking")?.speech).toBe(true);
+    expect(of("speech-none")).toBeDefined();
+    expect(of("speech-none")?.speech).toBeFalsy();
+    expect(of("video-no-cut")?.aspect).toBe("9:16");
+  });
+});

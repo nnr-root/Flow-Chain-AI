@@ -3,7 +3,7 @@ import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { PROMPT_VERSION, TEMPERATURE, temperatureOf, UPSAMPLE_DECODING } from "./prompt-version.js";
 import { lengthInWords, maxSceneUnits, sceneBounds, sceneWords, totalWords, translationWords, typicalSceneWords, wordsPerSecond } from "../duration.js";
-import { hookCap, isUnspaced, lengthUnit, unitsPerWord } from "../voice/words.js";
+import { hookCap, isUnspaced, lengthUnit, speechCap, unitsPerWord } from "../voice/words.js";
 import { FACT_RULES, nicheById } from "../niches.js";
 import { formatById } from "../formats.js";
 import { editById } from "../edits.js";
@@ -123,7 +123,39 @@ const REFRAME_RULE =
 const SOUND_BIBLE_RULE =
   "- soundBible (once, before the scenes): the video's sound palette in English, at most 300 characters: the place and time as sound, and three to five recurring elements (for example: a storm coast lighthouse: wind, surf on rock, stone echo, brass machinery, a creaking iron stair).";
 
-function sceneRules(req: ScriptRequest): string[] {
+/**
+ * The prompt the clip model that makes its own sound reads (phase 15 spec §4): written for every scene, since the
+ * schema asks for it, and used only by a run on that model (a Wan run reads the motionPrompt). The words it must
+ * never use are what made that model fail (spec §1): asked for several shots in a vertical frame, or for a
+ * "cinematic" look, it drew a widescreen picture with black bands above and below inside the tall frame.
+ */
+const videoPromptRules = (speaking: boolean): string[] => [
+  '- videoPrompt: the same scene written for a clip model that also makes the sound, in English, at most 1200 characters, for every scene, as one flowing paragraph in the present tense: what is seen, who does one action and in what order, the camera, the light, and a last sentence begins "Audio:" with what is heard.',
+  '- videoPrompt, what it shows: the frame of the imagePrompt and the motion of the motionPrompt: one subject doing one action from start to end, and one camera move. When a person stays still, say what does not move (for example "her hands stay folded in her lap and her body does not turn"), or the model moves them.',
+  '- videoPrompt, what it never asks for: a cut, a sequence of shots, or a change of place or angle inside the clip; and never a look that draws a widescreen picture inside the frame: no "cinematic", "film", "widescreen", "letterbox" or "black bars".',
+  `- videoPrompt, its "Audio:" sentence: repeats the ideas of this scene's soundPrompt (the same sources and materials, in words of its own), ${speaking ? "with no music and no voice but the sentence in speech" : "with no music and no voices"}.`,
+];
+
+/**
+ * Where a script may give a person a sentence to say (phase 15 spec §5): nowhere, in at most two scenes of a whole
+ * script, or in at most one scene of a long video's first or last part (so the video has at most two; a part does
+ * not see the others' scenes, so the parts between are given none).
+ */
+type Speaking = "none" | "whole" | "part";
+
+/** The sentence a person says, where the run allows it; else every scene's `speech` is asked for empty. */
+function speechRules(req: ScriptRequest, speaking: Speaking): string[] {
+  if (speaking === "none") return ['- speech: an empty string ("") in every scene.'];
+  const language = req.language ? LANGUAGE_IN_ENGLISH[req.language] : "the language of the narration";
+  const where = speaking === "whole" ? "in at most two scenes of the whole video" : "in at most one scene of this part";
+  return [
+    `- speech: the one sentence an invented person in the scene says aloud, looking into the camera, written in ${language}; or an empty string (""). Give one only to a scene where an invented person talks to the camera, ${where}, and every other scene's speech is an empty string; and one speaker in the whole video: the same person each time, never a real or famous person, described the same short way (age, clothing, hair) in every scene they speak in${speaking === "part" ? " and as the characters above describe them" : " and among styleBible.characters"}.`,
+    `- speech, its words: at most ${speechCap(req.language)} ${lengthUnit(req.language)}, said the way a native speaker would say it, plain text, no stage directions. That scene's narration is the same sentence, word for word: the person says it instead of the narrator.`,
+    '- In a scene with speech, the videoPrompt describes the person and quotes the sentence in quotation marks exactly as in speech, followed by "lips moving precisely with every word" (for example: The keeper looks into the camera and says "...", lips moving precisely with every word.). Its imagePrompt shows that person facing the camera, at medium distance or closer.',
+  ];
+}
+
+function sceneRules(req: ScriptRequest, speaking: Speaking = req.speech ? "whole" : "none"): string[] {
   const orientation =
     req.aspect === "9:16"
       ? "vertical 9:16 (subject centered, tall composition)"
@@ -147,6 +179,8 @@ function sceneRules(req: ScriptRequest): string[] {
     '- actionLevel: "high" for fast or complex motion worth real video, "medium" for some motion, "low" for still, contemplative or text-like moments.',
     '- suggestedTransition: how the cut into this scene should feel: "cut" for punchy or continuous energy, "fade" or "dissolve" for time passing or a mood shift, "zoom_transition" for an energetic jump. Scene 1\'s value is ignored.',
     "- soundPrompt: what is heard in this scene's place, in English, at most 200 characters, built from the soundBible and specific to the scene (what moves, what it touches, how far away). No speech, voices, singing or music, ever. Concrete sources and materials. Scenes must differ from one another in what leads the sound while the soundBible keeps them one place. A scene with nothing to hear gets a quiet room tone, never an empty soundPrompt.",
+    ...videoPromptRules(speaking !== "none"),
+    ...speechRules(req, speaking),
     ...(req.shots
       ? [
           `- Use exactly these shot values, in order: ${req.shots.map((s, i) => `scene ${i + 1} "${s}"`).join(", ")}. ` +
@@ -310,6 +344,8 @@ function outlinePrompt(req: ScriptRequest, partSec: number[]): string {
     hashtagRule(req),
     ...bibleRules(req),
     SOUND_BIBLE_RULE,
+    // (the parts are written apart, so the one person who may speak is settled here, where every part reads it)
+    ...(req.speech ? ["- One invented person may talk to the camera in a scene of the first part and of the last part, one speaker in the whole video, never a real or famous person: if this video has one, describe them among styleBible.characters (age, clothing, hair), so every part shows the same person."] : []),
     `- parts: exactly ${partSec.length}, in order. For each, summary: what that part tells, in one or two plain sentences, specific enough that someone else could write it.`,
     "- The parts together are one story with a direction: part 1 opens on the hook and makes a promise, each part adds something the ones before did not, and the last part pays the promise off. No part repeats another, and none is filler.",
     ...feedbackLines(req),
@@ -350,7 +386,7 @@ function partPrompt(req: ScriptRequest, ask: Extract<NonNullable<ScriptRequest["
     narrationRule(req),
     "- The narrations of this part read as one continuous script.",
     FLOW_RULE,
-    ...sceneRules(req),
+    ...sceneRules(req, req.speech && (first || last) ? "part" : "none"),
     ...feedbackLines(req),
   ].join("\n");
 }

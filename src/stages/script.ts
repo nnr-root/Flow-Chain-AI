@@ -239,6 +239,8 @@ export const scriptStage: Stage = {
       ...(edit ? { edit } : {}),
       ...(localize ? { localize } : {}),
       ...(allowsReframe(ctx.manifest) ? { reframe: true } : {}),
+      // (speech changes what the script is asked for, so it is in the key; only when on, so every earlier run keeps its key)
+      ...(ctx.manifest.request.speech ? { speech: true } : {}),
     };
     // a run asked for by its length is keyed on that: its number of scenes is the script's own answer
     if (timing) return { model: ctx.manifest.models.llm, topic, timing, aspect, shots, style, characters, ...asked };
@@ -250,7 +252,7 @@ export const scriptStage: Stage = {
     if (ctx.manifest.request.versionOf) return translate(ctx);
     const { topic, sceneCount, aspect, shots, style, characters, timing, language, niche, nicheText, format, edit, localize, wordsPerSecond: frozen } = ctx.manifest.request;
     const voiceId = ctx.manifest.request.voiceId;
-    const req: ScriptRequest = { topic, sceneCount, aspect, shots, style, characters, timing, language, voiceId, niche, nicheText, format, edit, localize, ...(frozen ? { wordsPerSecond: frozen } : {}), ...(allowsReframe(ctx.manifest) ? { reframe: true } : {}) };
+    const req: ScriptRequest = { topic, sceneCount, aspect, shots, style, characters, timing, language, voiceId, niche, nicheText, format, edit, localize, ...(frozen ? { wordsPerSecond: frozen } : {}), ...(allowsReframe(ctx.manifest) ? { reframe: true } : {}), ...(ctx.manifest.request.speech ? { speech: true } : {}) };
     const partSec = timing ? scriptParts(timing.targetSec) : null;
     const script = timing && partSec
       ? await writeInParts(ctx, req, timing, partSec)

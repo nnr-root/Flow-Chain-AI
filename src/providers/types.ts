@@ -29,6 +29,11 @@ export type ScriptRequest = {
   localize?: boolean;
   /** The script may mark a cut as a reframe (phase 10 spec §4); absent = it may not and is not told of it. */
   reframe?: boolean;
+  /**
+   * An invented person may say a sentence in a scene (phase 15 spec §5): the run's frozen `speech`. Absent = the
+   * script is not told of speech at all, and every scene's `speech` is asked for as an empty string.
+   */
+  speech?: boolean;
   /** The language to write what is said and shown as words in; absent = the model's own choice. */
   language?: SpeechLanguage;
   feedback?: string;

@@ -1,4 +1,5 @@
 import { HASHTAGS } from "../hashtags.js";
+import { countUnits, speechCap } from "../voice/words.js";
 
 /** What an eval check found: which check, where in the answer, and what. */
 export type Finding = { check: string; where: string; detail: string };
@@ -33,4 +34,37 @@ export function startsFromRest(scenes: ReadonlyArray<{ motionPrompt: string; sho
       ? [{ check: "starts-from-rest", where: `scene ${i + 1}`, detail: s.motionPrompt }]
       : [],
   );
+}
+
+// (phase 15 spec §1, §4: asked for any of these, the clip model drew a widescreen picture with black bands inside the
+// vertical frame, or several shots in one clip; "cuts the bread" is an action, not a cut, so a cut is "cut to"/"cut away")
+const WIDESCREEN = /\bcinematic\b|\bfilm\b|\bwidescreen\b|\bletterbox(?:ed)?\b|\bblack bars\b|\bcuts? (?:to|away)\b|\bmulti-?shot\b|\bshot sequence\b|\bsequence of shots\b/gi;
+const AUDIO_SENTENCE = /(?:^|[.!?"”]\s+)Audio:\s*\S/;
+const LIPS = "lips moving precisely with every word";
+
+/** Each clip prompt that asks for a cut or a widescreen look, and each whose sound is not in a last "Audio:" sentence. */
+export function videoPromptFaults(scenes: ReadonlyArray<{ videoPrompt?: string }>): Finding[] {
+  return scenes.flatMap((s, i) => {
+    if (!s.videoPrompt) return [];
+    const where = `scene ${i + 1}`;
+    const words = [...s.videoPrompt.matchAll(WIDESCREEN)].map((m) => ({ check: "video-widescreen", where, detail: m[0] }));
+    return AUDIO_SENTENCE.test(s.videoPrompt) ? words : [...words, { check: "video-audio", where, detail: s.videoPrompt.slice(-80) }];
+  });
+}
+
+/**
+ * The sentences people say (phase 15 spec §5): none where the run did not allow them; where it did, at most two
+ * scenes, each sentence within the cap (counted by the words module, so in characters without spaces), and quoted
+ * in its scene's clip prompt with the lip clause.
+ */
+export function speechFaults(scenes: ReadonlyArray<{ speech?: string; videoPrompt?: string }>, allowed: boolean, language?: string): Finding[] {
+  const speaking = scenes.map((s, i) => ({ ...s, said: s.speech?.trim() ?? "", where: `scene ${i + 1}` })).filter((s) => s.said);
+  if (!allowed) return speaking.map((s) => ({ check: "speech-not-allowed", where: s.where, detail: s.said }));
+  return [
+    ...(speaking.length > 2 ? [{ check: "speech-scenes", where: "scenes", detail: `${speaking.length} scenes speak, 2 at most` }] : []),
+    ...speaking.flatMap((s) => [
+      ...(countUnits(s.said, language) > speechCap(language) ? [{ check: "speech-words", where: s.where, detail: s.said }] : []),
+      ...(s.videoPrompt?.includes(s.said) && s.videoPrompt.toLowerCase().includes(LIPS) ? [] : [{ check: "speech-unquoted", where: s.where, detail: s.said }]),
+    ]),
+  ];
 }

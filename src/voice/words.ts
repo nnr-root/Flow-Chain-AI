@@ -58,3 +58,10 @@ export function unitsPerWord(language: string | undefined, rate: number): number
  * cap worked out from the voice's rate came to eight characters of Chinese, which turned down ordinary titles).
  */
 export const hookCap = (language: string | undefined, _rate?: number): number => (isUnspaced(language) ? 12 : 6);
+
+/**
+ * The most a sentence said on screen by a person in a clip may have (phase 15 spec §5): 14 words, what was measured to
+ * be said in about 6 s (a 16-word line took 5–6 s), or in a language without spaces 28 characters, two to a word as
+ * for the hook. Longer is not tried: the clip's length is the sentence's, and a clip is at most 15 s.
+ */
+export const speechCap = (language?: string): number => (isUnspaced(language) ? 28 : 14);

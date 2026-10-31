@@ -59,6 +59,10 @@ export function pinnedPrompts(): Record<string, string> {
   out["upsample:t2i"] = upsampleInstructions(false) + "\n" + upsampleUserText("a lighthouse at dusk", 0);
   out["upsample:i2i"] = upsampleInstructions(true) + "\n" + upsampleUserText("a lighthouse at dusk", 2);
   out["part:1:reframe"] = buildScriptPrompt({ ...base, timing: timed, format: "documentary", reframe: true, ask: { kind: "part", index: 1, partSec: [60, 60], outline, previous: ["Last line one."] } });
+  // speech allowed (phase 15 spec §5): the whole script, the outline that settles the speaker, and a part that may speak
+  out["whole:speech"] = buildScriptPrompt({ ...base, language: "tr", speech: true });
+  out["outline:speech"] = buildScriptPrompt({ ...base, timing: timed, speech: true, ask: { kind: "outline", partSec: [60, 60] } });
+  out["part:1:speech"] = buildScriptPrompt({ ...base, timing: timed, speech: true, ask: { kind: "part", index: 1, partSec: [60, 60], outline, previous: ["Last line one."] } });
   out["whole:style+characters"] = buildScriptPrompt({ ...base, style: "anime", characters: "a red fox" });
   out["whole:feedback"] = buildScriptPrompt({ ...base, feedback: "scene 2 narration has 20 words" });
   for (const n of NICHES) out[`niche:${n.id}`] = buildScriptPrompt({ ...base, niche: n.id });

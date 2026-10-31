@@ -35,6 +35,14 @@ describe("running an eval case", () => {
     expect(out.steps[0].extra.map((f) => f.check).sort()).toEqual(["hashtag-generic", "text-asked"]);
   });
 
+  it("reports a clip prompt with a widescreen look and a sentence said in a run that did not allow speech", async () => {
+    const answer = fakeScript(4);
+    answer.scenes[1].videoPrompt = "A cinematic view of the keeper at the rail. Audio: wind.";
+    answer.scenes[3].speech = "I never left this light.";
+    const out = await runCase(new FakeLlm(() => answer), byId("scene-count"));
+    expect(out.steps[0].extra.map((f) => `${f.check} ${f.where}`).sort()).toEqual(["speech-not-allowed scene 4", "video-widescreen scene 2"]);
+  });
+
   it("asks a long video for its outline first, and stops at an outline that is rejected", async () => {
     const llm = new FakeLlm((req) => {
       const { scenes: _none, ...head } = fakeScript(1);
