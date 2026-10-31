@@ -63,10 +63,24 @@ describe("the clips stage on LTX", () => {
     expect((await probeVideo(abs(ctx, clip.path))).fps).toBe(24);
   });
 
-  it("keeps an LTX clip's frame rate when a paid result is reused after a stop, and leaves its sound unknown", async () => {
+  it("keeps an LTX clip's frame rate and sound when a paid result is reused after a stop", async () => {
     const { ctx, ltx } = await ltxRun({ shots: ["cut"] });
     await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
-    // stopped after the job was paid for and before the clip was recorded: only the job's url is on disk
+    // stopped after the job was paid for and before the clip was recorded: the job's answer is on disk
+    expect(ctx.manifest.scenes[0].jobs.clips!.result).toMatchObject({ fps: 24, hasAudio: true });
+    delete ctx.manifest.scenes[0].clip;
+    delete ctx.manifest.scenes[0].stages.clips;
+    await runPipeline(ctx, [clipsStage], auto);
+    expect(ltx.submits).toHaveLength(1);
+    expect(ctx.manifest.scenes[0].clip).toMatchObject({ fps: 24, hasAudio: true });
+  });
+
+  it("keeps an LTX clip's frame rate when a result kept before its answer was is reused, and leaves its sound unknown", async () => {
+    const { ctx, ltx } = await ltxRun({ shots: ["cut"] });
+    await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
+    // a result kept as every result was before phase 15: only the job's url
+    const job = ctx.manifest.scenes[0].jobs.clips!;
+    job.result = { url: job.result!.url };
     delete ctx.manifest.scenes[0].clip;
     delete ctx.manifest.scenes[0].stages.clips;
     await runPipeline(ctx, [clipsStage], auto);

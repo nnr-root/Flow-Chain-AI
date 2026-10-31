@@ -10,6 +10,7 @@ import type {
   ImageOutput, ImageProvider, ImageRequest, PreparedJob, SoundOutput, SoundProvider, SoundRequest, SubmitOptions, UpscaleProvider, UpscaleRequest, VideoOutput,
   VideoProvider, VideoRequest, WaitOptions,
 } from "./types.js";
+import { HeardWord } from "../manifest/heard-word.js";
 import type { WordTiming } from "../manifest/schema.js";
 
 /** `/run` accepts at most 10 MB; base64 images are checked against this before anything is bought. */
@@ -236,14 +237,9 @@ export function ltxClipFrames(durationSec: number): number {
  */
 function ltxWords(raw: unknown): WordTiming[] | undefined | "malformed" {
   if (raw === undefined || raw === null) return undefined;
-  if (!Array.isArray(raw)) return "malformed";
-  // (the times become caption timings: a negative one, or a word that ends before it starts, would place a caption wrongly)
-  const ok = raw.every((w: unknown) => {
-    if (typeof w !== "object" || w === null) return false;
-    const { text, start, end } = w as WordTiming;
-    return typeof text === "string" && Number.isFinite(start) && Number.isFinite(end) && start >= 0 && end >= start;
-  });
-  return ok ? raw.map((w: WordTiming) => ({ text: w.text, start: w.start, end: w.end })) : "malformed";
+  // (the same check a kept result is loaded with: the times become caption timings)
+  const parsed = HeardWord.array().safeParse(raw);
+  return parsed.success ? parsed.data : "malformed";
 }
 
 /**

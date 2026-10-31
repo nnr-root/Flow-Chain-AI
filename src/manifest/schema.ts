@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { HeardWord as HeardWordSchema } from "./heard-word.js";
 import { BrandLook } from "../brand.js";
 import { Aspect, Prices } from "../config.js";
 import { CaptionStyleName, Transition } from "../media/remotion/props.js";
@@ -179,6 +180,8 @@ export type LlmTranslation = z.infer<typeof LlmTranslation>;
 export const WordTiming = z.object({ text: z.string(), start: z.number(), end: z.number() });
 export type WordTiming = z.infer<typeof WordTiming>;
 
+export { HeardWord } from "./heard-word.js";
+
 export const StageRecord = z.object({
   status: z.enum(["done", "failed"]),
   inputHash: z.string(),
@@ -211,7 +214,14 @@ export const ProviderJob = z.object({
    */
   expectedUsd: z.number().optional(),
   chargedUsd: z.number().default(0),
-  result: z.object({ url: z.string(), seed: z.number().optional() }).optional(),
+  /**
+   * What the finished job answered, kept the moment it is charged so a resume finishes it without buying it again. An LTX
+   * clip's frame rate, whether it has sound and the words heard in it are kept with it (phase 15): a speaking scene's
+   * audio is made from them. Absent on every other result and on results kept before.
+   */
+  result: z
+    .object({ url: z.string(), seed: z.number().optional(), fps: z.number().positive().optional(), hasAudio: z.boolean().optional(), words: z.array(HeardWordSchema).optional() })
+    .optional(),
 });
 export type ProviderJob = z.infer<typeof ProviderJob>;
 

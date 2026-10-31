@@ -18,6 +18,8 @@ import { silenceStage } from "../../src/stages/silence.js";
 import { ttsStage } from "../../src/stages/tts.js";
 import { durationDep, isSpeaking, sceneFrames } from "../../src/stages/visual.js";
 import { sceneStagesShown } from "../../src/studio/status.js";
+import { ProviderJob } from "../../src/manifest/schema.js";
+import { versionProblem } from "../../src/versions.js";
 import type { ActionLevel } from "../../src/manifest/schema.js";
 import { FakeLtxVideo, fakeScript, SPOKEN, type Shot } from "../fakes/providers.js";
 import { makeTestContext } from "../helpers/context.js";
@@ -76,6 +78,10 @@ describe("which scene speaks", () => {
     // and a sentence in a run that did not allow speech buys nothing
     m.script!.scenes[1].speech = SENTENCE;
     delete m.request.speech;
+    expect(isSpeaking(m, 1)).toBe(false);
+    // nor in a run whose clips are made by an engine that does not speak
+    m.request.speech = true;
+    m.request.videoProfile = "wan22-480p@1";
     expect(isSpeaking(m, 1)).toBe(false);
   });
 
@@ -215,6 +221,45 @@ describe("a speaking scene's clip", () => {
   });
 });
 
+describe("a speaking scene's paid clip", () => {
+  it("is finished on resume from what its job answered, without buying it again, when its download failed", async () => {
+    const { ctx, ltx } = await speechRun();
+    ltx.withhold = (req) => req.speechLanguage !== undefined;
+    await expect(runPipeline(ctx, MEDIA, auto)).rejects.toThrow();
+    expect(ctx.manifest.scenes[1].jobs.clips!.result).toMatchObject({ fps: 24, hasAudio: true, words: SPOKEN.words });
+    await ltx.release();
+    await runPipeline(ctx, MEDIA, auto);
+    expect(ltx.submits.filter((r) => r.speechLanguage !== undefined)).toHaveLength(1);
+    expect(ctx.manifest.scenes[1].audio!.words).toEqual(SPOKEN.words);
+    expect(ctx.manifest.ledger.filter((e) => e.stage === "clips" && e.scene === 1)).toHaveLength(1);
+  });
+
+  it("is kept in a record that still loads as it was written before, and refuses words a caption could not be placed by", () => {
+    expect(ProviderJob.parse({ requestId: "r", inputHash: "h", submittedAt: "t", result: { url: "u" } }).result).toEqual({ url: "u" });
+    const kept = { url: "u", fps: 24, hasAudio: true, words: [{ text: "Hi", start: 0.1, end: 0.4 }] };
+    expect(ProviderJob.parse({ requestId: "r", inputHash: "h", submittedAt: "t", result: kept }).result).toEqual(kept);
+    for (const word of [{ text: "Hi", start: -0.1, end: 0.4 }, { text: "Hi", start: 0.5, end: 0.4 }, { text: "Hi", start: Number.NaN, end: 0.4 }]) {
+      expect(ProviderJob.safeParse({ requestId: "r", inputHash: "h", submittedAt: "t", result: { url: "u", words: [word] } }).success).toBe(false);
+    }
+  });
+});
+
+describe("a version of a video with a speaking scene", () => {
+  it("is refused before anything is bought, saying why without naming an engine", async () => {
+    const { ctx } = await speechRun();
+    await runPipeline(ctx, [scriptStage], auto);
+    const problem = versionProblem(ctx.manifest, "de");
+    expect(problem).toBe("a video with a speaking character cannot be made in another language: its character speaks the source language");
+    expect(problem).not.toMatch(/ltx|lightricks|runpod|whisper/i);
+  });
+
+  it("is not refused for that in a run that allows speech and has no speaking scene", async () => {
+    const { ctx } = await speechRun({ speaking: [] });
+    await runPipeline(ctx, [scriptStage], auto);
+    expect(versionProblem(ctx.manifest, "de") ?? "").not.toMatch(/speaking character/);
+  });
+});
+
 describe("a speaking scene that cannot be used", () => {
   it("fails, naming the scene, when the sentence with its tail is longer than it may be, and keeps the clip's charge", async () => {
     const { ctx, ltx } = await speechRun();
@@ -273,6 +318,13 @@ describe("a speaking scene's mode", () => {
     const { ctx } = await speechRun({ modes: [1, 2, 2] });
     await runPipeline(ctx, [...AUDIO, modesStage], auto);
     expect(ctx.manifest.scenes.map((s) => s.mode)).toEqual([1, 1, 2]);
+  });
+
+  it("adds no voiceover to what the modes are priced at", async () => {
+    const { ctx } = await speechRun({ modes: "auto" });
+    await runPipeline(ctx, AUDIO, auto);
+    const { auto: inputs } = (await modesStage.inputsFor(ctx)) as { auto: { scenes: Array<{ narrationChars: number }> } };
+    expect(inputs.scenes.map((s) => s.narrationChars)).toEqual([ctx.manifest.script!.scenes[0].narration.length, 0, ctx.manifest.script!.scenes[2].narration.length]);
   });
 
   it("leaves a run without a speaking scene's mode key as it was", async () => {

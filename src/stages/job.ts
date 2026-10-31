@@ -25,6 +25,15 @@ export type JobSpec<Out extends { url: string; seed?: number; costUsd?: number }
 const WAIT_SLACK_MS = 30_000;
 
 /**
+ * What an LTX clip's answer carries beyond its url (phase 15): kept with the result, as the provider gave it, so a stop
+ * after the job is charged loses none of it. Only the keys a result has: every other kind of result is kept as it was.
+ */
+function heard(result: object): Pick<NonNullable<ProviderJob["result"]>, "fps" | "hasAudio" | "words"> {
+  const r = result as Pick<NonNullable<ProviderJob["result"]>, "fps" | "hasAudio" | "words">;
+  return { ...(r.fps === undefined ? {} : { fps: r.fps }), ...(r.hasAudio === undefined ? {} : { hasAudio: r.hasAudio }), ...(r.words === undefined ? {} : { words: r.words }) };
+}
+
+/**
  * Submits exactly once with a real deadline: when it runs out the request is aborted (cancelled), never
  * left running in the background where it could still complete and buy a job nobody records.
  */
@@ -127,7 +136,7 @@ export async function runProviderJob<Out extends { url: string; seed?: number; c
       { cause: err },
     );
   }
-  pending.result = result.seed === undefined ? { url: result.url } : { url: result.url, seed: result.seed };
+  pending.result = { url: result.url, ...(result.seed === undefined ? {} : { seed: result.seed }), ...heard(result) };
   // providers that bill by measured GPU time report the actual cost; otherwise the estimate is charged
   await chargeOnce(ctx, pending, result.costUsd ?? spec.costUsd);
   return result;
