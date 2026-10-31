@@ -45,6 +45,8 @@ export function fakeScript(sceneCount: number, opts: FakeScriptOptions = {}) {
       suggestedTransition: opts.transitions?.[i] ?? "fade",
       showsCharacter: opts.shown?.[i] ?? true,
       soundPrompt: `wind and surf, scene ${i + 1}`,
+      videoPrompt: `A red fox walks through snow, scene ${i + 1}. Audio: wind and surf.`,
+      speech: "",
     })),
   };
 }

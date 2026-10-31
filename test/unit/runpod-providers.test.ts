@@ -1,8 +1,8 @@
 import { PresetName } from "../../src/presets.js";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { Prices, runpodRates } from "../../src/config.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { LTX_RATES_MISSING, Prices, runpodRates } from "../../src/config.js";
 import { createProviders } from "../../src/providers/factory.js";
 import { parseModelId, runpodModelId } from "../../src/providers/model-id.js";
 import type { R2 } from "../../src/providers/r2.js";
@@ -323,5 +323,161 @@ describe("the clip worker's early start (RunPod)", () => {
     await expect(gone.warmCost(id, { timeoutMs: 5000 })).rejects.toThrow(/still IN_QUEUE/);
     api.expire(id);
     await expect(gone.warmCost(id, { timeoutMs: 5000 })).rejects.toThrow(/no longer knows/);
+  });
+});
+
+describe("the LTX clip worker (phase 15)", () => {
+  const ltx = { endpointId: "ep-l", workflow: "clip-ltx25", version: 1 };
+  const wan = { endpointId: "ep-c", workflow: "clip-wan22-480p", version: 1 };
+  const signal = () => new AbortController().signal;
+  async function pictures() {
+    const dir = await tempDir();
+    await makeImage(join(dir, "tall.png"), { width: 1088, height: 1920 });
+    await makeImage(join(dir, "wide.png"), { width: 1920, height: 1088 });
+    return { tall: join(dir, "tall.png"), wide: join(dir, "wide.png") };
+  }
+
+  it("asks for a 5.04 s portrait clip as the worker's contract says: 121 frames at 24 fps, 640x1152, the seed, and no speech unless asked", async () => {
+    const { tall, wide } = await pictures();
+    const video = new RunpodVideo(deps(new FakeRunpodApi(() => [])), ltx);
+    const job = await video.prepare({ imagePath: tall, prompt: "A fox turns its head. Audio: wind.", durationSec: 121 / 24, height: 640, seed: 1234 });
+    expect(job.input).toEqual({
+      task: "clip",
+      workflow: "clip-ltx25@1",
+      image: (await readFile(tall)).toString("base64"),
+      prompt: "A fox turns its head. Audio: wind.",
+      frames: 121,
+      fps: 24,
+      width: 640,
+      height: 1152,
+      seed: 1234,
+    });
+    // on its side like its picture, the short side defaulting to the one LTX is made at
+    expect((await video.prepare({ imagePath: wide, prompt: "p", durationSec: 49 / 24, seed: 0 })).input).toMatchObject({ frames: 49, width: 1152, height: 640 });
+    // the words of the speech are asked for only for a scene that speaks
+    expect((await video.prepare({ imagePath: tall, prompt: "p", durationSec: 121 / 24, seed: 1, speechLanguage: "tr" })).input).toMatchObject({ speech_language: "tr" });
+  });
+
+  it("refuses before anything is bought a length that is not 8k+1 frames from 49 to 361, a missing seed and any other size", async () => {
+    const { tall } = await pictures();
+    const video = new RunpodVideo(deps(new FakeRunpodApi(() => [])), ltx);
+    const ask = (over: Partial<Parameters<typeof video.prepare>[0]>) => video.prepare({ imagePath: tall, prompt: "p", durationSec: 121 / 24, seed: 1, ...over });
+    for (const durationSec of [5, 120 / 24, 41 / 24, 369 / 24]) {
+      await expect(ask({ durationSec }), String(durationSec)).rejects.toBeInstanceOf(NonRetryableError);
+      await expect(ask({ durationSec }), String(durationSec)).rejects.toThrow(/8k\+1 frames/);
+    }
+    expect((await ask({ durationSec: 361 / 24 })).input).toMatchObject({ frames: 361 });
+    await expect(ask({ seed: undefined })).rejects.toThrow(/seed/);
+    await expect(ask({ seed: -1 })).rejects.toBeInstanceOf(NonRetryableError);
+    await expect(ask({ seed: 1.5 })).rejects.toBeInstanceOf(NonRetryableError);
+    for (const height of [480, 720, 1080]) {
+      await expect(ask({ height }), String(height)).rejects.toBeInstanceOf(NonRetryableError);
+      await expect(ask({ height }), String(height)).rejects.toThrow(/640/);
+    }
+  });
+
+  it("asks Wan for exactly what it always did, field for field, whatever the new request fields say", async () => {
+    const { tall } = await pictures();
+    const video = new RunpodVideo(deps(new FakeRunpodApi(() => [])), wan);
+    const before = { task: "clip", image: (await readFile(tall)).toString("base64"), prompt: "m", frames: 81, fps: 16, width: 480, height: 832, workflow: "clip-wan22-480p@1" };
+    expect((await video.prepare({ imagePath: tall, prompt: "m", durationSec: 81 / 16 })).input).toEqual(before);
+    expect((await video.prepare({ imagePath: tall, prompt: "m", durationSec: 81 / 16, seed: 9, speechLanguage: "en" })).input).toEqual(before);
+    // and in the same order, which is what goes over the wire
+    expect(Object.keys((await video.prepare({ imagePath: tall, prompt: "m", durationSec: 81 / 16 })).input)).toEqual(["task", "image", "prompt", "frames", "fps", "width", "height", "workflow"]);
+  });
+
+  it("gives an LTX job longer than Wan to run and to be waited for: its first job after a cold start loads about 68 GB", async () => {
+    const api = new FakeRunpodApi(() => []);
+    const l = new RunpodVideo(deps(api), ltx);
+    const w = new RunpodVideo(deps(api), wan);
+    await l.submit({ input: { task: "clip" } }, { signal: signal() });
+    await w.submit({ input: { task: "clip" } }, { signal: signal() });
+    expect(api.runs.map((r) => r.policy)).toEqual([{ executionTimeout: 1_200_000, ttl: 3_600_000 }, { executionTimeout: 600_000, ttl: 3_600_000 }]);
+    expect([l.waitMs, w.waitMs]).toEqual([30 * 60_000, 20 * 60_000]);
+  });
+
+  async function collected(output: Record<string, unknown>, target = ltx) {
+    const api = new FakeRunpodApi(() => [{ status: "COMPLETED", output, executionTime: 100_000 }]);
+    const video = new RunpodVideo(deps(api), target);
+    const id = await video.submit({ input: {} }, { signal: signal() });
+    return video.wait(id, { timeoutMs: 60_000 });
+  }
+
+  it("reads an LTX clip's frame rate, its sound and the words of its speech from the worker's answer", async () => {
+    const words = [{ text: "Merhaba", start: 0.4, end: 0.9 }, { text: "dünya", start: 1, end: 1.5 }];
+    const out = await collected({ url: "https://r2/c.mp4", seconds: 5.04, has_audio: true, words });
+    expect(out).toMatchObject({ url: "https://r2/c.mp4", fps: 24, hasAudio: true, words, costUsd: 0.0306 });
+    // a clip that was not asked for its words says so (none asked), not that it has none
+    const silent = await collected({ url: "https://r2/c.mp4", seconds: 5.04, has_audio: false, words: null });
+    expect(silent).toMatchObject({ fps: 24, hasAudio: false });
+    expect(silent.words).toBeUndefined();
+    expect((await collected({ url: "https://r2/c.mp4", seconds: 5.04, has_audio: true, words: [] })).words).toEqual([]);
+  });
+
+  it("returns none of the three for a Wan clip, whatever its answer carries", async () => {
+    const out = await collected({ url: "https://r2/c.mp4", has_audio: true, words: [{ text: "x", start: 0, end: 1 }] }, wan);
+    expect(out).not.toHaveProperty("fps");
+    expect(out).not.toHaveProperty("hasAudio");
+    expect(out).not.toHaveProperty("words");
+  });
+
+  it("refuses a malformed answer as paid for but unusable, with the job's cost", async () => {
+    for (const bad of [
+      { has_audio: "yes", words: [] },
+      { has_audio: true, words: "hello" },
+      { has_audio: true, words: [{ text: "a", start: 0 }] },
+      { has_audio: true, words: [{ text: 1, start: 0, end: 1 }] },
+      { has_audio: true, words: [{ text: "a", start: Number.NaN, end: 1 }] },
+    ]) {
+      const err = await collected({ url: "https://r2/c.mp4", ...bad }).catch((e: unknown) => e);
+      expect(err, JSON.stringify(bad)).toBeInstanceOf(UnusableResultError);
+      expect((err as UnusableResultError).costUsd).toBe(0.0306);
+    }
+  });
+
+  it("recovers an LTX clip RunPod has forgotten without claiming to know its sound or its words: unknown is not none", async () => {
+    const api = new FakeRunpodApi(() => [{ status: "COMPLETED" }]);
+    const video = new RunpodVideo(deps(api, fakeR2(["flowchain/job-1.mp4"])), ltx);
+    const id = await video.submit({ input: {} }, { signal: signal() });
+    api.expire(id);
+    const out = await video.wait(id, { timeoutMs: 60_000 });
+    expect(out).toMatchObject({ url: "https://r2.example/flowchain/job-1.mp4?signed", fps: 24 });
+    expect(out.hasAudio).toBeUndefined();
+    expect(out.words).toBeUndefined();
+    expect(out.words).not.toEqual([]);
+  });
+});
+
+describe("what an LTX clip is charged (createProviders)", () => {
+  const env = {
+    GEMINI_API_KEY: "g", GEMINI_MODEL: "m", ELEVENLABS_MODEL: "eleven_multilingual_v2", FLOWCHAIN_BUDGET_USD: 3, FLOWCHAIN_VOICE: "narrator-m",
+    FLOWCHAIN_CUT_REFERENCES: "off" as const, FLOWCHAIN_SMOOTH_MOTION: "off" as const, FLOWCHAIN_TREND_IDEAS: "off" as const, FLOWCHAIN_SCENE_SOUND: "off" as const,
+    RUNS_DIR: "./runs", RUNPOD_API_KEY: "rk", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s",
+  };
+  const ltxPrices = { runpodLtxUsdPerSec: 0.0011, runpodLtxSecPerClipSec: 30, runpodLtxColdStartSec: 120 };
+  const models = (video: string) => ({ llm: "l", tts: "t", image: runpodModelId("ep-k", "keyframe-klein", 1), video });
+  afterEach(() => vi.unstubAllGlobals());
+
+  async function charged(video: string, prices: Prices) {
+    const api = new FakeRunpodApi(() => [{ status: "COMPLETED", output: { url: "https://r2/c.mp4", has_audio: true }, executionTime: 100_000 }]);
+    vi.stubGlobal("fetch", api.fetch);
+    const p = createProviders(env, models(video), prices);
+    const id = await p.video.submit({ input: {} }, { signal: new AbortController().signal });
+    return p.video.wait(id, { timeoutMs: 60_000 });
+  }
+
+  it("is the LTX card's own measured rate", async () => {
+    expect((await charged(runpodModelId("ep-l", "clip-ltx25", 1), Prices.parse(ltxPrices))).costUsd).toBe(0.11); // 100 s x $0.0011/s
+  });
+
+  it("is still Wan's rate for a Wan clip, whether or not the LTX rates are set", async () => {
+    expect((await charged(runpodModelId("ep-c", "clip-wan22-480p", 1), Prices.parse(ltxPrices))).costUsd).toBe(0.0306); // 100 s x $0.000306/s
+    expect((await charged(runpodModelId("ep-c", "clip-wan22-480p", 1), Prices.parse({}))).costUsd).toBe(0.0306);
+  });
+
+  it("refuses to build the clip provider for an LTX run whose rates were removed from prices.json, rather than charge a guess", () => {
+    const build = () => createProviders(env, models(runpodModelId("ep-l", "clip-ltx25", 1)), Prices.parse({}));
+    expect(build).toThrow(NonRetryableError);
+    expect(build).toThrow(LTX_RATES_MISSING);
   });
 });

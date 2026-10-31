@@ -180,3 +180,37 @@ describe("mode overrides", () => {
     expect(() => createManifest("r", { ...request, modeOverrides: [2, null] }, models)).toThrow("need an auto run");
   });
 });
+
+describe("what an LTX run adds to the manifest (phase 15)", () => {
+  const scene = { narration: "n", imagePrompt: "i", motionPrompt: "m", shot: "cut" as const, camera: "zoom_in" as const };
+  const withScript = (scenes: object[]) => {
+    const m = createManifest("run-1", request, models);
+    m.script = { title: "t", styleBible: { artStyle: "a", characters: "c", palette: "p" }, scenes: scenes as never };
+    return m;
+  };
+
+  it("loads a run that has none of it, and reads every new field as absent", () => {
+    const loaded = Manifest.parse(JSON.parse(JSON.stringify({ ...withScript([scene]), scenes: [{ idx: 0, mode: 1, clip: { path: "c.mp4", duration: 5 } }] })));
+    expect(loaded.request.speech).toBeUndefined();
+    expect(loaded.script?.scenes[0].videoPrompt).toBeUndefined();
+    expect(loaded.script?.scenes[0].speech).toBeUndefined();
+    expect(loaded.scenes[0].clip?.fps).toBeUndefined();
+    expect(loaded.scenes[0].clip?.hasAudio).toBeUndefined();
+  });
+
+  it("keeps a scene's prompt for LTX, its sentence, a clip's frame rate and sound, and whether the run may speak", () => {
+    const m = withScript([{ ...scene, videoPrompt: "A fox turns. Audio: wind.", speech: "Look at this." }]);
+    m.request.speech = true;
+    m.scenes[0].clip = { path: "c.mp4", duration: 5.04, fps: 24, hasAudio: true };
+    const loaded = Manifest.parse(JSON.parse(JSON.stringify(m)));
+    expect(loaded.script?.scenes[0]).toMatchObject({ videoPrompt: "A fox turns. Audio: wind.", speech: "Look at this." });
+    expect(loaded.scenes[0].clip).toMatchObject({ fps: 24, hasAudio: true });
+    expect(loaded.request.speech).toBe(true);
+  });
+
+  it("holds a prompt for LTX to 1200 characters and a sentence to 240", () => {
+    expect(Manifest.safeParse(withScript([{ ...scene, videoPrompt: "x".repeat(1200), speech: "x".repeat(240) }])).success).toBe(true);
+    expect(Manifest.safeParse(withScript([{ ...scene, videoPrompt: "x".repeat(1201) }])).success).toBe(false);
+    expect(Manifest.safeParse(withScript([{ ...scene, speech: "x".repeat(241) }])).success).toBe(false);
+  });
+});

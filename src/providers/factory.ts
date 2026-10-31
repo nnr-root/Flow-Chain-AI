@@ -1,4 +1,4 @@
-import { type Env, FOLEY_RATES_MISSING, foleyRates, flux3Rates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
+import { type Env, FOLEY_RATES_MISSING, foleyRates, flux3Rates, LTX_RATES_MISSING, ltxRates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
 import type { Models } from "../manifest/schema.js";
 import { ElevenLabsTts } from "./elevenlabs.js";
 import { GeminiLlm } from "./gemini.js";
@@ -69,10 +69,19 @@ export function createProviders(env: Env, models: Models, prices: Prices): Provi
     if (!r) throw new NonRetryableError(RESTORE_RATES_MISSING);
     return { ...runpodDeps(), rates: { ...runpodDeps().rates, upscaleUsdPerSec: r.usdPerSec } };
   };
+  // An LTX clip runs on a larger card than Wan's, at its own measured rate (phase 15): the measured cost a run is charged
+  // must be that card's. Without the three rates a resumed LTX run refuses rather than charging Wan's rate.
+  const videoDeps = (): RunpodDeps => {
+    const deps = runpodDeps();
+    if (videoRef.provider !== "runpod" || videoRef.workflow !== RUNPOD_WORKFLOWS.clipLtx.workflow) return deps;
+    const r = ltxRates(prices);
+    if (!r) throw new NonRetryableError(LTX_RATES_MISSING);
+    return { ...deps, rates: { ...deps.rates, clipUsdPerSec: r.usdPerSec } };
+  };
   const image: ImageProvider =
     imageRef.provider === "retired" ? retired("pictures", imageRef.model) : new RunpodImage(imageDeps(), imageRef);
   const video: VideoProvider =
-    videoRef.provider === "retired" ? retired("clips", videoRef.model) : new RunpodVideo(runpodDeps(), videoRef);
+    videoRef.provider === "retired" ? retired("clips", videoRef.model) : new RunpodVideo(videoDeps(), videoRef);
   // The voice follows the run too: a run spoken by the studio's own voice stays on the endpoint it was made
   // with, and a run spoken by the hosted voice stays there (phase 5 spec §11), for as long as its key is here.
   // Without the key such a run's speech is on disk, so it re-renders; a line that would have to be spoken again

@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import type { RunpodRates } from "../config.js";
 import { shrinkReference } from "../media/reference-image.js";
+import { LTX_FPS, LTX_MAX_FRAMES, LTX_MIN_FRAMES } from "../video-profiles.js";
 import { RUNPOD_WORKFLOWS } from "./model-id.js";
 import type { R2 } from "./r2.js";
 import { NonRetryableError, UnusableResultError } from "./retry.js";
@@ -9,6 +10,7 @@ import type {
   ImageOutput, ImageProvider, ImageRequest, PreparedJob, SoundOutput, SoundProvider, SoundRequest, SubmitOptions, UpscaleProvider, UpscaleRequest, VideoOutput,
   VideoProvider, VideoRequest, WaitOptions,
 } from "./types.js";
+import type { WordTiming } from "../manifest/schema.js";
 
 /** `/run` accepts at most 10 MB; base64 images are checked against this before anything is bought. */
 export const MAX_INPUT_BYTES = 9 * 1024 * 1024;
@@ -66,7 +68,11 @@ abstract class RunpodQueued<Req, Out extends { url: string; costUsd?: number; re
 
   protected abstract input(req: Req): Promise<Record<string, unknown>>;
   protected abstract usdPerSec(): number;
-  protected abstract output(jobId: string, out: { url: string; seed?: number }, costUsd: number | undefined): Out;
+  /**
+   * `raw`: the whole of what the worker answered, for a provider that reads more than the url and the seed. Absent when
+   * the job was recovered from the bucket: then nothing but the file is known, and the provider must say so.
+   */
+  protected abstract output(jobId: string, out: { url: string; seed?: number }, costUsd: number | undefined, raw?: Record<string, unknown>): Out;
 
   async prepare(req: Req): Promise<PreparedJob> {
     const input = { ...(await this.input(req)), workflow: `${this.target.workflow}@${this.target.version}` };
@@ -109,7 +115,7 @@ abstract class RunpodQueued<Req, Out extends { url: string; costUsd?: number; re
               `is executionTime still in milliseconds?`,
           );
         }
-        return this.removable(jobId, this.output(jobId, { url: out.url, seed: typeof out.seed === "number" ? out.seed : undefined }, cost));
+        return this.removable(jobId, this.output(jobId, { url: out.url, seed: typeof out.seed === "number" ? out.seed : undefined }, cost, out as Record<string, unknown>));
       }
       if (job.status === "FAILED" || job.status === "TIMED_OUT") {
         const why = job.status === "TIMED_OUT" ? "ran past its execution timeout" : `failed: ${JSON.stringify(job.error)}`;
@@ -199,16 +205,82 @@ export function clipSize(short: number | undefined, portrait: boolean): { width:
   return portrait ? { width: a, height: b } : { width: b, height: a };
 }
 
-/** Clips from the Wan 2.2 worker (2.4 spec §5.3): 480p or 720p in the chain image's orientation. */
+/** The one short side an LTX clip is made at (phase 15 spec §3); the long side is 1.8 times it, 1152. */
+export const LTX_SHORT = 640;
+
+/** The size an LTX clip is made at, upright or on its side like its picture. Any other short side is refused before a job is bought. */
+export function ltxSize(short: number | undefined, portrait: boolean): { width: number; height: number } {
+  const a = short ?? LTX_SHORT;
+  if (a !== LTX_SHORT) throw new NonRetryableError(`an LTX clip is made with a short side of ${LTX_SHORT}, not ${a}`);
+  const b = Math.round(a * 1.8);
+  // (the worker's model takes sides in multiples of 64 only; 640 and 1152 are, and nothing else is ever sent)
+  if (a % 64 !== 0 || b % 64 !== 0) throw new NonRetryableError(`an LTX clip's sides must be multiples of 64; got ${a}x${b}`);
+  return portrait ? { width: a, height: b } : { width: b, height: a };
+}
+
+/**
+ * Frames of an LTX clip of `durationSec`: the stage passes `frames / 24`, so a length that does not come back to 8k+1
+ * frames between 49 and 361 is a mistake upstream and is refused here rather than rounded into a different clip.
+ */
+export function ltxClipFrames(durationSec: number): number {
+  const frames = Math.round(durationSec * LTX_FPS);
+  if (frames < LTX_MIN_FRAMES || frames > LTX_MAX_FRAMES || (frames - 1) % 8 !== 0) {
+    throw new NonRetryableError(`an LTX clip must be 8k+1 frames between ${LTX_MIN_FRAMES} and ${LTX_MAX_FRAMES} at ${LTX_FPS} fps; got ${durationSec} s (${frames})`);
+  }
+  return frames;
+}
+
+/**
+ * The words of an LTX clip's speech as the worker answered them: absent or null = not asked for (the clip was not
+ * asked for speech); anything else must be a list of words with finite times, or the answer is unusable.
+ */
+function ltxWords(raw: unknown): WordTiming[] | undefined | "malformed" {
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw)) return "malformed";
+  const ok = raw.every(
+    (w: unknown) =>
+      typeof w === "object" && w !== null &&
+      typeof (w as WordTiming).text === "string" && Number.isFinite((w as WordTiming).start) && Number.isFinite((w as WordTiming).end),
+  );
+  return ok ? raw.map((w: WordTiming) => ({ text: w.text, start: w.start, end: w.end })) : "malformed";
+}
+
+/**
+ * Clips from the Wan 2.2 worker (2.4 spec §5.3): 480p or 720p in the chain image's orientation; or, for a run made with
+ * LTX (phase 15), from the LTX worker: 640x1152 at 24 fps, with the clip's own sound and, when asked, its speech's words.
+ */
 export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> implements VideoProvider {
   constructor(deps: RunpodDeps, target: Target) {
-    super(deps, target, { executionTimeout: 600_000, ttl: 3_600_000 }, 20 * 60_000, "mp4");
+    // An LTX worker's first job after a cold start assembles about 68 GB of weights, and the longest clip measured took
+    // about 300 s on top: Wan's ten minutes to run and twenty to wait would give up on a clip that is still being paid for.
+    const ltx = target.workflow === RUNPOD_WORKFLOWS.clipLtx.workflow;
+    super(deps, target, { executionTimeout: ltx ? 1_200_000 : 600_000, ttl: 3_600_000 }, (ltx ? 30 : 20) * 60_000, "mp4");
+  }
+
+  private get ltx(): boolean {
+    return this.target.workflow === RUNPOD_WORKFLOWS.clipLtx.workflow;
   }
 
   protected async input(req: VideoRequest) {
     const png = await readFile(req.imagePath);
     const { width, height } = pngSize(png);
     const portrait = height >= width;
+    if (this.ltx) {
+      // The scene's own seed, so a clip asked for again is the same clip; the worker requires one.
+      if (req.seed === undefined || !Number.isSafeInteger(req.seed) || req.seed < 0) {
+        throw new NonRetryableError(`an LTX clip needs a seed, a whole number from 0; got ${req.seed}`);
+      }
+      return {
+        task: "clip",
+        image: png.toString("base64"),
+        prompt: req.prompt,
+        frames: ltxClipFrames(req.durationSec),
+        fps: LTX_FPS,
+        ...ltxSize(req.height, portrait),
+        seed: req.seed,
+        ...(req.speechLanguage === undefined ? {} : { speech_language: req.speechLanguage }),
+      };
+    }
     return {
       task: "clip",
       image: png.toString("base64"),
@@ -223,8 +295,19 @@ export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> impleme
     return this.deps.rates.clipUsdPerSec;
   }
 
-  protected output(_jobId: string, out: { url: string }, costUsd: number | undefined): VideoOutput {
-    return { url: out.url, ...(costUsd === undefined ? {} : { costUsd }) };
+  protected output(jobId: string, out: { url: string }, costUsd: number | undefined, raw?: Record<string, unknown>): VideoOutput {
+    const base = { url: out.url, ...(costUsd === undefined ? {} : { costUsd }) };
+    if (!this.ltx) return base;
+    // Recovered from the bucket (no answer to read): whether it has sound and what was said in it are unknown, and
+    // are left undefined, never false or [], so a speaking scene cannot take "unknown" for "said nothing".
+    if (raw === undefined) return { ...base, fps: LTX_FPS };
+    const hasAudio = raw.has_audio;
+    const words = ltxWords(raw.words);
+    // (the clip is paid for either way: a malformed answer is unusable at its cost, never free and never retried)
+    if ((hasAudio !== undefined && typeof hasAudio !== "boolean") || words === "malformed") {
+      throw new UnusableResultError(`RunPod job ${jobId} answered a malformed has_audio or words`, costUsd);
+    }
+    return { ...base, fps: LTX_FPS, ...(hasAudio === undefined ? {} : { hasAudio }), ...(words === undefined ? {} : { words }) };
   }
 
   /**

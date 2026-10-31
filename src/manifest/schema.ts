@@ -55,6 +55,9 @@ const suggestedTransition = SuggestedTransition.describe(
 
 // (plain strings, no enum and no list: Gemini refused a response schema whole for an enum together with maxItems, 2026-10-30)
 const soundPrompt = z.string().max(200).describe("What is heard in this scene's place: concrete sources and materials from the sound bible, specific to the scene; at most 200 characters, English; no speech, voices, singing or music");
+// (phase 15: plain strings for the same reason; an empty string is how the model says "none", since every field it is given is required)
+const videoPrompt = z.string().max(1200).describe("For the clip model, in English: one flowing paragraph in the present tense saying what is seen, who does one action in what order, the camera, the light, and a last sentence beginning \"Audio:\" with what is heard; at most 1200 characters");
+const speech = z.string().max(240).describe("The one sentence a person in this scene says aloud, in the video's language; an empty string unless the instructions allow speech in this scene; at most 240 characters");
 const soundBible = z.string().max(300).describe("The video's sound palette in English: the place and time as sound, and three to five recurring elements; at most 300 characters");
 
 export const SceneSpec = z.object({
@@ -72,6 +75,10 @@ export const SceneSpec = z.object({
   showsCharacter: showsCharacter.optional(),
   /** Optional when stored (phase 14 spec §2): what is heard in this scene's place, built from the script's sound bible; the picture's sound is made from it. */
   soundPrompt: soundPrompt.optional(),
+  /** Optional when stored (phase 15 spec §4): the prompt written for LTX; absent on every script written before, and "" from the model means none. */
+  videoPrompt: videoPrompt.optional(),
+  /** Optional when stored (phase 15 spec §5): what a person in the scene says aloud in its clip; absent or "" = nobody speaks. */
+  speech: speech.optional(),
 });
 export type SceneSpec = z.infer<typeof SceneSpec>;
 
@@ -114,7 +121,7 @@ const hashtags = z
   .describe("Exactly 5 hashtags to post the video with, each starting with #, in the video's language");
 
 /** Gemini's answer (sent as the response schema): the fields added since are required. */
-export const LlmSceneSpec = SceneSpec.extend({ actionLevel, suggestedTransition, showsCharacter, soundPrompt });
+export const LlmSceneSpec = SceneSpec.extend({ actionLevel, suggestedTransition, showsCharacter, soundPrompt, videoPrompt, speech });
 const LlmStyleBible = Script.shape.styleBible.extend({
   setting: z.string().describe("The one time and place every picture shows, with what people there wear and use and how it is lit, in English"),
   characterKind: z.enum(["people", "animal", "other", "none"]).describe("What the recurring characters are: people, a real kind of animal, something else (a made-up creature, a robot, a figure), or none"),
@@ -232,6 +239,10 @@ export const SceneState = z.object({
       duration: z.number(),
       /** Seconds of video bought (from the run's video profile). */
       requestedSec: z.number().positive().optional(),
+      /** The clip's own frame rate (phase 15 spec §3, §13.5): read wherever a clip's frames are counted; absent = Wan's 16. */
+      fps: z.number().positive().optional(),
+      /** Whether the clip carries its own sound (an LTX clip); absent on every clip made before, which has none. */
+      hasAudio: z.boolean().optional(),
     })
     .optional(),
   /** The clip upscaled to full HD (phase 8 spec §8): what the fit plays where the run asked for it. */
@@ -343,6 +354,11 @@ export const RunRequest = z.object({
    * run has sound effects and the studio has the switch, the endpoint and the three prices; absent = none.
    */
   sceneSound: z.literal(true).optional(),
+  /**
+   * Whether the script may give a person in a scene a sentence to say (phase 15 spec §5): frozen at creation; absent = no.
+   * A speaking scene's words come from its clip, and are kept where a spoken line's are (`scenes[i].audio.words`).
+   */
+  speech: z.boolean().optional(),
   /**
    * The run is a version of another in a new language (phase 8 spec §4): its pictures and clips are that run's, and
    * what is said in it is a translation of what was said there (`title`, `hook`, `narrations`), each scene written to
