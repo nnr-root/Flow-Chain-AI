@@ -122,7 +122,7 @@ export const LTX_MIN_FRAMES = 49, LTX_MAX_FRAMES = 361;
 export function ltxFrames(narrationSec: number): number;      // 8k+1, covers narration / MAX_STRETCH, clamped
 // VideoProfileId gains "ltx25@1"; VIDEO_PROFILES["ltx25@1"]: clipSec = ltxFrames(s) / LTX_FPS;
 // costUsd(p, clipSec) = round4(clipSec * ltxRates(p).secPerClipSec * ltxRates(p).usdPerSec);
-// runOverheadUsd = round4(coldStartSec * usdPerSec); clipHeight: 1152 (the long side is 1152)
+// runOverheadUsd = round4(coldStartSec * usdPerSec); clipHeight: 640 (the SHORT side, as for Wan's 480/720; the provider derives the long side 1152 from the picture's orientation)
 ```
 `MAX_STRETCH` stays 1.25 (the fit step's largest stretch; the same rule as `wanFrames`).
 
@@ -170,10 +170,10 @@ export function ltxFrames(narrationSec: number): number;      // 8k+1, covers na
 
 **Files:** modify `src/stages/build-render-props.ts`, `src/media/loudness.ts` (read; reuse), `src/media/remotion/props.ts` and `layers/AudioLayer.tsx` only if a clip's sound needs a field the Foley entry lacks (read first: it should not), `src/stages/sound.ts` (**unchanged unless a test below fails**), tests `test/media/…`, `test/stages/build-render-props.test.ts`.
 
-**Behaviour (spec §6):** for a scene whose clip `hasAudio` and that has no Foley sound, the clip's audio is extracted (`ffmpeg -vn`, **no `-map_metadata -1`**), levelled to `LOUDNESS_TARGET_LUFS` (−26, ambient) by the existing loudness code, and put in `audio.sound` exactly as a Foley sound is; a **speaking** scene's sound is levelled as dialogue (−18 LUFS, a constant `SPEECH_LUFS` with a comment) and is not ducked (the narrator is silent there); a scene with Foley sound keeps it and the clip's sound is ignored for it (Foley wins until the owner decides, spec §6.3); `FLOWCHAIN_SCENE_SOUND=off` still means no sound for ordinary scenes, but a **speaking scene always keeps its voice**.
+**Behaviour (spec §6):** for a scene whose clip `hasAudio` and that has no Foley sound, the clip's audio is extracted (`ffmpeg -vn`, **no `-map_metadata -1`**), levelled to `LOUDNESS_TARGET_LUFS` (−26, ambient) by the existing loudness code, and put in `audio.sound` exactly as a Foley sound is; a **speaking** scene gets **no ambient entry at all**: its voice already is the scene's audio (Task 9 wrote `scenes[i].audio` from the clip), played and levelled as any voiceover, so the clip's sound is never added a second time (ruling, ledger preflight); a scene with Foley sound keeps it and the clip's sound is ignored for it (Foley wins until the owner decides, spec §6.3); `FLOWCHAIN_SCENE_SOUND=off` still means no ambient sound for ordinary scenes, and a speaking scene keeps its voice because that is its audio, not a sound entry.
 
-- [ ] **Step 1: Failing tests:** each of the five cases above; a **metadata test** greps `src/media/*.ts` and `src/stages/*.ts` for `map_metadata`, `-fflags`, `+bitexact` and `-metadata` flags that remove provenance and fails if one is applied to an LTX clip's path (list the allowed uses by file and line in the test, as the names test does for its exceptions).
-- [ ] **Step 2–4:** implement, PASS. **Step 5: Commit** `feat: a clip's own sound plays under the narration like a scene's sound, a speaking scene keeps its voice, and no step strips what a clip carries`.
+- [ ] **Step 1: Failing tests:** each of the cases above (including: a speaking scene yields no `audio.sound` entry); a **metadata test** greps `src/media/*.ts` and `src/stages/*.ts` for `map_metadata`, `-fflags`, `+bitexact` and `-metadata` flags that remove provenance and fails if one is applied to an LTX clip's path (list the allowed uses by file and line in the test, as the names test does for its exceptions).
+- [ ] **Step 2–4:** implement, PASS. **Step 5: Commit** `feat: a clip's own sound plays under the narration like a scene's sound, a speaking scene's voice is its audio, and no step strips what a clip carries`.
 
 ## Task 11: The studio
 
@@ -202,7 +202,7 @@ This task writes no code. It ends the implementation part and **stops**.
 
 **Gate:** the owner has (a) run a real LTX video, (b) watched and listened, (c) said "remove Wan" in so many words. Without all three, **do nothing**.
 
-**Files:** delete `workers/` (the Wan worker, its image job in `worker-image.yml`, its tests), remove `clip-wan22-*` from `RUNPOD_WORKFLOWS` (the ids move into the `retired` handling of `parseModelId`: a `clip-wan22-*` id parses to `{ provider: "retired" }`), `wanFrames`, the two `wan22-*` profiles (their ids stay in `VideoProfileId`, as `kling-*` do, with `VIDEO_PROFILES` entries that only compute recorded lengths), the Wan prices from `src/config.ts` (the keys stay readable and ignored), the Wan paragraphs of the README and CLAUDE.md, and the deploy planner's Wan endpoint and template; `git tag wan-last` on the commit **before** this task.
+**Files:** delete `workers/` (the Wan worker, its image job in `worker-image.yml`, its tests), remove `clip-wan22-*` from `RUNPOD_WORKFLOWS` (the ids move into the `retired` handling of `parseModelId`: a `clip-wan22-*` id parses to `{ provider: "retired" }`), the two `wan22-*` profiles' **prices** (their ids stay in `VideoProfileId`, as `kling-*` do, **and `wanFrames` and each Wan profile's `clipSec` stay**: an old run's clips stage hash includes `requestedSec`, and a changed hash would make a free re-render stale; only their `costUsd` becomes a refusal), the Wan prices from `src/config.ts` (the keys stay readable and ignored), the Wan paragraphs of the README and CLAUDE.md, and the deploy planner's Wan endpoint and template; `git tag wan-last` on the commit **before** this task.
 
 - [ ] **Step 1: Tests first:** an old run (a fixture with a `clip-wan22-480p@1` model id) loads, re-renders for free, and a clip that would have to be bought says why it cannot; `compat.test.ts` untouched and green; the deploy plan has no Wan steps; `grep -ri wan22 src web` finds only the retired-id handling and its tests.
 - [ ] **Step 2–4:** remove, run `npm run typecheck`, then `npx vitest run` by directory (`test/unit`, `test/stages`, `test/media`, `test/pipeline`, `test/db`, `web/test`) — the whole suite takes ten minutes and its timing tests need re-running alone before a failure is believed.
