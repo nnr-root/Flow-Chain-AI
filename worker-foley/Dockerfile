@@ -43,8 +43,10 @@ RUN python -c "from huggingface_hub import snapshot_download as d; d('google/sig
  && echo "fe0e601c625e69eed8e73500d39e9b6164403fe03db8048e87913c3cefbbb3fe  /models/foley/hf/hub/models--google--siglip2-base-patch16-512/snapshots/a89f5c5093f902bf39d3cd4d81d2c09867f0724b/model.safetensors" | sha256sum -c -
 RUN python -c "from huggingface_hub import snapshot_download as d; d('laion/larger_clap_general', revision='ada0c23a36c4e8582805bb38fec3905903f18b41')" \
  && echo "314eb00cce6ad68d25237b8446b659ccdb136ed4672c1bca470f142f72455026  /models/foley/hf/hub/models--laion--larger_clap_general/snapshots/ada0c23a36c4e8582805bb38fec3905903f18b41/pytorch_model.bin" | sha256sum -c -
-# a download by commit writes no "main" pointer, which an offline load looks for
-RUN printf %s a89f5c5093f902bf39d3cd4d81d2c09867f0724b > /models/foley/hf/hub/models--google--siglip2-base-patch16-512/refs/main \
+# a download by commit writes no "main" pointer, nor even a refs folder (the first CI build, 2026-10-31, found "Directory
+# nonexistent"), and an offline load looks for refs/main
+RUN mkdir -p /models/foley/hf/hub/models--google--siglip2-base-patch16-512/refs /models/foley/hf/hub/models--laion--larger_clap_general/refs \
+ && printf %s a89f5c5093f902bf39d3cd4d81d2c09867f0724b > /models/foley/hf/hub/models--google--siglip2-base-patch16-512/refs/main \
  && printf %s ada0c23a36c4e8582805bb38fec3905903f18b41 > /models/foley/hf/hub/models--laion--larger_clap_general/refs/main
 # The two encoders must load offline from the cache above, or the first paid job fails instead of this build: load them here
 # the way load_model does with enable_offload=False (model_utils.py, the pinned commit), on the CPU, with HF_HUB_OFFLINE=1 (the Hub
