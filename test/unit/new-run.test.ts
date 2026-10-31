@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadEnv, LTX_RATES_MISSING, Prices } from "../../src/config.js";
 import { checkR2RoundTrip, checkRunpodEndpoints, usesGpu } from "../../src/doctor.js";
-import { frozenModePrices, newRunProviders } from "../../src/providers/new-run.js";
+import { frozenModePrices, newRunImage, newRunProviders } from "../../src/providers/new-run.js";
 import type { R2 } from "../../src/providers/r2.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
 import { FakeRunpodApi } from "../fakes/runpod.js";
@@ -49,6 +49,34 @@ describe("newRunProviders", () => {
     expect(() => newRunProviders(loadEnv(base))).toThrow(
       "RUNPOD_KEYFRAME_ENDPOINT and RUNPOD_CLIP_ENDPOINT not set; run npm run runpod:deploy first",
     );
+  });
+});
+
+describe("newRunImage", () => {
+  const flux3 = Prices.parse({ runpodPicture3UsdPerSec: 0.0003, runpodPicture3Sec: 6, runpodPortrait3Sec: 8, runpodPicture3ColdStartSec: 60 });
+
+  it("picks the 4B on its keyframe endpoint when FLUX 3 is not set up", () => {
+    expect(newRunImage(loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k" }))).toEqual({ image: "runpod:ep-k/keyframe-klein@1", imageProfile: "runpod-klein@1" });
+  });
+
+  it("asks for a deploy when there is no keyframe endpoint and FLUX 3 is not ready", () => {
+    expect(() => newRunImage(loadEnv(base))).toThrow("RUNPOD_KEYFRAME_ENDPOINT not set; run npm run runpod:deploy first");
+  });
+
+  it("refuses when FLUX 3 is forced and not set up", () => {
+    expect(() => newRunImage(loadEnv({ ...base, FLOWCHAIN_IMAGE_MODEL: "flux3", RUNPOD_KEYFRAME_ENDPOINT: "ep-k" }))).toThrow("FLOWCHAIN_IMAGE_MODEL=flux3 but FLUX 3 is not set up");
+  });
+
+  it("does not need the clip endpoint, nor the LTX rates, which a picture-only tool never uses", () => {
+    const env = loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_LTX_ENDPOINT: "ep-l" });
+    expect(() => newRunImage(env)).not.toThrow();
+    expect(() => newRunProviders(env)).toThrow(LTX_RATES_MISSING);
+  });
+
+  it("keeps the 4B when klein4b is forced, and takes FLUX 3 when it is ready", () => {
+    const env = { ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_PICTURE3_ENDPOINT: "ep-p" };
+    expect(newRunImage(loadEnv(env), flux3).imageProfile).toBe("runpod-flux3-klein@1");
+    expect(newRunImage(loadEnv({ ...env, FLOWCHAIN_IMAGE_MODEL: "klein4b" }), flux3).imageProfile).toBe("runpod-klein@1");
   });
 });
 

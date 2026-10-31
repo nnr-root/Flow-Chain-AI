@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { Prices } from "../../src/config.js";
-import { LTX_RATES_MISSING } from "../../src/config.js";
+import { LTX_RATES_MISSING, Prices } from "../../src/config.js";
 import { LTX_FPS, ltxFrames, NEW_RUN_VIDEO_PROFILE, VIDEO_PROFILES, videoProfileOf, wanFrames } from "../../src/video-profiles.js";
 
 describe("video profiles", () => {

@@ -75,8 +75,14 @@ export const VIDEO_PROFILES: Record<VideoProfileId, VideoProfile> = {
   "ltx25@1": {
     id: "ltx25@1",
     clipSec: (s) => ltxFrames(s) / LTX_FPS,
-    costUsd: (p, clipSec) => round4(clipSec * ltxRatesOf(p).secPerClipSec * ltxRatesOf(p).usdPerSec),
-    runOverheadUsd: (p) => round4(ltxRatesOf(p).coldStartSec * ltxRatesOf(p).usdPerSec),
+    costUsd: (p, clipSec) => {
+      const r = ltxRatesOf(p);
+      return round4(clipSec * r.secPerClipSec * r.usdPerSec);
+    },
+    runOverheadUsd: (p) => {
+      const r = ltxRatesOf(p);
+      return round4(r.coldStartSec * r.usdPerSec);
+    },
     // The SHORT side, as 480/720 are for Wan; the provider derives the long side (1152) from the picture's orientation.
     clipHeight: 640,
   },

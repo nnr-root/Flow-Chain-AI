@@ -41,7 +41,7 @@ import { join } from "node:path";
 import { type Env, loadEnv, loadPrices } from "../src/config.js";
 import { ffmpeg, probeDuration } from "../src/media/ffmpeg.js";
 import { createProviders } from "../src/providers/factory.js";
-import { newRunProviders, newRunVoice } from "../src/providers/new-run.js";
+import { newRunImage, newRunVoice } from "../src/providers/new-run.js";
 import { runpodRates } from "../src/config.js";
 import { RunpodClient } from "../src/providers/runpod.js";
 import { heardShare } from "../src/voice/align.js";
@@ -469,10 +469,10 @@ async function main(): Promise<void> {
   const unknown = asked.filter((l) => !Object.hasOwn(SPEECH_LANGUAGES, l));
   if (unknown.length > 0) throw new Error(`no such language: ${unknown.join(", ")} (the languages are ${Object.keys(SPEECH_LANGUAGES).join(", ")})`);
   const languages = (asked.length > 0 ? asked : Object.keys(SPEECH_LANGUAGES)) as SpeechLanguage[];
-  const chosen = newRunProviders(env, "480p");
+  const chosen = newRunImage(env);
   const hosted = !newRunVoice(env).model.startsWith("runpod:");
   // each language in the model that speaks it, as a run in it would be (phase 5 spec §11)
-  const ttsFor = (language: SpeechLanguage) => createProviders(env, { llm: env.GEMINI_MODEL, tts: newRunVoice(env, language).model, image: chosen.image, video: chosen.video }, loadPrices()).tts;
+  const ttsFor = (language: SpeechLanguage) => createProviders(env, { llm: env.GEMINI_MODEL, tts: newRunVoice(env, language).model, image: chosen.image, video: "retired:unused" }, loadPrices()).tts;
   const outDir = "web/public/voices";
   await mkdir(outDir, { recursive: true });
   const listed: Listed = existsSync(LIST) ? (JSON.parse(readFileSync(LIST, "utf8")) as Listed) : { madeOn: null, samples: {} };

@@ -7,28 +7,45 @@ import { RUNPOD_WORKFLOWS, runpodModelId } from "./model-id.js";
 
 export type NewRunProviders = { image: string; video: string; imageProfile: ImageProfileId; videoProfile: VideoProfileId };
 
-/** The models and cost profiles a new run is frozen with: the studio's own GPU endpoints (2.4 spec §3.4). */
-export function newRunProviders(env: Env, clips: ClipQuality = "480p", prices?: Prices): NewRunProviders {
+/**
+ * The picture model a new run is frozen with: FLUX 3 klein while it is set up, else the 4B. Apart from the clips so that
+ * tools which only draw pictures (make:styles, make:voices) never depend on the clip endpoint or on LTX.
+ */
+export function newRunImage(env: Env, prices?: Prices): { image: string; imageProfile: ImageProfileId } {
   const ready = Boolean(env.RUNPOD_PICTURE3_ENDPOINT) && prices !== undefined && flux3Rates(prices) !== null;
   if (env.FLOWCHAIN_IMAGE_MODEL === "flux3" && !ready) {
     throw new Error("FLOWCHAIN_IMAGE_MODEL=flux3 but FLUX 3 is not set up: set RUNPOD_PICTURE3_ENDPOINT and the four runpodPicture3* prices in prices.json");
   }
   const flux3 = ready && env.FLOWCHAIN_IMAGE_MODEL !== "klein4b";
+  if (!flux3 && !env.RUNPOD_KEYFRAME_ENDPOINT) throw new Error("RUNPOD_KEYFRAME_ENDPOINT not set; run npm run runpod:deploy first");
+  const { keyframe, keyframe3 } = RUNPOD_WORKFLOWS;
+  return flux3
+    ? { image: runpodModelId(env.RUNPOD_PICTURE3_ENDPOINT!, keyframe3.workflow, keyframe3.version), imageProfile: "runpod-flux3-klein@1" }
+    : { image: runpodModelId(env.RUNPOD_KEYFRAME_ENDPOINT!, keyframe.workflow, keyframe.version), imageProfile: "runpod-klein@1" };
+}
+
+/** The models and cost profiles a new run is frozen with: the studio's own GPU endpoints (2.4 spec §3.4). */
+export function newRunProviders(env: Env, clips: ClipQuality = "480p", prices?: Prices): NewRunProviders {
   // LTX takes the clips when its endpoint is set; a missing rate says so rather than quietly buying Wan (phase 15 spec §7).
+  // The requested clip quality (`clips`) is ignored for an LTX run: it has one size.
   const ltx = Boolean(env.RUNPOD_LTX_ENDPOINT);
   if (ltx && !(prices !== undefined && ltxRates(prices))) throw new Error(LTX_RATES_MISSING);
-  const needed = ltx
-    ? flux3
-      ? ([] as const)
-      : (["RUNPOD_KEYFRAME_ENDPOINT"] as const)
-    : flux3 ? (["RUNPOD_CLIP_ENDPOINT"] as const) : (["RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT"] as const);
-  const missing = needed.filter((k) => !env[k]);
-  if (missing.length) throw new Error(`${missing.join(" and ")} not set; run npm run runpod:deploy first`);
-  const { keyframe, keyframe3, clip, clipLtx } = RUNPOD_WORKFLOWS;
+  // The clip endpoint is checked first and the picture side after, as the two were named together in one message before.
+  const needClip = !ltx && !env.RUNPOD_CLIP_ENDPOINT;
+  let image: ReturnType<typeof newRunImage>;
+  try {
+    image = newRunImage(env, prices);
+  } catch (e) {
+    if (needClip && e instanceof Error && e.message.startsWith("RUNPOD_KEYFRAME_ENDPOINT not set")) {
+      throw new Error("RUNPOD_KEYFRAME_ENDPOINT and RUNPOD_CLIP_ENDPOINT not set; run npm run runpod:deploy first");
+    }
+    throw e;
+  }
+  if (needClip) throw new Error("RUNPOD_CLIP_ENDPOINT not set; run npm run runpod:deploy first");
+  const { clip, clipLtx } = RUNPOD_WORKFLOWS;
   return {
-    image: flux3 ? runpodModelId(env.RUNPOD_PICTURE3_ENDPOINT!, keyframe3.workflow, keyframe3.version) : runpodModelId(env.RUNPOD_KEYFRAME_ENDPOINT!, keyframe.workflow, keyframe.version),
+    ...image,
     video: ltx ? runpodModelId(env.RUNPOD_LTX_ENDPOINT!, clipLtx.workflow, clipLtx.version) : runpodModelId(env.RUNPOD_CLIP_ENDPOINT!, clip.workflow, clip.version),
-    imageProfile: flux3 ? "runpod-flux3-klein@1" : "runpod-klein@1",
     videoProfile: ltx ? "ltx25@1" : CLIP_QUALITIES[clips],
   };
 }

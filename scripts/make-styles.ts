@@ -16,7 +16,7 @@ import { ffmpeg } from "../src/media/ffmpeg.js";
 import { type PresetName, PRESETS } from "../src/presets.js";
 import { download } from "../src/providers/download.js";
 import { createProviders } from "../src/providers/factory.js";
-import { newRunProviders, newRunVoice } from "../src/providers/new-run.js";
+import { newRunImage, newRunVoice } from "../src/providers/new-run.js";
 import { TIMEOUTS } from "../src/providers/retry.js";
 import { imagePrompt } from "../src/stages/visual.js";
 
@@ -45,8 +45,8 @@ async function main(): Promise<void> {
   const unknown = asked.filter((n) => !Object.hasOwn(PRESETS, n));
   if (unknown.length > 0) throw new Error(`no such style: ${unknown.join(", ")} (the styles are ${Object.keys(PRESETS).join(", ")})`);
   const names = (asked.length > 0 ? asked : Object.keys(PRESETS)) as PresetName[];
-  const chosen = newRunProviders(env, "480p");
-  const models = { llm: env.GEMINI_MODEL, tts: newRunVoice(env).model, image: chosen.image, video: chosen.video };
+  const chosen = newRunImage(env);
+  const models = { llm: env.GEMINI_MODEL, tts: newRunVoice(env).model, image: chosen.image, video: "retired:unused" };
   const { image } = createProviders(env, models, loadPrices());
   const outDir = "web/public/styles";
   await mkdir(outDir, { recursive: true });
