@@ -2,7 +2,7 @@ import { editById } from "../edits.js";
 import { fileSha256 } from "../manifest/hash.js";
 import type { Manifest, SceneState } from "../manifest/schema.js";
 import { cutTail, extractAudio } from "../media/audio.js";
-import { probeDuration } from "../media/ffmpeg.js";
+import { clipDuration, probeDuration } from "../media/ffmpeg.js";
 import { planFit } from "../media/fit.js";
 import { extractSeamFrame } from "../media/frames.js";
 import { download } from "../providers/download.js";
@@ -211,7 +211,8 @@ export const clipsStage: Stage = {
       state.clip = {
         path: paths.clip(i),
         sourceUrl: result.url,
-        duration: await probeDuration(out),
+        // (its picture's length: an LTX clip's sound may run a little past it)
+        duration: await clipDuration(out),
         requestedSec: seconds,
         ...(fps === undefined ? {} : { fps }),
         ...(result.hasAudio === undefined ? {} : { hasAudio: result.hasAudio }),

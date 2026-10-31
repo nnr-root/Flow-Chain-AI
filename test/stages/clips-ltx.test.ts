@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { Prices } from "../../src/config.js";
 import { editById } from "../../src/edits.js";
 import { fileSha256 } from "../../src/manifest/hash.js";
-import { countFrames, probeVideo } from "../../src/media/ffmpeg.js";
+import { countFrames, probeDuration, probeVideo } from "../../src/media/ffmpeg.js";
 import { computeHash, runPipeline, type RunOptions } from "../../src/pipeline.js";
 import { PRESETS } from "../../src/presets.js";
 import { soundSeed } from "../../src/sound.js";
@@ -87,6 +87,22 @@ describe("the clips stage on LTX", () => {
     expect(ltx.submits).toHaveLength(1);
     expect(ctx.manifest.scenes[0].clip).toMatchObject({ fps: 24 });
     expect(ctx.manifest.scenes[0].clip!.hasAudio).toBeUndefined();
+  });
+
+  it("records a clip's picture length, not its sound's, when its sound runs a little longer, also when the result is reused", async () => {
+    const { ctx, ltx } = await ltxRun({ shots: ["cut"] });
+    ltx.audioTailSec = 0.25;
+    await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
+    const file = abs(ctx, ctx.manifest.scenes[0].clip!.path);
+    const picture = (await countFrames(file)) / 24;
+    expect(await probeDuration(file)).toBeGreaterThan(picture + 0.2);
+    expect(ctx.manifest.scenes[0].clip!.duration).toBeCloseTo(picture, 3);
+    // stopped after the job was paid for: the reused result is measured the same way
+    delete ctx.manifest.scenes[0].clip;
+    delete ctx.manifest.scenes[0].stages.clips;
+    await runPipeline(ctx, [clipsStage], auto);
+    expect(ltx.submits).toHaveLength(1);
+    expect(ctx.manifest.scenes[0].clip!.duration).toBeCloseTo(picture, 3);
   });
 
   it("gives a scene a stable seed that a reroll changes, and a remade clip another one", async () => {

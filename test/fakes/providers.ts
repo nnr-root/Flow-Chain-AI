@@ -233,12 +233,24 @@ export const SPOKEN: FakeSpeech = {
 export class FakeLtxVideo extends FakeQueue<VideoRequest, VideoOutput> implements VideoProvider {
   speech: FakeSpeech = SPOKEN;
   silent = false;
+  /** Seconds the clip's sound runs past its picture (0: cut to it), as an mp4's sound track can by a few ms. */
+  audioTailSec = 0;
   protected async render(req: VideoRequest, n: number, path: (name: string) => string) {
     const file = path(`ltx_${n}.mp4`);
     const frames = Math.round(req.durationSec * 24);
     const video = ["-f", "lavfi", "-i", `color=black:s=180x320:r=24,geq=lum='16+mod(N*37+${(n * 53) % 200}\\,200)':cb=128:cr=128`];
     const speaking = req.speechLanguage !== undefined;
     let audio = ["-f", "lavfi", "-i", `sine=frequency=${300 + 40 * n}:sample_rate=48000`];
+    if (this.audioTailSec > 0 && !speaking && !this.silent) {
+      const long = path(`ltx_${n}.long.mp4`);
+      await ffmpeg([
+        // (each input cut on its own: a frame limit on the output would end the sound with the picture)
+        "-f", "lavfi", "-t", String(frames / 24), "-i", video[3],
+        "-f", "lavfi", "-t", String(frames / 24 + this.audioTailSec), "-i", `sine=frequency=${300 + 40 * n}:sample_rate=48000`,
+        "-vf", "format=yuv420p", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", long,
+      ]);
+      return { out: { url: pathToFileURL(long).href, fps: 24, hasAudio: true }, file: long };
+    }
     if (speaking) {
       const said = this.speech.audio.reduce((sum, p) => sum + ("tone" in p ? p.tone : p.silence), 0);
       const wav = path(`ltx_${n}.speech.wav`);

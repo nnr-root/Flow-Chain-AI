@@ -270,9 +270,20 @@ export const SceneState = z.object({
   /**
    * The scene's sound (phase 14 spec §3), made from its picture and levelled: the file, its hash, its seconds, and the
    * seed and settings it was asked with. Absent on a run made without scene sound, and on every run made before.
+   * `source: "clip"` (phase 15 spec §6): the sound is the scene's own LTX clip's, taken out of it for nothing, and has no
+   * seed or settings; a Foley sound has no `source` and always has them.
    */
   sound: z
-    .object({ path: z.string(), sha256: z.string(), seconds: z.number(), seed: z.number().int(), guidance: z.number(), steps: z.number().int(), prompt: z.string() })
+    .object({
+      path: z.string(),
+      sha256: z.string(),
+      seconds: z.number(),
+      seed: z.number().int().optional(),
+      guidance: z.number().optional(),
+      steps: z.number().int().optional(),
+      prompt: z.string().optional(),
+      source: z.literal("clip").optional(),
+    })
     .optional(),
 });
 export type SceneState = z.infer<typeof SceneState>;

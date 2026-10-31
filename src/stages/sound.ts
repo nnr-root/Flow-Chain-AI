@@ -1,18 +1,19 @@
 import { rm, stat } from "node:fs/promises";
 import { fileSha256 } from "../manifest/hash.js";
 import type { Manifest } from "../manifest/schema.js";
-import { ffmpeg, probeVideo } from "../media/ffmpeg.js";
+import { extractAudio } from "../media/audio.js";
+import { ffmpeg, probeDuration, probeVideo } from "../media/ffmpeg.js";
 import { levelSound } from "../media/loudness.js";
 import { movingInputArgs, soundInputSize, stillInputArgs } from "../media/sound-input.js";
 import { download } from "../providers/download.js";
 import { NonRetryableError, TIMEOUTS } from "../providers/retry.js";
 import { MAX_INPUT_BYTES } from "../providers/runpod-providers.js";
-import { guidanceFor, SCENE_SOUND_MAX_SEC, SOUND_NEGATIVE_PROMPT, SOUND_STEPS, soundAskSeconds, soundCost, soundSeed } from "../sound.js";
+import { guidanceFor, LOUDNESS_TARGET_LUFS, SCENE_SOUND_MAX_SEC, SOUND_NEGATIVE_PROMPT, SOUND_STEPS, soundAskSeconds, soundCost, soundSeed } from "../sound.js";
 import { runProviderJob } from "./job.js";
 import { abs, outPath, paths } from "./paths.js";
-import { requireFitted, requireKeyframe } from "./require.js";
+import { requireClip, requireFitted, requireKeyframe } from "./require.js";
 import type { Stage, StageContext } from "./types.js";
-import { durationDep, sceneFrames } from "./visual.js";
+import { durationDep, isSpeaking, sceneFrames } from "./visual.js";
 
 /**
  * Whether scene i has a sound of its own made (phase 14 spec §3): only in a run made with scene sound and with sound
@@ -31,6 +32,23 @@ export function soundNotMade(m: Manifest): boolean {
   const on: Manifest = { ...m, request: { ...m.request, render: { ...m.request.render, sfx: true } } };
   return m.scenes.some((s) => hasSceneSound(on, s.idx) && s.stages.sound?.status !== "done");
 }
+
+/**
+ * Whether scene i's sound is its own clip's (phase 15 spec §6): an ordinary moving scene of an LTX run whose clip has sound
+ * (or may: a clip recovered without its answer is looked at when its sound is taken), in a run made without Foley, which
+ * wins wherever a run has it (§6.3). A speaking scene has none: its clip's sound already is its voice, and laid down again
+ * it would be heard twice. Not tied to sound effects being on: it is made for nothing, so a re-render that turns them on
+ * finds it there, and the render plays it only while they are on (as it does a Foley sound).
+ */
+export const hasClipSound = (m: Manifest, i: number): boolean =>
+  m.request.videoProfile === "ltx25@1" &&
+  m.request.sceneSound !== true &&
+  m.scenes[i].mode === 1 &&
+  !isSpeaking(m, i) &&
+  m.scenes[i].clip?.hasAudio !== false;
+
+/** Whether scene i has a sound stage at all: a Foley sound bought for it, or its clip's own taken out of it. */
+export const soundApplies = (m: Manifest, i: number): boolean => hasSceneSound(m, i) || hasClipSound(m, i);
 
 const isStill = (m: Manifest, i: number) => m.scenes[i].mode === 2;
 
@@ -62,22 +80,66 @@ const pictureOf = (m: Manifest, i: number): string => (isStill(m, i) ? requireKe
 
 const firstSoundScene = (m: Manifest): number => m.scenes.findIndex((x) => hasSceneSound(m, x.idx));
 
+/** A clip sound that ends this much before its scene is faded out; one that ends closer is within the render's own ramp. */
+const CLIP_SOUND_FADE_GAP_SEC = 0.1;
+
+/**
+ * Scene i's sound from its own clip (phase 15 spec §6): no provider and no charge. The clip's sound starts with its
+ * picture, so its first seconds are what the fitted picture shows when the fit plan is `trim` (the one an LTX clip, asked
+ * for at least its scene's length, gets). Where the clip was slowed to fit (`slow`, `slow+freeze`), the sound is still
+ * never stretched or slowed (a slowed sound is lower and longer, and is heard as wrong at once): it plays at its own
+ * speed from the scene's start and ends, faded, where the clip's sound ends. Only the sound is read out of the clip and
+ * everything it carries goes with it; the clip itself is never written.
+ */
+async function clipSound(ctx: StageContext, i: number): Promise<NonNullable<Manifest["scenes"][number]["sound"]>> {
+  const m = ctx.manifest;
+  const raw = await outPath(ctx, paths.soundRaw(i));
+  const out = abs(ctx, paths.sound(i));
+  const sceneSec = sceneSeconds(ctx, i);
+  if (await extractAudio(abs(ctx, requireClip(m.scenes[i]).path), raw)) {
+    const heard = await probeDuration(raw);
+    const seconds = Math.round(Math.min(sceneSec, heard) * 1000) / 1000;
+    await levelSound(raw, out, { seconds, fadeOut: heard < sceneSec - CLIP_SOUND_FADE_GAP_SEC, scene: i + 1, log: ctx.log });
+    await rm(raw, { force: true });
+    return { path: paths.sound(i), sha256: await fileSha256(out), seconds, source: "clip" };
+  }
+  // (only a clip recovered without its answer can turn out to have no sound: it is kept as silence, so the stage is done
+  // and is not tried again on every resume)
+  ctx.log(`scene ${i + 1}'s clip has no sound of its own; its sound is silent`);
+  const seconds = Math.round(sceneSec * 1000) / 1000;
+  await ffmpeg(["-f", "lavfi", "-i", "anullsrc=r=48000:cl=mono", "-t", String(seconds), "-ac", "1", "-ar", "48000", out]);
+  return { path: paths.sound(i), sha256: await fileSha256(out), seconds, source: "clip" };
+}
+
 /**
  * Scene sound (phase 14 spec §3): each scene's sound is made by the Foley worker from what is seen in it (after `fit`, so
  * at the scene's final length), levelled to one loudness, and kept as `sound/scene_NN.wav`. Paid, per scene, keyed on
  * everything that changes the sound and on nothing that only changes how loud it is mixed (`sfxGain`).
+ * In an LTX run without Foley the same stage takes each ordinary scene's sound out of its own clip instead (phase 15 spec
+ * §6), for nothing: no provider, no charge, no ledger line. It is this stage and not one of its own so that the render,
+ * the status and a re-render know one place a scene's sound comes from; a Foley scene is keyed and made exactly as before.
  */
 export const soundStage: Stage = {
   name: "sound",
   perScene: true,
   paid: true,
-  appliesTo: hasSceneSound,
+  appliesTo: soundApplies,
   deps: (m, scene) =>
     isStill(m, scene!)
       ? [{ stage: "keyframes", scene }, ...m.scenes.slice(0, scene! + 1).map((s) => durationDep(m, s.idx))]
       : [{ stage: "fit", scene }],
   async inputsFor(ctx, scene) {
     const i = scene!;
+    if (!hasSceneSound(ctx.manifest, i)) {
+      // the clip's sound: the clip, the scene's frames at the video's rate (its length) and the loudness it is levelled to
+      return {
+        from: "clip",
+        clip: await fileSha256(abs(ctx, requireClip(ctx.manifest.scenes[i]).path)),
+        frames: sceneFrames(ctx.manifest, ctx.fps, i)[i],
+        fps: ctx.fps,
+        loudness: LOUDNESS_TARGET_LUFS,
+      };
+    }
     // (the track's length and its fade are in the key too: a scene whose length crosses 10 s, or a still scene whose
     // length changes, has its track cut again rather than keep one of another length or without its fade)
     const ask = soundAsk(ctx, i);
@@ -86,6 +148,8 @@ export const soundStage: Stage = {
   outputsFor: (_m, scene) => [paths.sound(scene!)],
   estimateCostUsd(ctx, scene) {
     const m = ctx.manifest;
+    // (a clip's own sound is taken out of it for nothing, and needs no Foley price)
+    if (!hasSceneSound(m, scene!)) return 0;
     const s = m.scenes[scene!];
     // (before the voice the scene's length is unknown: the longest the model makes is assumed)
     const seconds = soundAskSeconds(s.audio ? s.audio.duration : SCENE_SOUND_MAX_SEC);
@@ -94,6 +158,10 @@ export const soundStage: Stage = {
   async run(ctx, scene) {
     const i = scene!;
     const m = ctx.manifest;
+    if (!hasSceneSound(m, i)) {
+      m.scenes[i].sound = await clipSound(ctx, i);
+      return;
+    }
     const foley = ctx.providers.sound;
     if (!foley) throw new NonRetryableError("this run was made with scene sound, and no Foley endpoint is set for it");
     const ask = soundAsk(ctx, i);

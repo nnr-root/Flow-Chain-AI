@@ -54,3 +54,15 @@ export async function streamDuration(path: string, kind: "v" | "a"): Promise<num
 export async function hasAudioStream(path: string): Promise<boolean> {
   return (await ffprobe(["-select_streams", "a", "-show_entries", "stream=index", "-of", "csv=p=0", path])) !== "";
 }
+
+/**
+ * A clip's length as its picture plays: the container's length is the longer of its streams, and a clip's sound (an LTX
+ * clip's) can run some ms past its last frame, which would make the fit think there is picture that is not there. A clip
+ * without sound (every Wan clip) is measured exactly as it always was.
+ */
+export async function clipDuration(path: string): Promise<number> {
+  if (!(await hasAudioStream(path))) return probeDuration(path);
+  const picture = await streamDuration(path, "v");
+  // (a container that keeps no length per stream gives none: its own length is all there is)
+  return Number.isFinite(picture) && picture > 0 ? picture : probeDuration(path);
+}

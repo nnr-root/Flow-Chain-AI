@@ -4,7 +4,7 @@ import { round4 } from "../cost.js";
 import { effectivePreset, hookTextFor } from "../stages/look.js";
 import { isSmoothed } from "../stages/interpolate.js";
 import { referenceApplies } from "../stages/reference.js";
-import { hasSceneSound } from "../stages/sound.js";
+import { soundApplies } from "../stages/sound.js";
 import { isSpeaking, needsKeyframe } from "../stages/visual.js";
 import { videoProfileOf } from "../video-profiles.js";
 import { isDraft } from "./draft.js";
@@ -23,7 +23,7 @@ export function sceneStagesShown(m: Manifest, idx: number): StageName[] {
       ((s !== "clips" && s !== "fit") || m.scenes[idx].mode === 1) &&
       (s !== "upscale" || (m.request.upscale === true && m.scenes[idx].mode === 1)) &&
       (s !== "interpolate" || isSmoothed(m, idx)) &&
-      (s !== "sound" || hasSceneSound(m, idx)),
+      (s !== "sound" || soundApplies(m, idx)),
   );
 }
 
