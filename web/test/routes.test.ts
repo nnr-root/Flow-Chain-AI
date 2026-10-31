@@ -291,6 +291,17 @@ describe("pricing and paid actions", () => {
     m.request.localize = true;
     await saveRun(studio, m);
     expect(await error(await versionPrice(request(`/api/runs/${id}/versions/price`, { json: { language: "de" } }), params({ id })))).toMatchObject({ code: "validation", message: expect.stringContaining("made for viewers in Turkey") });
+    // a video with a speaking character starts nothing either: its character speaks the source's language (phase 15)
+    delete m.request.localize;
+    m.request.language = "en";
+    m.request.speech = true;
+    m.request.videoProfile = "ltx25@1";
+    m.script!.scenes[0].speech = "Hello there friend";
+    await saveRun(studio, m);
+    const before = (await calls(studio)).length;
+    expect(await error(await versionPrice(request(`/api/runs/${id}/versions/price`, { json: { language: "de" } }), params({ id })))).toMatchObject({ code: "validation", message: expect.stringContaining("speaking character") });
+    expect(await error(await makeVersion(request(`/api/runs/${id}/versions`, { json: { language: "de", approvedUsd: 0.03 } }), params({ id })))).toMatchObject({ code: "validation", message: expect.stringContaining("speaking character") });
+    expect(await calls(studio)).toHaveLength(before);
     expect((await versionPrice(request(`/api/runs/${nextRunId()}/versions/price`, { json: { language: "de" } }), params({ id: nextRunId() }))).status).toBe(404);
   });
 

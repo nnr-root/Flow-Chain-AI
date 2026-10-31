@@ -81,7 +81,8 @@ export function autoModeDeps(m: Manifest): Dep[] {
  * does not would buy a clip of its own, so it is not read at all.
  */
 export function isSpeaking(m: Manifest, i: number): boolean {
-  return m.request.speech === true && (m.script?.scenes[i]?.speech?.trim() ?? "") !== "";
+  // (and only on LTX, the one engine that speaks: another would buy a clip that has no voice in it)
+  return m.request.speech === true && m.request.videoProfile === "ltx25@1" && (m.script?.scenes[i]?.speech?.trim() ?? "") !== "";
 }
 
 /**

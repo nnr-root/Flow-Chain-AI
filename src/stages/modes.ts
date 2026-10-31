@@ -44,7 +44,8 @@ function autoInputs(ctx: StageContext): PlanModesInput | null {
       shot: script.scenes[i].shot,
       // (a speaking scene has no length before its clip, which comes after this stage: it is priced at the clip it buys)
       requestedSec: isSpeaking(m, i) ? SPEAKING_CLIP_SEC : videoProfileOf(m.request.videoProfile).clipSec(requireAudio(s).duration),
-      narrationChars: script.scenes[i].narration.length,
+      // (no voiceover is bought for a speaking scene: its voice is in its clip)
+      narrationChars: isSpeaking(m, i) ? 0 : script.scenes[i].narration.length,
     })),
     prices,
     keyframeSize: ctx.keyframeSize,

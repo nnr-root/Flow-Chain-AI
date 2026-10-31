@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { AUDIENCE } from "./culture.js";
 import { wordsPerSecond } from "./duration.js";
 import type { Manifest, RunRequest, SceneState, StageName } from "./manifest/schema.js";
-import { needsKeyframe } from "./stages/visual.js";
+import { isSpeaking, needsKeyframe } from "./stages/visual.js";
 import { LANGUAGE_IN_ENGLISH, type SpeechLanguage } from "./voice/language.js";
 
 /*
@@ -31,6 +31,9 @@ export function versionProblem(source: Manifest, language: SpeechLanguage): stri
   if (r.localize) return `run ${source.runId} was made for viewers in ${AUDIENCE[r.language!] ?? r.language}; a video to be made in other languages is made without that (--no-localize)`;
   if (r.language === language) return `run ${source.runId} is already in ${LANGUAGE_IN_ENGLISH[language]}`;
   if (!source.script) return `run ${source.runId} has no script yet`;
+  // (a version keeps the source's clips, and a speaking scene's voice is in its clip: it would speak the source's language
+  // with the version's captions, and a version never buys a clip; refused before the translation is bought)
+  if (source.scenes.some((s) => isSpeaking(source, s.idx))) return "a video with a speaking character cannot be made in another language: its character speaks the source language";
   const unmade = source.scenes.some((s) => !s.audio || (s.mode === 1 && !s.clip) || (s.mode === 1 && r.upscale && !s.upscaled) || (s.mode === 1 && r.fps === 60 && r.upscale !== true && !s.smoothed) || (needsKeyframe(source, s.idx) && !s.keyframe));
   if (unmade) return `run ${source.runId} is not made yet: its pictures and clips are what a version is made of`;
   return null;
