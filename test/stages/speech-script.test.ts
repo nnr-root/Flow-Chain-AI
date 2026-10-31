@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { runPipeline, type RunOptions } from "../../src/pipeline.js";
-import { scriptStage, settleSpeech, speakingScenes, validateScript } from "../../src/stages/script.js";
+import { scriptStage, settleSpeech, speakingScenes, validatePart, validateScript } from "../../src/stages/script.js";
+import type { ScriptRequest } from "../../src/providers/types.js";
 import { speechCap } from "../../src/voice/words.js";
 import { fakeScript, timedScript, words } from "../fakes/providers.js";
 import { makeTestContext } from "../helpers/context.js";
@@ -21,6 +22,12 @@ describe("which scenes of a script may speak", () => {
     const scenes = [{ speech: long }, { speech: "" }, { speech: "  " }, { speech: "One" }, {}, { speech: "Two" }, { speech: "Three" }];
     expect(speakingScenes(scenes, true, "en")).toEqual([3, 5]);
     expect(speakingScenes([{ speech: words(speechCap("en")) }], true, "en")).toEqual([0]);
+  });
+
+  it("counts the speakers an earlier part of the script already kept towards the two", () => {
+    const scenes = [{ speech: "One" }, { speech: "Two" }];
+    expect(speakingScenes(scenes, true, "en", 1)).toEqual([0]);
+    expect(speakingScenes(scenes, true, "en", 2)).toEqual([]);
   });
 
   it("counts a language without spaces in characters", () => {
@@ -88,5 +95,44 @@ describe("the script's word range", () => {
     const result = validateScript(answer(), 7, HALF_MINUTE, "en", undefined, 2.4);
     expect(result.ok).toBe(false);
     expect(third(result.ok ? [] : result.problems)).toHaveLength(1);
+  });
+});
+
+describe("a script written in parts", () => {
+  const TWO_MINUTES = { targetSec: 120, sceneSec: { min: 3, max: 5 } };
+  const SAID = "One said.";
+  /** Fifteen scenes of ten words a part; `speak` scenes say a two-word sentence instead (as their narration too). */
+  const part = (index: number, speak: number[]) => ({
+    scenes: fakeScript(15).scenes.map((s, i) => ({ ...s, shot: "continue", narration: speak.includes(i) ? SAID : words(10, `p${index}s${i}`), speech: speak.includes(i) ? SAID : "" })),
+  });
+
+  it("does not exempt a later part's speaker from the word range once earlier parts kept two", () => {
+    const later = part(1, [0]);
+    const checked = (before: number) => validatePart(later, 1, 60, TWO_MINUTES.sceneSec, "en", undefined, 2.4, undefined, true, before);
+    const first = (result: ReturnType<typeof checked>) => (result.ok ? [] : result.problems.filter((p) => p.startsWith("scene 1 narration")));
+    expect(first(checked(1))).toEqual([]);
+    expect(first(checked(2))).toHaveLength(1);
+  });
+
+  it("sends back the last part's third speaker, so no scene keeps a speaker's short narration without its sentence", async () => {
+    const answer = (req: ScriptRequest) => {
+      if (req.ask?.kind === "outline") {
+        const { scenes: _none, ...head } = fakeScript(1);
+        return { ...head, parts: req.ask.partSec.map((_, i) => ({ summary: `part ${i + 1}` })) };
+      }
+      if (req.ask?.kind !== "part") throw new Error("a long video is never asked for in one answer");
+      const last = req.ask.index === req.ask.partSec.length - 1;
+      if (req.ask.index === 0) return part(0, [0, 1]);
+      return part(req.ask.index, last && !req.feedback ? [0] : []);
+    };
+    const { ctx, fakes } = await makeTestContext({ modes: "auto", timing: TWO_MINUTES, script: (_n, req) => answer(req) });
+    ctx.manifest.request.speech = true;
+    await runPipeline(ctx, [scriptStage], auto);
+    const parts = fakes.llm.calls.filter((c) => c.ask?.kind === "part");
+    const lastIndex = parts[0].ask?.kind === "part" ? parts[0].ask.partSec.length - 1 : -1;
+    const lastAsks = parts.filter((c) => c.ask?.kind === "part" && c.ask.index === lastIndex);
+    expect(lastAsks).toHaveLength(2);
+    expect(lastAsks[1].feedback).toMatch(/scene 1 narration/);
+    expect(ctx.manifest.script!.scenes.filter((s) => s.speech !== "").map((s) => s.narration)).toEqual([SAID, SAID]);
   });
 });
