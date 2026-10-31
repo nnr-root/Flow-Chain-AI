@@ -14,7 +14,7 @@ import os
 import subprocess
 from dataclasses import dataclass
 
-from flowchain_ltx import weights
+from flowchain_ltx import MIN_HOST_CUDA, weights
 
 TRANSFORMER = f"{weights.ROOT}/{weights.TRANSFORMER}"
 TEXT_ENCODER = f"{weights.ROOT}/{weights.TEXT_ENCODER}"
@@ -51,9 +51,9 @@ def _require_gpu():
     import torch  # lazily: only the image has it
 
     # never the CPU: there a job runs until the endpoint's limit and is charged for it. A host whose driver is older than
-    # the CUDA 12.8 this PyTorch was built for shows no GPU, and the job must fail at once instead
+    # the CUDA this PyTorch was built for shows no GPU, and the job must fail at once instead
     if not torch.cuda.is_available():
-        raise RuntimeError("LTX needs a GPU: no GPU with a driver for CUDA 12.8 is available on this worker")
+        raise RuntimeError(f"LTX needs a GPU: no GPU with a driver for CUDA {MIN_HOST_CUDA} is available on this worker")
     return torch
 
 

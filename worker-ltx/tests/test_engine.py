@@ -141,7 +141,7 @@ def _no_gpu(monkeypatch):
 
 def test_the_real_loader_refuses_a_worker_without_a_gpu_instead_of_running_on_the_cpu(monkeypatch):
     _no_gpu(monkeypatch)
-    with pytest.raises(RuntimeError, match="LTX needs a GPU"):
+    with pytest.raises(RuntimeError, match="LTX needs a GPU: no GPU with a driver for CUDA 13.2"):
         engine._load()
     with pytest.raises(RuntimeError, match="LTX needs a GPU"):
         engine._load_whisper()

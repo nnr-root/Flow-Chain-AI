@@ -14,8 +14,14 @@
 # THE TOKEN: Lightricks/LTX-2.5 is gated. The owner's Hugging Face token is given to the build as a BuildKit secret
 #   docker build --secret id=hf_token,src=<a file holding the token> worker-ltx
 # and read only inside the RUN steps that download; it is never an ARG or an ENV, which would stay in the image's history.
-FROM runpod/pytorch:2.8.0-py3.11-cuda12.8.1-cudnn-devel-ubuntu22.04
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg git curl && rm -rf /var/lib/apt/lists/*
+#
+# THE HOST: PyTorch here is 2.13.0 built for CUDA 13.2 (the stack the spike ran, below), so the host's driver must support
+# CUDA 13.2 or the worker sees no GPU and refuses the job. flowchain_ltx.MIN_HOST_CUDA says the same, for the endpoint's
+# minCudaVersion. The wheels carry their own CUDA libraries, so the base image is plain Python 3.11, with no CUDA or cuDNN of
+# its own: a system cuDNN is what the program's root pyproject warns can be loaded instead of the wheel's and abort.
+FROM python:3.11-slim-bookworm
+# gcc: Triton compiles a small launcher with the system's C compiler the first time it runs a kernel
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg git curl gcc libc6-dev && rm -rf /var/lib/apt/lists/*
 # the check that each download is the pinned file (see the script); first, so a change to anything below keeps the downloads
 COPY lfs-check.sh /usr/local/bin/lfs-check
 
@@ -53,21 +59,33 @@ RUN mkdir -p /models/whisper \
  && for f in config.json preprocessor_config.json tokenizer.json vocabulary.json model.bin; do curl -fsSL --retry 5 --retry-all-errors -o /models/whisper/$f ${WHISPER_FILES}/$f || exit 1; done \
  && echo "e76620f83d5f5b69efd3d87e3dc180c1bd21df9fbebacfd4335e5e1efcc018da  /models/whisper/model.bin" | sha256sum -c -
 
-# PyTorch 2.8.0 built for CUDA 12.8 (the base image's own; pinned again so nothing below can move it). The same pins are a
-# constraints file, with transformers at 5.14.1: ltx-core allows 5.8 to 5.14 and names 5.14.1 the newest verified to build
-# the Gemma 4 text encoder.
-RUN python3.11 -m pip install --no-cache-dir torch==2.8.0 torchvision==0.23.0 torchaudio==2.8.0 --index-url https://download.pytorch.org/whl/cu128
-RUN printf 'torch==2.8.0\ntorchvision==0.23.0\ntorchaudio==2.8.0\ntransformers==5.14.1\n' > /constraints.txt
+# THE STACK (decided 2026-10-31): exactly what `uv sync --extra natten` resolved at LTX-2 e98f6d9, which the spike ran
+# successfully on three A40 pods that day. ltx-core's `natten` extra pins torch 2.13.0 from the cu132 index and the natten
+# wheel built for it; with torch 2.13 that index offers torchvision 0.28.0 and torchaudio 2.11.1 (the newest that take it).
+# An older torch was never run, and the program's docs/optimization.md says it can hit an illegal memory access in the
+# diffusion VAE's decode. The program's root pyproject overrides torch's own cuDNN (9.20.0.48, which lacks a library and
+# aborts the process) with 9.24.0.43; pip cannot override a dependency, so the installs go through uv, as the spike's did.
+# transformers is pinned at 5.14.1: ltx-core allows 5.8 to 5.14 and names 5.14.1 the newest verified to build the Gemma 4
+# text encoder. Every install below takes the constraints and the override, so nothing can move the stack.
+RUN python3.11 -m pip install --no-cache-dir uv==0.13.6
+RUN printf 'torch==2.13.0+cu132\ntorchvision==0.28.0+cu132\ntorchaudio==2.11.1+cu132\nnatten==0.21.7+torch2130cu132\ntransformers==5.14.1\n' > /constraints.txt \
+ && printf 'nvidia-cudnn-cu13==9.24.0.43\n' > /overrides.txt
+# the cu132 wheels are found on PyTorch's index and natten's on its own; the exact local versions above (+cu132) are on
+# those indexes only, so taking the best match across indexes cannot pick another build
+RUN uv pip install --system --no-cache -c /constraints.txt --override /overrides.txt --extra-index-url https://download.pytorch.org/whl/cu132 --find-links https://whl.natten.org --index-strategy unsafe-best-match torch torchvision torchaudio natten
 # The model's program (ltx-core, ltx-pipelines), pinned by commit. e98f6d9 (2026-10-18) was the head of main on 2026-10-31,
-# the day of the spike, which cloned the head and worked: it is the code that was tested. Installed from the checkout with
-# pip under the constraints above, not with `uv sync`: the repository's `natten` extra pins torch 2.13 for CUDA 13.2, which
-# this image does not use (the video VAE then runs its neighbourhood attention on the Triton/eager fallback).
+# the day of the spike, which cloned the head and worked: it is the code that was tested.
 ARG LTX_COMMIT=e98f6d927d83c92ef2be6aec76c8440b19306e39
 RUN git clone https://github.com/Lightricks/LTX-2 /ltx-src \
  && git -C /ltx-src checkout ${LTX_COMMIT} \
- && python3.11 -m pip install --no-cache-dir -c /constraints.txt /ltx-src/packages/ltx-core /ltx-src/packages/ltx-pipelines
+ && uv pip install --system --no-cache -c /constraints.txt --override /overrides.txt --extra-index-url https://download.pytorch.org/whl/cu132 --find-links https://whl.natten.org --index-strategy unsafe-best-match /ltx-src/packages/ltx-core /ltx-src/packages/ltx-pipelines
 COPY requirements.txt /flowchain/requirements.txt
-RUN python3.11 -m pip install --no-cache-dir -c /constraints.txt -r /flowchain/requirements.txt && python3.11 -m pip freeze > /flowchain/versions.txt
+RUN uv pip install --system --no-cache -c /constraints.txt --override /overrides.txt --extra-index-url https://download.pytorch.org/whl/cu132 --find-links https://whl.natten.org --index-strategy unsafe-best-match -r /flowchain/requirements.txt \
+ && uv pip freeze --system > /flowchain/versions.txt
+# faster-whisper's CTranslate2 is built for CUDA 12.8 and loads cuBLAS 12 and the CUDA 12 runtime by name at run time; torch
+# brings CUDA 13 only. requirements.txt installs those two as wheels, and they are found here (other names than CUDA 13's
+# libraries, so torch is not affected). CTranslate2's wheels are built without cuDNN, so none is needed for it.
+ENV LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib
 
 # The text encoder's tokenizer, configuration and processor must build offline from the file itself, or the first paid job
 # fails instead of this build. The file is joined in /tmp and removed in the same step, so the layer holds nothing of it.
@@ -82,7 +100,7 @@ RUN python3.11 -m ltx_pipelines.distilled --help > /tmp/help.txt \
  && for flag in --chunk-pixel-frames --chunk-carry-frames --quantization --transformer-path --text-encoder-path --video-vae-path --audio-vae-path --spatial-upsampler-path --image; do grep -q -- "$flag" /tmp/help.txt || { echo "ltx_pipelines.distilled does not take $flag" >&2; exit 1; }; done \
  && rm /tmp/help.txt
 RUN python3.11 -c "import inspect; from ltx_pipelines.distilled import DistilledPipeline; from ltx_pipelines.utils.model_paths import ModelPaths; from ltx_pipelines.utils.quantization_factory import QuantizationKind; from ltx_pipelines.utils.types import ImageConditioningInput; from ltx_pipelines.chunks import ChunkConfig, pipeline_output_from_chunks, split_decoded_chunks; from ltx_pipelines.utils.media_io import encode_video; from ltx_core.model.video_vae import AUTO_TILING, get_video_chunks_number; \
-want = {DistilledPipeline.__init__: ['model_paths', 'spatial_upsampler_path', 'loras', 'device', 'quantization'], DistilledPipeline.stream_chunks: ['prompt', 'seed', 'height', 'width', 'frame_rate', 'images', 'num_frames', 'vae_dtype', 'tiling_config', 'enhance_prompt', 'enhance_static_cache', 'color_space', 'generated_keyframes', 'decode_with_keyframes', 'chunk_config'], ModelPaths.from_split: ['transformer_path', 'text_encoder_path', 'video_vae_path', 'audio_vae_path'], ImageConditioningInput.at: ['path', 'frame_idx', 'strength'], ChunkConfig: ['chunk_pixel_frames', 'next_video_carry_frames'], encode_video: ['video', 'fps', 'audio', 'output_path', 'video_chunks_number', 'color_space', 'audio_sampling_rate', 'video_marker', 'audio_marker']}; \
+want = {DistilledPipeline.__init__: ['model_paths', 'spatial_upsampler_path', 'loras', 'device', 'quantization'], DistilledPipeline.stream_chunks: ['prompt', 'seed', 'height', 'width', 'frame_rate', 'images', 'num_frames', 'vae_dtype', 'tiling_config', 'enhance_prompt', 'enhance_static_cache', 'color_space', 'generated_keyframes', 'decode_with_keyframes', 'chunk_config'], ModelPaths.from_split: ['transformer_path', 'text_encoder_path', 'video_vae_path', 'audio_vae_path'], ImageConditioningInput.at: ['path', 'frame_idx', 'strength'], ChunkConfig: ['chunk_pixel_frames', 'next_video_carry_frames'], QuantizationKind.to_policy: ['checkpoint_path'], pipeline_output_from_chunks: ['chunks', 'num_frames', 'tiling_config'], split_decoded_chunks: ['chunks'], get_video_chunks_number: ['num_frames', 'tiling_config'], encode_video: ['video', 'fps', 'audio', 'output_path', 'video_chunks_number', 'color_space', 'audio_sampling_rate', 'video_marker', 'audio_marker']}; \
 bad = [f.__qualname__ for f, names in want.items() if not set(names) <= set(inspect.signature(f).parameters)]; \
 assert not bad, 'the model program does not take the parameters engine.py passes: ' + ', '.join(bad); QuantizationKind('fp8-cast')"
 RUN printf %s 49b093a39c19169a8a81721dcc541e07e945232f > /models/ltx/.verified
@@ -92,6 +110,7 @@ COPY src/ /flowchain/src/
 COPY handler.py /handler.py
 # the files this worker runs must be where it calls them, or the image is not pushed (no GPU needed for any of it)
 RUN python3.11 -c "import runpod, boto3, faster_whisper; from flowchain_ltx import engine, weights; assert weights.present(), 'the model files are not all where weights.py says, at their sizes'; assert weights.REVISION == open('/models/ltx/.verified').read()" \
- && python3.11 -c "import torch, torchvision, torchaudio; assert torch.__version__.startswith('2.8.0') and torchvision.__version__.startswith('0.23.0') and torchaudio.__version__.startswith('2.8.0')" \
+ && python3.11 -c "import torch, torchvision, torchaudio, natten; from importlib.metadata import version as v; got = (torch.__version__, torchvision.__version__, torchaudio.__version__, v('natten'), v('nvidia-cudnn-cu13'), v('transformers')); assert got == ('2.13.0+cu132', '0.28.0+cu132', '2.11.1+cu132', '0.21.7+torch2130cu132', '9.24.0.43', '5.14.1'), got" \
+ && python3.11 -c "import ctypes; ctypes.CDLL('libcublas.so.12'); ctypes.CDLL('libcudart.so.12')" \
  && test "$(git -C /ltx-src rev-parse HEAD)" = "e98f6d927d83c92ef2be6aec76c8440b19306e39"
 CMD ["python3.11", "-u", "/handler.py"]

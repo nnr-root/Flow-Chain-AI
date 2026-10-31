@@ -1,3 +1,9 @@
+"""The model files the image holds, how the worker finds and joins them, and the Dockerfile that downloads them.
+
+There is no `verify()` case like foley's: the check that the bytes are the pinned files is made at build time by
+lfs-check.sh, which is tested here instead.
+"""
+
 import hashlib
 import os
 import re
@@ -5,6 +11,7 @@ import subprocess
 
 import pytest
 
+import flowchain_ltx
 from flowchain_ltx import weights
 
 HERE = os.path.dirname(__file__)
@@ -180,6 +187,35 @@ def test_the_dockerfile_checks_every_file_against_the_size_and_pointer_id_the_wo
     # the token is a build secret: never an ARG or an ENV, which would stay in the image's history
     assert not re.search(r"^(ARG|ENV)\b.*(HF_TOKEN|hf_token)", text, re.M | re.I)
     assert "--mount=type=secret,id=hf_token" in text
+
+
+# the stack `uv sync --extra natten` resolved at LTX-2 e98f6d9, which the spike ran on 2026-10-31
+SPIKE_STACK = {
+    "torch": "2.13.0+cu132",
+    "torchvision": "0.28.0+cu132",
+    "torchaudio": "2.11.1+cu132",
+    "natten": "0.21.7+torch2130cu132",
+}
+
+
+def test_the_image_pins_the_torch_stack_the_spike_ran_and_overrides_cudnn_as_the_program_does():
+    text = _dockerfile()
+    constraints = re.search(r"printf '([^']*)' > /constraints\.txt", text).group(1).split("\\n")
+    for name, version in SPIKE_STACK.items():
+        assert f"{name}=={version}" in constraints, f"{name} is not pinned to {version}"
+    overrides = re.search(r"printf '([^']*)' > /overrides\.txt", text).group(1).split("\\n")
+    assert "nvidia-cudnn-cu13==9.24.0.43" in overrides
+    assert "https://download.pytorch.org/whl/cu132" in text and "https://whl.natten.org" in text
+    # every install goes through the constraints and the override, so nothing below can move the stack
+    for line in re.findall(r"uv pip install[^\n]*", text):
+        assert "-c /constraints.txt" in line and "--override /overrides.txt" in line, line
+    assert "pip install" not in text.replace("uv pip install", "").replace("pip install --no-cache-dir uv==", "")
+    assert "2.8.0" not in text and "cu128" not in text
+
+
+def test_the_host_needs_a_driver_for_the_cuda_the_wheels_were_built_for():
+    assert flowchain_ltx.MIN_HOST_CUDA == "13.2"
+    assert f"CUDA {flowchain_ltx.MIN_HOST_CUDA}" in _dockerfile().split("FROM", 1)[0]
 
 
 def _lfs_check(tmp_path, oid, size, *parts):

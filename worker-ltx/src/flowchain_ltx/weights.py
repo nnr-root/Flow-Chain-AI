@@ -92,7 +92,11 @@ def present(root=ROOT, whisper_root=WHISPER_ROOT):
 
 
 def assemble(root=ROOT):
-    """Joins every split file from its parts, streaming (never a whole file in memory); safe to repeat."""
+    """Joins every split file from its parts, streaming (never a whole file in memory); safe to repeat.
+
+    It assumes one job at a time on a worker: two jobs joining at once would both write the same `.tmp` file. RunPod
+    gives a serverless worker one job at a time unless a concurrency is set, and this worker sets none.
+    """
     for name, parts in PARTS.items():
         if _size(root, name) == FILES[name][0]:
             continue

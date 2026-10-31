@@ -1,3 +1,7 @@
 faster-whisper==1.2.1
+ctranslate2==4.8.4
+# CTranslate2 is built for CUDA 12.8 and loads these by name; torch 2.13 brings only CUDA 13's (see the Dockerfile)
+nvidia-cublas-cu12==12.8.4.1
+nvidia-cuda-runtime-cu12==12.8.90
 boto3>=1.36,<2
 runpod>=1.10.1,<2
