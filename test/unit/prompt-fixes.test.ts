@@ -20,7 +20,9 @@ describe("how freely each answer is written", () => {
 describe("a continue scene", () => {
   it("is told to carry on the previous scene's camera move, in a whole script and in a part", () => {
     for (const p of [buildScriptPrompt(base), buildScriptPrompt({ ...base, timing: timed, ask: { kind: "part", index: 1, partSec: [60, 60], outline, previous: ["a"] } })]) {
-      expect(p).toContain('A "continue" scene\'s motionPrompt carries on from the previous scene\'s motionPrompt');
+      // (the rule as tightened by ad6fdd2: the same move in the same words, and a different move is a cut)
+      expect(p).toContain('A "continue" scene\'s motionPrompt must read as the previous scene\'s motionPrompt carrying on: begin it with the SAME camera move, named in the same words and the same direction');
+      expect(p).toContain('if the next shot needs a different move, it is a "cut"');
     }
   });
 });
