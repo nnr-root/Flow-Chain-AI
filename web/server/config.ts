@@ -76,27 +76,38 @@ export type Health = {
   missing: string[];
   /** Whether full HD (upscaled clips, phase 8 spec §8) can be offered: its endpoint is set. */
   fullHd?: boolean;
-  /** Whether smooth motion (60 fps, phase 11 spec §2) can be offered: the restorer endpoint is set and the owner switched it on. Present only when true, so every studio without it answers exactly as before (the existing health test compares the whole answer). */
+  /** Whether smooth motion (60 fps, phase 11 spec §2) can be offered: the restorer endpoint is set and the owner switched it on, and new runs' clips are not made on the LTX endpoint (phase 15 spec §13.5). Present only when true, so every studio without it answers exactly as before (the existing health test compares the whole answer). */
   smooth?: boolean;
   /** Whether topic ideas (phase 13) are offered: the key is there, the owner switched them on and, with accounts, a price is set. Present only when true, like `smooth`. */
   ideas?: true;
   /**
-   * Whether scene sound (phase 14 spec §6) can be offered: its endpoint is set and the owner switched it on. Present only
-   * when true, like `smooth`. Its prices are not read here (the web never reads `prices.json`): the CLI's own gate
-   * decides at creation, and a run made without them is made without sound and says so.
+   * Whether scene sound (phase 14 spec §6) can be offered: its endpoint is set and the owner switched it on, or new runs'
+   * clips are made on the LTX endpoint, whose clips carry their own sound (phase 15 spec §13.7). Present only when true,
+   * like `smooth`. Its prices are not read here (the web never reads `prices.json`): the CLI's own gate decides at
+   * creation, and a run made without them is made without sound and says so.
    */
   sound?: true;
+  /**
+   * Whether a character may speak in a video (phase 15 spec §5, §7): new runs' clips are made on the endpoint that makes
+   * sound and the owner switched speech on. Present only when true, like `sound`; prices are the CLI's to check.
+   */
+  speech?: true;
 };
 
 /** Whether a new run could be made, checked without any network call. */
 export function health(): Health {
   const env = pipelineEnv();
   const unset = (names: readonly string[]) => names.filter((n) => !env[n]?.trim());
+  // while the LTX endpoint is set it makes every new run's clips (phase 15 spec §7), so the older clip endpoint is not needed
+  const ltx = Boolean(env.RUNPOD_LTX_ENDPOINT?.trim());
   return {
-    missing: [...unset(NEEDS), ...(unset(VOICE_NEEDS).length === VOICE_NEEDS.length ? [`${VOICE_NEEDS[0]} (or ${VOICE_NEEDS[1]})`] : [])],
+    missing: [...unset(ltx ? NEEDS.filter((n) => n !== "RUNPOD_CLIP_ENDPOINT") : NEEDS), ...(unset(VOICE_NEEDS).length === VOICE_NEEDS.length ? [`${VOICE_NEEDS[0]} (or ${VOICE_NEEDS[1]})`] : [])],
     fullHd: Boolean(env.RUNPOD_UPSCALE_ENDPOINT?.trim()),
-    ...(env.RUNPOD_UPSCALE_ENDPOINT?.trim() && env.FLOWCHAIN_SMOOTH_MOTION?.trim() === "on" ? { smooth: true } : {}),
-    ...(env.RUNPOD_FOLEY_ENDPOINT?.trim() && env.FLOWCHAIN_SCENE_SOUND?.trim() === "on" ? { sound: true as const } : {}),
+    // smooth motion was measured on 16 fps clips only: the CLI refuses it for a 24 fps clip, so the form must not offer it
+    ...(!ltx && env.RUNPOD_UPSCALE_ENDPOINT?.trim() && env.FLOWCHAIN_SMOOTH_MOTION?.trim() === "on" ? { smooth: true } : {}),
+    // an LTX clip carries its own sound (phase 15 spec §13.7): without this the form would send --no-sfx and it would be silent
+    ...(ltx || (env.RUNPOD_FOLEY_ENDPOINT?.trim() && env.FLOWCHAIN_SCENE_SOUND?.trim() === "on") ? { sound: true as const } : {}),
+    ...(ltx && env.FLOWCHAIN_SPEECH?.trim() === "on" ? { speech: true as const } : {}),
     ...(env.GEMINI_API_KEY?.trim() && env.FLOWCHAIN_TREND_IDEAS?.trim() === "on" && (!multiTenant() || ideasPriceUsd() !== undefined) ? { ideas: true as const } : {}),
   };
 }

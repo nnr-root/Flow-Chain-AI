@@ -55,6 +55,8 @@ describe("the new-video form", () => {
       "run", "--draft", "--yes", "--run-id", "20261006-120000-abcdef", "--topic", "foxes", "--aspect", "9:16", "--duration", "60", "--scene-seconds", "3-5",
       "--language", "en", "--mode", "auto", "--clips", "480p", "--budget", "100", "--caption-style", "preset", "--transition", "auto",
       "--bgm-gain", "0.35", "--sfx-gain", "0.6",
+      // (phase 15: speech is always said, so a worker that offers it never speaks for a form that showed no switch)
+      "--no-speech",
     ]);
     const full = draftArgs(
       NewVideo.parse({

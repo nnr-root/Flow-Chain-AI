@@ -7,7 +7,7 @@ import { amount, errorText, getJson, sendForm, sendJson } from "@/lib/api";
 import { CreditNote, tooLittle, useBalance } from "@/lib/balance";
 import { draftCapUsd } from "@/lib/credit";
 import { NOT_READY } from "@/lib/engines";
-import { CAPTION_LABELS, labelOf, TRANSITION_LABELS } from "@/lib/labels";
+import { CAPTION_LABELS, labelOf, SPEECH_SWITCH, TRANSITION_LABELS } from "@/lib/labels";
 import type { StudioHealth } from "@/server/jobs";
 import type { KitSummary, Track } from "@/server/library";
 import { SceneLength } from "./SceneLength";
@@ -30,6 +30,12 @@ export type PresetCard = StyleCard;
  * answer is off: a recipe saved now must not start buying sound once the owner turns the layer on.
  */
 export const sfxToSend = (health: Pick<StudioHealth, "sound">, switchOn: boolean): boolean => health.sound === true && switchOn;
+
+/**
+ * The `speech` a form sends, for a draft and for a series' recipe alike (phase 15 spec §7): the switch's value only where
+ * the studio offers a speaking character, else off, so a recipe saved now never starts speaking once the owner turns it on.
+ */
+export const speechToSend = (health: Pick<StudioHealth, "speech">, switchOn: boolean): boolean => health.speech === true && switchOn;
 
 const CAPTION_STYLES = ["preset", "hormozi", "mrbeast", "minimalist"];
 const TRANSITIONS = ["auto", "cut", "fade", "dissolve", "blur", "zoom", "glitch"];
@@ -61,7 +67,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
   const [f, setF] = useState({
     topic, aspect: "9:16", durationSec: DEFAULT_VIDEO_SECONDS as number, sceneMin: DEFAULT_SCENE_SECONDS.min, sceneMax: DEFAULT_SCENE_SECONDS.max, style: "auto", motion: "auto", clips: "480p", fps: 30 as 30 | 60,
     brandKit: "", music: "", musicGain: 0.35, hookMode: "auto", hookText: "",
-    sfx: true, sfxGain: 0.6, characters: "", seed: "", language: "en" as SpeechLanguage, voiceId: "narrator-m" as VoiceId, captionStyle: "preset", transition: "auto",
+    sfx: true, sfxGain: 0.6, speech: false, characters: "", seed: "", language: "en" as SpeechLanguage, voiceId: "narrator-m" as VoiceId, captionStyle: "preset", transition: "auto",
     name: "", premise: "",
   });
   const [niche, setNiche] = useState<NicheChoice>({ kind: "none" });
@@ -112,7 +118,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
         aspect: f.aspect, durationSec: f.durationSec, sceneSec: { min: f.sceneMin, max: f.sceneMax }, style: f.style, motion: f.motion, clips: f.clips, fps: f.fps,
         brandKit: f.brandKit || null, music: f.music || null, musicGain: f.musicGain,
         hook: f.hookMode === "custom" ? { mode: "custom", text: f.hookText } : { mode: f.hookMode },
-        sfx: sfxToSend(health, f.sfx), sfxGain: f.sfxGain, captionStyle: f.captionStyle, transition: f.transition,
+        sfx: sfxToSend(health, f.sfx), sfxGain: f.sfxGain, speech: speechToSend(health, f.speech), captionStyle: f.captionStyle, transition: f.transition,
         ...(f.characters.trim() ? { characters: f.characters } : {}),
         ...(f.seed.trim() ? { seed: Number(f.seed) } : {}),
         language: f.language, voiceId: f.voiceId,
@@ -257,6 +263,16 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
             <span>
               Made for viewers in {audience}
               <span className="block text-[0.85rem] text-graphite">Where the topic leaves it open, the people and places in it are theirs; real events and people stay as they are. Turn it off for a video you will also make in other languages.</span>
+            </span>
+          </label>
+        )}
+        {/* (only where the studio can make it: elsewhere there is nothing for the switch to turn on) */}
+        {health.speech && (
+          <label className="mt-5 flex items-start gap-2.5 text-[0.95rem]">
+            <input type="checkbox" aria-label={SPEECH_SWITCH.label} checked={f.speech} onChange={(e) => set("speech", e.target.checked)} className="mt-1" />
+            <span>
+              {SPEECH_SWITCH.label}
+              <span className="block text-[0.85rem] text-graphite" data-testid="speech-note">{SPEECH_SWITCH.help}</span>
             </span>
           </label>
         )}

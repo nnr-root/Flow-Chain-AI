@@ -95,6 +95,19 @@ export function newRunSound(env: Env, prices: Prices, sfx: boolean): { model: st
 }
 
 /**
+ * Whether a new run lets a character speak (phase 15 spec §5): only when it asked to, its clips are made on LTX (the one
+ * engine whose clip carries speech) and the owner switched speech on. Anything else that asks is refused here, at
+ * creation, before anything is bought, so no run that cannot speak is ever frozen with speech. The words reach a
+ * customer's job log, so they name no model and no setting.
+ */
+export function newRunSpeech(env: Env, videoProfile: VideoProfileId, asked: boolean | undefined): boolean {
+  if (!asked) return false;
+  if (videoProfile !== "ltx25@1") throw new Error("a speaking character is not available: this studio's clips are not made with sound");
+  if (env.FLOWCHAIN_SPEECH !== "on") throw new Error("a speaking character is not switched on in this studio");
+  return true;
+}
+
+/**
  * The price table an auto run freezes for its mode rules, with the GPU rates materialised, so a later change to
  * their defaults or to prices.json cannot change what the run plans.
  */

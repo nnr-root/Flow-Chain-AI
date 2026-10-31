@@ -50,7 +50,7 @@ const DRAFT_VALUED = new Set([
   "--style", "--pin-modes", "--brand", "--bgm", "--hook", "--characters", "--seed", "--voice", "--niche", "--niche-text",
   "--format", "--edit", "--fps",
 ]);
-const DRAFT_FLAGS = new Set(["--no-hook", "--no-sfx", "--no-localize", "--upscale"]);
+const DRAFT_FLAGS = new Set(["--no-hook", "--no-sfx", "--no-localize", "--upscale", "--speech", "--no-speech"]);
 /** The kind of job each command is: the kind decides whether credit must be held, so it cannot be claimed freely. */
 // (a version in another language spends as a generation does, on its own new run: phase 8 spec §4.1)
 const KIND_OF: Record<string, JobKind> = { run: "draft", resume: "generate", reroll: "reroll", rerender: "rerender", translate: "generate" };
@@ -120,6 +120,8 @@ export function refusal(queue: keyof typeof QUEUES, args: unknown, runId?: strin
   for (let i = 5; i < list.length; i++) {
     const option = list[i];
     if (seen.has(option)) return `a draft may not repeat ${option}`;
+    // (commander takes the last of the two: a command that says both says nothing a customer chose)
+    if ((option === "--speech" && seen.has("--no-speech")) || (option === "--no-speech" && seen.has("--speech"))) return "a draft may not carry both --speech and --no-speech";
     seen.add(option);
     if (DRAFT_FLAGS.has(option)) continue;
     // an option's value is whatever follows it, also when it looks like an option: that is how the CLI reads it

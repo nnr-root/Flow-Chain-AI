@@ -21,6 +21,15 @@ export const TRANSITION_LABELS: Record<string, string> = {
   glitch: "Glitch",
 };
 
+/**
+ * The new-video form's switch for a speaking character (phase 15 spec §5): the studio's own words, naming no model. The
+ * help line states the limit, since nothing holds a voice from one clip to the next.
+ */
+export const SPEECH_SWITCH = {
+  label: "Let a character speak",
+  help: "The character's voice can differ between scenes.",
+} as const;
+
 /** A step of making a video, as the scene list, the spend table and a failure name it. */
 export const STAGE_LABELS: Record<string, string> = {
   script: "Script",

@@ -27,7 +27,7 @@ import { GeminiLlm } from "./providers/gemini.js";
 import { fetchChart } from "./providers/youtube-chart.js";
 import { makeIdeas } from "./trends/run.js";
 import { createProviders } from "./providers/factory.js";
-import { frozenModePrices, newRunProviders, newRunSound, newRunVoice, restorerFor } from "./providers/new-run.js";
+import { frozenModePrices, newRunProviders, newRunSound, newRunSpeech, newRunVoice, restorerFor } from "./providers/new-run.js";
 import { CLIP_QUALITIES, type ClipQuality } from "./video-profiles.js";
 import type { Providers } from "./providers/types.js";
 import { applyRenderOptions, assertRenderOnly, noPaidProviders, withLook } from "./rerender.js";
@@ -182,6 +182,7 @@ type RunFlags = {
   localize?: boolean;
   upscale?: boolean;
   fps?: string;
+  speech?: boolean;
 };
 
 /** --pin-modes: one entry per scene, or a single value for every scene. */
@@ -239,6 +240,8 @@ program
   .option("--no-hook", "no hook title or snap zoom")
   .option("--no-sfx", "no sound effects")
   .option("--sfx-gain <0-1>", "scene-sound level relative to the narration (default: 0.6)")
+  .option("--speech", "let a character speak in up to two scenes, in its own clip (phase 15 spec §5): LTX clips with FLOWCHAIN_SPEECH=on only")
+  .option("--no-speech", "no speaking character (the default)")
   .option("--brand <dir>", "brand kit folder (brand.json, logo, optional font): watermark, font, colours, characters")
   .option("--characters <text>", "character bible used in every prompt (default: the brand kit's, else Gemini's)")
   .option("--seed <n>", "seed shared by every keyframe (default: random)")
@@ -269,6 +272,8 @@ program
     if (o.bgm && !existsSync(o.bgm)) throw new Error(`--bgm file not found: ${o.bgm}`);
     const kit: BrandKit | undefined = o.brand ? await loadBrandKit(o.brand) : undefined;
     const providers = newRunProviders(env, o.clips, loadPrices());
+    // refused now, before anything is bought, where the run's clips cannot speak (phase 15 spec §5, §7)
+    const speech = newRunSpeech(env, providers.videoProfile, o.speech);
     const voice = newRunVoice(env, o.language);
     // scene sound is frozen now, on only when everything it needs is here (phase 14 spec §3); a switch that is on without
     // what it needs says so once, and nothing is said otherwise
@@ -287,6 +292,8 @@ program
       ...(o.upscale ? { upscale: true } : {}),
       ...(o.fps === "60" ? { fps: 60 as const } : {}),
       ...("model" in sound ? { sceneSound: true as const } : {}),
+      // frozen with the run: it changes what the script is asked for and what each clip is
+      ...(speech ? { speech: true as const } : {}),
       // made for the viewers of its one language, frozen now (phase 8 spec §5): never for English, which names no one
       // audience, nor for a video to be made in several languages
       ...(o.language && AUDIENCE[o.language as SpeechLanguage] ? { localize: o.localize !== false } : {}),

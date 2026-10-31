@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { loadEnv, LTX_RATES_MISSING, Prices } from "../../src/config.js";
 import { checkR2RoundTrip, checkRunpodEndpoints, usesGpu } from "../../src/doctor.js";
-import { frozenModePrices, newRunImage, newRunProviders } from "../../src/providers/new-run.js";
+import { frozenModePrices, newRunImage, newRunProviders, newRunSpeech } from "../../src/providers/new-run.js";
 import type { R2 } from "../../src/providers/r2.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
 import { FakeRunpodApi } from "../fakes/runpod.js";
@@ -49,6 +49,37 @@ describe("newRunProviders", () => {
     expect(() => newRunProviders(loadEnv(base))).toThrow(
       "RUNPOD_KEYFRAME_ENDPOINT and RUNPOD_CLIP_ENDPOINT not set; run npm run runpod:deploy first",
     );
+  });
+});
+
+describe("newRunSpeech", () => {
+  const on = loadEnv({ ...base, FLOWCHAIN_SPEECH: "on" });
+
+  it("is off, and says nothing, when the run did not ask for it, on any clip profile", () => {
+    for (const env of [loadEnv(base), on]) {
+      for (const profile of ["ltx25@1", "wan22-480p@1"] as const) {
+        expect(newRunSpeech(env, profile, undefined)).toBe(false);
+        expect(newRunSpeech(env, profile, false)).toBe(false);
+      }
+    }
+  });
+
+  it("is on only for a run whose clips are made with LTX while the owner switched speech on", () => {
+    expect(newRunSpeech(on, "ltx25@1", true)).toBe(true);
+  });
+
+  it("refuses a speaking character on any other clip profile, plainly and naming no model, so no such run is made", () => {
+    for (const profile of ["wan22-480p@1", "wan22-720p@1", "kling-v2"] as const) {
+      expect(() => newRunSpeech(on, profile, true)).toThrow(/speaking character/);
+      expect(() => newRunSpeech(on, profile, true)).not.toThrow(/ltx|lightricks|wan|FLOWCHAIN/i);
+    }
+  });
+
+  it("refuses a speaking character while the owner has not switched speech on, plainly and naming no setting", () => {
+    for (const env of [loadEnv(base), loadEnv({ ...base, FLOWCHAIN_SPEECH: "off" })]) {
+      expect(() => newRunSpeech(env, "ltx25@1", true)).toThrow(/speaking character/);
+      expect(() => newRunSpeech(env, "ltx25@1", true)).not.toThrow(/ltx|lightricks|FLOWCHAIN/i);
+    }
   });
 });
 

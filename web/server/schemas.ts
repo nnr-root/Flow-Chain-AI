@@ -62,6 +62,11 @@ export const NewVideo = z.object({
   ]).default({ mode: "auto" }),
   sfx: z.boolean().default(true),
   sfxGain: Gain.default(0.6),
+  /**
+   * A character speaks in up to two scenes (phase 15 spec §5): off by default, and a series' recipe saved before it has
+   * none, so it is off too. Asked for only where the studio offers it (`draftArgs`).
+   */
+  speech: z.boolean().default(false),
   characters: z.string().trim().max(600).optional(),
   seed: z.number().int().min(0).max(MAX_SEED).optional(),
   /**
@@ -129,8 +134,10 @@ export const NO_BUDGET_USD = 100;
  * the draft is asked for: a video asks for scene sound only where the studio shows the switch. The CLI decides by its
  * own environment too, so without this a worker whose switch is on would buy sound for a customer whose studio said
  * nothing of it (a health answer that is stale, or not known while the worker was not answering).
+ * `speechOffered` is `health().speech` likewise (phase 15 spec §7). Speech is always said, `--speech` or `--no-speech`,
+ * so the CLI is never left to decide it for a customer who was shown no switch.
  */
-export function draftArgs(input: NewVideo, runId: string, soundOffered: boolean): string[] {
+export function draftArgs(input: NewVideo, runId: string, soundOffered: boolean, speechOffered = false): string[] {
   const args = [
     "run", "--draft", "--yes", "--run-id", runId, "--topic", input.topic, "--aspect", input.aspect,
     "--duration", String(input.durationSec), "--scene-seconds", input.sceneSec.min === input.sceneSec.max ? String(input.sceneSec.min) : `${input.sceneSec.min}-${input.sceneSec.max}`,
@@ -158,6 +165,7 @@ export function draftArgs(input: NewVideo, runId: string, soundOffered: boolean)
   if (input.localize === false) args.push("--no-localize");
   if (input.clips === "1080p") args.push("--upscale");
   if (input.fps === 60) args.push("--fps", "60");
+  args.push(input.speech && speechOffered ? "--speech" : "--no-speech");
   return args;
 }
 
