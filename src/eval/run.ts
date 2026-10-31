@@ -61,7 +61,7 @@ export async function runCase(llm: Pick<LlmProvider, "generateScript">, c: EvalC
     const raw = await llm.generateScript(req);
     const found = scenesOf(raw);
     scenes.push(...found);
-    steps.push(step("script", validateScript(raw, req.sceneCount, req.timing, language, voiceId, req.wordsPerSecond), [...textAsked(found), ...startsFromRest(found), ...clipChecks(raw, req.speech === true, language), ...rawHashtags(tagsOf(raw))]));
+    steps.push(step("script", validateScript(raw, req.sceneCount, req.timing, language, voiceId, req.wordsPerSecond, req.speech === true), [...textAsked(found), ...startsFromRest(found), ...clipChecks(raw, req.speech === true, language), ...rawHashtags(tagsOf(raw))]));
     return { steps, scenes };
   }
 
@@ -74,7 +74,7 @@ export async function runCase(llm: Pick<LlmProvider, "generateScript">, c: EvalC
   for (let i = 0; i < partSec.length; i++) {
     const raw = await llm.generateScript({ ...req, ask: { kind: "part", index: i, partSec, outline: outline.value, previous } });
     const found = scenesOf(raw);
-    const checked = validatePart(raw, i, partSec[i], req.timing.sceneSec, language, voiceId, req.wordsPerSecond, outline.value.styleBible.setting);
+    const checked = validatePart(raw, i, partSec[i], req.timing.sceneSec, language, voiceId, req.wordsPerSecond, outline.value.styleBible.setting, req.speech === true);
     // (a part may speak only as its prompt allowed: the first and the last part, as gemini.ts tells it)
     const speaks = req.speech === true && (i === 0 || i === partSec.length - 1);
     steps.push(step(`part:${i + 1}`, checked, [...textAsked(found), ...startsFromRest(found), ...clipChecks(raw, speaks, language)]));

@@ -8,7 +8,7 @@ import { takesSeveralReferences } from "../image-profiles.js";
 import type { Manifest, Script, StoredPartScene } from "../manifest/schema.js";
 import { PRESETS } from "../presets.js";
 import { voicePace } from "../voice/language.js";
-import { countUnits, hookCap, isUnspaced, lengthUnit, unitsPerWord } from "../voice/words.js";
+import { countUnits, hookCap, isUnspaced, lengthUnit, MAX_SPEAKING_SCENES, speechCap, unitsPerWord } from "../voice/words.js";
 import { normalizeHashtags } from "../hashtags.js";
 import { anachronisms, handMotions } from "../anachronism.js";
 import { TIMEOUTS, withRetry } from "../providers/retry.js";
@@ -32,11 +32,40 @@ function hookProblems(hook: string, language?: string): string[] {
 }
 
 /**
+ * The scenes whose sentence a run keeps (phase 15 spec §5): none where the run does not allow speech, else the first
+ * two whose sentence is within the cap. The model is told the same limits; what it wrote past them is left out here,
+ * never sent back for a paid answer again.
+ */
+export function speakingScenes(scenes: ReadonlyArray<{ speech?: string }>, allowed: boolean, language?: string): number[] {
+  if (!allowed) return [];
+  const kept: number[] = [];
+  scenes.forEach((s, i) => {
+    const said = s.speech?.trim() ?? "";
+    if (said !== "" && countUnits(said, language) <= speechCap(language) && kept.length < MAX_SPEAKING_SCENES) kept.push(i);
+  });
+  return kept;
+}
+
+/**
+ * Keeps the sentences `speakingScenes` keeps and clears every other one. A kept scene's narration is its sentence: the
+ * person says it instead of the narrator, so what the script counts and shows is what is heard.
+ */
+export function settleSpeech(scenes: Array<{ narration: string; speech?: string }>, allowed: boolean, language?: string): void {
+  const kept = new Set(speakingScenes(scenes, allowed, language));
+  scenes.forEach((s, i) => {
+    if (kept.has(i)) {
+      s.speech = s.speech!.trim();
+      s.narration = s.speech;
+    } else if (s.speech !== undefined) s.speech = "";
+  });
+}
+
+/**
  * Whether scenes keep to a length they were asked for (phase 7 spec §3). The limits here are wider than the
  * ones the model was given: an answer is paid for whether or not it is accepted, and the video's real length
  * is the voice's in any case, so only an answer that would come out clearly wrong is sent back.
  */
-export function timingProblems(scenes: Array<{ narration: string }>, sec: number, sceneSec: SceneSeconds, what = "the script", rate?: number, language?: string): string[] {
+export function timingProblems(scenes: Array<{ narration: string }>, sec: number, sceneSec: SceneSeconds, what = "the script", rate?: number, language?: string, speaking: ReadonlyArray<number> = []): string[] {
   const problems: string[] = [];
   const bounds = sceneBounds(sec, sceneSec);
   const [fewest, most] = [Math.max(1, Math.floor(bounds.min * 0.8)), Math.ceil(bounds.max * 1.2)];
@@ -53,6 +82,8 @@ export function timingProblems(scenes: Array<{ narration: string }>, sec: number
     const words = countUnits(s.narration, language);
     total += words;
     if (words > cap) problems.push(`scene ${i + 1} narration has ${words} ${unit} (max ${cap})`);
+    // (a speaking scene's narration is its sentence, whose length its clip decides: an ordinary scene's range is not its)
+    else if (speaking.includes(i)) return;
     else if (words > each.max + near || words < Math.max(1, each.min - near)) {
       problems.push(`scene ${i + 1} narration has ${words} ${unit}; a scene of ${sceneSec.min === sceneSec.max ? sceneSec.min : `${sceneSec.min}-${sceneSec.max}`} seconds has ${each.min} to ${each.max}`);
     }
@@ -69,12 +100,12 @@ export function timingProblems(scenes: Array<{ narration: string }>, sec: number
  * Checks Gemini's answer against LlmScript (the 2.2 fields are required) and the scene and word limits: exactly
  * `sceneCount` scenes, or, for a run asked for by its length, the scenes and words that length comes to.
  */
-export function validateScript(raw: unknown, sceneCount: number, timing?: Timing, language?: string, voice?: string, frozen?: number): ScriptValidation {
+export function validateScript(raw: unknown, sceneCount: number, timing?: Timing, language?: string, voice?: string, frozen?: number, speech = false): ScriptValidation {
   const parsed = LlmScript.safeParse(raw);
   if (!parsed.success) return { ok: false, problems: issues(parsed.error) };
   const problems: string[] = [];
   const rate = frozen ?? wordsPerSecond(language, voice);
-  if (timing) problems.push(...timingProblems(parsed.data.scenes, timing.targetSec, timing.sceneSec, "the script", rate, language));
+  if (timing) problems.push(...timingProblems(parsed.data.scenes, timing.targetSec, timing.sceneSec, "the script", rate, language, speakingScenes(parsed.data.scenes, speech, language)));
   else {
     if (parsed.data.scenes.length !== sceneCount) {
       problems.push(`expected exactly ${sceneCount} scenes, got ${parsed.data.scenes.length}`);
@@ -106,10 +137,11 @@ export function validateOutline(raw: unknown, parts: number, language?: string):
 }
 
 /** One part of a long video: scenes that come to the part's own seconds. */
-export function validatePart(raw: unknown, index: number, sec: number, sceneSec: SceneSeconds, language?: string, voice?: string, frozen?: number, setting?: string): Checked<LlmPart["scenes"]> {
+export function validatePart(raw: unknown, index: number, sec: number, sceneSec: SceneSeconds, language?: string, voice?: string, frozen?: number, setting?: string, speech = false): Checked<LlmPart["scenes"]> {
   const parsed = LlmPart.safeParse(raw);
   if (!parsed.success) return { ok: false, problems: issues(parsed.error) };
-  const problems = [...timingProblems(parsed.data.scenes, sec, sceneSec, `part ${index + 1}`, frozen ?? wordsPerSecond(language, voice), language), ...anachronisms(parsed.data.scenes, setting), ...handMotions(parsed.data.scenes)];
+  const speaking = speakingScenes(parsed.data.scenes, speech, language);
+  const problems = [...timingProblems(parsed.data.scenes, sec, sceneSec, `part ${index + 1}`, frozen ?? wordsPerSecond(language, voice), language, speaking), ...anachronisms(parsed.data.scenes, setting), ...handMotions(parsed.data.scenes)];
   return problems.length > 0 ? { ok: false, problems } : { ok: true, value: parsed.data.scenes };
 }
 
@@ -188,7 +220,7 @@ async function writeInParts(ctx: RunContext, req: ScriptRequest, timing: Timing,
   for (let i = kept.parts.length; i < partSec.length; i++) {
     const previous = (kept.parts[i - 1] ?? []).slice(-2).map((s) => s.narration);
     await answer(ctx, `script:part:${i}`, scriptAnswerCost(ctx.prices, sceneBounds(partSec[i], timing.sceneSec).max), { ...req, ask: { kind: "part", index: i, partSec, outline, previous } },
-      (raw) => validatePart(raw, i, partSec[i], timing.sceneSec, req.language, req.voiceId, req.wordsPerSecond, outline.styleBible.setting), (value) => kept.parts.push(value));
+      (raw) => validatePart(raw, i, partSec[i], timing.sceneSec, req.language, req.voiceId, req.wordsPerSecond, outline.styleBible.setting, req.speech === true), (value) => kept.parts.push(value));
     ctx.log(`script: part ${i + 1} of ${partSec.length} written (${kept.parts[i].length} scenes)`);
   }
   // every part begins on a fresh picture: nothing of the part before is there to carry on from when it is written
@@ -257,7 +289,7 @@ export const scriptStage: Stage = {
     const script = timing && partSec
       ? await writeInParts(ctx, req, timing, partSec)
       : await answer(ctx, "script", timing ? scriptAnswerCost(ctx.prices, sceneBounds(timing.targetSec, timing.sceneSec).max) : scriptCost(ctx.prices), req, (raw) => {
-          const result = validateScript(raw, sceneCount, timing, language, voiceId, frozen);
+          const result = validateScript(raw, sceneCount, timing, language, voiceId, frozen, req.speech === true);
           return result.ok ? { ok: true, value: result.script } : result;
         });
     // --shots is enforced even if the LLM ignored the instruction
@@ -266,6 +298,8 @@ export const scriptStage: Stage = {
     if (timing) script.scenes[0].shot = "cut";
     // a reframe is only a cut after the first scene, and only where the run may (put right here, never sent back)
     settleReframes(script.scenes, allowsReframe(ctx.manifest));
+    // and a sentence only where the run allows speech, in two scenes at most, each within the cap (the same way)
+    settleSpeech(script.scenes, ctx.manifest.request.speech === true, language);
     // --style is enforced the same way, and the preset leads the art style (spec §2)
     if (style) script.stylePreset = style;
     const preset = PRESETS[script.stylePreset];
