@@ -11,7 +11,7 @@ import { isMode1 } from "./clips.js";
 import { runProviderJob } from "./job.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireAudio, requireClip } from "./require.js";
-import type { Stage } from "./types.js";
+import { clipFps, type Stage } from "./types.js";
 
 /** The frame-rate multiplier a clip is interpolated by: 16 fps Wan, 32 after the clip worker's RIFE, 64 after this (phase 11 spec §0). */
 export const INTERPOLATE = 2;
@@ -21,6 +21,16 @@ export function interpolateCost(p: Prices, seconds: number, first = false): numb
   const r = restoreRates(p);
   if (!r) throw new Error(RESTORE_RATES_MISSING);
   return round4((seconds * r.interpolateSecPerClipSec + (first ? r.coldStartSec : 0)) * r.usdPerSec);
+}
+
+/**
+ * Smooth motion was measured on Wan's clips only (16 fps made, 32 delivered, 64 after RIFE x2, thinned to 60); a clip
+ * made at another rate (LTX's 24) would come out at 48 and be thinned to 60 unmeasured. Refused before anything is
+ * bought until it is measured (phase 15 spec §13.5). The message names no model: it reaches a customer's job log.
+ */
+export function refuseUnmeasuredRate(clip: { fps?: number }): void {
+  const fps = clipFps(clip);
+  if (fps !== 16) throw new NonRetryableError(`smooth motion is not available yet for clips made at ${fps} frames a second`);
 }
 
 /** Only a moving clip of a 60 fps run that is not in full HD is interpolated on its own (in full HD the upscale job does it). */
@@ -50,6 +60,7 @@ export const interpolateStage: Stage = {
     if (!restore) throw new NonRetryableError("this run asked for smooth motion, and no restorer endpoint is set for it");
     const clip = requireClip(m.scenes[i]);
     requireAudio(m.scenes[i]);
+    refuseUnmeasuredRate(clip);
     const out = await outPath(ctx, paths.smoothed(i));
     const first = m.scenes.findIndex((x) => isSmoothed(m, x.idx)) === i;
     const result = await runProviderJob(ctx, i, "interpolate", {

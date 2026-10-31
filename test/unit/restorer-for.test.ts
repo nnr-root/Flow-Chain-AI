@@ -23,3 +23,16 @@ describe("the restorer model a run freezes", () => {
     expect(() => restorerFor({ fps: "60" }, env, Prices.parse({}))).toThrow(/smooth motion is not set up/);
   });
 });
+
+describe("smooth motion on a run whose clips are not Wan's", () => {
+  it("is refused when the run is created, plainly and without naming a model, until a 24 fps clip is measured", () => {
+    expect(() => restorerFor({ fps: "60", videoProfile: "ltx25@1" }, env, prices)).toThrow(/24 frames a second/);
+    expect(() => restorerFor({ fps: "60", upscale: true, videoProfile: "ltx25@1" }, env, prices)).toThrow(/24 frames a second/);
+    expect(() => restorerFor({ fps: "60", videoProfile: "ltx25@1" }, env, prices)).not.toThrow(/ltx|lightricks/i);
+  });
+
+  it("leaves Full HD alone and smooth motion on Wan as it was", () => {
+    expect(restorerFor({ upscale: true, videoProfile: "ltx25@1" }, env, prices)).toBe("runpod:up1/upscale-seedvr2@1");
+    expect(restorerFor({ fps: "60", videoProfile: "wan22-480p@1" }, env, prices)).toBe("runpod:up1/restore-video@1");
+  });
+});

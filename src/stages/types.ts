@@ -32,6 +32,14 @@ export type RunContext = StageContext & {
   charge(usd: number): Promise<void>;
 };
 
+/**
+ * The frame rate a clip was made at (phase 15 spec §13.5): its own where it recorded one (LTX's 24), else Wan's 16, the
+ * rate of every clip made before (whose file arrives at 32 after the Wan worker's own RIFE). `ctx.fps` is the video's.
+ * Fit and the seam frame do not need it (ffmpeg's fps filter resamples to the video's rate and the plan is in seconds);
+ * smooth motion does, as it was measured on Wan's clips only.
+ */
+export const clipFps = (clip: { fps?: number }): number => clip.fps ?? 16;
+
 export type Dep = { stage: StageName; scene?: number };
 
 export interface Stage {

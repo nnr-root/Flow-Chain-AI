@@ -8,7 +8,7 @@ import { download } from "../providers/download.js";
 import { NonRetryableError, TIMEOUTS } from "../providers/retry.js";
 import { videoProfileOf } from "../video-profiles.js";
 import { isMode1 } from "./clips.js";
-import { INTERPOLATE } from "./interpolate.js";
+import { INTERPOLATE, refuseUnmeasuredRate } from "./interpolate.js";
 import { runProviderJob } from "./job.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireAudio, requireClip } from "./require.js";
@@ -70,6 +70,8 @@ export const upscaleStage: Stage = {
     if (!upscale) throw new NonRetryableError("this run asked for full HD, and no upscaling endpoint is set for it");
     const clip = requireClip(m.scenes[i]);
     requireAudio(m.scenes[i]);
+    // (the same job interpolates in a 60 fps run, measured on Wan's clips only)
+    if (m.request.fps === 60) refuseUnmeasuredRate(clip);
     const out = await outPath(ctx, paths.upscaled(i));
     const first = m.scenes.findIndex((x) => isUpscaled(m, x.idx)) === i;
     const result = await runProviderJob(ctx, i, "upscale", {

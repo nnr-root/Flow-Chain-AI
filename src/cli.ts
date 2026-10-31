@@ -320,7 +320,7 @@ program
         sfxGain: o.sfxGain === undefined ? undefined : Number(o.sfxGain),
       },
     });
-    const restorer = restorerFor(o, env, loadPrices());
+    const restorer = restorerFor({ ...o, videoProfile: providers.videoProfile }, env, loadPrices());
     const concurrency = renderConcurrency(o.renderConcurrency);
     const models: Models = {
       llm: env.GEMINI_MODEL,

@@ -2,6 +2,7 @@ import type { Edit } from "../edits.js";
 import type { Manifest, Script } from "../manifest/schema.js";
 import { sceneFrameCounts } from "../media/timeline.js";
 import type { StylePreset } from "../presets.js";
+import type { VideoProfileId } from "../video-profiles.js";
 import { requireAudio } from "./require.js";
 import type { Dep } from "./types.js";
 
@@ -52,6 +53,18 @@ export function motionPrompt(script: Script, i: number, preset: StylePreset | nu
   const who = showsCharacter(script, i) ? ` ${b.characters}.` : "";
   const when = b.setting ? ` Setting: ${b.setting}.` : "";
   return `${motion}. Keep style consistent: ${b.artStyle}.${when}${who}`;
+}
+
+/**
+ * The prompt a scene's clip is asked with. An LTX run sends the script's own `videoPrompt` and nothing else: the
+ * preset's motion keywords, the edit's motion words ("cinematic") and the art style pull LTX towards a widescreen film
+ * look in a vertical frame (phase 15 spec §1, §4). A scene without one (a script written before it) falls back to the
+ * motion prompt; every other profile is asked exactly as before, so its clips keep their keys.
+ */
+export function clipPrompt(script: Script, i: number, preset: StylePreset | null, edit: Edit | undefined, profile: VideoProfileId | undefined): string {
+  const own = script.scenes[i].videoPrompt?.trim();
+  if (profile === "ltx25@1" && own) return own;
+  return motionPrompt(script, i, preset, edit);
 }
 
 /**

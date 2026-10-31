@@ -52,3 +52,29 @@ describe("extractSeamFrame", () => {
     });
   }
 });
+
+describe("a clip's own frame rate (phase 15 spec §13.5)", () => {
+  // fit and the seam resample to the video's rate with ffmpeg's fps filter and plan in seconds, so a clip's own rate
+  // (Wan's 16, LTX's 24) never decides how many frames a scene has: the audio does
+  for (const clipFps of [16, 24]) {
+    for (const [target, kind] of [[2, "trim"], [3.4, "slow"], [5, "slow+freeze"]] as const) {
+      it(`fits a ${clipFps} fps clip to exactly the scene's frames at the video's rate, and seams on its last shown frame (${kind})`, async () => {
+        const dir = await tempDir();
+        const clip = join(dir, "clip.mp4");
+        await makeVideo(clip, { seconds: 3, fps: clipFps, width: 180, height: 320, flat: 0 });
+        const plan = planFit(3, target);
+        expect(plan.kind).toBe(kind);
+        const frames = Math.round(target * 30);
+        const fitted = join(dir, "fit.mp4");
+        await applyFit(clip, fitted, plan, frames, size, 30);
+        expect(await countFrames(fitted)).toBe(frames);
+        expect(await probeVideo(fitted)).toEqual({ ...size, fps: 30 });
+        const shown = join(dir, "shown.png");
+        await extractLastFrame(fitted, shown);
+        const seam = join(dir, "seam.png");
+        await extractSeamFrame(clip, seam, plan, frames, size, 30);
+        expect(await frameDiff(seam, shown)).toBe(0);
+      });
+    }
+  }
+});

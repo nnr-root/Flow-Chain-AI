@@ -69,7 +69,12 @@ export function newRunRestore(env: Env, prices: Prices): string {
  * The restorer model a new run is frozen with, or none: smooth motion (with or without Full HD) is the restorer's
  * new workflow; Full HD alone stays on the old workflow, so its jobs and keys do not change (phase 11 spec §2).
  */
-export function restorerFor(opts: { fps?: string; upscale?: boolean }, env: Env, prices: Prices): string | undefined {
+export function restorerFor(opts: { fps?: string; upscale?: boolean; videoProfile?: VideoProfileId }, env: Env, prices: Prices): string | undefined {
+  // smooth motion was measured on Wan's 16 fps clips only; an LTX clip is 24 (phase 15 spec §13.5). Refused now, before
+  // anything is bought, in words that name no model (the studio's job log shows them)
+  if (opts.fps === "60" && opts.videoProfile === "ltx25@1") {
+    throw new Error("smooth motion is not available yet for clips made at 24 frames a second");
+  }
   if (opts.fps === "60") return newRunRestore(env, prices);
   if (opts.upscale) return newRunUpscale(env);
   return undefined;

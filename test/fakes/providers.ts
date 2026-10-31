@@ -211,6 +211,24 @@ export class FakeVideo extends FakeQueue<VideoRequest, VideoOutput> implements V
   }
 }
 
+/**
+ * The LTX worker (phase 15): a 24 fps clip with its own sound (a tone), answered with `fps: 24` and `hasAudio: true`
+ * as the real provider answers. Frames are flat grey levels like FakeVideo's, so seam frames compare exactly.
+ */
+export class FakeLtxVideo extends FakeQueue<VideoRequest, VideoOutput> implements VideoProvider {
+  protected async render(req: VideoRequest, n: number, path: (name: string) => string) {
+    const file = path(`ltx_${n}.mp4`);
+    const frames = Math.round(req.durationSec * 24);
+    await ffmpeg([
+      "-f", "lavfi", "-i", `color=black:s=180x320:r=24,geq=lum='16+mod(N*37+${(n * 53) % 200}\\,200)':cb=128:cr=128`,
+      "-f", "lavfi", "-i", `sine=frequency=${300 + 40 * n}:sample_rate=48000`,
+      "-vf", "format=yuv420p", "-frames:v", String(frames), "-t", String(frames / 24),
+      "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-shortest", file,
+    ]);
+    return { out: { url: pathToFileURL(file).href, fps: 24, hasAudio: true }, file };
+  }
+}
+
 /** Full HD (phase 8 spec §8): the clip it is given, scaled up to the short side asked for. */
 export class FakeUpscale extends FakeQueue<UpscaleRequest, VideoOutput> implements UpscaleProvider {
   protected async render(req: UpscaleRequest, n: number, path: (name: string) => string) {
