@@ -6,7 +6,7 @@
 import { createInterface } from "node:readline/promises";
 import { execa } from "execa";
 import {
-  applyDeploy, assertImageInGhcr, chooseFoleyImage, DEFAULTS, envValuesOf, fetchModels, picture3GpusOf, foleyImageTag, NAMES, pictureImageTag, planDeploy, removeRetiredVolumes, RETIRED_VOLUMES, RunpodRest, upscaleImageTag, workerImageTag, writeEnvValues,
+  applyDeploy, assertImageInGhcr, chooseFoleyImage, chooseLtxImage, DEFAULTS, envValuesOf, fetchModels, picture3GpusOf, foleyImageTag, ltxImageTag, NAMES, pictureImageTag, planDeploy, removeRetiredVolumes, RETIRED_VOLUMES, RunpodRest, upscaleImageTag, workerImageTag, writeEnvValues,
 } from "../src/deploy/runpod.js";
 import { R2 } from "../src/providers/r2.js";
 import { RunpodClient } from "../src/providers/runpod.js";
@@ -17,7 +17,7 @@ function need(name: string): string {
   return value;
 }
 
-async function defaultImage(which: "clip" | "picture" | "upscale" | "foley"): Promise<string> {
+async function defaultImage(which: "clip" | "picture" | "upscale" | "foley" | "ltx"): Promise<string> {
   const { stdout } = await execa("git", ["remote", "get-url", "origin"]);
   const owner = /github\.com[:/]([^/]+)\//.exec(stdout)?.[1];
   if (!owner) throw new Error("cannot tell the GitHub owner from the origin remote; set RUNPOD_WORKER_IMAGE and RUNPOD_PICTURE_IMAGE");
@@ -25,6 +25,7 @@ async function defaultImage(which: "clip" | "picture" | "upscale" | "foley"): Pr
   const tree = async (dir: string) => (await execa("git", ["rev-parse", `HEAD:${dir}`])).stdout.trim();
   if (which === "upscale") return `ghcr.io/${owner.toLowerCase()}/flowchain-upscale:${upscaleImageTag(await tree("worker-upscale"))}`;
   if (which === "foley") return `ghcr.io/${owner.toLowerCase()}/flowchain-foley:${foleyImageTag(await tree("worker-foley"))}`;
+  if (which === "ltx") return `ghcr.io/${owner.toLowerCase()}/flowchain-ltx:${ltxImageTag(await tree("worker-ltx"))}`;
   return which === "clip"
     ? `ghcr.io/${owner.toLowerCase()}/flowchain-worker:${workerImageTag(await tree("workers"))}`
     : `ghcr.io/${owner.toLowerCase()}/flowchain-picture:${pictureImageTag(await tree("worker-picture"))}`;
@@ -51,6 +52,14 @@ async function main(): Promise<void> {
     probe: (image) => assertImageInGhcr(image, console.warn),
   });
   if (foley.message) console.log(foley.message);
+  // LTX clips (phase 15): `-- --no-ltx` leaves its endpoint out; a default image not built yet skips it
+  const ltx = await chooseLtxImage({
+    skip: process.argv.includes("--no-ltx"),
+    explicit: process.env.RUNPOD_LTX_IMAGE,
+    defaultImage: () => defaultImage("ltx"),
+    probe: (image) => assertImageInGhcr(image, console.warn),
+  });
+  if (ltx.message) console.log(ltx.message);
   const picture3Gpus = picture3GpusOf(process.env.RUNPOD_PICTURE3_GPUS);
   const cfg = {
     image: process.env.RUNPOD_WORKER_IMAGE ?? (await defaultImage("clip")),
@@ -62,6 +71,7 @@ async function main(): Promise<void> {
     // full HD (phase 8 spec §8): `-- --no-upscale` leaves its endpoint out
     ...(process.argv.includes("--no-upscale") ? {} : { upscaleImage: process.env.RUNPOD_UPSCALE_IMAGE ?? (await defaultImage("upscale")), upscaleGpus: DEFAULTS.upscaleGpus }),
     ...(foley.image ? { foleyImage: foley.image, foleyGpus: DEFAULTS.foleyGpus } : {}),
+    ...(ltx.image ? { ltxImage: ltx.image, ltxGpus: DEFAULTS.ltxGpus } : {}),
     // FLUX 3 (phase 10 spec §3): its endpoint is made only when the owner names its cards
     ...(picture3Gpus ? { keyframe3Gpus: picture3Gpus, hfToken: need("HF_TOKEN") } : {}),
     r2: {
@@ -75,7 +85,7 @@ async function main(): Promise<void> {
   await assertImageInGhcr(cfg.pictureImage, console.warn);
   if (cfg.upscaleImage) await assertImageInGhcr(cfg.upscaleImage, console.warn);
   const rest = new RunpodRest(apiKey);
-  const steps = await planDeploy(rest, { upscale: Boolean(cfg.upscaleImage), picture3: Boolean(cfg.keyframe3Gpus), foley: Boolean(cfg.foleyImage) });
+  const steps = await planDeploy(rest, { upscale: Boolean(cfg.upscaleImage), picture3: Boolean(cfg.keyframe3Gpus), foley: Boolean(cfg.foleyImage), ltx: Boolean(cfg.ltxImage) });
   console.log(`RunPod deploy (clips ${cfg.image}, pictures ${cfg.pictureImage}, data centre ${cfg.dataCenterId}):`);
   for (const s of steps) console.log(`  ${s.action.padEnd(6)} ${s.what} ${s.name}`);
   const monthly = cfg.volumeGb * DEFAULTS.volumeUsdPerGbMonth;

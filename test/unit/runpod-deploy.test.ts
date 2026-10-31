@@ -2,7 +2,7 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  applyDeploy, applyVoiceDeploy, assertImageInGhcr, chooseFoleyImage, DEFAULTS, envValuesOf, ImageMissing, fetchModels, foleyImageTag, NAMES, picture3GpusOf, planDeploy, planVoiceDeploy, removeRetiredVolumes, RunpodRest, VOICE_DEFAULTS, voiceImageTag,
+  applyDeploy, applyVoiceDeploy, assertImageInGhcr, chooseFoleyImage, chooseLtxImage, DEFAULTS, envValuesOf, ImageMissing, fetchModels, foleyImageTag, ltxImageTag, NAMES, picture3GpusOf, planDeploy, planVoiceDeploy, removeRetiredVolumes, RunpodRest, VOICE_DEFAULTS, voiceImageTag,
   workerImageTag, writeEnvValues,
 } from "../../src/deploy/runpod.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
@@ -160,6 +160,53 @@ describe("runpod deploy", () => {
     await expect(chooseFoleyImage({ skip: false, explicit: "ghcr.io/me/x:1", defaultImage, probe: absent })).rejects.toBeInstanceOf(ImageMissing);
     probed.length = 0;
     expect(await chooseFoleyImage({ skip: true, defaultImage, probe: absent })).toEqual({});
+    expect(probed).toEqual([]);
+  });
+
+  it("makes the LTX endpoint only when its image is given: its own template with a disk for the image and the joined weights, five 48 and 80 GB cards, CUDA 13.2, one worker, no volume, anywhere (phase 15)", async () => {
+    const without = fakeRest();
+    const plain = await applyDeploy(without.rest, cfg, () => {});
+    expect(plain.ltxEndpointId).toBeUndefined();
+    expect(without.store.endpoints.map((e) => e.name)).not.toContain(NAMES.ltx);
+    expect((await planDeploy(without.rest)).map((s) => s.name)).not.toContain(NAMES.ltx);
+    expect(Object.keys(envValuesOf(plain))).not.toContain("RUNPOD_LTX_ENDPOINT");
+
+    const { rest, store } = fakeRest();
+    const image = `ghcr.io/me/flowchain-ltx:${ltxImageTag("abcdef0123456789")}`;
+    expect(image).toMatch(/:l-abcdef012345$/);
+    expect((await planDeploy(rest, { ltx: true })).slice(-2).map((s) => `${s.action} ${s.what} ${s.name}`)).toEqual(["create template flowchain-ltx", "create endpoint flowchain-ltx"]);
+    const deployed = await applyDeploy(rest, { ...cfg, ltxImage: image }, () => {});
+    const ltx = store.endpoints.find((e) => e.name === NAMES.ltx)!;
+    expect(deployed.ltxEndpointId).toBe(ltx.id);
+    expect(store.templates.find((t) => t.id === ltx.templateId)).toMatchObject({ name: NAMES.ltxTemplate, imageName: image, containerDiskInGb: 160, isServerless: true });
+    expect(DEFAULTS.ltxGpus).toEqual(["NVIDIA A100 80GB PCIe", "NVIDIA A100-SXM4-80GB", "NVIDIA L40S", "NVIDIA RTX 6000 Ada Generation", "NVIDIA A40"]);
+    // workersMax 1: worker-ltx assumes one job at a time
+    expect(ltx).toMatchObject({ gpuTypeIds: DEFAULTS.ltxGpus, workersMin: 0, workersMax: 1, idleTimeout: 30, executionTimeoutMs: 900_000, flashboot: false, minCudaVersion: DEFAULTS.ltxMinCuda });
+    for (const field of ["networkVolumeId", "networkVolumeIds", "dataCenterIds"]) expect(ltx).not.toHaveProperty(field);
+    expect(envValuesOf(deployed).RUNPOD_LTX_ENDPOINT).toBe(ltx.id);
+    await applyDeploy(rest, { ...cfg, ltxImage: `${image}2` }, () => {});
+    expect(store.endpoints.filter((e) => e.name === NAMES.ltx)).toHaveLength(1);
+    expect(store.templates.filter((t) => t.name === NAMES.ltxTemplate)).toHaveLength(1);
+    expect((await planDeploy(rest, { ltx: true })).find((s) => s.name === NAMES.ltx)?.action).toBe("update");
+  });
+
+  it("asks for the CUDA version the LTX worker's own code requires", async () => {
+    const py = await readFile("worker-ltx/src/flowchain_ltx/__init__.py", "utf8");
+    expect(/^MIN_HOST_CUDA\s*=\s*"([^"]+)"/m.exec(py)?.[1]).toBe(DEFAULTS.ltxMinCuda);
+  });
+
+  it("skips a default LTX image that is not built yet, but not one the owner named", async () => {
+    const probed: string[] = [];
+    const absent = async (i: string) => { probed.push(i); throw new ImageMissing("gone"); };
+    const present = async (i: string) => { probed.push(i); };
+    const defaultImage = async () => "ghcr.io/me/flowchain-ltx:l-abc";
+    const miss = await chooseLtxImage({ skip: false, defaultImage, probe: absent });
+    expect(miss.image).toBeUndefined();
+    expect(miss.message).toBe("the LTX image l-abc is not in GHCR yet, or is not public: skipping the LTX endpoint (build and publish it, then run this again)");
+    expect(await chooseLtxImage({ skip: false, defaultImage, probe: present })).toEqual({ image: "ghcr.io/me/flowchain-ltx:l-abc" });
+    await expect(chooseLtxImage({ skip: false, explicit: "ghcr.io/me/x:1", defaultImage, probe: absent })).rejects.toBeInstanceOf(ImageMissing);
+    probed.length = 0;
+    expect(await chooseLtxImage({ skip: true, defaultImage, probe: absent })).toEqual({});
     expect(probed).toEqual([]);
   });
 

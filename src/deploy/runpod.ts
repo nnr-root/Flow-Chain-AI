@@ -18,6 +18,9 @@ export const NAMES = {
   /** scene sound (phase 14 spec §4): its own image, with its models inside, and no volume */
   foleyTemplate: "flowchain-foley",
   foley: "flowchain-foley",
+  /** the LTX clip worker (phase 15): its own image, with its code inside, and no volume */
+  ltxTemplate: "flowchain-ltx",
+  ltx: "flowchain-ltx",
 } as const;
 
 /** Volumes this studio used before, by name: `removeRetiredVolumes` deletes them once nothing reads from them. */
@@ -40,6 +43,9 @@ export type DeployConfig = {
   /** The Foley worker's image (phase 14 spec §4); absent = no Foley endpoint is made or changed. */
   foleyImage?: string;
   foleyGpus?: string[];
+  /** The LTX worker's image (phase 15); absent = no LTX endpoint is made or changed. */
+  ltxImage?: string;
+  ltxGpus?: string[];
   /** The FLUX 3 picture endpoint's cards (phase 10 spec §3): absent = no such endpoint is made or changed. The owner names them. */
   keyframe3Gpus?: string[];
   /** Hugging Face token for the gated FLUX 3 weights: stored as a RunPod secret, given only to the picture worker. */
@@ -66,6 +72,12 @@ export const DEFAULTS = {
   // 24 GB cards, spelled as RunPod takes them for the upscale endpoint; it reads no volume either. NVIDIA L4 is left
   // out on purpose: the names RunPod accepts were not checked for it, and a wrong name would fail the whole create.
   foleyGpus: ["NVIDIA GeForce RTX 4090", "NVIDIA RTX A5000", "NVIDIA GeForce RTX 3090"],
+  // LTX (phase 15): 48 GB or more. The order is a preference, not a requirement: the A100 80 GB is often out of stock,
+  // and RunPod gives the job to whichever of these has a free worker. It reads no volume, so any data centre will do.
+  ltxGpus: ["NVIDIA A100 80GB PCIe", "NVIDIA A100-SXM4-80GB", "NVIDIA L40S", "NVIDIA RTX 6000 Ada Generation", "NVIDIA A40"],
+  // The image runs torch 2.13 on CUDA 13.2 wheels: this is MIN_HOST_CUDA in worker-ltx (a test holds the two equal).
+  // The versions RunPod accepts for this field were not checked: confirm at the owner's first real deploy.
+  ltxMinCuda: "13.2",
   /** Network volume storage, $ per GB per month (RunPod standard tier). */
   volumeUsdPerGbMonth: 0.07,
 };
@@ -134,7 +146,7 @@ function findByName(list: Resource[], kind: Kind, name: string): Resource | unde
 
 export type Step = { what: string; name: string; action: "create" | "update" };
 
-type Existing = { volume?: Resource; template?: Resource; pictureTemplate?: Resource; keyframe?: Resource; clip?: Resource; keyframe3?: Resource; upscaleTemplate?: Resource; upscale?: Resource; foleyTemplate?: Resource; foley?: Resource };
+type Existing = { volume?: Resource; template?: Resource; pictureTemplate?: Resource; keyframe?: Resource; clip?: Resource; keyframe3?: Resource; upscaleTemplate?: Resource; upscale?: Resource; foleyTemplate?: Resource; foley?: Resource; ltxTemplate?: Resource; ltx?: Resource };
 
 /** What RunPod already has for our four resources (matched by name); throws when a name is ambiguous. Read-only. */
 async function lookupExisting(rest: RunpodRest): Promise<Existing> {
@@ -154,11 +166,13 @@ async function lookupExisting(rest: RunpodRest): Promise<Existing> {
     upscale: findByName(endpoints, "endpoints", NAMES.upscale),
     foleyTemplate: findByName(templates, "templates", NAMES.foleyTemplate),
     foley: findByName(endpoints, "endpoints", NAMES.foley),
+    ltxTemplate: findByName(templates, "templates", NAMES.ltxTemplate),
+    ltx: findByName(endpoints, "endpoints", NAMES.ltx),
   };
 }
 
 /** What a deploy will do, given what already exists (matched by name). */
-export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean; picture3?: boolean; foley?: boolean } = {}): Promise<Step[]> {
+export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean; picture3?: boolean; foley?: boolean; ltx?: boolean } = {}): Promise<Step[]> {
   const found = await lookupExisting(rest);
   const step = (what: string, existing: Resource | undefined, name: string): Step => ({
     what,
@@ -174,11 +188,12 @@ export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean; pi
     ...(opts.picture3 ? [step("endpoint", found.keyframe3, NAMES.keyframe3)] : []),
     ...(opts.upscale ? [step("template", found.upscaleTemplate, NAMES.upscaleTemplate), step("endpoint", found.upscale, NAMES.upscale)] : []),
     ...(opts.foley ? [step("template", found.foleyTemplate, NAMES.foleyTemplate), step("endpoint", found.foley, NAMES.foley)] : []),
+    ...(opts.ltx ? [step("template", found.ltxTemplate, NAMES.ltxTemplate), step("endpoint", found.ltx, NAMES.ltx)] : []),
   ];
 }
 
 /** `movedVolume`: an endpoint that existed was reading from another volume until now. */
-export type Deployed = { volumeId: string; templateId: string; keyframeEndpointId: string; clipEndpointId: string; upscaleEndpointId?: string; foleyEndpointId?: string; keyframe3EndpointId?: string; movedVolume: boolean };
+export type Deployed = { volumeId: string; templateId: string; keyframeEndpointId: string; clipEndpointId: string; upscaleEndpointId?: string; foleyEndpointId?: string; ltxEndpointId?: string; keyframe3EndpointId?: string; movedVolume: boolean };
 
 async function upsert(
   rest: RunpodRest,
@@ -295,7 +310,18 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(foleyTemplate.id, cfg.foleyGpus ?? DEFAULTS.foleyGpus, 300_000, { minCudaVersion: "12.8" });
     foleyEndpointId = (await upsert(rest, "endpoints", existing.foley, NAMES.foley, anywhere, anywhere)).id;
   }
-  return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id, ...(upscaleEndpointId ? { upscaleEndpointId } : {}), ...(foleyEndpointId ? { foleyEndpointId } : {}), ...(keyframe3EndpointId ? { keyframe3EndpointId } : {}), movedVolume };
+  // LTX clips (phase 15): its code is in its image and its weights come from Hugging Face at the first cold start
+  let ltxEndpointId: string | undefined;
+  if (cfg.ltxImage) {
+    // 160: the image is about 72 GB, and at its first cold start the worker joins about 68 GB of split weights onto its own disk
+    const ltxBody = { imageName: cfg.ltxImage, containerDiskInGb: 160, env };
+    const ltxTemplate = await upsert(rest, "templates", existing.ltxTemplate, NAMES.ltxTemplate, { ...ltxBody, isServerless: true }, ltxBody);
+    // 900 s: the first job after a cold start assembles those weights before it generates, and the longest clip measured took
+    // about 300 s on an A40. One worker (`endpoint()` sets workersMax 1): worker-ltx handles one job at a time.
+    const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(ltxTemplate.id, cfg.ltxGpus ?? DEFAULTS.ltxGpus, 900_000, { minCudaVersion: DEFAULTS.ltxMinCuda });
+    ltxEndpointId = (await upsert(rest, "endpoints", existing.ltx, NAMES.ltx, anywhere, anywhere)).id;
+  }
+  return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id, ...(upscaleEndpointId ? { upscaleEndpointId } : {}), ...(foleyEndpointId ? { foleyEndpointId } : {}), ...(ltxEndpointId ? { ltxEndpointId } : {}), ...(keyframe3EndpointId ? { keyframe3EndpointId } : {}), movedVolume };
 }
 
 /**
@@ -447,6 +473,9 @@ export const upscaleImageTag = (treeHash: string): string => `u-${treeHash.slice
 /** And for `worker-foley/`. */
 export const foleyImageTag = (treeHash: string): string => `f-${treeHash.slice(0, 12)}`;
 
+/** And for `worker-ltx/`. */
+export const ltxImageTag = (treeHash: string): string => `l-${treeHash.slice(0, 12)}`;
+
 /** The endpoint ids a deploy writes into `.env`: only the endpoints it made. */
 export function envValuesOf(d: Deployed): Record<string, string> {
   return {
@@ -454,6 +483,7 @@ export function envValuesOf(d: Deployed): Record<string, string> {
     ...(d.keyframe3EndpointId ? { RUNPOD_PICTURE3_ENDPOINT: d.keyframe3EndpointId } : {}),
     ...(d.upscaleEndpointId ? { RUNPOD_UPSCALE_ENDPOINT: d.upscaleEndpointId } : {}),
     ...(d.foleyEndpointId ? { RUNPOD_FOLEY_ENDPOINT: d.foleyEndpointId } : {}),
+    ...(d.ltxEndpointId ? { RUNPOD_LTX_ENDPOINT: d.ltxEndpointId } : {}),
     RUNPOD_CLIP_ENDPOINT: d.clipEndpointId,
   };
 }
@@ -480,6 +510,28 @@ export async function chooseFoleyImage(o: {
   } catch (err) {
     if (!(err instanceof ImageMissing)) throw err;
     return { message: `the Foley image ${image.slice(image.lastIndexOf(":") + 1)} is not in GHCR yet, or is not public: skipping the Foley endpoint (build and publish it, then run this again)` };
+  }
+}
+
+/** The same choice for the LTX image: a named one must exist, the default one may not be built yet (then LTX is skipped). */
+export async function chooseLtxImage(o: {
+  skip: boolean;
+  explicit?: string;
+  defaultImage: () => Promise<string>;
+  probe: (image: string) => Promise<void>;
+}): Promise<{ image?: string; message?: string }> {
+  if (o.skip) return {};
+  if (o.explicit) {
+    await o.probe(o.explicit);
+    return { image: o.explicit };
+  }
+  const image = await o.defaultImage();
+  try {
+    await o.probe(image);
+    return { image };
+  } catch (err) {
+    if (!(err instanceof ImageMissing)) throw err;
+    return { message: `the LTX image ${image.slice(image.lastIndexOf(":") + 1)} is not in GHCR yet, or is not public: skipping the LTX endpoint (build and publish it, then run this again)` };
   }
 }
 

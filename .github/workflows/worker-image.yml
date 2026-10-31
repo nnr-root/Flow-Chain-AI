@@ -3,7 +3,7 @@ name: worker-image
 on:
   push:
     branches: [main]
-    paths: ["workers/**", "worker-voice/**", "worker-picture/**", "worker-upscale/**", "worker-foley/**", ".github/workflows/worker-image.yml"]
+    paths: ["workers/**", "worker-voice/**", "worker-picture/**", "worker-upscale/**", "worker-foley/**", "worker-ltx/**", ".github/workflows/worker-image.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -142,6 +142,42 @@ jobs:
           context: worker-foley
           platforms: linux/amd64
           push: true
+          tags: |
+            ${{ steps.name.outputs.image }}:latest
+            ${{ steps.name.outputs.image }}:${{ steps.tree.outputs.tag }}
+
+  # The LTX worker (phase 15): its own image (about 72 GB), tagged by the content of worker-ltx/. The Hugging Face token
+  # for its gated weights is a BuildKit secret (`hf_token`), never a build argument: a build argument stays in the image's history.
+  ltx:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - id: tree
+        run: echo "tag=l-$(git rev-parse HEAD:worker-ltx | cut -c1-12)" >> "$GITHUB_OUTPUT"
+      # the image is about 72 GB, and a hosted runner has about 14 GB free at the start: remove what is preinstalled and unused
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          df -h /
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/flowchain-ltx" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: worker-ltx
+          platforms: linux/amd64
+          push: true
+          secrets: |
+            hf_token=${{ secrets.HF_TOKEN_LTX }}
           tags: |
             ${{ steps.name.outputs.image }}:latest
             ${{ steps.name.outputs.image }}:${{ steps.tree.outputs.tag }}
