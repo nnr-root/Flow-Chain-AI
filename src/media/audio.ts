@@ -38,6 +38,16 @@ export async function loudnessPass(input: string, out: string, totalSec: number)
 }
 
 /**
+ * Writes `input` up to `endSec` as 48 kHz mono PCM, nothing taken from its start or its middle, with a fade of `fadeSec`
+ * into the cut so the end never clicks.
+ */
+export async function cutTail(input: string, out: string, endSec: number, fadeSec: number): Promise<void> {
+  const fade = Math.min(fadeSec, endSec / 4);
+  const filter = `atrim=end=${endSec.toFixed(6)},asetpts=PTS-STARTPTS${fade > 0 ? `,afade=t=out:st=${(endSec - fade).toFixed(6)}:d=${fade.toFixed(4)}` : ""}`;
+  await ffmpeg(["-i", input, "-af", filter, "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", out]);
+}
+
+/**
  * Writes a clip's sound as 48 kHz mono PCM, what the silence trimming works in (phase 15 spec §13.2); false, and no
  * file, when the clip has no sound. Only the sound is copied out: the clip itself is read and never rewritten.
  */

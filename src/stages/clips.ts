@@ -1,7 +1,7 @@
 import { editById } from "../edits.js";
 import { fileSha256 } from "../manifest/hash.js";
 import type { Manifest, SceneState } from "../manifest/schema.js";
-import { extractAudio } from "../media/audio.js";
+import { cutTail, extractAudio } from "../media/audio.js";
 import { probeDuration } from "../media/ffmpeg.js";
 import { planFit } from "../media/fit.js";
 import { extractSeamFrame } from "../media/frames.js";
@@ -16,7 +16,6 @@ import { settleWarmup } from "./warmup.js";
 import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireAudio, requireClip, requireScript } from "./require.js";
-import { paramsOf, trimSpeech } from "./silence.js";
 import type { Dep, RunContext, Stage, StageContext } from "./types.js";
 import { autoModeDeps, clipPrompt, durationDep, expectedOf, isSpeaking, needsKeyframe, sceneFrames } from "./visual.js";
 import { clipFrames, inspect, MAX_REMAKES, noteRemake, remakeOf } from "./inspect.js";
@@ -48,7 +47,7 @@ export function clipSeed(m: Manifest, i: number, remake = 0): number {
 /** Only an LTX clip is asked with a seed of the studio's; a Wan clip is asked as it always was. */
 const seeded = (m: Manifest): boolean => m.request.videoProfile === "ltx25@1";
 
-/** The longest a speaking scene's sentence may run once trimmed (phase 15 spec §4, §5: 14 words were measured at 5–6 s). */
+/** The longest a speaking scene may run once its tail is cut (phase 15 spec §4, §5, §13.6: 14 words were measured at 5–6 s). */
 export const MAX_SPOKEN_SEC = 6.5;
 
 /**
@@ -57,6 +56,14 @@ export const MAX_SPOKEN_SEC = 6.5;
  * trimmed sentence, and the fit shortens the clip to it; a sentence is never cut to fit a clip.
  */
 export const SPEAKING_CLIP_SEC = 169 / LTX_FPS;
+
+/**
+ * How much of a speaking clip's sound is kept after its last word: its last syllable decays after the moment the worker
+ * says the word ends, and the fade at the cut needs room inside that, not inside the word.
+ */
+export const SPEECH_TAIL_SEC = 0.4;
+/** The fade into that cut (the silence stage's `endFadeMs` for a voiceover's end). */
+const SPEECH_END_FADE_SEC = 0.04;
 
 /** The language a speaking scene's words are heard in: the video's, or for a run that asked for none, its script's. */
 function spokenLanguage(m: Manifest, i: number): string {
@@ -71,8 +78,10 @@ function clipSeconds(m: Manifest, i: number): number {
 }
 
 /**
- * A speaking scene's audio, made from its clip as a narrator's line is made from its voiceover (phase 15 spec §13.2): the
- * clip's sound, its silence trimmed by the code that trims a voiceover, and the words the worker heard in it. A clip
+ * A speaking scene's audio (phase 15 spec §13.2, §13.6): the clip's own sound, never cut at its start or inside, since the
+ * picture plays from its first frame and a cut there would put the voice ahead of the lips; only its end is cut, a
+ * moment after the last word, and the fit then cuts the clip's picture at the same point. The words are the worker's,
+ * at the times it heard them: nothing before them was removed. A clip
  * that cannot give all of that fails the scene with what to do: it is paid for already, and nothing is guessed (no
  * speech is shown without its captions) or bought again here.
  */
@@ -84,7 +93,11 @@ async function speakingAudio(ctx: RunContext, i: number, clip: VideoOutput): Pro
     throw new Error(`scene ${i + 1}: its clip came back with no sound; ${again}`);
   }
   if (clip.words.length === 0) throw new Error(`scene ${i + 1}: no words were heard in its clip; ${again}`);
-  const audio = await trimSpeech(ctx, i, raw, clip.words);
+  const whole = await probeDuration(raw);
+  const end = Math.min(whole, Math.max(...clip.words.map((w) => w.end)) + SPEECH_TAIL_SEC);
+  await cutTail(raw, await outPath(ctx, paths.audio(i)), end, SPEECH_END_FADE_SEC);
+  const duration = await probeDuration(abs(ctx, paths.audio(i)));
+  const audio = { path: paths.audio(i), duration, words: clip.words, removedSec: Math.max(0, whole - duration) };
   if (audio.duration > MAX_SPOKEN_SEC) throw new Error(`scene ${i + 1}'s sentence does not fit; the script wrote too many words`);
   return audio;
 }
@@ -123,7 +136,7 @@ export const clipsStage: Stage = {
       // the seed decides the clip; only an LTX run sends one, so a Wan run's key is unchanged
       ...(seeded(m) ? { seed: clipSeed(m, i) } : {}),
       // a speaking scene's audio is made here too: its sentence, the language it is heard in and how it is trimmed decide it
-      ...(isSpeaking(m, i) ? { speech: script.scenes[i].speech!.trim(), speechLanguage: spokenLanguage(m, i), silence: paramsOf(m) } : {}),
+      ...(isSpeaking(m, i) ? { speech: script.scenes[i].speech!.trim(), speechLanguage: spokenLanguage(m, i), tailSec: SPEECH_TAIL_SEC } : {}),
     };
     if (needsKeyframe(m, i)) return { ...base, imageSha: await fileSha256(abs(ctx, paths.keyframe(i))) };
     // The seam file does not exist yet when this is hashed; key on everything that determines it instead.

@@ -268,3 +268,13 @@ stop the phase.**
    load (as the two Kling ids do).
 5. **A clip is no longer 16 fps.** `fit`, `planFit`, `extractSeamFrame` and the interpolate stage read the clip's own `fps`
    (recorded on the clip, §3); a test with a 24 fps clip and a 16 fps clip covers each.
+6. **A speaking scene's sound is kept whole; only its tail is cut (found while building Task 9).** §13.2's "trims its silence
+   with the code `silence` uses" is replaced: the `clips` stage keeps the clip's sound whole and cuts only its end, at the
+   last word's end plus 0.4 s (`SPEECH_TAIL_SEC`, a short fade into the cut), and the words are the worker's at the times it
+   heard them. The silence code removes leading silence and every pause of 0.2 s or more, but the picture is not trimmed with
+   the sound: it plays from its first frame, so lips and voice would drift apart. The fit cuts the clip's picture at the
+   scene's length (its normal trim), so both end together. The 6.5 s limit (`MAX_SPOKEN_SEC`) applies to that cut length.
+   A speaking clip is asked for at 169 frames (7.04 s at 24 fps), the shortest LTX length that leaves room for a sentence
+   of up to 6.5 s; a real run must check that LTX does not stretch the sentence to fill the clip. The `modes` stage leaves
+   speaking scenes out of its dependencies, because it runs before `clips` and does not read their length (§13.3's
+   `durationDep` is used everywhere else).

@@ -3,18 +3,18 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 import { Prices } from "../../src/config.js";
 import type { Mode } from "../../src/manifest/schema.js";
-import { probeDuration } from "../../src/media/ffmpeg.js";
+import { ffmpeg, probeDuration } from "../../src/media/ffmpeg.js";
 import { sceneFrameCounts } from "../../src/media/timeline.js";
 import { planRun, type RunOptions, runPipeline } from "../../src/pipeline.js";
 import { captionsStage, globalWords } from "../../src/stages/captions.js";
-import { clipsStage, MAX_SPOKEN_SEC, SPEAKING_CLIP_SEC } from "../../src/stages/clips.js";
+import { clipsStage, MAX_SPOKEN_SEC, SPEAKING_CLIP_SEC, SPEECH_TAIL_SEC } from "../../src/stages/clips.js";
 import { fitStage } from "../../src/stages/fit.js";
 import { STAGES } from "../../src/stages/index.js";
 import { keyframesStage } from "../../src/stages/keyframes.js";
 import { modesStage } from "../../src/stages/modes.js";
 import { abs, paths } from "../../src/stages/paths.js";
 import { scriptStage } from "../../src/stages/script.js";
-import { SILENCE_PARAMS, silenceStage } from "../../src/stages/silence.js";
+import { silenceStage } from "../../src/stages/silence.js";
 import { ttsStage } from "../../src/stages/tts.js";
 import { durationDep, isSpeaking, sceneFrames } from "../../src/stages/visual.js";
 import { sceneStagesShown } from "../../src/studio/status.js";
@@ -57,6 +57,12 @@ async function speechRun(opts: Options = {}) {
 }
 
 const frame = 1 / 30;
+
+/** The loudest sound of `len` seconds of a file from `from`, in dBFS (-91 for digital silence). */
+async function maxDb(file: string, from: number, len: number): Promise<number> {
+  const log = await ffmpeg(["-ss", String(from), "-t", String(len), "-i", file, "-af", "volumedetect", "-f", "null", "-"], { logLevel: "info" });
+  return Number(/max_volume: (-?[\d.]+) dB/.exec(log)![1]);
+}
 
 describe("which scene speaks", () => {
   it("is a scene with a sentence in a run that allows speech, and no other", async () => {
@@ -122,27 +128,45 @@ describe("a speaking scene's clip", () => {
     expect(SPEAKING_CLIP_SEC).toBeGreaterThan(MAX_SPOKEN_SEC);
   });
 
-  it("gives the scene the clip's sound with its silence trimmed, as long as that sound, and the worker's words on it", async () => {
+  it("gives the scene the clip's own sound, cut only 0.4 s after its last word, and the worker's words at the worker's times", async () => {
     const { ctx } = await speechRun();
     await runPipeline(ctx, MEDIA, auto);
     const audio = ctx.manifest.scenes[1].audio!;
     expect(audio.path).toBe(paths.audio(1));
     expect(existsSync(abs(ctx, paths.clipAudio(1)))).toBe(true);
     const whole = await probeDuration(abs(ctx, paths.clipAudio(1)));
+    // the last word ends at 2.55 s of the clip; nothing before it is removed
+    expect(Math.abs(audio.duration - (2.55 + SPEECH_TAIL_SEC))).toBeLessThanOrEqual(frame);
     expect(Math.abs(audio.duration - (whole - audio.removedSec))).toBeLessThanOrEqual(frame);
-    // 2 s of speech, with the padding the run's trimming keeps at either end
-    expect(Math.abs(audio.duration - (2 + 2 * SILENCE_PARAMS.padding))).toBeLessThanOrEqual(frame);
     expect(Math.abs(audio.duration - (await probeDuration(abs(ctx, audio.path))))).toBeLessThanOrEqual(0.001);
-    // the worker's words, moved by the 0.6 s of silence taken from the front
-    expect(audio.words.map((w) => w.text)).toEqual(["Hello", "there", "friend"]);
-    const cut = 0.6 - SILENCE_PARAMS.padding;
-    audio.words.forEach((w, i) => {
-      expect(w.start).toBeCloseTo(SPOKEN.words![i].start - cut, 2);
-      expect(w.end).toBeCloseTo(SPOKEN.words![i].end - cut, 2);
-    });
+    expect(audio.words).toEqual(SPOKEN.words);
   });
 
-  it("places the next scene after the speaking scene's trimmed length, in the frames and in the captions", async () => {
+  it("keeps the clip's silence before the first word, so the voice starts where the lips do", async () => {
+    const { ctx } = await speechRun();
+    await runPipeline(ctx, MEDIA, auto);
+    const audio = abs(ctx, ctx.manifest.scenes[1].audio!.path);
+    // the speech starts 0.6 s into the clip (its first word at 0.62 s): the scene's audio is silent until then too
+    expect(await maxDb(audio, 0, 0.52)).toBeLessThan(-80);
+    expect(await maxDb(audio, 0.65, 0.5)).toBeGreaterThan(-20);
+    expect(await maxDb(abs(ctx, paths.clipAudio(1)), 0, 0.52)).toBeLessThan(-80);
+  });
+
+  it("keeps a long pause inside the sentence", async () => {
+    const { ctx, ltx } = await speechRun();
+    ltx.speech = {
+      audio: [{ silence: 0.3 }, { tone: 1 }, { silence: 0.8 }, { tone: 1 }],
+      words: [{ text: "Wait", start: 0.32, end: 1.25 }, { text: "now", start: 2.12, end: 3.05 }],
+    };
+    await runPipeline(ctx, MEDIA, auto);
+    const audio = ctx.manifest.scenes[1].audio!;
+    expect(Math.abs(audio.duration - (3.05 + SPEECH_TAIL_SEC))).toBeLessThanOrEqual(frame);
+    expect(audio.words).toEqual(ltx.speech.words);
+    expect(await maxDb(abs(ctx, audio.path), 1.4, 0.6)).toBeLessThan(-80);
+    expect(await maxDb(abs(ctx, audio.path), 2.2, 0.5)).toBeGreaterThan(-20);
+  });
+
+  it("places the next scene after the speaking scene's cut length, in the frames and in the captions", async () => {
     const { ctx } = await speechRun();
     await runPipeline(ctx, MEDIA, auto);
     const m = ctx.manifest;
@@ -192,7 +216,7 @@ describe("a speaking scene's clip", () => {
 });
 
 describe("a speaking scene that cannot be used", () => {
-  it("fails, naming the scene, when the trimmed sentence is longer than it may be, and keeps the clip's charge", async () => {
+  it("fails, naming the scene, when the sentence with its tail is longer than it may be, and keeps the clip's charge", async () => {
     const { ctx, ltx } = await speechRun();
     ltx.speech = { audio: [{ silence: 0.1 }, { tone: MAX_SPOKEN_SEC + 0.3 }], words: [{ text: "far", start: 0.2, end: 6.7 }] };
     await expect(runPipeline(ctx, MEDIA, auto)).rejects.toThrow("scene 2's sentence does not fit; the script wrote too many words");
