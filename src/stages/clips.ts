@@ -9,8 +9,8 @@ import { extractSeamFrame } from "../media/frames.js";
 import { TIMEOUTS } from "../providers/retry.js";
 import type { VideoOutput } from "../providers/types.js";
 import { soundSeed } from "../sound.js";
-import { LTX_FPS, SPEAKING_MAX_FRAMES, speakingFrames, videoProfileOf } from "../video-profiles.js";
-import { firstRendition, sentenceWords } from "../voice/words.js";
+import { LTX_FPS, SPEAKING_MAX_FRAMES, speakingFrames, speakingRate, videoProfileOf } from "../video-profiles.js";
+import { countUnits, firstRendition } from "../voice/words.js";
 import { speechLanguage } from "../voice/language.js";
 import { collect, runProviderJob } from "./job.js";
 import { settleWarmup } from "./warmup.js";
@@ -61,7 +61,20 @@ export const MAX_SPOKEN_SEC = 6.5;
 export function speakingClipSec(m: Manifest, i: number): number {
   if (m.request.speakingClip !== "sentence") return SPEAKING_MAX_FRAMES / LTX_FPS;
   const said = m.script?.scenes[i]?.speech?.trim();
-  return speakingFrames(said ? sentenceWords(said, m.request.language) : undefined) / LTX_FPS;
+  // (at the pace of the video's language: a Turkish sentence of as many words takes longer to say)
+  return speakingFrames(said ? countUnits(said, m.request.language) : undefined, speakingRate(m.request.language)) / LTX_FPS;
+}
+
+/**
+ * Where a speaking scene's sound is cut (phase 15 spec §13.6): 0.4 s after its last kept word, and when the clip said the
+ * sentence again, 50 ms before the next saying begins, so none of it is heard and the mouth does not start it; never
+ * before the last kept word ends, nor after the sound itself ends.
+ */
+export function speechCutSec(heard: ReadonlyArray<{ start: number; end: number }>, kept: ReadonlyArray<{ end: number }>, audioSec: number): number {
+  const last = kept.at(-1)!.end;
+  const next = heard[kept.length];
+  const end = Math.min(last + SPEECH_TAIL_SEC, next ? next.start - 0.05 : Number.POSITIVE_INFINITY);
+  return Math.min(audioSec, Math.max(last, end));
 }
 
 /**
@@ -101,10 +114,15 @@ async function speakingAudio(ctx: RunContext, i: number, clip: VideoOutput): Pro
   }
   if (clip.words.length === 0) throw new Error(`scene ${i + 1}: no words were heard in its clip; ${again}`);
   // (a clip that said its sentence twice keeps the first: the second never reaches the captions or the sound)
-  const words = firstRendition(clip.words);
+  const language = ctx.manifest.request.language;
+  const said = countUnits(requireScript(ctx.manifest).scenes[i].speech ?? "", language);
+  const words = firstRendition(clip.words, said, language);
   if (words.length < clip.words.length) ctx.log(`scene ${i + 1}: its clip says the sentence again after ${words.at(-1)!.end.toFixed(2)} s; only the first is kept`);
+  // (and a clip that stopped before its sentence ended is not shown as if it had said it; a word or two the listener
+  // missed or merged is not that)
+  if (words.length < said - 2) throw new Error(`scene ${i + 1}'s sentence was cut off by its clip; ${again}`);
   const whole = await probeDuration(raw);
-  const end = Math.min(whole, Math.max(...words.map((w) => w.end)) + SPEECH_TAIL_SEC);
+  const end = speechCutSec(clip.words, words, whole);
   await cutTail(raw, await outPath(ctx, paths.audio(i)), end, SPEECH_END_FADE_SEC);
   const duration = await probeDuration(abs(ctx, paths.audio(i)));
   const audio = { path: paths.audio(i), duration, words, removedSec: Math.max(0, whole - duration) };

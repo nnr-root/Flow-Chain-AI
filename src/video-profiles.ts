@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SPEECH_RATE } from "./voice/rates.js";
 import { LTX_RATES_MISSING, ltxRates, type Prices, runpodRates } from "./config.js";
 import { round4, videoCost } from "./cost.js";
 
@@ -40,13 +41,23 @@ export const SPEAKING_MIN_FRAMES = 97;
 export const SPEAKING_MAX_FRAMES = 169;
 
 /**
- * Frames for a speaking clip of a sentence of `words` words (phase 15 spec §13.6): about the sentence's own time (three words
- * a second; 3.4 was measured) and one second more, as 8k+1, between 97 and 169. A clip much longer than its sentence is
- * filled by LTX saying the sentence again. Unknown (only the cap is known): the longest.
+ * How many words a second a person in a clip says in `language`: three in English (3.4 was measured in a clip), and in
+ * another language three scaled by how its narrators speak against the English ones (`SPEECH_RATE`, measured): Turkish is
+ * said about a third slower. Undefined for a language never measured.
  */
-export function speakingFrames(words?: number): number {
-  if (words === undefined) return SPEAKING_MAX_FRAMES;
-  const frames = 8 * Math.ceil(((words / 3 + 1) * LTX_FPS) / 8) + 1;
+export function speakingRate(language: string | undefined): number | undefined {
+  const rate = language === undefined ? undefined : SPEECH_RATE[language];
+  return rate === undefined ? undefined : 3 * (rate / SPEECH_RATE.en);
+}
+
+/**
+ * Frames for a speaking clip of a sentence of `words` words said at `rate` words a second (phase 15 spec §13.6): about the
+ * sentence's own time and one second more, as 8k+1, between 97 and 169. A clip much longer than its sentence is filled by
+ * LTX saying the sentence again. Unknown sentence or rate: the longest.
+ */
+export function speakingFrames(words?: number, rate?: number): number {
+  if (words === undefined || rate === undefined) return SPEAKING_MAX_FRAMES;
+  const frames = 8 * Math.ceil(((words / rate + 1) * LTX_FPS) / 8) + 1;
   return Math.min(SPEAKING_MAX_FRAMES, Math.max(SPEAKING_MIN_FRAMES, frames));
 }
 

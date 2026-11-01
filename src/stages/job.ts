@@ -175,8 +175,9 @@ export async function collect(ctx: RunContext, scene: number, stage: StageName, 
     await download(result.url, dest);
   } catch (err) {
     const noun = NOUN[stage] ?? stage;
-    if (saved !== undefined) throw new Error(`scene ${scene + 1}: this scene's ${noun} file is gone; make the scene's ${noun} again`, { cause: err });
+    // (only an answer that nothing is there means the copy is gone; a timeout or a server error is said as it is)
     const gone = err instanceof DownloadError && (err.status === 404 || err.status === 403);
+    if (saved !== undefined && gone) throw new Error(`scene ${scene + 1}: this scene's ${noun} file is gone; make the scene's ${noun} again`, { cause: err });
     if (gone && fallback && reused.has(result) && (await fallback())) {
       ctx.log(`scene ${scene + 1}: its ${noun} is no longer where it was made; the copy already in the run is used`);
     } else throw err;

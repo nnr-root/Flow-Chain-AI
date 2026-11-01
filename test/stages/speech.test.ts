@@ -7,9 +7,10 @@ import { ffmpeg, probeDuration } from "../../src/media/ffmpeg.js";
 import { sceneFrameCounts } from "../../src/media/timeline.js";
 import { planRun, type RunOptions, runPipeline } from "../../src/pipeline.js";
 import { captionsStage, globalWords } from "../../src/stages/captions.js";
-import { clipsStage, MAX_SPOKEN_SEC, speakingClipSec, SPEECH_TAIL_SEC } from "../../src/stages/clips.js";
-import { speakingFrames } from "../../src/video-profiles.js";
-import { firstRendition } from "../../src/voice/words.js";
+import { clipsStage, MAX_SPOKEN_SEC, speakingClipSec, speechCutSec, SPEECH_TAIL_SEC } from "../../src/stages/clips.js";
+import { speakingFrames, speakingRate } from "../../src/video-profiles.js";
+import { SPEECH_RATE } from "../../src/voice/rates.js";
+import { countUnits, firstRendition } from "../../src/voice/words.js";
 import { fitStage } from "../../src/stages/fit.js";
 import { STAGES } from "../../src/stages/index.js";
 import { keyframesStage } from "../../src/stages/keyframes.js";
@@ -37,7 +38,7 @@ const SENTENCE = "Hello there friend";
 const AUDIO = [scriptStage, ttsStage, silenceStage];
 const MEDIA = [scriptStage, ttsStage, silenceStage, modesStage, keyframesStage, clipsStage, fitStage, captionsStage];
 
-type Options = { speaking?: number[]; allow?: boolean; shots?: Shot[]; modes?: Mode[] | "auto"; actionLevels?: ActionLevel[] };
+type Options = { sentence?: string; speaking?: number[]; allow?: boolean; shots?: Shot[]; modes?: Mode[] | "auto"; actionLevels?: ActionLevel[] };
 
 /** An LTX run of three scenes in English, whose script gives the scenes in `speaking` the sentence (as narration too). */
 async function speechRun(opts: Options = {}) {
@@ -46,7 +47,8 @@ async function speechRun(opts: Options = {}) {
   const levels = opts.actionLevels ?? ["high", "high", "high"];
   const script = () => {
     const s = fakeScript(3, { shots, actionLevels: levels });
-    for (const i of speaking) Object.assign(s.scenes[i], { speech: SENTENCE, narration: SENTENCE });
+    const sentence = opts.sentence ?? SENTENCE;
+    for (const i of speaking) Object.assign(s.scenes[i], { speech: sentence, narration: sentence });
     return s;
   };
   const made = await makeTestContext({ modes: opts.modes ?? [1, 1, 1], shots, actionLevels: levels, script: () => script(), seed: 7 });
@@ -234,41 +236,78 @@ describe("a speaking scene's clip", () => {
 
 describe("a speaking clip's length", () => {
   it("is about the sentence's time and a second more, as 8k+1 frames between 97 and 169", () => {
-    expect([1, 3, 6, 9, 12, 14, 18, 30].map((w) => speakingFrames(w))).toEqual([97, 97, 97, 97, 121, 137, 169, 169]);
-    for (const w of [1, 9, 12, 14, 18]) expect((speakingFrames(w) - 1) % 8).toBe(0);
+    expect([1, 3, 6, 9, 12, 14, 18, 30].map((w) => speakingFrames(w, 3))).toEqual([97, 97, 97, 97, 121, 137, 169, 169]);
+    for (const w of [1, 9, 12, 14, 18]) expect((speakingFrames(w, 3) - 1) % 8).toBe(0);
     // where only the cap is known, the longest
     expect(speakingFrames()).toBe(169);
   });
+
+  it("follows how fast the video's language is spoken: Turkish slower than English, from the measured rates", () => {
+    expect(speakingRate("en")).toBe(3);
+    expect(speakingRate("tr")).toBeCloseTo((3 * SPEECH_RATE.tr) / SPEECH_RATE.en, 9);
+    expect(speakingRate("tr")!).toBeLessThan(speakingRate("en")!);
+    expect([6, 9, 14].map((w) => speakingFrames(w, speakingRate("en")))).toEqual([97, 97, 137]);
+    expect([6, 9, 14].map((w) => speakingFrames(w, speakingRate("tr")))).toEqual([97, 137, 169]);
+    // a language with no measured rate: the longest
+    expect(speakingRate(undefined)).toBeUndefined();
+    expect(speakingFrames(6, undefined)).toBe(169);
+  });
+
+  it("is worked out for a scene from its sentence in the video's language", async () => {
+    const { ctx } = await speechRun({ sentence: "Bu akşam yemeğinde makarnanın suyuna asla zeytinyağı koyma" });
+    await runPipeline(ctx, [scriptStage], auto);
+    expect(speakingClipSec(ctx.manifest, 1)).toBe(97 / 24);
+    ctx.manifest.request.language = "tr";
+    expect(speakingClipSec(ctx.manifest, 1)).toBe(121 / 24);
+    delete ctx.manifest.request.language;
+    expect(speakingClipSec(ctx.manifest, 1)).toBe(169 / 24);
+  });
 });
 
-/** A sentence said, then said again without its third word, as LTX did on a real run (2026-11-01). */
-const TWICE = (() => {
-  const said = "Stop adding olive oil to your boiling water, because sauce will slide right off.".split(" ");
-  const first = said.map((text, i) => ({ text, start: i * 0.29, end: i * 0.29 + 0.25 }));
-  const again = said.filter((_, i) => i !== 6).map((text, i) => ({ text, start: 4.2 + i * 0.21, end: 4.2 + i * 0.21 + 0.18 }));
-  return [...first, ...again];
-})();
+/** What the worker heard in the real run 20261101-130805-f748a6 (2026-11-01): the sentence, then again without "boiling". */
+const REAL_RUN: Array<{ text: string; start: number; end: number }> = (
+  [["Stop", 0, 0.4], ["adding", 0.4, 0.7], ["olive", 0.7, 0.98], ["oil", 0.98, 1.2], ["to", 1.2, 1.34], ["your", 1.34, 1.44], ["boiling", 1.44, 1.74], ["water", 1.74, 2.12], ["because", 2.12, 2.46], ["sauce", 2.46, 2.86], ["will", 2.86, 3.14], ["slide", 3.14, 3.48], ["right", 3.48, 3.76], ["off.", 3.76, 4.06], ["Stop", 4.2, 4.56], ["adding", 4.56, 4.86], ["olive", 4.86, 5.16], ["oil", 5.16, 5.3], ["to", 5.3, 5.42], ["your", 5.42, 5.5], ["water", 5.5, 5.7], ["because", 5.7, 5.94], ["sauce", 5.94, 6.28], ["will", 6.28, 6.44], ["slide", 6.44, 6.74], ["right", 6.74, 6.98], ["off.", 6.98, 6.99]] as const
+).map(([text, start, end]) => ({ text, start, end }));
+const REAL_SENTENCE = "Stop adding olive oil to your boiling water, because sauce will slide right off.";
 
-describe("a sentence the clip said twice", () => {
-  it("is kept once: the words up to where its first two words come again", () => {
-    expect(firstRendition(TWICE).map((w) => w.text)).toEqual("Stop adding olive oil to your boiling water, because sauce will slide right off.".split(" "));
-    const at = (texts: string[]) => texts.map((text, i) => ({ text, start: i, end: i + 0.5 }));
-    // repeated at the middle
-    expect(firstRendition(at(["Look", "up", "now", "look", "up", "now"])).map((w) => w.text)).toEqual(["Look", "up", "now"]);
+/** Words one after another, a second apart. */
+const heard = (text: string) => text.split(" ").map((t, i) => ({ text: t, start: i, end: i + 0.5 }));
+const kept = (sentence: string, said: string, language = "en") => firstRendition(heard(said), countUnits(sentence, language), language).map((w) => w.text).join(" ");
+
+describe("a sentence the clip said more than once", () => {
+  it.each([
+    ["said once", "Stop adding oil to the water", "Stop adding oil to the water", "Stop adding oil to the water"],
+    ["said twice", "Look up now", "Look up now look up now", "Look up now"],
+    ["said three times", "Look up now", "Look up now look up now look up now", "Look up now"],
+    ["said twice, the first time a word short", "Stop adding oil to the water now", "Stop adding oil to water now Stop adding oil to the water now", "Stop adding oil to water now"],
+    ["said twice, the second time a word short", "Stop adding oil to the water now", "Stop adding oil to the water now Stop adding oil to water now", "Stop adding oil to the water now"],
+    ["said twice, the second time without its first word (not found: a limit)", "Stop adding oil to the water now", "Stop adding oil to the water now adding oil to the water now", "Stop adding oil to the water now adding oil to the water now"],
+    ["repeating its own first words, said once", "Run! Run! Run!", "Run! Run! Run!", "Run! Run! Run!"],
+    ["repeating its own first words, said twice", "Run! Run! Run!", "Run! Run! Run! Run! Run! Run!", "Run! Run! Run!"],
+    ["saying its first words again near its end, once", "We came, we saw, and then we came back.", "We came, we saw, and then we came back.", "We came, we saw, and then we came back."],
+    ["saying its first words again after its middle, once", "I said no and then I said yes", "I said no and then I said yes", "I said no and then I said yes"],
+    ["made of its first words twice, said once", "Run now. Run now.", "Run now. Run now.", "Run now. Run now."],
+    ["made of its first words twice, said twice", "Run now. Run now.", "Run now. Run now. Run now. Run now.", "Run now. Run now."],
+  ])("keeps the first saying of a sentence %s", (_label, sentence, said, expected) => {
+    expect(kept(sentence, said)).toBe(expected);
   });
 
-  it("is left whole when nothing is said again, or when a sentence repeats its own first words", () => {
-    const at = (texts: string[]) => texts.map((text, i) => ({ text, start: i, end: i + 0.5 }));
-    const once = at(["Stop", "adding", "oil", "to", "the", "water"]);
-    expect(firstRendition(once)).toEqual(once);
-    const stop = at(["Stop,", "stop,", "stop", "the", "car"]);
-    expect(firstRendition(stop)).toEqual(stop);
-    // a first word heard again with another after it is no repeat
-    const again = at(["Wait", "here", "and", "wait", "there"]);
-    expect(firstRendition(again)).toEqual(again);
+  it("compares words as the video's language writes them in lower case (Turkish dotted İ)", () => {
+    expect(kept("İyi geceler dostum", "İyi geceler dostum iyi geceler", "tr")).toBe("İyi geceler dostum");
   });
 
-  it("gives the scene only the first saying, in its captions and in its sound", async () => {
+  it("keeps the real run's first saying, and ends its sound before the second begins", () => {
+    const first = firstRendition(REAL_RUN, countUnits(REAL_SENTENCE, "en"), "en");
+    expect(first.map((w) => w.text).join(" ")).toBe("Stop adding olive oil to your boiling water because sauce will slide right off.");
+    // the tail would reach 4.46 s; the second "Stop" starts at 4.2 s
+    expect(speechCutSec(REAL_RUN, first, 7.04)).toBeCloseTo(4.15, 9);
+    // never before the last kept word ends, and only the tail where nothing was said again
+    expect(speechCutSec([...first, { text: "Stop", start: 4.08, end: 4.3 }], first, 7.04)).toBe(4.06);
+    expect(speechCutSec(first, first, 7.04)).toBeCloseTo(4.46, 9);
+    expect(speechCutSec(first, first, 4.3)).toBe(4.3);
+  });
+
+  it("gives the scene only the first saying, in its captions and in its sound, ending before the second", async () => {
     const { ctx, ltx } = await speechRun();
     ltx.speech = {
       audio: [{ silence: 0.2 }, { tone: 1.8 }, { silence: 0.3 }, { tone: 1.6 }],
@@ -280,7 +319,9 @@ describe("a sentence the clip said twice", () => {
     await runPipeline(ctx, MEDIA, auto);
     const audio = ctx.manifest.scenes[1].audio!;
     expect(audio.words.map((w) => w.text)).toEqual(["Hello", "there", "friend."]);
-    expect(Math.abs(audio.duration - (1.95 + SPEECH_TAIL_SEC))).toBeLessThanOrEqual(frame);
+    expect(audio.duration).toBeGreaterThanOrEqual(1.95);
+    expect(audio.duration).toBeLessThan(2.3);
+    expect(Math.abs(audio.duration - 2.25)).toBeLessThanOrEqual(frame);
     expect(await readFile(abs(ctx, paths.captions), "utf8")).not.toMatch(/Hello[\s\S]*Hello/);
   });
 
@@ -298,6 +339,28 @@ describe("a sentence the clip said twice", () => {
     await runPipeline(ctx, MEDIA, auto);
     expect(ltx.submits.filter((r) => r.speechLanguage !== undefined)).toHaveLength(1);
     expect(ctx.manifest.scenes[1].audio!.words.map((w) => w.text)).toEqual(["Hello", "there", "friend."]);
+  });
+});
+
+describe("a sentence its clip cut off", () => {
+  const SENTENCE_8 = "Never pour olive oil into the pasta water";
+  const words8 = SENTENCE_8.split(" ").map((text, i) => ({ text, start: 0.2 + i * 0.3, end: 0.2 + i * 0.3 + 0.25 }));
+
+  it("fails the scene, naming it, and keeps the clip's charge", async () => {
+    const { ctx, ltx } = await speechRun({ sentence: SENTENCE_8 });
+    ltx.speech = { audio: [{ silence: 0.2 }, { tone: 1.2 }], words: words8.slice(0, 4) };
+    await expect(runPipeline(ctx, MEDIA, auto)).rejects.toThrow("scene 2's sentence was cut off by its clip; make the scene's clip again");
+    expect(ctx.manifest.ledger.filter((e) => e.stage === "clips" && e.scene === 1)).toHaveLength(1);
+    expect(ctx.manifest.scenes[1].audio).toBeUndefined();
+  });
+
+  it("passes when the sentence was heard whole, or with a word or two the listener missed", async () => {
+    for (const heardWords of [words8, words8.filter((_, i) => i !== 3 && i !== 5)]) {
+      const { ctx, ltx } = await speechRun({ sentence: SENTENCE_8 });
+      ltx.speech = { audio: [{ silence: 0.2 }, { tone: 2.4 }], words: heardWords };
+      await runPipeline(ctx, MEDIA, auto);
+      expect(ctx.manifest.scenes[1].audio!.words).toEqual(heardWords);
+    }
   });
 });
 

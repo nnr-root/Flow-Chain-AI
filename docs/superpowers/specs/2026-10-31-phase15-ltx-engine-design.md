@@ -290,16 +290,28 @@ stop the phase.**
 
    **The sentence said twice (real run 20261101-130805-f748a6, 2026-11-01; this paragraph wins over the 7.04 s above and
    in §13.8 step 6).** A 14-word sentence in a 169-frame clip was said in 4.06 s and then said again (one word dropped) to
-   fill the clip, and the stage failed the 6.5 s limit. Two changes: (a) the words are cut at the second saying
-   (`firstRendition`: where the first two words, compared in lower case without punctuation, come again at or after the
-   middle of what was heard and at index 3 or later), so the repeat never reaches the captions or the cut sound, and the
-   6.5 s limit applies after that cut; a sentence repeating its own first words before its middle is kept whole, and a
-   repeat in the first half is not found. (b) A speaking clip's length comes from its sentence: `speakingFrames` =
-   8k+1 frames for (words / 3 + 1) s, between 97 and 169 (4.04 to 7.04 s), the words counted with `countUnits` (characters
-   halved in a language without spaces); 169 where only the cap is known. One function (`speakingClipSec`) gives it to the
-   stage, its estimate, the modes, a draft's price and the restorer's estimates. A run is frozen with it
-   (`request.speakingClip: "sentence"`, set with `speech` at creation); a run frozen before keeps 169 frames, so its paid
-   clip keeps its key and a resume reuses it (the run above resumes with its words cut, buying nothing).
+   fill the clip, and the stage failed the 6.5 s limit. What is done (after an independent review, it wins over the first
+   version of this paragraph):
+
+   - *Finding the repeat* (`firstRendition`). The script's sentence has s words (`countUnits`). A repeat is where the first
+     two heard words come again, compared in lower case as the video's language writes it (Turkish İ) without punctuation.
+     It is looked for only when at least s + 2 words were heard, and only from word max(2, s − 2) on; the first match at or
+     after word s wins, else the first one found. Everything from it is dropped, however many sayings follow, so the repeat
+     never reaches the captions. A sentence said once is never cut, even one made of its own first words ("Run now. Run
+     now."). Limit: a second saying that drops its first word is not found.
+   - *Cutting the sound* (`speechCutSec`). The end is 0.4 s after the last kept word, but when a repeat was cut, 50 ms before
+     the next saying begins (the real run: 4.15 s, not 4.46 s, which let the mouth start "Stop" again); never before the last
+     kept word ends, never after the sound ends. The 6.5 s limit applies to that cut.
+   - *A sentence cut off.* When fewer than s − 2 words were heard after the cut, the scene fails ("scene N's sentence was cut
+     off by its clip; make the scene's clip again"); the clip stays charged, as in every other failure.
+   - *The clip's length* (`speakingFrames`, `speakingRate`). 8k+1 frames for (s / rate + 1) s, between 97 and 169 (4.04 to
+     7.04 s). The rate is three words a second in English and three scaled by the measured narrators' rates
+     (`SPEECH_RATE[lang] / SPEECH_RATE.en`) in another language: Turkish about 2.06, so a 14-word Turkish sentence gets 169
+     frames and an English one 137. A language without a measured rate, or an unknown sentence, gets 169. Speech is offered
+     in English and Turkish only. One function (`speakingClipSec`) gives the length to the stage, its estimate, the modes, a
+     draft's price and the restorer's estimates. A run is frozen with it (`request.speakingClip: "sentence"`, set with
+     `speech` at creation); a run frozen before keeps 169 frames, so its paid clip keeps its key (a test pins that key) and
+     a resume reuses it.
 
 ### 13.7 Clip sound: how it was built (Task 10; wins over §6)
 

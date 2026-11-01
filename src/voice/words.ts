@@ -66,26 +66,26 @@ export const hookCap = (language: string | undefined, _rate?: number): number =>
  */
 export const speechCap = (language?: string): number => (isUnspaced(language) ? 28 : 14);
 
-/** A sentence's words for a clip's length: its words, or in a language without spaces its characters, two to a word (as `speechCap`). */
-export const sentenceWords = (text: string, language?: string): number => countUnits(text, language) / (isUnspaced(language) ? 2 : 1);
-
-/** A heard word as it is compared with another: lower case, without punctuation ("Stop," and "stop" are one word). */
-const plain = (text: string): string => text.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
-
 /**
- * The words of a speaking clip up to where the sentence is said again (phase 15 spec §13.6): LTX fills a clip longer than its
- * sentence by saying it twice, the second time not always word for word. A repeat is where the first two words come again
- * (only those are compared, since the repeat may drop a word), at the middle of what was heard or later: a sentence that
- * repeats its own first words sooner ("Stop, stop, stop the car") is kept whole. A repeat in the first half is not found.
+ * The words of a speaking clip up to where its sentence (`said` words in the script) is said again (phase 15 spec §13.6):
+ * LTX fills a clip longer than its sentence by saying it again, not always word for word. A repeat is where the first two
+ * heard words come again, compared in lower case as the video's language writes it and without punctuation (only those
+ * two: a repeat may drop a later word). It is looked for only when at least two words more than the sentence were heard,
+ * and only from `said` − 2 words in, so a sentence said once is never cut ("Run now. Run now."); the first match at or
+ * after `said` words wins (a sentence repeating its own first words, said twice), else the first after `said` − 2 (a first
+ * saying a word or two short). Everything from the match is dropped, however many sayings follow. A second saying that
+ * drops its first word is not found (a limit: the clip then fails the 6.5 s limit or keeps both).
  */
-export function firstRendition<W extends { text: string }>(words: W[]): W[] {
-  const from = Math.max(3, Math.ceil(words.length / 2));
-  for (let i = from; i < words.length; i++) {
-    if (plain(words[i].text) !== plain(words[0].text)) continue;
-    if (words.length > 1 && (i + 1 >= words.length || plain(words[i + 1].text) !== plain(words[1].text))) continue;
-    return words.slice(0, i);
+export function firstRendition<W extends { text: string }>(words: W[], said: number, language?: string): W[] {
+  if (words.length < 2 || words.length < said + 2) return words;
+  const plain = (text: string): string => text.toLocaleLowerCase(language).replace(/[^\p{L}\p{N}]+/gu, "");
+  const [first, second] = [plain(words[0].text), plain(words[1].text)];
+  const matches: number[] = [];
+  for (let i = Math.max(2, said - 2); i + 1 < words.length; i++) {
+    if (plain(words[i].text) === first && plain(words[i + 1].text) === second) matches.push(i);
   }
-  return words;
+  const cut = matches.find((i) => i >= said) ?? matches[0];
+  return cut === undefined ? words : words.slice(0, cut);
 }
 
 /** The most scenes of one video a person may speak in (phase 15 spec §5). */

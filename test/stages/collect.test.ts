@@ -22,10 +22,12 @@ const MADE = [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage];
 
 let server: ReturnType<typeof createServer>;
 let gone: string;
+let broken: string;
 beforeAll(async () => {
-  server = createServer((_req, res) => res.writeHead(404).end());
+  server = createServer((req, res) => res.writeHead(req.url?.includes("broken") ? 500 : 404).end());
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   gone = `http://127.0.0.1:${(server.address() as AddressInfo).port}/flowchain-outputs/clip.mp4`;
+  broken = `http://127.0.0.1:${(server.address() as AddressInfo).port}/broken/clip.mp4`;
 });
 afterAll(() => new Promise<void>((done) => server.close(() => done())));
 
@@ -64,10 +66,20 @@ describe("a kept job's file", () => {
 
   it("fails the scene with what to do when the run's copy and the provider's are both gone", async () => {
     const { ctx, fakes, kept, file } = await madeAndStopped();
-    await rm(fileURLToPath(kept.url));
+    // the bucket answers that nothing is there
+    kept.url = gone;
     await rm(file);
     await expect(runPipeline(ctx, [clipsStage], auto)).rejects.toThrow("scene 1: this scene's clip file is gone; make the scene's clip again");
     expect(fakes.video.submits).toHaveLength(1);
+  });
+
+  it("is not said to be gone when the download failed for another reason, which is said as it is", async () => {
+    const { ctx, kept, file } = await madeAndStopped();
+    kept.url = broken;
+    await rm(file);
+    const error = await runPipeline(ctx, [clipsStage], auto).catch((e: Error) => e);
+    expect(String(error)).toMatch(/HTTP 500/);
+    expect(String(error)).not.toMatch(/is gone/);
   });
 
   it("is taken from the run, for a result kept before sizes were written, when its url answers 404 and the clip is as long as was asked", async () => {
