@@ -236,6 +236,15 @@ stop the phase.**
 6. **60 fps from a 24 fps clip** (§8): measure RIFE 24 to 48 and a thinning to 60, or LTX's own temporal upscaler.
 7. **Multi-shot, audio-to-video, DFR, a bigger model:** tried and left (§1); each is a spike of its own if asked for again.
 8. **A scene's speech longer than 6 s:** chained clips would break the voice; not attempted.
+9. **`src/duration.ts` still derives Wan's 2–5 s scene range** (final review, 2026-11-01): harmless under LTX, whose clips
+   are up to 15 s; revisit when Wan is removed.
+10. **The 480p/720p choice is still shown under LTX**, and ignored there (an LTX clip has one size).
+11. **Resume after a failed speaking scene re-downloads a URL the worker's file was already removed from**: the error is an
+    unclear 404 rather than the plain "reroll the scene's clip" sentence.
+12. **Smooth motion is hidden as soon as LTX is switched on with its endpoint**, even while its rates are missing (the web
+    never reads `prices.json`), though new runs are then still made on Wan.
+13. **The `motionPrompt` rule "nobody speaks to the camera"** sits beside the speech rule and may suppress speech in Gemini's
+    answer; check on the first real draft with speech.
 
 ## 12. Owner steps (money or a real account: each one the owner's click)
 
@@ -287,6 +296,29 @@ stop the phase.**
 4. The clip's recorded length for a clip with an audio stream is its **video stream's** length (the container's is the longer of the two).
 5. **Studio (Task 11):** "sound effects are offered" is true when Foley is on **or** LTX is on, so the form no longer sends `--no-sfx` for an LTX video and its clip sound is heard.
 
+### 13.8 The final review's rulings (2026-11-01; wins over every earlier section)
+
+1. **No warm-up on LTX.** `RunpodVideo` has no `warm`/`warmCost` for the `clip-ltx25` workflow (Wan keeps both exactly): the
+   LTX worker's contract refuses `{task: "warm"}`, and the early start fires on every run whose provider offers one, so each
+   LTX run would have bought a refused job. Tested on the real provider, not only on the stand-in.
+2. **The draft's price is speech-aware.** `draftEstimate` and the modes stage build the rules' scenes with one helper
+   (`ruleScenes`, with `pinnedForRules`): a speaking scene is Mode 1, its clip priced at `SPEAKING_CLIP_SEC`, with no
+   narration characters. Before, the draft could price it as a voiced still; the modes stage then forced a clip and the
+   "Media plan" check exceeded `--cap`, stopping the run after its voiceover was bought. A run without a speaking scene is
+   priced exactly as before (pinned by a test).
+3. **An owner switch gates LTX: `FLOWCHAIN_LTX=on`** (absent = off). New runs are made on LTX only with the switch on, the
+   endpoint set and the three rates; `Health.sound` via LTX, `Health.speech` and the hiding of 60 fps follow the switch and
+   the endpoint. Why: `runpod:deploy` writes the endpoint to `.env` and `server:setup` hands this machine's settings to the
+   server's worker, so a routine setup after measuring would have moved paying customers onto LTX before the licence answer
+   (§9.3). `FLOWCHAIN_SPEECH` stays a second switch. A run already made on LTX resumes on it whatever the switch says.
+4. **Whisper before the clip.** When a request carries `speech_language`, the worker loads Whisper before generating, so a
+   broken CUDA 12 or cuDNN library fails a job that bought nothing instead of a paid clip.
+5. **One USD rate for five cards.** `runpodLtxUsdPerSec` is applied whichever card runs a job; it is set at the highest
+   card's flex rate, so the ledger never records less than was spent and the owner's own cost is slightly over-stated.
+   Measuring needs provisional rates first (the order is in §14).
+6. Small: the LTX endpoint's execution timeout is 1 200 000 ms, the same as the request policy its jobs carry (which is what
+   RunPod applies); the provenance check also catches `"-metadata:s:a:0"` and `"-metadata:g"` in an argument array.
+
 ## 14. What the owner does, in this order (written at the end of Task 13)
 
 Everything built through Task 12 is local and tested against stand-ins; nothing below has run. Each step is the owner's click
@@ -302,15 +334,18 @@ Everything built through Task 12 is local and tested against stand-ins; nothing 
 3. **GitHub repository secret `HF_TOKEN_LTX`**: a new read-only Hugging Face token of an account that accepted the LTX-2.5
    licence (the two tokens used on 2026-10-29 and 2026-10-31 should be revoked). Push (the owner's click) so the `ltx` job
    builds the image (about 72 GB, up to 150 minutes, about 100 GB of runner disk).
-4. **`npm run runpod:deploy`** (the plan prints first): the LTX template and endpoint on the five cards, the endpoint needing
-   a host with CUDA 13.2 (RunPod's accepted values are confirmed here; if it refuses 13.2, the image's torch stack is the
-   thing to revisit). The deploy writes `RUNPOD_LTX_ENDPOINT`.
-5. **Measure the three prices** with one four-scene run (the owner's click, cap USD 1) on the card the endpoint actually gets,
-   then write `runpodLtxUsdPerSec`, `runpodLtxSecPerClipSec`, `runpodLtxColdStartSec` in `prices.json`. Until they are set,
-   new runs are Wan runs.
-6. **One run with a speaking scene** (the owner's click, cap USD 1): check the speech fits the 6.5 s limit, the lips and voice
-   stay together, the captions are right, and the clip is not stretched to fill 7.04 s. Only then `FLOWCHAIN_SPEECH=on`
-   (after the prices) and `npm run server:setup` for a server.
+4. **`npm run runpod:deploy`** (the owner's click; the plan prints first): the LTX template and endpoint on the five cards, the
+   endpoint needing a host with CUDA 13.2 (RunPod's accepted values are confirmed here; if it refuses 13.2, the image's torch
+   stack is the thing to revisit). The deploy writes `RUNPOD_LTX_ENDPOINT`; with `FLOWCHAIN_LTX` unset (§13.8) nothing changes.
+5. **Provisional prices, then measure.** Write a generous guess in `prices.json` so a measuring run can be made at all:
+   `runpodLtxUsdPerSec` at the highest flex rate of the five cards, `runpodLtxSecPerClipSec` 29, `runpodLtxColdStartSec` 120.
+   Then one four-scene run with `FLOWCHAIN_LTX=on` set for that run only (in the shell) and `--cap 1` (the owner's click), and
+   replace the three with what was measured, keeping `runpodLtxUsdPerSec` at the highest card's rate (one rate covers all five
+   cards, §13.8).
+6. **One run with a speaking scene** (the owner's click, `FLOWCHAIN_LTX=on` and `FLOWCHAIN_SPEECH=on` for that run, cap USD 1):
+   check the speech fits the 6.5 s limit, the lips and voice stay together, the captions are right, and the clip is not
+   stretched to fill 7.04 s. Then `FLOWCHAIN_SPEECH=on` (after the prices). **Only after the licence answer (step 1) and the
+   approved terms (step 2)**, set `FLOWCHAIN_LTX=on` in the server's worker settings and run `npm run server:setup`.
 7. **One real `npm run flowchain -- run … --draft`** after Task 7's and Task 6's schema change (about half a cent): Gemini
    must accept the response schema (the rule in CLAUDE.md), and the draft's `videoPrompt` length shows what every script now
    costs in output tokens.
