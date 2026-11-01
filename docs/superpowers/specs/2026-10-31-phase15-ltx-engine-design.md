@@ -286,3 +286,35 @@ stop the phase.**
 3. The sound is never time-stretched. When the fit plan slows the picture, the sound plays at its own speed, fades over 0.5 s where it ends (up to about 20 % before the scene's end) and may drift up to 25 % from the picture. Only a real run shows whether that sounds acceptable.
 4. The clip's recorded length for a clip with an audio stream is its **video stream's** length (the container's is the longer of the two).
 5. **Studio (Task 11):** "sound effects are offered" is true when Foley is on **or** LTX is on, so the form no longer sends `--no-sfx` for an LTX video and its clip sound is heard.
+
+## 14. What the owner does, in this order (written at the end of Task 13)
+
+Everything built through Task 12 is local and tested against stand-ins; nothing below has run. Each step is the owner's click
+(money, a real account, or a text that reaches customers). Wan is **not** removed: that is Task 14, gated on step 9.
+
+1. **Write to licensing@ltx.io** (§9.3, §9.8): does a studio that turns a topic into a finished video "directly compete" with
+   the licensor's products (Attachment A, item 20); is there a territory exclusion; the terms for a paid licence at USD 10M.
+   Keep the answer in `docs/`. **Do not serve a paying customer an LTX video before the answer.**
+2. **Approve the `/terms` words** (`docs/superpowers/specs/phase15-terms-draft.md`): the 20 restrictions as the licensor wrote
+   them, the Acceptable Use Policy sentence the draft leaves out, and the sentence "marked as machine made" only once an
+   `ffprobe` of a real LTX clip shows what it carries. Then a task adds the text to `/terms` with the narrow `names.test.ts`
+   exemption.
+3. **GitHub repository secret `HF_TOKEN_LTX`**: a new read-only Hugging Face token of an account that accepted the LTX-2.5
+   licence (the two tokens used on 2026-10-29 and 2026-10-31 should be revoked). Push (the owner's click) so the `ltx` job
+   builds the image (about 72 GB, up to 150 minutes, about 100 GB of runner disk).
+4. **`npm run runpod:deploy`** (the plan prints first): the LTX template and endpoint on the five cards, the endpoint needing
+   a host with CUDA 13.2 (RunPod's accepted values are confirmed here; if it refuses 13.2, the image's torch stack is the
+   thing to revisit). The deploy writes `RUNPOD_LTX_ENDPOINT`.
+5. **Measure the three prices** with one four-scene run (the owner's click, cap USD 1) on the card the endpoint actually gets,
+   then write `runpodLtxUsdPerSec`, `runpodLtxSecPerClipSec`, `runpodLtxColdStartSec` in `prices.json`. Until they are set,
+   new runs are Wan runs.
+6. **One run with a speaking scene** (the owner's click, cap USD 1): check the speech fits the 6.5 s limit, the lips and voice
+   stay together, the captions are right, and the clip is not stretched to fill 7.04 s. Only then `FLOWCHAIN_SPEECH=on`
+   (after the prices) and `npm run server:setup` for a server.
+7. **One real `npm run flowchain -- run … --draft`** after Task 7's and Task 6's schema change (about half a cent): Gemini
+   must accept the response schema (the rule in CLAUDE.md), and the draft's `videoPrompt` length shows what every script now
+   costs in output tokens.
+8. **Update `web/content/measured.json`** with the new full-video cost.
+9. **Watch and listen** (the Desktop folders of 2026-10-31 and the new run): decide Foley (§6.3: keep, or remove with its
+   worker, image, endpoint, prices and stage) and, in so many words, **"remove Wan"** — only then Task 14 runs.
+10. The open parked items (§11) and the sound note's wording ("adds to the price" is wrong for LTX-only sound).
