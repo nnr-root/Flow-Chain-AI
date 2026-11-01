@@ -54,6 +54,7 @@ read the one for the area you are changing before changing it (table at the end)
 | `worker-upscale/` | the restorer worker (Python: SeedVR2 3B for full HD and RIFE for 60 fps, two workflows; weights inside its image; phase 8 spec §8, phase 11 spec) |
 | `src/providers/elevenlabs.ts`, `src/voice/hosted.ts`, `assets/voices/elevenlabs.json` | the hosted voice, and which of its voices plays each of the studio's voices in each language |
 | `worker-foley/` | the scene-sound worker (Python: HunyuanVideo-Foley; weights inside its image, which the workflow builds as `flowchain-foley`; phase 14 spec §4) |
+| `worker-ltx/` | the LTX clip worker (Python: the distilled pipeline makes a scene's clip with its sound; Whisper gives the words of a speaking scene; weights inside its image, which the workflow builds as `flowchain-ltx`; phase 15 spec §2, §13) |
 | `worker-voice/`, `src/voice/`, `src/providers/runpod-voice.ts` | the studio's own voice worker (Python: VoxCPM2 + Whisper; the fallback), laying a script's words over what was heard, the provider |
 | `deploy/` | Compose file, Dockerfiles, Caddy files for the server |
 | `test/` | pipeline tests: `unit`, `stages`, `media`, `pipeline`, `db` |
@@ -164,6 +165,8 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - **A script of more than 90 seconds is written in parts** (an outline, then each part), each answer checked
   and saved with its charge (`manifest.scriptParts`), so a stopped run buys none again.
 - **Every change to a prompt bumps `PROMPT_VERSION`** (`src/providers/prompt-version.ts`; phase 9 spec §4), including a change to a niche, type, edit, culture or preset text; `test/unit/prompt-pin.test.ts` fails without it.
+- **The clip engine is a video profile** (`src/video-profiles.ts`; phase 15 spec §13.4): `ltx25@1` (24 fps, `8k+1` frames, 49 to 361, 640x1152) only while `RUNPOD_LTX_ENDPOINT` and the three `runpodLtx*` prices are set; until then a new run is made on Wan as before. A run keeps its engine through `models.video`, and a clip carries its own `fps` (`fit`, the seam frame and `interpolate` read it, never a constant). No step may strip metadata from an LTX clip (the licence forbids weakening its provenance marks; a test greps for it). Wan is removed only in a later task, after the owner has watched a real LTX run.
+- **A scene may speak** (`request.speech`, frozen; `isSpeaking`; phase 15 spec §5, §13): the clip's whole sound is the scene's audio and only its tail is cut (last word plus `SPEECH_TAIL_SEC`), so lips and voice stay in step; the words are the clip worker's Whisper and are kept in the persisted job result; `tts` and `silence` skip the scene, and a speaking scene is always Mode 1. Never in a language version of a video, only in English and Turkish, at most two scenes and one speaker, never a real person.
 - **A scene's sound is written as a `soundBible` (once) and a `soundPrompt` per scene, plain strings** (phase 14 spec §2; the phase 12 closed library, `SCENE_SOUNDS` and `make:sfx` are gone). Keep them free of enum, `maxItems` and nested lists in the script schema: Gemini once refused a response schema as a whole for an enum together with `maxItems`. Any change to their rule bumps `PROMPT_VERSION`. A scene's sound is made from its `soundPrompt` by the `sound` stage (after `fit`, on `RUNPOD_FOLEY_ENDPOINT`, only with `FLOWCHAIN_SCENE_SOUND=on` and the three `runpodFoley*` prices), with a seed of its own for each scene: the trial sounded alike because the model's program fixed one seed. The licence excludes the EU, the UK and South Korea (README, "Scene sound"); `FLOWCHAIN_SCENE_SOUND=off` is the rollback and a run without sound is complete.
 
 ## How the studio is built
@@ -394,7 +397,7 @@ graphify god-nodes --top 20       # the hubs
 | Scene sound effects: a closed synthesized library the script names (§1–§2 replaced by phase 14) | `2026-10-29-phase12-scene-sfx-design.md` |
 | Scene sound: a sound made for each scene from its picture, on the studio's own endpoint (§12 wins) | `2026-10-30-phase14-scene-sound-design.md` |
 | Topic ideas: "Suggest a topic" paid by a fixed credit | `2026-10-30-phase13-trend-ideas-design.md` (§10 wins) |
-| LTX-2.5 as the clip engine (replacing Wan 2.2) and a character who speaks; the licence reading | `2026-10-31-phase15-ltx-engine-design.md` (design only; nothing built yet) |
+| LTX-2.5 as the clip engine (replacing Wan 2.2) and a character who speaks; the licence reading | `2026-10-31-phase15-ltx-engine-design.md` (built through Task 11; the licence's competition clause, item 20, is open and needs the owner's written question before a paying customer is served an LTX video) |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.
 
