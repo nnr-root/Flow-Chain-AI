@@ -10,6 +10,7 @@ import os
 import re
 import struct
 import subprocess
+import types
 
 import pytest
 
@@ -195,7 +196,10 @@ def test_no_build_step_maps_or_joins_a_model_file():
     # the hosted runner cannot map the 26 GB text encoder (CI run 41287628826: "unable to mmap … Cannot allocate memory");
     # the build reads its header only
     text = _dockerfile()
-    for word in ("safe_open", "torch.load", "from_pretrained", "mmap", "GemmaAssets.load", "/tmp/te.safetensors"):
+    for word in (
+        "safe_open", "torch.load", "from_pretrained", "mmap", "GemmaAssets.load", "/tmp/te.safetensors",
+        "from_single_file", "load_file", "assemble(",
+    ):
         assert word not in text, word
     assert not re.search(r"cat [^\n|]*\.part00[^\n|]*>", text), "a step joins a split file"
     assert "python3.11 -m flowchain_ltx.weights check-text-encoder" in text
@@ -263,6 +267,154 @@ def test_the_text_encoder_header_check_refuses_a_file_that_is_not_safetensors(tm
     with pytest.raises(ValueError, match="header"):
         weights.check_text_encoder_header([str(bad)])
 
+
+
+@pytest.mark.parametrize(
+    "header, why",
+    [
+        ([1, 2], "not a JSON object"),
+        ({"w": {"dtype": "U8", "shape": [2]}}, "w has no data_offsets"),
+        ({"w": {"dtype": "U8", "shape": [2], "data_offsets": ["a", 2]}}, "w has no data_offsets"),
+        ({"w": {"dtype": "U8", "shape": [2], "data_offsets": [0, 1, 2]}}, "w has no data_offsets"),
+        ({"w": {"dtype": "U8", "shape": [2], "data_offsets": [3, 1]}}, "w has no data_offsets"),
+        ({"w": [0, 2]}, "w has no data_offsets"),
+        ({"__metadata__": [1], "w": {"dtype": "U8", "shape": [2], "data_offsets": [0, 2]}}, "metadata"),
+    ],
+)
+def test_a_malformed_header_is_refused_with_a_plain_message(tmp_path, header, why):
+    raw = json.dumps(header).encode()
+    path = tmp_path / "te.safetensors"
+    path.write_bytes(struct.pack("<Q", len(raw)) + raw + b"\0\0")
+    with pytest.raises(ValueError, match=why):
+        weights.check_text_encoder_header([str(path)])
+
+
+def test_a_byte_range_is_read_across_the_parts_as_one_file(tmp_path):
+    paths = []
+    for i, data in enumerate((b"abc", b"defg", b"hi")):
+        (tmp_path / f"p{i}").write_bytes(data)
+        paths.append(str(tmp_path / f"p{i}"))
+    assert weights.read_range(paths, 2, 5) == b"cdefg"
+    assert weights.read_range(paths, 0, 9) == b"abcdefghi"
+    assert weights.read_range(paths, 7, 2) == b"hi"
+    assert weights.read_range(paths, 3, 0) == b""
+    with pytest.raises(ValueError, match="beyond"):
+        weights.read_range(paths, 8, 2)
+
+
+DTYPE_BYTES = {"U8": 1, "I8": 1, "I32": 4}
+
+
+def te_file(tmp_path, entries, metadata, cuts=()):
+    """A text encoder as safetensors with real tensor data, cut into parts at the given absolute positions."""
+    header, data = {"__metadata__": metadata}, b""
+    for name, dtype, raw in entries:
+        header[name] = {"dtype": dtype, "shape": [len(raw) // DTYPE_BYTES[dtype]], "data_offsets": [len(data), len(data) + len(raw)]}
+        data += raw
+    head = json.dumps(header).encode()
+    blob = struct.pack("<Q", len(head)) + head + data
+    paths, start = [], 0
+    for i, end in enumerate([*cuts, len(blob)]):
+        path = tmp_path / f"te.safetensors.part{i:02d}"
+        path.write_bytes(blob[start:end])
+        paths.append(str(path))
+        start = end
+    return paths, 8 + len(head)
+
+
+TOKENIZER = json.dumps({"model": {"type": "BPE", "vocab": {f"t{i}": i for i in range(40)}}, "added_tokens": []}).encode()
+TOK_CONFIG = b'{"bos_token": "<bos>"}'
+PROC_CONFIG = b'{"processor_class": "Gemma4Processor"}'
+
+
+def good_entries(tok_config=TOK_CONFIG):
+    return [
+        ("tokenizer_json", "U8", TOKENIZER),
+        ("hf_asset__tokenizer_config.json", "U8", tok_config),
+        # Comfy packs may store a sidecar as int8: the loader casts it to uint8, which keeps the bytes
+        ("hf_asset__processor_config.json", "I8", PROC_CONFIG),
+        ("model.weight", "U8", b"\x01" * 64),
+    ]
+
+
+def test_the_assets_are_read_by_offset_exactly_as_the_loader_reads_them_even_across_a_part_boundary(tmp_path):
+    meta = {**GOOD_META, "chat_template.jinja": "{{ messages }}", "processor_config.json": "not this one"}
+    probe = tmp_path / "probe"
+    probe.mkdir()
+    _, data_start = te_file(probe, good_entries(), meta)
+    # cut inside the tokenizer tensor, so its bytes come from two parts
+    paths, _ = te_file(tmp_path, good_entries(), meta, cuts=(data_start + 7,))
+    assets = weights.text_encoder_assets(paths)
+    assert assets["config_dict"] == {"model_type": "gemma4"}
+    assert assets["tokenizer_json"] == TOKENIZER
+    # a tensor wins over metadata of the same name; metadata fills in only what no tensor carries (gemma_assets.py)
+    assert assets["sidecars"] == {
+        "tokenizer_config.json": TOK_CONFIG,
+        "processor_config.json": PROC_CONFIG,
+        "chat_template.jinja": b"{{ messages }}",
+    }
+
+
+def test_a_wider_integer_tensor_becomes_its_values_cast_to_uint8_as_the_loader_does(tmp_path):
+    values = [65, 66, 300, -1]
+    raw = struct.pack("<4i", *values)
+    entries = [("tokenizer_json", "I32", raw), *good_entries()[1:]]
+    paths, _ = te_file(tmp_path, entries, GOOD_META)
+    assert weights.text_encoder_assets(paths)["tokenizer_json"] == bytes(v % 256 for v in values)
+
+
+def test_a_tensor_whose_bytes_do_not_match_its_shape_is_refused(tmp_path):
+    paths, _ = te_file(tmp_path, good_entries(), GOOD_META)
+    raw = open(paths[0], "rb").read()
+    length = struct.unpack("<Q", raw[:8])[0]
+    header = json.loads(raw[8 : 8 + length])
+    header["tokenizer_json"]["shape"] = [3]
+    head = json.dumps(header).encode()
+    open(paths[0], "wb").write(struct.pack("<Q", len(head)) + head + raw[8 + length :])
+    with pytest.raises(ValueError, match="tokenizer_json"):
+        weights.text_encoder_assets(paths)
+
+
+class FakeAssets:
+    def __init__(self, source, config_dict, tokenizer_json, sidecars, weight_paths):
+        self.config_dict, self.tokenizer_json, self.sidecars = config_dict, tokenizer_json, sidecars
+
+    def _require_sidecars(self, *names):
+        missing = [n for n in names if n not in self.sidecars]
+        if missing:
+            raise ValueError(f"missing required sidecar(s): {missing}")
+
+
+def fake_gemma():
+    """The four names the build uses from ltx_core's gemma_assets, building from the bytes as strictly as JSON allows."""
+    return types.SimpleNamespace(
+        GemmaAssets=FakeAssets,
+        build_gemma_hf_config=lambda a: a.config_dict["model_type"],
+        build_gemma_hf_tokenizer=lambda a: (json.loads(a.tokenizer_json), json.loads(a.sidecars["tokenizer_config.json"]))[1],
+        build_gemma_processor=lambda a, t: json.loads(a.sidecars["processor_config.json"])["processor_class"],
+    )
+
+
+def test_the_config_tokenizer_and_processor_build_from_the_bytes_read_by_offset(tmp_path):
+    paths, _ = te_file(tmp_path, good_entries(), GOOD_META)
+    built = weights.build_text_encoder_offline(paths, gemma=fake_gemma())
+    assert built == ("gemma4", {"bos_token": "<bos>"}, "Gemma4Processor")
+
+
+def test_wrong_sidecar_bytes_fail_the_build_with_a_plain_message(tmp_path):
+    paths, _ = te_file(tmp_path, good_entries(tok_config=b'{"bos_token": <broken'), GOOD_META)
+    with pytest.raises(ValueError, match="does not build offline"):
+        weights.build_text_encoder_offline(paths, gemma=fake_gemma())
+
+
+def test_the_build_check_exits_non_zero_with_the_message_when_the_tokenizer_does_not_build(tmp_path, monkeypatch, capsys):
+    paths, _ = te_file(tmp_path, good_entries(tok_config=b"{broken"), GOOD_META)
+    monkeypatch.setattr(weights, "_image_text_encoder_parts", lambda: paths)
+    monkeypatch.setattr(weights, "_gemma", fake_gemma)
+    with pytest.raises(SystemExit) as stop:
+        weights.main(["check-text-encoder"])
+    assert stop.value.code == 1
+    assert "does not build offline" in capsys.readouterr().err
 
 # the stack `uv sync --extra natten` resolved at LTX-2 e98f6d9, which the spike ran on 2026-10-31
 SPIKE_STACK = {

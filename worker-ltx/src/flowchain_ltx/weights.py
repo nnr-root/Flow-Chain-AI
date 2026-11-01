@@ -115,48 +115,74 @@ def assemble(root=ROOT):
         os.replace(tmp, joined)  # a half-written file never has the model's name
 
 
-# What GemmaAssets.from_single_file (ltx_core/text_encoders/gemma/gemma_assets.py at LTX-2 e98f6d9) needs from the text
-# encoder: the model's configuration as JSON in the header's metadata, the tokenizer as a tensor, and two small JSON files
-# each as a tensor `hf_asset__<name>` or, in older packs, as metadata
+# What GemmaAssets.from_single_file (ltx_core/text_encoders/gemma/gemma_assets.py at LTX-2 e98f6d9) reads from the text
+# encoder: the model's configuration as JSON in the header's metadata, the tokenizer as a tensor, and small files ("sidecars")
+# each as a tensor `hf_asset__<name>` or, in older packs, as metadata for the names it lists
 GEMMA_CONFIG_KEY = "gemma_config"
 TOKENIZER_TENSOR = "tokenizer_json"
 SIDECAR_PREFIX = "hf_asset__"
 REQUIRED_SIDECARS = ("tokenizer_config.json", "processor_config.json")
+METADATA_FALLBACK_SIDECARS = (*REQUIRED_SIDECARS, "chat_template.jinja", "generation_config.json")
 # safetensors refuses a header larger than this; a larger length means the bytes are not a safetensors file
 MAX_HEADER_BYTES = 100_000_000
+# the integer types a tokenizer or sidecar tensor may be stored as, by size in bytes (_tensor_to_bytes casts them to uint8)
+INT_DTYPES = {"U8": 1, "I8": 1, "BOOL": 1, "U16": 2, "I16": 2, "U32": 4, "I32": 4, "U64": 8, "I64": 8}
 
 
-def _read_start(paths, n):
-    """The first n bytes of the parts read as one file (the header is in the first part, but nothing depends on it)."""
-    out = b""
+def read_range(paths, start, length):
+    """`length` bytes from `start` of the parts read as one file, seeking: nothing else is read and nothing is mapped."""
+    out, offset = b"", 0
     for path in paths:
-        with open(path, "rb") as f:
-            out += f.read(n - len(out))
-        if len(out) == n:
-            break
+        size = os.path.getsize(path)
+        if start + len(out) < offset + size and len(out) < length:
+            with open(path, "rb") as f:
+                f.seek(start + len(out) - offset)
+                out += f.read(length - len(out))
+        offset += size
+    if len(out) != length:
+        raise ValueError(f"bytes {start} to {start + length} are beyond the end of the parts ({offset} bytes)")
     return out
 
 
-def check_text_encoder_header(paths):
-    """Checks the text encoder from its header alone and returns its model configuration (a dict).
+def _is_offsets(value):
+    return (
+        isinstance(value, list)
+        and len(value) == 2
+        and all(isinstance(v, int) and not isinstance(v, bool) for v in value)
+        and 0 <= value[0] <= value[1]
+    )
 
-    `paths` is the file, or its parts in order. Only the first bytes of the first part are read: a build cannot map the
-    26 GB file (CI run 41287628826 failed with "unable to mmap … Cannot allocate memory"). The tokenizer and the processor
-    are built from tensor data, so they are checked at the first real job, where the worker loads the file anyway.
-    """
+
+def _read_header(paths):
+    """(data start, tensors, metadata), checked: the header parses, every tensor has its offsets, the data ends where the
+    parts end. Only the first bytes are read: a build cannot map the 26 GB file (CI run 41287628826 failed with "unable to
+    mmap … Cannot allocate memory")."""
     total = sum(os.path.getsize(p) for p in paths)
-    head = _read_start(paths, 8)
-    length = struct.unpack("<Q", head)[0] if len(head) == 8 else None
+    length = struct.unpack("<Q", read_range(paths, 0, 8))[0] if total >= 8 else None
     if length is None or not 2 <= length <= min(MAX_HEADER_BYTES, total - 8):
         raise ValueError(f"{paths[0]} does not start with a safetensors header")
     try:
-        header = json.loads(_read_start(paths, 8 + length)[8:])
+        header = json.loads(read_range(paths, 8, length))
     except ValueError as err:
         raise ValueError(f"the safetensors header of {paths[0]} is not JSON") from err
+    if not isinstance(header, dict):
+        raise ValueError(f"the safetensors header of {paths[0]} is not a JSON object")
     metadata = header.pop("__metadata__", None) or {}
+    if not isinstance(metadata, dict) or not all(isinstance(v, str) for v in metadata.values()):
+        raise ValueError(f"the safetensors metadata of {paths[0]} is not an object of texts")
+    for name, entry in header.items():
+        if not isinstance(entry, dict) or not _is_offsets(entry.get("data_offsets")):
+            raise ValueError(f"the safetensors header of {paths[0]} is malformed: {name} has no data_offsets [start, end]")
     ends = [entry["data_offsets"][1] for entry in header.values()]
     if not ends or max(ends) != total - 8 - length:
         raise ValueError(f"the tensors' data ends at {max(ends, default=0)}, but the parts hold {total - 8 - length} bytes of data")
+    return 8 + length, header, metadata
+
+
+def check_text_encoder_header(paths):
+    """Checks the text encoder from its header alone and returns its model configuration (a dict). `paths` is the file,
+    or its parts in order."""
+    _, header, metadata = _read_header(paths)
     if TOKENIZER_TENSOR not in header:
         raise ValueError(f"the text encoder has no {TOKENIZER_TENSOR} tensor")
     for name in REQUIRED_SIDECARS:
@@ -170,19 +196,76 @@ def check_text_encoder_header(paths):
     return config
 
 
-def _check_text_encoder_in_image():
-    """The build's check: the header of the parts in the image, then the configuration built by the program's own builder,
-    offline (HF_HUB_OFFLINE in the image), from the metadata alone: no tensor is opened."""
-    paths = [os.path.join(ROOT, part) for part in sorted(PARTS[TEXT_ENCODER])]
-    config = check_text_encoder_header(paths)
-    from ltx_core.text_encoders.gemma.gemma_assets import GemmaAssets, build_gemma_hf_config
+def _tensor_bytes(paths, data_start, name, entry):
+    """A small integer tensor's bytes as _tensor_to_bytes gives them: uint8 as stored, any other integer type cast to
+    uint8, which keeps each value modulo 256, the first byte of each little-endian element."""
+    width = INT_DTYPES.get(entry.get("dtype"))
+    if width is None:
+        raise ValueError(f"{name} is {entry.get('dtype')}, not an integer tensor")
+    start, end = entry["data_offsets"]
+    count = 1
+    for n in entry.get("shape", []):
+        count *= n
+    if count * width != end - start:
+        raise ValueError(f"{name} holds {end - start} bytes, not the {count * width} its shape and type say")
+    raw = read_range(paths, data_start + start, end - start)
+    return raw if width == 1 else raw[::width]
 
-    assets = GemmaAssets(source=paths[0], config_dict=config, tokenizer_json=b"", sidecars={}, weight_paths=())
-    built = build_gemma_hf_config(assets)
-    print(f"text encoder header checked: {type(built).__name__}, model_type {config['model_type']}")
+
+def text_encoder_assets(paths):
+    """What from_single_file reads (config_dict, tokenizer_json, sidecars), read by offset from the parts: the tokenizer
+    and the sidecars are a few MB at known places in a 26 GB file."""
+    config = check_text_encoder_header(paths)
+    data_start, header, metadata = _read_header(paths)
+    sidecars = {
+        name[len(SIDECAR_PREFIX):]: _tensor_bytes(paths, data_start, name, entry)
+        for name, entry in header.items()
+        if name.startswith(SIDECAR_PREFIX)
+    }
+    # metadata fills in only a name no tensor carries (gemma_assets.py, the loop after the tensors)
+    for name in METADATA_FALLBACK_SIDECARS:
+        if name not in sidecars and name in metadata:
+            sidecars[name] = metadata[name].encode()
+    tokenizer = _tensor_bytes(paths, data_start, TOKENIZER_TENSOR, header[TOKENIZER_TENSOR])
+    return {"config_dict": config, "tokenizer_json": tokenizer, "sidecars": sidecars}
+
+
+def _gemma():
+    from ltx_core.text_encoders.gemma import gemma_assets  # only the image has it
+
+    return gemma_assets
+
+
+def build_text_encoder_offline(paths, gemma=None):
+    """Builds the text encoder's configuration, tokenizer and processor with the program's own builders, from the bytes
+    read by offset; raises ValueError with a plain message if any of them does not build."""
+    assets_in = text_encoder_assets(paths)
+    gemma = gemma or _gemma()
+    try:
+        assets = gemma.GemmaAssets(source=paths[0], weight_paths=(), **assets_in)
+        assets._require_sidecars(*REQUIRED_SIDECARS)  # as from_single_file does
+        config = gemma.build_gemma_hf_config(assets)
+        tokenizer = gemma.build_gemma_hf_tokenizer(assets)
+        processor = gemma.build_gemma_processor(assets, tokenizer)
+    except Exception as err:  # noqa: BLE001 - any failure here is the one thing this check reports
+        raise ValueError(f"the text encoder's tokenizer or processor does not build offline from its file: {err}") from err
+    return config, tokenizer, processor
+
+
+def _image_text_encoder_parts():
+    return [os.path.join(ROOT, part) for part in sorted(PARTS[TEXT_ENCODER])]
+
+
+def main(argv):
+    if argv != ["check-text-encoder"]:
+        sys.exit("usage: python -m flowchain_ltx.weights check-text-encoder")
+    try:
+        config, _, processor = build_text_encoder_offline(_image_text_encoder_parts(), gemma=_gemma())
+    except ValueError as err:
+        print(err, file=sys.stderr)
+        sys.exit(1)
+    print(f"text encoder checked: {type(config).__name__}, {type(processor).__name__}, built offline from bytes read by offset")
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] != ["check-text-encoder"]:
-        sys.exit("usage: python -m flowchain_ltx.weights check-text-encoder")
-    _check_text_encoder_in_image()
+    main(sys.argv[1:])

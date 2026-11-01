@@ -87,10 +87,10 @@ RUN uv pip install --system --no-cache -c /constraints.txt --override /overrides
 # libraries, so torch is not affected). CTranslate2's wheels are built without cuDNN, so none is needed for it.
 ENV LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib
 
-# The text encoder is checked from its header alone, after src/ is copied below (weights.check_text_encoder_header). A build
-# cannot map the 26 GB file: CI run 41287628826 failed here with "Cannot allocate memory" when this step joined the parts and
-# opened the file. Its tokenizer and processor are built from tensor data inside it, so they are not built here: the first
-# real job builds them when the worker loads the model (engine._load).
+# The text encoder is checked after src/ is copied below (weights.build_text_encoder_offline), without mapping the file: a
+# build cannot map 26 GB (CI run 41287628826 failed with "Cannot allocate memory" when this step joined the parts and opened
+# the file). Its header is read from the start of the first part; its tokenizer and small files are a few MB of tensor data
+# read by offset from the parts.
 # Whisper loads offline from its folder (on the CPU here; the worker uses the card). model.bin is 1.6 GB, the only model file
 # a build step loads.
 RUN HF_HUB_OFFLINE=1 python3.11 -c "from faster_whisper import WhisperModel; WhisperModel('/models/whisper', device='cpu', compute_type='int8')"
@@ -108,8 +108,9 @@ RUN printf %s 49b093a39c19169a8a81721dcc541e07e945232f > /models/ltx/.verified
 ENV HF_HUB_OFFLINE=1 PYTHONPATH=/flowchain/src PYTHONUNBUFFERED=1
 COPY src/ /flowchain/src/
 COPY handler.py /handler.py
-# the text encoder's header (read from the first part only): its tensors' data ends where the parts end, it carries the
-# tokenizer and the two sidecars the program reads, and its configuration builds offline with the program's own builder
+# the text encoder: its header parses and its tensors' data ends where the parts end; its configuration, tokenizer and
+# processor build offline (HF_HUB_OFFLINE) with the program's own builders, from the tokenizer and sidecar tensors read by
+# offset across the parts. The step fails, with the reason, if any of them does not build.
 RUN python3.11 -m flowchain_ltx.weights check-text-encoder
 # the files this worker runs must be where it calls them, or the image is not pushed (no GPU needed for any of it)
 RUN python3.11 -c "import runpod, boto3, faster_whisper; from flowchain_ltx import engine, weights; assert weights.present(), 'the model files are not all where weights.py says, at their sizes'; assert weights.REVISION == open('/models/ltx/.verified').read()" \
