@@ -1,8 +1,7 @@
 import { imageProfileOf, takesReference } from "../image-profiles.js";
 import { MAX_SEED, type Manifest } from "../manifest/schema.js";
-import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
-import { runProviderJob } from "./job.js";
+import { collect, runProviderJob } from "./job.js";
 import { effectivePreset } from "./look.js";
 import { outPath, paths } from "./paths.js";
 import { requireScript } from "./require.js";
@@ -119,7 +118,7 @@ export const referenceStage: Stage = {
       waitMs: image.waitMs ?? TIMEOUTS.image,
       submitTimeoutMs: image.submitMs,
     });
-    await download(result.url, await outPath(ctx, paths.reference));
+    await collect(ctx, 0, "reference", result, await outPath(ctx, paths.reference));
     // the run has its own copy now: the one the worker uploaded is taken out of the bucket
     await result.remove?.();
   },

@@ -1,4 +1,6 @@
+import { stat } from "node:fs/promises";
 import type { ProviderJob, StageName } from "../manifest/schema.js";
+import { download, DownloadError } from "../providers/download.js";
 import { saveManifest } from "../manifest/store.js";
 import { TIMEOUTS, UnusableResultError, withRetry } from "../providers/retry.js";
 import type { PreparedJob } from "../providers/types.js";
@@ -85,6 +87,7 @@ export async function runProviderJob<Out extends { url: string; seed?: number; c
   if (job && job.inputHash !== ctx.inputHash) job = undefined;
   if (job?.result) {
     ctx.log(`${spec.label}: reusing the paid result of request ${job.requestId}`);
+    reused.add(job.result);
     return job.result as Out;
   }
 
@@ -140,4 +143,47 @@ export async function runProviderJob<Out extends { url: string; seed?: number; c
   // providers that bill by measured GPU time report the actual cost; otherwise the estimate is charged
   await chargeOnce(ctx, pending, result.costUsd ?? spec.costUsd);
   return result;
+}
+
+/** Kept results handed back by `runProviderJob` in this process: only their download may fall back to the file on disk. */
+const reused = new WeakSet<object>();
+
+/** What a stage's file is called in a message to the customer. */
+const NOUN: Partial<Record<StageName, string>> = { clips: "clip", keyframes: "picture", reference: "portrait", upscale: "full HD clip", interpolate: "smooth clip", sound: "sound" };
+
+async function sizeOf(path: string): Promise<number | undefined> {
+  return stat(path).then((s) => s.size).catch(() => undefined);
+}
+
+/**
+ * Brings a finished job's file into the run (`dest`), once: the provider's copy is taken away after it (`remove`), so a
+ * kept result reused later (a stop, a failed step after the download) must take the run's own copy, never download again
+ * from a url that answers 404. The copy's size is written into the job's result before the caller removes the provider's.
+ * A kept result whose copy is missing or changed is downloaded again if it still can be; if not, the scene fails with
+ * what to do. `fallback`: for a result kept before sizes were written (none on record), whether the file already at
+ * `dest` is this job's; asked only for a reused result whose url answers 404 or 403, never for a job just finished.
+ */
+export async function collect(ctx: RunContext, scene: number, stage: StageName, result: { url: string }, dest: string, fallback?: () => Promise<boolean>): Promise<void> {
+  const kept = ctx.manifest.scenes[scene].jobs[stage]?.result;
+  const record = kept?.url === result.url ? kept : undefined;
+  const saved = record?.savedBytes;
+  if (saved !== undefined && (await sizeOf(dest)) === saved) {
+    ctx.log(`scene ${scene + 1}: its ${NOUN[stage] ?? stage} is already here; nothing is downloaded`);
+    return;
+  }
+  try {
+    await download(result.url, dest);
+  } catch (err) {
+    const noun = NOUN[stage] ?? stage;
+    if (saved !== undefined) throw new Error(`scene ${scene + 1}: this scene's ${noun} file is gone; make the scene's ${noun} again`, { cause: err });
+    const gone = err instanceof DownloadError && (err.status === 404 || err.status === 403);
+    if (gone && fallback && reused.has(result) && (await fallback())) {
+      ctx.log(`scene ${scene + 1}: its ${noun} is no longer where it was made; the copy already in the run is used`);
+    } else throw err;
+  }
+  const size = await sizeOf(dest);
+  if (record && size) {
+    record.savedBytes = size;
+    await saveManifest(ctx.dir, ctx.manifest);
+  }
 }

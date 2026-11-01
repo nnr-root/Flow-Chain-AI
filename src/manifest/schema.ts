@@ -217,10 +217,12 @@ export const ProviderJob = z.object({
   /**
    * What the finished job answered, kept the moment it is charged so a resume finishes it without buying it again. An LTX
    * clip's frame rate, whether it has sound and the words heard in it are kept with it (phase 15): a speaking scene's
-   * audio is made from them. Absent on every other result and on results kept before.
+   * audio is made from them. Absent on every other result and on results kept before. `savedBytes`: the size of the run's
+   * own copy once it was downloaded, written before the provider's copy is taken away, so a reuse takes the file on
+   * disk instead of downloading what is no longer there.
    */
   result: z
-    .object({ url: z.string(), seed: z.number().optional(), fps: z.number().positive().optional(), hasAudio: z.boolean().optional(), words: z.array(HeardWordSchema).optional() })
+    .object({ url: z.string(), seed: z.number().optional(), fps: z.number().positive().optional(), hasAudio: z.boolean().optional(), words: z.array(HeardWordSchema).optional(), savedBytes: z.number().int().positive().optional() })
     .optional(),
 });
 export type ProviderJob = z.infer<typeof ProviderJob>;

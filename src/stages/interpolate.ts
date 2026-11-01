@@ -4,12 +4,11 @@ import { round4 } from "../cost.js";
 import { fileSha256 } from "../manifest/hash.js";
 import type { Manifest } from "../manifest/schema.js";
 import { probeDuration } from "../media/ffmpeg.js";
-import { download } from "../providers/download.js";
 import { NonRetryableError, TIMEOUTS } from "../providers/retry.js";
 import { videoProfileOf } from "../video-profiles.js";
 import { isMode1, speakingClipSec } from "./clips.js";
 import { isSpeaking } from "./visual.js";
-import { runProviderJob } from "./job.js";
+import { collect, runProviderJob } from "./job.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireAudio, requireClip } from "./require.js";
 import { clipFps, type Stage } from "./types.js";
@@ -74,7 +73,7 @@ export const interpolateStage: Stage = {
       waitMs: restore.waitMs ?? TIMEOUTS.video,
       submitTimeoutMs: restore.submitMs,
     });
-    await download(result.url, out);
+    await collect(ctx, i, "interpolate", result, out);
     await result.remove?.();
     m.scenes[i].smoothed = { path: paths.smoothed(i), sourceUrl: result.url, duration: await probeDuration(out) };
   },

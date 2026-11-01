@@ -5,11 +5,10 @@ import { extractAudio } from "../media/audio.js";
 import { ffmpeg, probeDuration, probeVideo } from "../media/ffmpeg.js";
 import { levelSound } from "../media/loudness.js";
 import { movingInputArgs, soundInputSize, stillInputArgs } from "../media/sound-input.js";
-import { download } from "../providers/download.js";
 import { NonRetryableError, TIMEOUTS } from "../providers/retry.js";
 import { MAX_INPUT_BYTES } from "../providers/runpod-providers.js";
 import { guidanceFor, LOUDNESS_TARGET_LUFS, SCENE_SOUND_MAX_SEC, SOUND_NEGATIVE_PROMPT, SOUND_STEPS, soundAskSeconds, soundCost, soundSeed } from "../sound.js";
-import { runProviderJob } from "./job.js";
+import { collect, runProviderJob } from "./job.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireClip, requireFitted, requireKeyframe } from "./require.js";
 import type { Stage, StageContext } from "./types.js";
@@ -191,7 +190,7 @@ export const soundStage: Stage = {
     });
     const raw = await outPath(ctx, paths.soundRaw(i));
     const out = abs(ctx, paths.sound(i));
-    await download(result.url, raw);
+    await collect(ctx, i, "sound", result, raw);
     await levelSound(raw, out, { seconds: trackSec, fadeOut, scene: i + 1, log: ctx.log });
     await rm(raw, { force: true });
     // (taken out of the bucket only once the levelled file is here: a failed pass downloads it again for nothing)

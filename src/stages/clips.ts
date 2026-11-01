@@ -1,3 +1,4 @@
+import { stat } from "node:fs/promises";
 import { editById } from "../edits.js";
 import { fileSha256 } from "../manifest/hash.js";
 import type { Manifest, SceneState } from "../manifest/schema.js";
@@ -5,19 +6,18 @@ import { cutTail, extractAudio } from "../media/audio.js";
 import { clipDuration, probeDuration } from "../media/ffmpeg.js";
 import { planFit } from "../media/fit.js";
 import { extractSeamFrame } from "../media/frames.js";
-import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
 import type { VideoOutput } from "../providers/types.js";
 import { soundSeed } from "../sound.js";
 import { LTX_FPS, SPEAKING_MAX_FRAMES, speakingFrames, videoProfileOf } from "../video-profiles.js";
 import { firstRendition, sentenceWords } from "../voice/words.js";
 import { speechLanguage } from "../voice/language.js";
-import { runProviderJob } from "./job.js";
+import { collect, runProviderJob } from "./job.js";
 import { settleWarmup } from "./warmup.js";
 import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
 import { requireAudio, requireClip, requireScript } from "./require.js";
-import type { Dep, RunContext, Stage, StageContext } from "./types.js";
+import { clipFps, type Dep, type RunContext, type Stage, type StageContext } from "./types.js";
 import { autoModeDeps, clipPrompt, durationDep, expectedOf, isSpeaking, needsKeyframe, sceneFrames } from "./visual.js";
 import { clipFrames, inspect, MAX_REMAKES, noteRemake, remakeOf } from "./inspect.js";
 
@@ -211,7 +211,11 @@ export const clipsStage: Stage = {
         submitTimeoutMs: ctx.providers.video.submitMs,
       });
       made = result;
-      await download(result.url, out);
+      // (a kept result from before sizes were written: the clip already here is taken only if it is as long as was asked)
+      await collect(jobCtx, i, "clips", result, out, async () => {
+        const size = await stat(out).then((f) => f.size).catch(() => 0);
+        return size > 0 && Math.abs((await clipDuration(out)) - seconds) <= 1 / (result.fps ?? clipFps({}));
+      });
       // the run has its own copy now: the one the worker uploaded is taken out of the bucket
       await result.remove?.();
       // the clip's own frame rate and sound, only where the provider told them (an LTX clip): a Wan clip's record is as it

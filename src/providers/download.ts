@@ -10,6 +10,13 @@ function withoutQuery(url: string): string {
   return q < 0 ? url : url.slice(0, q);
 }
 
+/** A download that failed; `status` is the HTTP status where the server answered one (404: nothing is there). */
+export class DownloadError extends Error {
+  constructor(message: string, readonly status: number | undefined, options?: { cause?: unknown }) {
+    super(message, options);
+  }
+}
+
 /** Downloads immediately: provider-hosted URLs expire, so the local copy is the source of truth. */
 export async function download(
   url: string,
@@ -26,12 +33,12 @@ export async function download(
   try {
     // the signal also covers reading the body, so a stalled transfer cannot hang the run
     const res = await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw new DownloadError(`HTTP ${res.status}`, res.status);
     body = Buffer.from(await res.arrayBuffer());
   } catch (err) {
     const timedOut = err instanceof Error && err.name === "TimeoutError";
     const reason = timedOut ? `timed out after ${timeoutMs} ms` : err instanceof Error ? err.message : String(err);
-    throw new Error(`download of ${withoutQuery(url)} failed: ${reason}`, { cause: err });
+    throw new DownloadError(`download of ${withoutQuery(url)} failed: ${reason}`, err instanceof DownloadError ? err.status : undefined, { cause: err });
   }
   await writeFile(dest, body);
 }

@@ -1,9 +1,8 @@
 import { rm } from "node:fs/promises";
 import { editById } from "../edits.js";
 import { imageProfileOf, takesReference, takesSeveralReferences } from "../image-profiles.js";
-import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
-import { runProviderJob } from "./job.js";
+import { collect, runProviderJob } from "./job.js";
 import { effectivePreset } from "./look.js";
 import { abs, outPath, paths } from "./paths.js";
 import { referenceFor, referenceImageOf } from "./reference.js";
@@ -100,7 +99,7 @@ export const keyframesStage: Stage = {
         submitTimeoutMs: ctx.providers.image.submitMs,
       });
       const file = await outPath(ctx, paths.keyframe(i));
-      await download(result.url, file);
+      await collect(ctx, i, "keyframes", result, file);
       // the run has its own copy now: the one the worker uploaded is taken out of the bucket
       await result.remove?.();
       ctx.manifest.scenes[i].keyframe = { path: paths.keyframe(i), seed: result.seed, sourceUrl: result.url };
