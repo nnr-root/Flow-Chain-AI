@@ -288,6 +288,19 @@ stop the phase.**
    speaking scenes out of its dependencies, because it runs before `clips` and does not read their length (§13.3's
    `durationDep` is used everywhere else).
 
+   **The sentence said twice (real run 20261101-130805-f748a6, 2026-11-01; this paragraph wins over the 7.04 s above and
+   in §13.8 step 6).** A 14-word sentence in a 169-frame clip was said in 4.06 s and then said again (one word dropped) to
+   fill the clip, and the stage failed the 6.5 s limit. Two changes: (a) the words are cut at the second saying
+   (`firstRendition`: where the first two words, compared in lower case without punctuation, come again at or after the
+   middle of what was heard and at index 3 or later), so the repeat never reaches the captions or the cut sound, and the
+   6.5 s limit applies after that cut; a sentence repeating its own first words before its middle is kept whole, and a
+   repeat in the first half is not found. (b) A speaking clip's length comes from its sentence: `speakingFrames` =
+   8k+1 frames for (words / 3 + 1) s, between 97 and 169 (4.04 to 7.04 s), the words counted with `countUnits` (characters
+   halved in a language without spaces); 169 where only the cap is known. One function (`speakingClipSec`) gives it to the
+   stage, its estimate, the modes, a draft's price and the restorer's estimates. A run is frozen with it
+   (`request.speakingClip: "sentence"`, set with `speech` at creation); a run frozen before keeps 169 frames, so its paid
+   clip keeps its key and a resume reuses it (the run above resumes with its words cut, buying nothing).
+
 ### 13.7 Clip sound: how it was built (Task 10; wins over §6)
 
 1. The clip's own sound is a **free branch of the `sound` stage**, not a new stage (a new stage name would reach status, rerender and the studio's lists). `request.sceneSound` (Foley in use for the run) wins for the **whole run**, not scene by scene: a Foley run's plan and hashes stay byte-for-byte what they were, and a scene whose `soundPrompt` is empty then has no sound at all.

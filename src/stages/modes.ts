@@ -1,7 +1,7 @@
 import type { Manifest, Mode } from "../manifest/schema.js";
 import { planModes, type PlanModesInput } from "../modes.js";
 import { videoProfileOf } from "../video-profiles.js";
-import { SPEAKING_CLIP_SEC } from "./clips.js";
+import { speakingClipSec } from "./clips.js";
 import { requireAudio, requireScript } from "./require.js";
 import type { Dep, Stage, StageContext } from "./types.js";
 import { isSpeaking } from "./visual.js";
@@ -40,7 +40,7 @@ export function ruleScenes(m: Manifest, voiceSec: (i: number) => number): PlanMo
     actionLevel: s.actionLevel ?? "high",
     shot: s.shot,
     // (a speaking scene has no length before its clip, which comes after this stage: it is priced at the clip it buys)
-    requestedSec: isSpeaking(m, i) ? SPEAKING_CLIP_SEC : profile.clipSec(voiceSec(i)),
+    requestedSec: isSpeaking(m, i) ? speakingClipSec(m, i) : profile.clipSec(voiceSec(i)),
     // (no voiceover is bought for a speaking scene: its voice is in its clip)
     narrationChars: isSpeaking(m, i) ? 0 : s.narration.length,
   }));

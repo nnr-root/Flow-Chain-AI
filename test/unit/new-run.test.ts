@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { loadEnv, Prices } from "../../src/config.js";
 import { checkR2RoundTrip, checkRunpodEndpoints, usesGpu } from "../../src/doctor.js";
-import { frozenModePrices, newRunImage, newRunProviders, newRunSpeech } from "../../src/providers/new-run.js";
+import { frozenModePrices, newRunImage, newRunProviders, newRunSpeech, SPEECH_REQUEST } from "../../src/providers/new-run.js";
+import { RunRequest } from "../../src/manifest/schema.js";
 import type { R2 } from "../../src/providers/r2.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
 import { FakeRunpodApi } from "../fakes/runpod.js";
@@ -194,5 +195,12 @@ describe("doctor for RunPod", () => {
     } as unknown as R2;
     expect(await checkR2RoundTrip(r2)).toBe("put, get and delete work");
     expect(store.size).toBe(0);
+  });
+});
+
+describe("what a run that lets a character speak is frozen with", () => {
+  it("is speech, and speaking clips as long as their sentences", () => {
+    expect(SPEECH_REQUEST).toEqual({ speech: true, speakingClip: "sentence" });
+    expect(RunRequest.shape.speakingClip.parse(SPEECH_REQUEST.speakingClip)).toBe("sentence");
   });
 });

@@ -388,6 +388,11 @@ export const RunRequest = z.object({
    */
   speech: z.boolean().optional(),
   /**
+   * How a speaking clip's length is chosen (phase 15 spec §13.6), frozen with `speech`: "sentence" = from its sentence,
+   * 4.04 to 7.04 s. Absent = 7.04 s, as the first speaking runs were bought, so their paid clips keep their keys.
+   */
+  speakingClip: z.literal("sentence").optional(),
+  /**
    * The run is a version of another in a new language (phase 8 spec §4): its pictures and clips are that run's, and
    * what is said in it is a translation of what was said there (`title`, `hook`, `narrations`), each scene written to
    * be spoken in about the seconds its pictures were made for (`seconds`). Absent on every other run.

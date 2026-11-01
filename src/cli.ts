@@ -27,7 +27,7 @@ import { GeminiLlm } from "./providers/gemini.js";
 import { fetchChart } from "./providers/youtube-chart.js";
 import { makeIdeas } from "./trends/run.js";
 import { createProviders } from "./providers/factory.js";
-import { frozenModePrices, newRunProviders, newRunSound, newRunSpeech, newRunVoice, restorerFor } from "./providers/new-run.js";
+import { frozenModePrices, newRunProviders, newRunSound, newRunSpeech, newRunVoice, restorerFor, SPEECH_REQUEST } from "./providers/new-run.js";
 import { CLIP_QUALITIES, type ClipQuality } from "./video-profiles.js";
 import type { Providers } from "./providers/types.js";
 import { applyRenderOptions, assertRenderOnly, noPaidProviders, withLook } from "./rerender.js";
@@ -293,7 +293,7 @@ program
       ...(o.fps === "60" ? { fps: 60 as const } : {}),
       ...("model" in sound ? { sceneSound: true as const } : {}),
       // frozen with the run: it changes what the script is asked for and what each clip is
-      ...(speech ? { speech: true as const } : {}),
+      ...(speech ? SPEECH_REQUEST : {}),
       // made for the viewers of its one language, frozen now (phase 8 spec §5): never for English, which names no one
       // audience, nor for a video to be made in several languages
       ...(o.language && AUDIENCE[o.language as SpeechLanguage] ? { localize: o.localize !== false } : {}),

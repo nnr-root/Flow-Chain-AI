@@ -7,7 +7,9 @@ import { ffmpeg, probeDuration } from "../../src/media/ffmpeg.js";
 import { sceneFrameCounts } from "../../src/media/timeline.js";
 import { planRun, type RunOptions, runPipeline } from "../../src/pipeline.js";
 import { captionsStage, globalWords } from "../../src/stages/captions.js";
-import { clipsStage, MAX_SPOKEN_SEC, SPEAKING_CLIP_SEC, SPEECH_TAIL_SEC } from "../../src/stages/clips.js";
+import { clipsStage, MAX_SPOKEN_SEC, speakingClipSec, SPEECH_TAIL_SEC } from "../../src/stages/clips.js";
+import { speakingFrames } from "../../src/video-profiles.js";
+import { firstRendition } from "../../src/voice/words.js";
 import { fitStage } from "../../src/stages/fit.js";
 import { STAGES } from "../../src/stages/index.js";
 import { keyframesStage } from "../../src/stages/keyframes.js";
@@ -56,7 +58,7 @@ async function speechRun(opts: Options = {}) {
   m.request.language = "en";
   if (m.request.modePrices) m.request.modePrices = Prices.parse(LTX_PRICES);
   m.models.video = "runpod:ep-l/clip-ltx25@1";
-  if (opts.allow !== false) m.request.speech = true;
+  if (opts.allow !== false) Object.assign(m.request, { speech: true, speakingClip: "sentence" });
   return { ...made, ltx };
 }
 
@@ -125,15 +127,22 @@ describe("a speaking scene's voice", () => {
 });
 
 describe("a speaking scene's clip", () => {
-  it("is asked for with the video's language and the scene's own prompt, at a length that holds the longest sentence", async () => {
+  it("is asked for with the video's language and the scene's own prompt, at a length worked out from its sentence", async () => {
     const { ctx, ltx } = await speechRun();
     await runPipeline(ctx, MEDIA, auto);
     const asked = ltx.submits;
     expect(asked.map((r) => r.speechLanguage)).toEqual([undefined, "en", undefined]);
     expect(asked[1].prompt).toBe(ctx.manifest.script!.scenes[1].videoPrompt);
-    expect(asked[1].durationSec).toBe(SPEAKING_CLIP_SEC);
-    expect(Math.round(SPEAKING_CLIP_SEC * 24) % 8).toBe(1);
-    expect(SPEAKING_CLIP_SEC).toBeGreaterThan(MAX_SPOKEN_SEC);
+    // three words: the shortest speaking clip, 97 frames
+    expect(asked[1].durationSec).toBe(97 / 24);
+    expect(speakingClipSec(ctx.manifest, 1)).toBe(97 / 24);
+  });
+
+  it("is asked for at the longest, 169 frames, in a run frozen before clip lengths came from the sentence", async () => {
+    const { ctx, ltx } = await speechRun();
+    delete ctx.manifest.request.speakingClip;
+    await runPipeline(ctx, MEDIA, auto);
+    expect(ltx.submits[1].durationSec).toBe(169 / 24);
   });
 
   it("gives the scene the clip's own sound, cut only 0.4 s after its last word, and the worker's words at the worker's times", async () => {
@@ -223,6 +232,75 @@ describe("a speaking scene's clip", () => {
   });
 });
 
+describe("a speaking clip's length", () => {
+  it("is about the sentence's time and a second more, as 8k+1 frames between 97 and 169", () => {
+    expect([1, 3, 6, 9, 12, 14, 18, 30].map((w) => speakingFrames(w))).toEqual([97, 97, 97, 97, 121, 137, 169, 169]);
+    for (const w of [1, 9, 12, 14, 18]) expect((speakingFrames(w) - 1) % 8).toBe(0);
+    // where only the cap is known, the longest
+    expect(speakingFrames()).toBe(169);
+  });
+});
+
+/** A sentence said, then said again without its third word, as LTX did on a real run (2026-11-01). */
+const TWICE = (() => {
+  const said = "Stop adding olive oil to your boiling water, because sauce will slide right off.".split(" ");
+  const first = said.map((text, i) => ({ text, start: i * 0.29, end: i * 0.29 + 0.25 }));
+  const again = said.filter((_, i) => i !== 6).map((text, i) => ({ text, start: 4.2 + i * 0.21, end: 4.2 + i * 0.21 + 0.18 }));
+  return [...first, ...again];
+})();
+
+describe("a sentence the clip said twice", () => {
+  it("is kept once: the words up to where its first two words come again", () => {
+    expect(firstRendition(TWICE).map((w) => w.text)).toEqual("Stop adding olive oil to your boiling water, because sauce will slide right off.".split(" "));
+    const at = (texts: string[]) => texts.map((text, i) => ({ text, start: i, end: i + 0.5 }));
+    // repeated at the middle
+    expect(firstRendition(at(["Look", "up", "now", "look", "up", "now"])).map((w) => w.text)).toEqual(["Look", "up", "now"]);
+  });
+
+  it("is left whole when nothing is said again, or when a sentence repeats its own first words", () => {
+    const at = (texts: string[]) => texts.map((text, i) => ({ text, start: i, end: i + 0.5 }));
+    const once = at(["Stop", "adding", "oil", "to", "the", "water"]);
+    expect(firstRendition(once)).toEqual(once);
+    const stop = at(["Stop,", "stop,", "stop", "the", "car"]);
+    expect(firstRendition(stop)).toEqual(stop);
+    // a first word heard again with another after it is no repeat
+    const again = at(["Wait", "here", "and", "wait", "there"]);
+    expect(firstRendition(again)).toEqual(again);
+  });
+
+  it("gives the scene only the first saying, in its captions and in its sound", async () => {
+    const { ctx, ltx } = await speechRun();
+    ltx.speech = {
+      audio: [{ silence: 0.2 }, { tone: 1.8 }, { silence: 0.3 }, { tone: 1.6 }],
+      words: [
+        { text: "Hello", start: 0.2, end: 0.7 }, { text: "there", start: 0.75, end: 1.3 }, { text: "friend.", start: 1.35, end: 1.95 },
+        { text: "Hello", start: 2.3, end: 2.8 }, { text: "there", start: 2.85, end: 3.4 },
+      ],
+    };
+    await runPipeline(ctx, MEDIA, auto);
+    const audio = ctx.manifest.scenes[1].audio!;
+    expect(audio.words.map((w) => w.text)).toEqual(["Hello", "there", "friend."]);
+    expect(Math.abs(audio.duration - (1.95 + SPEECH_TAIL_SEC))).toBeLessThanOrEqual(frame);
+    expect(await readFile(abs(ctx, paths.captions), "utf8")).not.toMatch(/Hello[\s\S]*Hello/);
+  });
+
+  it("is cut on resume from the job's kept answer, without buying the clip again", async () => {
+    const { ctx, ltx } = await speechRun();
+    ltx.speech = { audio: [{ silence: 0.2 }, { tone: 1.8 }, { silence: 0.3 }, { tone: 1.6 }], words: [
+      { text: "Hello", start: 0.2, end: 0.7 }, { text: "there", start: 0.75, end: 1.3 }, { text: "friend.", start: 1.35, end: 1.95 },
+      { text: "Hello", start: 2.3, end: 2.8 }, { text: "there", start: 2.85, end: 3.4 },
+    ] };
+    // stopped after the job was paid for: its answer, the repeat in it, is kept
+    ltx.withhold = (req) => req.speechLanguage !== undefined;
+    await expect(runPipeline(ctx, MEDIA, auto)).rejects.toThrow();
+    expect(ctx.manifest.scenes[1].jobs.clips!.result!.words).toHaveLength(5);
+    await ltx.release();
+    await runPipeline(ctx, MEDIA, auto);
+    expect(ltx.submits.filter((r) => r.speechLanguage !== undefined)).toHaveLength(1);
+    expect(ctx.manifest.scenes[1].audio!.words.map((w) => w.text)).toEqual(["Hello", "there", "friend."]);
+  });
+});
+
 describe("a speaking scene's paid clip", () => {
   it("is finished on resume from what its job answered, without buying it again, when its download failed", async () => {
     const { ctx, ltx } = await speechRun();
@@ -265,6 +343,8 @@ describe("a version of a video with a speaking scene", () => {
 describe("a speaking scene that cannot be used", () => {
   it("fails, naming the scene, when the sentence with its tail is longer than it may be, and keeps the clip's charge", async () => {
     const { ctx, ltx } = await speechRun();
+    // (only a clip of the longest length can hold that much: a run frozen before lengths came from the sentence)
+    delete ctx.manifest.request.speakingClip;
     ltx.speech = { audio: [{ silence: 0.1 }, { tone: MAX_SPOKEN_SEC + 0.3 }], words: [{ text: "far", start: 0.2, end: 6.7 }] };
     await expect(runPipeline(ctx, MEDIA, auto)).rejects.toThrow("scene 2's sentence does not fit; the script wrote too many words");
     expect(ltx.submits).toHaveLength(2);
@@ -325,7 +405,9 @@ describe("a speaking scene's mode", () => {
   it("adds no voiceover to what the modes are priced at", async () => {
     const { ctx } = await speechRun({ modes: "auto" });
     await runPipeline(ctx, AUDIO, auto);
-    const { auto: inputs } = (await modesStage.inputsFor(ctx)) as { auto: { scenes: Array<{ narrationChars: number }> } };
+    const { auto: inputs } = (await modesStage.inputsFor(ctx)) as { auto: { scenes: Array<{ narrationChars: number; requestedSec: number }> } };
+    // and its clip at the length its sentence asks for (three words: 97 frames), as a draft's price is
+    expect(inputs.scenes[1].requestedSec).toBe(97 / 24);
     expect(inputs.scenes.map((s) => s.narrationChars)).toEqual([ctx.manifest.script!.scenes[0].narration.length, 0, ctx.manifest.script!.scenes[2].narration.length]);
   });
 

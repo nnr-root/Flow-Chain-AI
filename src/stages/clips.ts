@@ -9,7 +9,8 @@ import { download } from "../providers/download.js";
 import { TIMEOUTS } from "../providers/retry.js";
 import type { VideoOutput } from "../providers/types.js";
 import { soundSeed } from "../sound.js";
-import { LTX_FPS, videoProfileOf } from "../video-profiles.js";
+import { LTX_FPS, SPEAKING_MAX_FRAMES, speakingFrames, videoProfileOf } from "../video-profiles.js";
+import { firstRendition, sentenceWords } from "../voice/words.js";
 import { speechLanguage } from "../voice/language.js";
 import { runProviderJob } from "./job.js";
 import { settleWarmup } from "./warmup.js";
@@ -51,11 +52,17 @@ const seeded = (m: Manifest): boolean => m.request.videoProfile === "ltx25@1";
 export const MAX_SPOKEN_SEC = 6.5;
 
 /**
- * A speaking scene's clip length, asked for before anything of it is heard: the shortest LTX length (8k+1 frames at 24)
- * that holds the longest sentence allowed with half a second to spare, 169 frames. The scene is then as long as its
- * trimmed sentence, and the fit shortens the clip to it; a sentence is never cut to fit a clip.
+ * A speaking scene's clip length, asked for before anything of it is heard (phase 15 spec §13.6): from its sentence, about
+ * its time and a second more, since LTX fills a longer clip by saying the sentence again. A run frozen before that (no
+ * `speakingClip`) is asked as it was, at the longest, 169 frames, so its paid clip keeps its key. The scene is then as long
+ * as its sentence, and the fit shortens the clip to it; a sentence is never cut to fit a clip. Every reader of a speaking
+ * clip's length (the stage, its estimate, the modes, a draft's price, the restorer's estimates) asks here.
  */
-export const SPEAKING_CLIP_SEC = 169 / LTX_FPS;
+export function speakingClipSec(m: Manifest, i: number): number {
+  if (m.request.speakingClip !== "sentence") return SPEAKING_MAX_FRAMES / LTX_FPS;
+  const said = m.script?.scenes[i]?.speech?.trim();
+  return speakingFrames(said ? sentenceWords(said, m.request.language) : undefined) / LTX_FPS;
+}
 
 /**
  * How much of a speaking clip's sound is kept after its last word: its last syllable decays after the moment the worker
@@ -72,9 +79,9 @@ function spokenLanguage(m: Manifest, i: number): string {
   return language;
 }
 
-/** The clip length scene i is bought at: a speaking scene's is fixed, every other scene's follows its trimmed voiceover. */
+/** The clip length scene i is bought at: a speaking scene's from its sentence, every other scene's follows its trimmed voiceover. */
 function clipSeconds(m: Manifest, i: number): number {
-  return isSpeaking(m, i) ? SPEAKING_CLIP_SEC : videoProfileOf(m.request.videoProfile).clipSec(requireAudio(m.scenes[i]).duration);
+  return isSpeaking(m, i) ? speakingClipSec(m, i) : videoProfileOf(m.request.videoProfile).clipSec(requireAudio(m.scenes[i]).duration);
 }
 
 /**
@@ -93,11 +100,14 @@ async function speakingAudio(ctx: RunContext, i: number, clip: VideoOutput): Pro
     throw new Error(`scene ${i + 1}: its clip came back with no sound; ${again}`);
   }
   if (clip.words.length === 0) throw new Error(`scene ${i + 1}: no words were heard in its clip; ${again}`);
+  // (a clip that said its sentence twice keeps the first: the second never reaches the captions or the sound)
+  const words = firstRendition(clip.words);
+  if (words.length < clip.words.length) ctx.log(`scene ${i + 1}: its clip says the sentence again after ${words.at(-1)!.end.toFixed(2)} s; only the first is kept`);
   const whole = await probeDuration(raw);
-  const end = Math.min(whole, Math.max(...clip.words.map((w) => w.end)) + SPEECH_TAIL_SEC);
+  const end = Math.min(whole, Math.max(...words.map((w) => w.end)) + SPEECH_TAIL_SEC);
   await cutTail(raw, await outPath(ctx, paths.audio(i)), end, SPEECH_END_FADE_SEC);
   const duration = await probeDuration(abs(ctx, paths.audio(i)));
-  const audio = { path: paths.audio(i), duration, words: clip.words, removedSec: Math.max(0, whole - duration) };
+  const audio = { path: paths.audio(i), duration, words, removedSec: Math.max(0, whole - duration) };
   if (audio.duration > MAX_SPOKEN_SEC) throw new Error(`scene ${i + 1}'s sentence does not fit; the script wrote too many words`);
   return audio;
 }
@@ -156,7 +166,7 @@ export const clipsStage: Stage = {
     // before the audio exists, assume the longest clip the profile buys; the first clip also pays the cold start
     const first = ctx.manifest.scenes.findIndex((x) => x.mode === 1) === scene;
     const s = ctx.manifest.scenes[scene!];
-    const seconds = isSpeaking(ctx.manifest, scene!) ? SPEAKING_CLIP_SEC : profile.clipSec(s.audio ? s.audio.duration : Number.POSITIVE_INFINITY);
+    const seconds = isSpeaking(ctx.manifest, scene!) ? speakingClipSec(ctx.manifest, scene!) : profile.clipSec(s.audio ? s.audio.duration : Number.POSITIVE_INFINITY);
     const clip = profile.costUsd(ctx.prices, seconds);
     return clip + (first ? profile.runOverheadUsd(ctx.prices) : 0);
   },

@@ -112,6 +112,12 @@ export function newRunSpeech(env: Env, videoProfile: VideoProfileId, asked: bool
 }
 
 /**
+ * What a run that lets a character speak is frozen with: speech, and a speaking clip as long as its sentence (phase 15
+ * spec §13.6). A run frozen before the second has its clips at the longest, as they were bought.
+ */
+export const SPEECH_REQUEST = { speech: true, speakingClip: "sentence" } as const;
+
+/**
  * The price table an auto run freezes for its mode rules, with the GPU rates materialised, so a later change to
  * their defaults or to prices.json cannot change what the run plans.
  */

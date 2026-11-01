@@ -246,8 +246,9 @@ switch only with LTX switched on (`FLOWCHAIN_LTX=on`, the endpoint set) and `FLO
 
 **A speaking scene.** The script may write, for up to two scenes, a short sentence (at most about 14 words) that an invented person says; the scene's own clip
 makes the face, the mouth and the voice. That scene's voice and length come from the clip, not from the voiceover: it has no narration line, and its
-words (for the captions) come from the worker's own speech recognition. A speaking clip is 7.04 s long and its speech must fit 6.5 s; a sentence that
-does not fit fails the stage and names the scene, and is never cut. The voice can differ between scenes. It is never a real person (no photo or face is
+words (for the captions) come from the worker's own speech recognition. A speaking clip is between 4 and 7 seconds long, from the sentence, and its speech must fit 6.5 s; a sentence that
+does not fit fails the stage and names the scene, and is never cut. If the clip says the sentence a second time to fill itself, only the first
+saying is kept (in the sound and in the captions). The voice can differ between scenes. It is never a real person (no photo or face is
 accepted), and a video with a speaking scene gets no language versions.
 
 **The licence** (LTX-2.x Community License; a reading, not legal advice). Free below USD 10 million of yearly revenue; above it a paid agreement is needed.

@@ -7,7 +7,8 @@ import { probeDuration } from "../media/ffmpeg.js";
 import { download } from "../providers/download.js";
 import { NonRetryableError, TIMEOUTS } from "../providers/retry.js";
 import { videoProfileOf } from "../video-profiles.js";
-import { isMode1 } from "./clips.js";
+import { isMode1, speakingClipSec } from "./clips.js";
+import { isSpeaking } from "./visual.js";
 import { INTERPOLATE, refuseUnmeasuredRate } from "./interpolate.js";
 import { runProviderJob } from "./job.js";
 import { abs, outPath, paths } from "./paths.js";
@@ -59,7 +60,8 @@ export const upscaleStage: Stage = {
     const m = ctx.manifest;
     const s = m.scenes[scene!];
     // before the clip exists, the clip its narration will be bought as; before that, the longest one
-    const seconds = s.clip?.duration ?? videoProfileOf(m.request.videoProfile).clipSec(s.audio ? s.audio.duration : Number.POSITIVE_INFINITY);
+    // (a speaking scene's clip length is known from its sentence before its clip is made)
+    const seconds = s.clip?.duration ?? (isSpeaking(m, scene!) ? speakingClipSec(m, scene!) : videoProfileOf(m.request.videoProfile).clipSec(s.audio ? s.audio.duration : Number.POSITIVE_INFINITY));
     const first = m.scenes.findIndex((x) => isUpscaled(m, x.idx)) === scene;
     return upscaleCost(ctx.prices, seconds, first, m.request.fps === 60);
   },

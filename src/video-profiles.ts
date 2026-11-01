@@ -35,6 +35,21 @@ export function ltxFrames(narrationSec: number): number {
   return Math.min(LTX_MAX_FRAMES, Math.max(LTX_MIN_FRAMES, frames));
 }
 
+/** A speaking clip's frames, shortest and longest (4.04 s and 7.04 s at 24 fps; phase 15 spec §13.6). */
+export const SPEAKING_MIN_FRAMES = 97;
+export const SPEAKING_MAX_FRAMES = 169;
+
+/**
+ * Frames for a speaking clip of a sentence of `words` words (phase 15 spec §13.6): about the sentence's own time (three words
+ * a second; 3.4 was measured) and one second more, as 8k+1, between 97 and 169. A clip much longer than its sentence is
+ * filled by LTX saying the sentence again. Unknown (only the cap is known): the longest.
+ */
+export function speakingFrames(words?: number): number {
+  if (words === undefined) return SPEAKING_MAX_FRAMES;
+  const frames = 8 * Math.ceil(((words / 3 + 1) * LTX_FPS) / 8) + 1;
+  return Math.min(SPEAKING_MAX_FRAMES, Math.max(SPEAKING_MIN_FRAMES, frames));
+}
+
 /** The rates are read when a price is asked for, so a missing one stops the run with a reason instead of costing 0. */
 function ltxRatesOf(p: Prices) {
   const r = ltxRates(p);

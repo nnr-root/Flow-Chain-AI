@@ -66,5 +66,27 @@ export const hookCap = (language: string | undefined, _rate?: number): number =>
  */
 export const speechCap = (language?: string): number => (isUnspaced(language) ? 28 : 14);
 
+/** A sentence's words for a clip's length: its words, or in a language without spaces its characters, two to a word (as `speechCap`). */
+export const sentenceWords = (text: string, language?: string): number => countUnits(text, language) / (isUnspaced(language) ? 2 : 1);
+
+/** A heard word as it is compared with another: lower case, without punctuation ("Stop," and "stop" are one word). */
+const plain = (text: string): string => text.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+
+/**
+ * The words of a speaking clip up to where the sentence is said again (phase 15 spec §13.6): LTX fills a clip longer than its
+ * sentence by saying it twice, the second time not always word for word. A repeat is where the first two words come again
+ * (only those are compared, since the repeat may drop a word), at the middle of what was heard or later: a sentence that
+ * repeats its own first words sooner ("Stop, stop, stop the car") is kept whole. A repeat in the first half is not found.
+ */
+export function firstRendition<W extends { text: string }>(words: W[]): W[] {
+  const from = Math.max(3, Math.ceil(words.length / 2));
+  for (let i = from; i < words.length; i++) {
+    if (plain(words[i].text) !== plain(words[0].text)) continue;
+    if (words.length > 1 && (i + 1 >= words.length || plain(words[i + 1].text) !== plain(words[1].text))) continue;
+    return words.slice(0, i);
+  }
+  return words;
+}
+
 /** The most scenes of one video a person may speak in (phase 15 spec §5). */
 export const MAX_SPEAKING_SCENES = 2;
