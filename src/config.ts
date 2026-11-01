@@ -53,7 +53,18 @@ const Env = z.object({
   RUNPOD_FOLEY_ENDPOINT: z.string().min(1).optional(),
   /** The LTX worker (phase 15): makes a clip, with its sound and the words of its speech, on the studio's own endpoint. */
   RUNPOD_LTX_ENDPOINT: z.string().min(1).optional(),
-  /** `on` lets a scene speak in its own clip (phase 15); anything else, or unset, leaves speech off. */
+  /**
+   * The owner's switch for LTX clips (phase 15 spec §13.8): new runs are made on LTX only while this is `on`, its endpoint
+   * is set and its three rates are in prices.json. `runpod:deploy` writes the endpoint and `server:setup` hands this
+   * machine's settings to the server's worker, so without a switch of its own a routine setup after measuring the rates
+   * would move paying customers onto LTX before the licence is answered. Unset or `off`: Wan, exactly as before. It decides
+   * new runs only: a run already made on LTX resumes with its rates whatever it says. Any other word makes `loadEnv` throw.
+   */
+  FLOWCHAIN_LTX: z.enum(["on", "off"]).optional(),
+  /**
+   * `on` lets a scene speak in its own clip (phase 15), where LTX makes the clips; unset or `off` leaves speech off, and
+   * any other word makes `loadEnv` throw.
+   */
   FLOWCHAIN_SPEECH: z.enum(["on", "off"]).optional(),
   /** Topic ideas from the web and the public chart (phase 13): the studio offers them only while this is on. */
   FLOWCHAIN_TREND_IDEAS: z.enum(["on", "off"]).default("off"),

@@ -26,11 +26,13 @@ export function newRunImage(env: Env, prices?: Prices): { image: string; imagePr
 
 /** The models and cost profiles a new run is frozen with: the studio's own GPU endpoints (2.4 spec §3.4). */
 export function newRunProviders(env: Env, clips: ClipQuality = "480p", prices?: Prices): NewRunProviders {
-  // LTX takes the clips when its endpoint and all three of its rates are set: `runpod:deploy` writes the endpoint before
-  // the owner has measured the rates, and in between every new run is made on Wan exactly as before (phase 15 spec §7).
-  // A run already made on LTX still refuses to resume without them (`createProviders`, the profile's cost). The
-  // requested clip quality (`clips`) is ignored for an LTX run: it has one size.
-  const ltx = Boolean(env.RUNPOD_LTX_ENDPOINT) && prices !== undefined && ltxRates(prices) !== undefined;
+  // LTX takes the clips only when the owner switched it on and its endpoint and all three of its rates are set
+  // (phase 15 spec §7, §13.8): `runpod:deploy` writes the endpoint before the owner has measured the rates, and
+  // `server:setup` passes both on to the server, so the switch is what keeps customers on Wan until the licence is
+  // answered. Otherwise every new run is made on Wan exactly as before. The switch decides new runs only: a run already
+  // made on LTX resumes with its rates whatever it says, and still refuses to resume without them (`createProviders`, the
+  // profile's cost). The requested clip quality (`clips`) is ignored for an LTX run: it has one size.
+  const ltx = env.FLOWCHAIN_LTX === "on" && Boolean(env.RUNPOD_LTX_ENDPOINT) && prices !== undefined && ltxRates(prices) !== undefined;
   // The clip endpoint is checked first and the picture side after, as the two were named together in one message before.
   const needClip = !ltx && !env.RUNPOD_CLIP_ENDPOINT;
   let image: ReturnType<typeof newRunImage>;

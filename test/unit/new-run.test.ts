@@ -29,7 +29,7 @@ describe("newRunProviders", () => {
 
   describe("with the LTX endpoint", () => {
     const rates = Prices.parse({ runpodLtxUsdPerSec: 0.00016, runpodLtxSecPerClipSec: 29, runpodLtxColdStartSec: 120 });
-    const withLtx = { ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_LTX_ENDPOINT: "ep-l" };
+    const withLtx = { ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_LTX: "on" };
 
     it("freezes ltx25@1 and needs no Wan endpoint, whatever clip size was asked for", () => {
       const env = loadEnv(withLtx);
@@ -44,6 +44,14 @@ describe("newRunProviders", () => {
       expect(newRunProviders(env, "480p", Prices.parse({}))).toEqual(before);
       expect(newRunProviders(env)).toEqual(before);
       expect(newRunProviders(env, "480p", Prices.parse({ runpodLtxUsdPerSec: 0.00016, runpodLtxSecPerClipSec: 29 }))).toEqual(before);
+    });
+
+    it("makes the run on Wan exactly as before until the owner switches LTX on, though its endpoint and rates are set", () => {
+      const before = newRunProviders(loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c" }));
+      for (const LTX of [undefined, "off"]) {
+        const env = loadEnv({ ...withLtx, RUNPOD_CLIP_ENDPOINT: "ep-c", FLOWCHAIN_LTX: LTX });
+        expect(newRunProviders(env, "480p", rates)).toEqual(before);
+      }
     });
 
     it("then needs the Wan clip endpoint again, as before", () => {

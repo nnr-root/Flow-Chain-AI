@@ -21,7 +21,9 @@ const answer = async (env: string) => {
   await writeFile(join(studio.root, ".env"), env);
   return JSON.parse(await (await health(request("/api/health"), undefined)).text()) as StudioHealth;
 };
-const LTX = "RUNPOD_LTX_ENDPOINT=secret-l\n";
+/** The clip endpoint that makes sound, switched on by the owner (phase 15 spec §13.8: the endpoint alone is not enough). */
+const LTX = "RUNPOD_LTX_ENDPOINT=secret-l\nFLOWCHAIN_LTX=on\n";
+const LTX_UNSWITCHED = "RUNPOD_LTX_ENDPOINT=secret-l\n";
 
 describe("the health answer's speaking character", () => {
   it("is offered only when the clip endpoint that makes sound is set AND the owner switched speech on, and is absent otherwise", async () => {
@@ -51,6 +53,18 @@ describe("the health answer's smooth motion, while clips are made at 24 frames a
   it("is hidden while the clip endpoint that makes sound is set, even with the restorer switched on", async () => {
     expect((await answer("RUNPOD_UPSCALE_ENDPOINT=u\nFLOWCHAIN_SMOOTH_MOTION=on\n")).smooth).toBe(true);
     expect((await answer(`${LTX}RUNPOD_UPSCALE_ENDPOINT=u\nFLOWCHAIN_SMOOTH_MOTION=on\n`)).smooth).toBeUndefined();
+  });
+});
+
+describe("the health answer while the owner has not switched the clip endpoint that makes sound on", () => {
+  it("offers what it offered before that endpoint existed: no speech, no clip sound, smooth motion, and asks for the older clip endpoint", async () => {
+    for (const off of [LTX_UNSWITCHED, `${LTX_UNSWITCHED}FLOWCHAIN_LTX=off\n`]) {
+      const h = await answer(`${off}FLOWCHAIN_SPEECH=on\nRUNPOD_UPSCALE_ENDPOINT=u\nFLOWCHAIN_SMOOTH_MOTION=on\n`);
+      expect(h.speech).toBeUndefined();
+      expect(h.sound).toBeUndefined();
+      expect(h.smooth).toBe(true);
+      expect(h.missing).toContain("RUNPOD_CLIP_ENDPOINT");
+    }
   });
 });
 

@@ -221,24 +221,24 @@ describe.skipIf(!supa || !hasRedisServer())("a series on a schedule", () => {
   };
 
   it("asks for a speaking character while the worker offers it and the recipe has it on", async () => {
-    const draft = await speechDraft({ speech: true }, { RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_SPEECH: "on" });
+    const draft = await speechDraft({ speech: true }, { RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_LTX: "on", FLOWCHAIN_SPEECH: "on" });
     expect(draft).toContain("--speech");
     expect(draft).not.toContain("--no-speech");
   });
 
   it("asks for no speaking character while the worker does not offer it, though the recipe has it on", async () => {
-    expect(await speechDraft({ speech: true }, { RUNPOD_LTX_ENDPOINT: "ep-l" })).toContain("--no-speech");
+    expect(await speechDraft({ speech: true }, { RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_LTX: "on" })).toContain("--no-speech");
   });
 
   it("asks for no speaking character for a recipe saved before speech, wherever it is offered", async () => {
-    expect(await speechDraft({}, { RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_SPEECH: "on" })).toContain("--no-speech");
+    expect(await speechDraft({}, { RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_LTX: "on", FLOWCHAIN_SPEECH: "on" })).toContain("--no-speech");
   });
 
   it("does not begin a 60 fps video while clips are made at 24 frames a second, though the restorer is switched on: it stops, and buys nothing", async () => {
     await grant(5);
     await stage(0.31, { spendUsd: 0.2, makesVideo: true });
     const id = await series({ cadence: "daily" }, { fps: 60 });
-    await worker({ RUNPOD_UPSCALE_ENDPOINT: "ep-u", FLOWCHAIN_SMOOTH_MOTION: "on", RUNPOD_LTX_ENDPOINT: "ep-l" });
+    await worker({ RUNPOD_UPSCALE_ENDPOINT: "ep-u", FLOWCHAIN_SMOOTH_MOTION: "on", RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_LTX: "on" });
     await until(async () => (await row(id)).status === "paused", 30_000);
     expect(await row(id)).toMatchObject({ status: "paused", paused_reason: "failed", current_run: null });
     expect(await runsOf(id)).toEqual([]);

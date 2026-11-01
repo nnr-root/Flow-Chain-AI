@@ -38,6 +38,14 @@ describe("serverConfig", () => {
     expect(cfg.worker).toEqual({ RUNPOD_API_KEY: "server", GEMINI_MODEL: "pro" });
   });
 
+  it("hands the worker the owner's switches with the LTX endpoint, never the web app, and lets server.env turn LTX off on the server alone", () => {
+    const local = { RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_LTX: "on", FLOWCHAIN_SPEECH: "on", FLOWCHAIN_SCENE_SOUND: "on", FLOWCHAIN_SMOOTH_MOTION: "on" };
+    const cfg = serverConfig(base, local);
+    expect(cfg.worker).toEqual(local);
+    expect(cfg.web).not.toHaveProperty("FLOWCHAIN_LTX");
+    expect(serverConfig({ ...base, FLOWCHAIN_LTX: "off" }, local).worker.FLOWCHAIN_LTX).toBe("off");
+  });
+
   it("keeps a local value off the server when server.env sets its name to nothing", () => {
     const cfg = serverConfig({ ...base, RUNPOD_API_KEY: "", R2_BUCKET: " " }, { RUNPOD_API_KEY: "local", R2_BUCKET: "local", GEMINI_API_KEY: "g" });
     expect(cfg.worker).toEqual({ GEMINI_API_KEY: "g" });

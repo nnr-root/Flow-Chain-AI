@@ -43,22 +43,29 @@ describe("the run command's speech flags", () => {
   });
 
   it("refuses --speech while the owner has not switched speech on, before any run is made", async () => {
-    const r = await run({ RUNPOD_LTX_ENDPOINT: "ep-l" }, LTX_RATES, "--speech", "--language", "en");
+    const r = await run({ RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_LTX: "on" }, LTX_RATES, "--speech", "--language", "en");
     expect(r.code).toBe(1);
     expect(r.out).toContain(NOT_HERE);
     expect(r.runs).toEqual([]);
   });
 
   it("refuses --speech while the LTX rates are missing, in the same sentence, and not as a refusal of every run", async () => {
-    const r = await run({ RUNPOD_LTX_ENDPOINT: "ep-l", RUNPOD_CLIP_ENDPOINT: "ep-c", FLOWCHAIN_SPEECH: "on" }, undefined, "--speech", "--language", "en");
+    const r = await run({ RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_LTX: "on", RUNPOD_CLIP_ENDPOINT: "ep-c", FLOWCHAIN_SPEECH: "on" }, undefined, "--speech", "--language", "en");
     expect(r.code).toBe(1);
     expect(r.out).toContain(NOT_HERE);
     expect(r.out).not.toContain(LTX_RATES_MISSING);
     expect(r.runs).toEqual([]);
   });
 
+  it("refuses --speech while the owner has not switched LTX on, though its endpoint and rates are set, before any run is made", async () => {
+    const r = await run({ RUNPOD_LTX_ENDPOINT: "ep-l", RUNPOD_CLIP_ENDPOINT: "ep-c", FLOWCHAIN_SPEECH: "on" }, LTX_RATES, "--speech", "--language", "en");
+    expect(r.code).toBe(1);
+    expect(r.out).toContain(NOT_HERE);
+    expect(r.runs).toEqual([]);
+  });
+
   it("refuses --speech in a language speech was not measured in, before any run is made", async () => {
-    const r = await run({ RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_SPEECH: "on" }, LTX_RATES, "--speech", "--language", "ja");
+    const r = await run({ RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_LTX: "on", FLOWCHAIN_SPEECH: "on" }, LTX_RATES, "--speech", "--language", "ja");
     expect(r.code).toBe(1);
     expect(r.out).toMatch(/a character can speak only in a video in English or Turkish/);
     expect(r.runs).toEqual([]);

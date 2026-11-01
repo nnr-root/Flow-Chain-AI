@@ -76,13 +76,13 @@ export type Health = {
   missing: string[];
   /** Whether full HD (upscaled clips, phase 8 spec §8) can be offered: its endpoint is set. */
   fullHd?: boolean;
-  /** Whether smooth motion (60 fps, phase 11 spec §2) can be offered: the restorer endpoint is set and the owner switched it on, and new runs' clips are not made on the LTX endpoint (phase 15 spec §13.5). Present only when true, so every studio without it answers exactly as before (the existing health test compares the whole answer). */
+  /** Whether smooth motion (60 fps, phase 11 spec §2) can be offered: the restorer endpoint is set and the owner switched it on, and new runs' clips are not made on the LTX endpoint, switched on by `FLOWCHAIN_LTX` (phase 15 spec §13.5, §13.8). Present only when true, so every studio without it answers exactly as before (the existing health test compares the whole answer). */
   smooth?: boolean;
   /** Whether topic ideas (phase 13) are offered: the key is there, the owner switched them on and, with accounts, a price is set. Present only when true, like `smooth`. */
   ideas?: true;
   /**
    * Whether scene sound (phase 14 spec §6) can be offered: its endpoint is set and the owner switched it on, or new runs'
-   * clips are made on the LTX endpoint, whose clips carry their own sound (phase 15 spec §13.7). Present only when true,
+   * clips are made on the LTX endpoint (set, and switched on by `FLOWCHAIN_LTX`), whose clips carry their own sound (phase 15 spec §13.7). Present only when true,
    * like `smooth`. Its prices are not read here (the web never reads `prices.json`): the CLI's own gate decides at
    * creation, and a run made without them is made without sound and says so.
    */
@@ -98,12 +98,13 @@ export type Health = {
 export function health(): Health {
   const env = pipelineEnv();
   const unset = (names: readonly string[]) => names.filter((n) => !env[n]?.trim());
-  // While the LTX endpoint is set it makes new runs' clips (phase 15 spec §7), so the older clip endpoint is not asked for.
+  // While the LTX endpoint is set and switched on it makes new runs' clips (phase 15 spec §7), so the older clip endpoint is not asked for.
   // The trade-off: LTX is used only with its three rates too, and the web never reads `prices.json`. Between a deploy
   // (which writes the endpoint) and the owner setting the rates, a studio without the older clip endpoint says nothing
   // is missing, offers sound and (switched on) speech, and its runs are refused by the CLI's own check; a studio that has
   // both endpoints makes its runs on Wan as before, and `--speech` is refused at creation in one plain sentence.
-  const ltx = Boolean(env.RUNPOD_LTX_ENDPOINT?.trim());
+  // (only while the owner switched it on, as the CLI requires for a new run: the endpoint alone changes nothing)
+  const ltx = env.FLOWCHAIN_LTX?.trim() === "on" && Boolean(env.RUNPOD_LTX_ENDPOINT?.trim());
   return {
     missing: [...unset(ltx ? NEEDS.filter((n) => n !== "RUNPOD_CLIP_ENDPOINT") : NEEDS), ...(unset(VOICE_NEEDS).length === VOICE_NEEDS.length ? [`${VOICE_NEEDS[0]} (or ${VOICE_NEEDS[1]})`] : [])],
     fullHd: Boolean(env.RUNPOD_UPSCALE_ENDPOINT?.trim()),

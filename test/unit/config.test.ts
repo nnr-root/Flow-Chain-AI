@@ -111,6 +111,13 @@ describe("LTX settings", () => {
     expect(() => loadEnv({ ...required, RUNPOD_LTX_ENDPOINT: "" })).toThrow();
   });
 
+  it("has the owner's LTX switch off unless it says on, and refuses any other word", () => {
+    expect(loadEnv(required).FLOWCHAIN_LTX).toBeUndefined();
+    expect(loadEnv({ ...required, FLOWCHAIN_LTX: "on" }).FLOWCHAIN_LTX).toBe("on");
+    expect(loadEnv({ ...required, FLOWCHAIN_LTX: "off" }).FLOWCHAIN_LTX).toBe("off");
+    expect(() => loadEnv({ ...required, FLOWCHAIN_LTX: "yes" })).toThrow();
+  });
+
   it("has a workflow id for the LTX clip beside Wan's", () => {
     expect(RUNPOD_WORKFLOWS.clipLtx).toEqual({ workflow: "clip-ltx25", version: 1 });
     expect(RUNPOD_WORKFLOWS.clip).toEqual({ workflow: "clip-wan22-480p", version: 1 });
