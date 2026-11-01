@@ -5,8 +5,10 @@ lfs-check.sh, which is tested here instead.
 """
 
 import hashlib
+import json
 import os
 import re
+import struct
 import subprocess
 
 import pytest
@@ -187,6 +189,79 @@ def test_the_dockerfile_checks_every_file_against_the_size_and_pointer_id_the_wo
     # the token is a build secret: never an ARG or an ENV, which would stay in the image's history
     assert not re.search(r"^(ARG|ENV)\b.*(HF_TOKEN|hf_token)", text, re.M | re.I)
     assert "--mount=type=secret,id=hf_token" in text
+
+
+def test_no_build_step_maps_or_joins_a_model_file():
+    # the hosted runner cannot map the 26 GB text encoder (CI run 41287628826: "unable to mmap … Cannot allocate memory");
+    # the build reads its header only
+    text = _dockerfile()
+    for word in ("safe_open", "torch.load", "from_pretrained", "mmap", "GemmaAssets.load", "/tmp/te.safetensors"):
+        assert word not in text, word
+    assert not re.search(r"cat [^\n|]*\.part00[^\n|]*>", text), "a step joins a split file"
+    assert "python3.11 -m flowchain_ltx.weights check-text-encoder" in text
+
+
+def _tensor(name, start, length):
+    return name, {"dtype": "U8", "shape": [length], "data_offsets": [start, start + length]}
+
+
+def write_safetensors(tmp_path, metadata, tensors, data_len, split_at=None, extra=0):
+    """A small safetensors file, as its header lays it out, written whole or as two parts."""
+    header = {"__metadata__": metadata, **dict(tensors)}
+    raw = json.dumps(header).encode()
+    blob = struct.pack("<Q", len(raw)) + raw + b"\0" * (data_len + extra)
+    if split_at is None:
+        path = tmp_path / "te.safetensors"
+        path.write_bytes(blob)
+        return [str(path)]
+    a, b = tmp_path / "te.safetensors.part00", tmp_path / "te.safetensors.part01"
+    a.write_bytes(blob[:split_at])
+    b.write_bytes(blob[split_at:])
+    return [str(a), str(b)]
+
+
+GOOD_META = {"gemma_config": json.dumps({"model_type": "gemma4"})}
+GOOD_TENSORS = [
+    _tensor("tokenizer_json", 0, 10),
+    _tensor("hf_asset__tokenizer_config.json", 10, 5),
+    _tensor("hf_asset__processor_config.json", 15, 5),
+    _tensor("model.weight", 20, 40),
+]
+
+
+def test_the_text_encoder_header_is_read_from_the_first_part_and_its_data_ends_where_the_parts_end(tmp_path):
+    parts = write_safetensors(tmp_path, GOOD_META, GOOD_TENSORS, 60, split_at=40)
+    config = weights.check_text_encoder_header(parts)
+    assert config == {"model_type": "gemma4"}
+
+
+def test_the_text_encoder_header_may_carry_the_small_sidecars_as_metadata(tmp_path):
+    meta = {**GOOD_META, "tokenizer_config.json": "{}", "processor_config.json": "{}"}
+    parts = write_safetensors(tmp_path, meta, [GOOD_TENSORS[0], _tensor("model.weight", 10, 50)], 60)
+    assert weights.check_text_encoder_header(parts)["model_type"] == "gemma4"
+
+
+@pytest.mark.parametrize(
+    "meta, tensors, data_len, extra, why",
+    [
+        (GOOD_META, GOOD_TENSORS, 60, 1, "data ends at"),
+        (GOOD_META, GOOD_TENSORS[1:], 60, 0, "tokenizer_json"),
+        (GOOD_META, [GOOD_TENSORS[0], GOOD_TENSORS[2], GOOD_TENSORS[3]], 60, 0, "tokenizer_config.json"),
+        ({}, GOOD_TENSORS, 60, 0, "gemma_config"),
+        ({"gemma_config": json.dumps({"vocab_size": 3})}, GOOD_TENSORS, 60, 0, "model_type"),
+    ],
+)
+def test_the_text_encoder_header_check_refuses_what_the_loader_would_refuse(tmp_path, meta, tensors, data_len, extra, why):
+    parts = write_safetensors(tmp_path, meta, tensors, data_len, extra=extra)
+    with pytest.raises(ValueError, match=why):
+        weights.check_text_encoder_header(parts)
+
+
+def test_the_text_encoder_header_check_refuses_a_file_that_is_not_safetensors(tmp_path):
+    bad = tmp_path / "x"
+    bad.write_bytes(struct.pack("<Q", 10**12) + b"{}")
+    with pytest.raises(ValueError, match="header"):
+        weights.check_text_encoder_header([str(bad)])
 
 
 # the stack `uv sync --extra natten` resolved at LTX-2 e98f6d9, which the spike ran on 2026-10-31

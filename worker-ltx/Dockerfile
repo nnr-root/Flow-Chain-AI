@@ -87,12 +87,12 @@ RUN uv pip install --system --no-cache -c /constraints.txt --override /overrides
 # libraries, so torch is not affected). CTranslate2's wheels are built without cuDNN, so none is needed for it.
 ENV LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cuda_runtime/lib
 
-# The text encoder's tokenizer, configuration and processor must build offline from the file itself, or the first paid job
-# fails instead of this build. The file is joined in /tmp and removed in the same step, so the layer holds nothing of it.
-RUN cat /models/ltx/text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors.part00 /models/ltx/text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors.part01 /models/ltx/text_encoders/gemma4-12b-with-proj-ltx-2.5-bf16.safetensors.part02 > /tmp/te.safetensors \
- && { HF_HUB_OFFLINE=1 python3.11 -c "from ltx_core.text_encoders.gemma.gemma_assets import GemmaAssets, build_gemma_hf_config, build_gemma_hf_tokenizer, build_gemma_processor; a = GemmaAssets.load('/tmp/te.safetensors'); build_gemma_hf_config(a); build_gemma_processor(a, build_gemma_hf_tokenizer(a))"; s=$?; rm -f /tmp/te.safetensors; test $s -eq 0; } \
- || { echo "the text encoder's tokenizer or processor does not build offline from its file" >&2; exit 1; }
-# Whisper loads offline from its folder (on the CPU here; the worker uses the card)
+# The text encoder is checked from its header alone, after src/ is copied below (weights.check_text_encoder_header). A build
+# cannot map the 26 GB file: CI run 41287628826 failed here with "Cannot allocate memory" when this step joined the parts and
+# opened the file. Its tokenizer and processor are built from tensor data inside it, so they are not built here: the first
+# real job builds them when the worker loads the model (engine._load).
+# Whisper loads offline from its folder (on the CPU here; the worker uses the card). model.bin is 1.6 GB, the only model file
+# a build step loads.
 RUN HF_HUB_OFFLINE=1 python3.11 -c "from faster_whisper import WhisperModel; WhisperModel('/models/whisper', device='cpu', compute_type='int8')"
 # The CLI takes the flags the spike used, and engine.py calls the program's functions with these parameters, by name: if the
 # program ever differs, the build fails here rather than the first paid job
@@ -108,6 +108,9 @@ RUN printf %s 49b093a39c19169a8a81721dcc541e07e945232f > /models/ltx/.verified
 ENV HF_HUB_OFFLINE=1 PYTHONPATH=/flowchain/src PYTHONUNBUFFERED=1
 COPY src/ /flowchain/src/
 COPY handler.py /handler.py
+# the text encoder's header (read from the first part only): its tensors' data ends where the parts end, it carries the
+# tokenizer and the two sidecars the program reads, and its configuration builds offline with the program's own builder
+RUN python3.11 -m flowchain_ltx.weights check-text-encoder
 # the files this worker runs must be where it calls them, or the image is not pushed (no GPU needed for any of it)
 RUN python3.11 -c "import runpod, boto3, faster_whisper; from flowchain_ltx import engine, weights; assert weights.present(), 'the model files are not all where weights.py says, at their sizes'; assert weights.REVISION == open('/models/ltx/.verified').read()" \
  && python3.11 -c "import torch, torchvision, torchaudio, natten; from importlib.metadata import version as v; got = (torch.__version__, torchvision.__version__, torchaudio.__version__, v('natten'), v('nvidia-cudnn-cu13'), v('transformers')); assert got == ('2.13.0+cu132', '0.28.0+cu132', '2.11.1+cu132', '0.21.7+torch2130cu132', '9.24.0.43', '5.14.1'), got" \

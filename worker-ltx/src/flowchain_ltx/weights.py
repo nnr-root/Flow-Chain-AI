@@ -8,8 +8,11 @@ whose hash and size give that id is the file the pinned revision names, so the p
 """
 
 import hashlib
+import json
 import os
 import shutil
+import struct
+import sys
 
 REPO = "Lightricks/LTX-2.5"
 # one exact version of the repository: a later upload under the same name is not what was tested (head on 2026-10-31,
@@ -110,3 +113,76 @@ def assemble(root=ROOT):
                 with open(os.path.join(root, part), "rb") as f:
                     shutil.copyfileobj(f, out, 64 * 1024 * 1024)
         os.replace(tmp, joined)  # a half-written file never has the model's name
+
+
+# What GemmaAssets.from_single_file (ltx_core/text_encoders/gemma/gemma_assets.py at LTX-2 e98f6d9) needs from the text
+# encoder: the model's configuration as JSON in the header's metadata, the tokenizer as a tensor, and two small JSON files
+# each as a tensor `hf_asset__<name>` or, in older packs, as metadata
+GEMMA_CONFIG_KEY = "gemma_config"
+TOKENIZER_TENSOR = "tokenizer_json"
+SIDECAR_PREFIX = "hf_asset__"
+REQUIRED_SIDECARS = ("tokenizer_config.json", "processor_config.json")
+# safetensors refuses a header larger than this; a larger length means the bytes are not a safetensors file
+MAX_HEADER_BYTES = 100_000_000
+
+
+def _read_start(paths, n):
+    """The first n bytes of the parts read as one file (the header is in the first part, but nothing depends on it)."""
+    out = b""
+    for path in paths:
+        with open(path, "rb") as f:
+            out += f.read(n - len(out))
+        if len(out) == n:
+            break
+    return out
+
+
+def check_text_encoder_header(paths):
+    """Checks the text encoder from its header alone and returns its model configuration (a dict).
+
+    `paths` is the file, or its parts in order. Only the first bytes of the first part are read: a build cannot map the
+    26 GB file (CI run 41287628826 failed with "unable to mmap … Cannot allocate memory"). The tokenizer and the processor
+    are built from tensor data, so they are checked at the first real job, where the worker loads the file anyway.
+    """
+    total = sum(os.path.getsize(p) for p in paths)
+    head = _read_start(paths, 8)
+    length = struct.unpack("<Q", head)[0] if len(head) == 8 else None
+    if length is None or not 2 <= length <= min(MAX_HEADER_BYTES, total - 8):
+        raise ValueError(f"{paths[0]} does not start with a safetensors header")
+    try:
+        header = json.loads(_read_start(paths, 8 + length)[8:])
+    except ValueError as err:
+        raise ValueError(f"the safetensors header of {paths[0]} is not JSON") from err
+    metadata = header.pop("__metadata__", None) or {}
+    ends = [entry["data_offsets"][1] for entry in header.values()]
+    if not ends or max(ends) != total - 8 - length:
+        raise ValueError(f"the tensors' data ends at {max(ends, default=0)}, but the parts hold {total - 8 - length} bytes of data")
+    if TOKENIZER_TENSOR not in header:
+        raise ValueError(f"the text encoder has no {TOKENIZER_TENSOR} tensor")
+    for name in REQUIRED_SIDECARS:
+        if SIDECAR_PREFIX + name not in header and name not in metadata:
+            raise ValueError(f"the text encoder carries no {name}, as a tensor or as metadata")
+    if GEMMA_CONFIG_KEY not in metadata:
+        raise ValueError(f"the text encoder's metadata has no {GEMMA_CONFIG_KEY}")
+    config = json.loads(metadata[GEMMA_CONFIG_KEY])
+    if not isinstance(config, dict) or not config.get("model_type"):
+        raise ValueError(f"the text encoder's {GEMMA_CONFIG_KEY} has no model_type")
+    return config
+
+
+def _check_text_encoder_in_image():
+    """The build's check: the header of the parts in the image, then the configuration built by the program's own builder,
+    offline (HF_HUB_OFFLINE in the image), from the metadata alone: no tensor is opened."""
+    paths = [os.path.join(ROOT, part) for part in sorted(PARTS[TEXT_ENCODER])]
+    config = check_text_encoder_header(paths)
+    from ltx_core.text_encoders.gemma.gemma_assets import GemmaAssets, build_gemma_hf_config
+
+    assets = GemmaAssets(source=paths[0], config_dict=config, tokenizer_json=b"", sidecars={}, weight_paths=())
+    built = build_gemma_hf_config(assets)
+    print(f"text encoder header checked: {type(built).__name__}, model_type {config['model_type']}")
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] != ["check-text-encoder"]:
+        sys.exit("usage: python -m flowchain_ltx.weights check-text-encoder")
+    _check_text_encoder_in_image()
