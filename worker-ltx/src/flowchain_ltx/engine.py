@@ -209,8 +209,13 @@ def probe(path):
     return round(float(info["format"]["duration"]), 3), "audio" in kinds
 
 
-def make_clip(req, workdir="/tmp", generate=None, transcribe=None):
+def make_clip(req, workdir="/tmp", generate=None, transcribe=None, load_listener=None):
     """Makes the clip the request asks for in workdir; returns a ClipResult."""
+    heard_by = None
+    if req.speech_language is not None:
+        # Whisper is loaded before the clip is made: a worker whose CUDA 12 or cuDNN libraries are wrong then fails a
+        # job that bought nothing, instead of generating a paid clip and failing to hear it afterwards.
+        heard_by = (load_listener or listener)()
     image_path = os.path.join(workdir, "start.png")
     out_path = os.path.join(workdir, "clip.mp4")
     with open(image_path, "wb") as f:
@@ -222,5 +227,10 @@ def make_clip(req, workdir="/tmp", generate=None, transcribe=None):
     words = None
     if req.speech_language is not None:
         # a clip without sound has no words; Whisper is not run on silence it was never given
-        words = clean_words((transcribe or _transcribe)(out_path, req.speech_language)) if has_audio else []
+        if not has_audio:
+            words = []
+        elif transcribe:
+            words = clean_words(transcribe(out_path, req.speech_language))
+        else:
+            words = clean_words(_transcribe(out_path, req.speech_language, heard_by))
     return ClipResult(mp4_path=out_path, seconds=seconds, has_audio=has_audio, words=words)

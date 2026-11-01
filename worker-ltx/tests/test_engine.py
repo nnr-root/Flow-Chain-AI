@@ -48,8 +48,38 @@ class FakeListener:
         return self.words
 
 
-def make(tmp_path, req=None, pipeline=None, listener=None):
-    return engine.make_clip(req or request(), workdir=str(tmp_path), generate=pipeline or FakePipeline(), transcribe=listener or FakeListener([]))
+def make(tmp_path, req=None, pipeline=None, listener=None, load_listener=None):
+    return engine.make_clip(
+        req or request(), workdir=str(tmp_path), generate=pipeline or FakePipeline(), transcribe=listener or FakeListener([]),
+        load_listener=load_listener or (lambda: "W"),
+    )
+
+
+@needs_ffmpeg
+def test_a_speaking_clip_loads_whisper_before_the_clip_is_generated(tmp_path):
+    order = []
+    pipeline = FakePipeline()
+    generate = lambda args: order.append("generate") or pipeline(args)
+    make(tmp_path, req=request(speech_language="en"), pipeline=generate, load_listener=lambda: order.append("load") or "W")
+    assert order == ["load", "generate"]
+
+
+def test_a_speaking_clip_whose_whisper_cannot_load_is_refused_before_any_clip_is_generated(tmp_path):
+    pipeline = FakePipeline()
+
+    def broken():
+        raise RuntimeError("libcudnn_ops.so.9: cannot open shared object file")
+
+    with pytest.raises(RuntimeError, match="libcudnn"):
+        make(tmp_path, req=request(speech_language="tr"), pipeline=pipeline, load_listener=broken)
+    assert pipeline.calls == []
+
+
+@needs_ffmpeg
+def test_a_clip_without_speech_never_loads_whisper(tmp_path):
+    loads = []
+    make(tmp_path, load_listener=lambda: loads.append("load") or "W")
+    assert loads == []
 
 
 @needs_ffmpeg
