@@ -190,9 +190,35 @@ describe("runpod deploy", () => {
     expect((await planDeploy(rest, { ltx: true })).find((s) => s.name === NAMES.ltx)?.action).toBe("update");
   });
 
-  it("asks for the CUDA version the LTX worker's own code requires", async () => {
+  // From RunPod's OpenAPI schema (https://rest.runpod.io/v1/openapi.json, EndpointCreateInput.minCudaVersion), read 2026-11-01.
+  // A value outside it is refused with HTTP 400 (the first LTX deploy sent "13.2"). Keep this in step with the schema.
+  const RUNPOD_CUDA_VERSIONS = ["13.0", "12.9", "12.8", "12.7", "12.6", "12.5", "12.4", "12.3", "12.2", "12.1", "12.0", "11.8"];
+
+  it("asks for a CUDA version RunPod accepts, no newer than the one the LTX image was built for", async () => {
     const py = await readFile("worker-ltx/src/flowchain_ltx/__init__.py", "utf8");
-    expect(/^MIN_HOST_CUDA\s*=\s*"([^"]+)"/m.exec(py)?.[1]).toBe(DEFAULTS.ltxMinCuda);
+    const built = /^MIN_HOST_CUDA\s*=\s*"([^"]+)"/m.exec(py)?.[1];
+    expect(built).toBeDefined();
+    expect(RUNPOD_CUDA_VERSIONS).toContain(DEFAULTS.ltxMinCuda);
+    expect(Number(DEFAULTS.ltxMinCuda)).toBeLessThanOrEqual(Number(built));
+  });
+
+  it("sends only CUDA versions RunPod accepts, in every endpoint the planner builds", async () => {
+    const { rest, store } = fakeRest();
+    await applyDeploy(rest, { ...cfg, upscaleImage: "u:1", foleyImage: "f:1", ltxImage: "l:1", keyframe3Gpus: ["NVIDIA A40"] }, () => {});
+    expect(store.endpoints.length).toBeGreaterThanOrEqual(5);
+    for (const e of store.endpoints) if (e.minCudaVersion !== undefined) expect(RUNPOD_CUDA_VERSIONS, String(e.name)).toContain(e.minCudaVersion);
+    const voice = fakeRest();
+    await applyVoiceDeploy(voice.rest, { image: "v:1", gpus: ["NVIDIA GeForce RTX 4090"] });
+    for (const e of voice.store.endpoints) expect(RUNPOD_CUDA_VERSIONS).toContain(e.minCudaVersion);
+  });
+
+  it("keeps the whole of RunPod's error answer, so a long list of problems is not cut", async () => {
+    const problems = Array.from({ length: 40 }, (_, i) => `problem ${i}: minCudaVersion must be one of 13.0, 12.9`);
+    const body = JSON.stringify({ problems });
+    const rest = new RunpodRest("k", async () => new Response(body, { status: 400 }));
+    const err = await rest.create("endpoints", { name: "x" }).catch((e: Error) => e);
+    expect((err as Error).message).toContain("problem 39");
+    expect((err as Error).message.length).toBeGreaterThan(1000);
   });
 
   it("skips a default LTX image that is not built yet, but not one the owner named", async () => {

@@ -75,9 +75,10 @@ export const DEFAULTS = {
   // LTX (phase 15): 48 GB or more. The order is a preference, not a requirement: the A100 80 GB is often out of stock,
   // and RunPod gives the job to whichever of these has a free worker. It reads no volume, so any data centre will do.
   ltxGpus: ["NVIDIA A100 80GB PCIe", "NVIDIA A100-SXM4-80GB", "NVIDIA L40S", "NVIDIA RTX 6000 Ada Generation", "NVIDIA A40"],
-  // The image runs torch 2.13 on CUDA 13.2 wheels: this is MIN_HOST_CUDA in worker-ltx (a test holds the two equal).
-  // The versions RunPod accepts for this field were not checked: confirm at the owner's first real deploy.
-  ltxMinCuda: "13.2",
+  // RunPod accepts at most "13.0" here (its OpenAPI enum; "13.2" was refused with HTTP 400). That is enough: the image's
+  // torch is built for CUDA 13.2 (MIN_HOST_CUDA in worker-ltx), and a 13.0 driver runs 13.x builds by NVIDIA's minor-version
+  // compatibility. The host's real version is confirmed by the first real job, not here.
+  ltxMinCuda: "13.0",
   /** Network volume storage, $ per GB per month (RunPod standard tier). */
   volumeUsdPerGbMonth: 0.07,
 };
@@ -103,7 +104,7 @@ export class RunpodRest {
   }
 
   private static async json<T>(what: string, res: Response): Promise<T> {
-    if (!res.ok) throw new HttpError(`RunPod ${what} failed: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`, res.status);
+    if (!res.ok) throw new HttpError(`RunPod ${what} failed: HTTP ${res.status} ${(await res.text())}`, res.status);
     return (await res.json()) as T;
   }
 
@@ -123,7 +124,7 @@ export class RunpodRest {
 
   async remove(kind: Kind, id: string): Promise<void> {
     const res = await this.call("DELETE", `${this.base}/${kind}/${id}`);
-    if (!res.ok) throw new HttpError(`RunPod delete ${kind} ${id} failed: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`, res.status);
+    if (!res.ok) throw new HttpError(`RunPod delete ${kind} ${id} failed: HTTP ${res.status} ${await res.text()}`, res.status);
   }
 
   /** Creates a secret; false when one with that name already exists (values cannot be changed through the API). */

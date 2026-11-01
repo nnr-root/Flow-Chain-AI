@@ -226,9 +226,8 @@ In order (every step that spends money or touches a real account is your click):
    runner disk (the job frees what it can) and may run up to 150 minutes. The image is about 72 GB; the container disk is 160 GB because the worker joins
    about 68 GB of split weights (the registry allows 10 GB a layer) at its first cold start on a host. Make the package public the first time.
 2. `npm run runpod:deploy` (**your click**: it makes a paid endpoint; it prints its plan first) makes the LTX endpoint. The cards are tried in order:
-   A100 80 GB, A100 SXM, L40S, RTX 6000 Ada, A40, and the A100 80 GB is often out of stock, so nothing may depend on it. The endpoint needs a host with
-   CUDA 13.2, because the image runs the stack the spike ran (torch 2.13 for CUDA 13.2, with natten); which CUDA versions RunPod accepts is confirmed at
-   the first deploy. `-- --no-ltx` leaves the endpoint out, and `RUNPOD_LTX_IMAGE=ghcr.io/<owner>/flowchain-ltx:l-<tree> npm run runpod:deploy` names an
+   A100 80 GB, A100 SXM, L40S, RTX 6000 Ada, A40, and the A100 80 GB is often out of stock, so nothing may depend on it. The endpoint asks for
+   CUDA 13.0, the highest RunPod accepts; the image was built for 13.2 (torch 2.13, with natten), and the first real job confirms the host runs it. `-- --no-ltx` leaves the endpoint out, and `RUNPOD_LTX_IMAGE=ghcr.io/<owner>/flowchain-ltx:l-<tree> npm run runpod:deploy` names an
    image. While the image is not built it skips LTX with one line. The deploy writes `RUNPOD_LTX_ENDPOINT`; with `FLOWCHAIN_LTX` unset nothing changes yet.
 3. Set **provisional** prices in `prices.json`, a generous guess, so a measuring run can be made at all: `runpodLtxUsdPerSec` at the highest flex
    (serverless) per-second rate RunPod lists for the five cards that day, `runpodLtxSecPerClipSec` 29, `runpodLtxColdStartSec` 120.

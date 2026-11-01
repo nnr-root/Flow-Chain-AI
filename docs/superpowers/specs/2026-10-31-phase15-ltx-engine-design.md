@@ -335,8 +335,8 @@ Everything built through Task 12 is local and tested against stand-ins; nothing 
    licence (the two tokens used on 2026-10-29 and 2026-10-31 should be revoked). Push (the owner's click) so the `ltx` job
    builds the image (about 72 GB, up to 150 minutes, about 100 GB of runner disk).
 4. **`npm run runpod:deploy`** (the owner's click; the plan prints first): the LTX template and endpoint on the five cards, the
-   endpoint needing a host with CUDA 13.2 (RunPod's accepted values are confirmed here; if it refuses 13.2, the image's torch
-   stack is the thing to revisit). The deploy writes `RUNPOD_LTX_ENDPOINT`; with `FLOWCHAIN_LTX` unset (§13.8) nothing changes.
+   endpoint asking for CUDA 13.0 (RunPod refused 13.2 with HTTP 400 and accepts at most 13.0, which suffices for an image built for
+   13.2 by minor-version compatibility; the first real job confirms the host). The deploy writes `RUNPOD_LTX_ENDPOINT`; with `FLOWCHAIN_LTX` unset (§13.8) nothing changes.
 5. **Provisional prices, then measure.** Write a generous guess in `prices.json` so a measuring run can be made at all:
    `runpodLtxUsdPerSec` at the highest flex rate of the five cards, `runpodLtxSecPerClipSec` 29, `runpodLtxColdStartSec` 120.
    Then one four-scene run with `FLOWCHAIN_LTX=on` set for that run only (in the shell) and `--cap 1` (the owner's click), and
