@@ -14,6 +14,8 @@ import { draftSceneSvg, silentWav, wrapText } from "../../src/studio/draft-media
 import { buildDraftProps, previewProps } from "../../src/studio/props.js";
 import { statusOf } from "../../src/studio/status.js";
 import { fakeScript } from "../fakes/providers.js";
+import { planModes } from "../../src/modes.js";
+import { videoProfileOf } from "../../src/video-profiles.js";
 
 const opts = { dir: "/run", fontsDir: "/fonts", fps: 30, size: { width: 1080, height: 1920 } };
 const keyframeSize = { width: 1000, height: 1000 };
@@ -80,6 +82,18 @@ describe("draft estimates", () => {
     expect(draftEstimate(m, keyframeSize, [2, null, 1]).modes).toEqual([2, 1, 1]);
     m.request.modes = [1, 1, 1];
     expect(() => draftEstimate(m, keyframeSize)).toThrow("needs an auto run");
+  });
+
+  it("prices a run without a speaking scene exactly as before speech existed: each scene's voice and the clip its estimated length asks", () => {
+    const m = draft();
+    const durations = draftDurations(m);
+    const before = (pinned?: Array<1 | 2 | null>) =>
+      planModes({
+        scenes: m.script!.scenes.map((s, i) => ({ actionLevel: s.actionLevel ?? "high", shot: s.shot, requestedSec: videoProfileOf(undefined).clipSec(durations[i]), narrationChars: s.narration.length })),
+        prices: m.request.modePrices!, keyframeSize, budgetUsd: m.request.modeBudgetUsd!, videoProfile: undefined, imageProfile: undefined, pinned,
+      });
+    expect(draftEstimate(m, keyframeSize)).toEqual(before());
+    expect(draftEstimate(m, keyframeSize, [2, null, 1])).toEqual(before([2, null, 1]));
   });
 });
 

@@ -23,6 +23,8 @@ import { versionProblem } from "../../src/versions.js";
 import type { ActionLevel } from "../../src/manifest/schema.js";
 import { FakeLtxVideo, fakeScript, SPOKEN, type Shot } from "../fakes/providers.js";
 import { makeTestContext } from "../helpers/context.js";
+import { draftEstimate } from "../../src/studio/draft.js";
+import { planningCopy, planQuery, runDraft } from "../../src/studio/commands.js";
 
 // Phase 15 spec §4, §5, §13.2–13.3: a scene in which a person speaks takes its sound, its length and its caption words
 // from its clip; every other scene is made as it always was.
@@ -332,5 +334,27 @@ describe("a speaking scene's mode", () => {
     await runPipeline(ctx, [...AUDIO, modesStage], auto);
     expect(JSON.stringify(await modesStage.inputsFor(ctx))).not.toContain("speak");
     expect(modesStage.deps(ctx.manifest)).toEqual([{ stage: "script" }, ...[0, 1, 2].map((scene) => ({ stage: "silence", scene }))]);
+  });
+});
+
+describe("a draft with a speaking scene", () => {
+  const round4 = (usd: number) => Math.round(usd * 10_000) / 10_000;
+
+  it("is priced at the clip it buys, so the total approved for it covers what generating it plans, under the cap", async () => {
+    // the rules would make every low-action scene a still and voice the speaking one: the modes stage then forces its clip
+    const { ctx } = await speechRun({ modes: "auto", shots: ["cut", "cut", "cut"], actionLevels: ["low", "low", "low"] });
+    ctx.manifest.request.modeBudgetUsd = 100;
+    await runDraft(ctx, auto);
+    expect(ctx.manifest.scenes[1].mode).toBe(1);
+    const plan = draftEstimate(ctx.manifest, ctx.keyframeSize);
+    expect(plan.modes[1]).toBe(1);
+    const approved = (await planQuery({ ...ctx, manifest: planningCopy(ctx.manifest) }, STAGES)).totalUsd;
+    // what generate's "Media plan" checkpoint compares with --cap: spent since the draft plus what is still planned
+    const spentAtStart = ctx.manifest.ledger.reduce((sum, e) => sum + e.usd, 0);
+    await runPipeline(ctx, [...AUDIO, modesStage], auto);
+    expect(ctx.manifest.scenes.map((s) => s.mode)).toEqual(plan.modes);
+    const spent = round4(ctx.manifest.ledger.reduce((sum, e) => sum + e.usd, 0) - spentAtStart);
+    const media = await planRun(ctx, STAGES);
+    expect(round4(spent + media.totalUsd)).toBeLessThanOrEqual(approved);
   });
 });

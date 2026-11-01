@@ -3,9 +3,8 @@ import type { Manifest, Mode } from "../manifest/schema.js";
 import type { TimedWord } from "../media/remotion/caption-pages.js";
 import { audioStarts } from "../media/timeline.js";
 import { planModes, type PlanModesResult } from "../modes.js";
-import { pinnedModes } from "../stages/modes.js";
+import { pinnedForRules, pinnedModes, ruleScenes } from "../stages/modes.js";
 import { requireScript } from "../stages/require.js";
-import { videoProfileOf } from "../video-profiles.js";
 import { wordsPerSecond } from "../duration.js";
 import { countUnits, isUnspaced, splitWords } from "../voice/words.js";
 
@@ -47,29 +46,23 @@ export function draftWords(m: Manifest): TimedWord[] {
 
 /**
  * What the mode rules would decide for a draft if every voiceover came out at its estimated length: the same
- * `planModes` the modes stage runs later on the real lengths. Auto runs only.
+ * `planModes`, on the same scenes (`ruleScenes`) and with the same speaking scenes pinned to Mode 1, that the modes stage
+ * runs later on the real lengths. Auto runs only.
  */
 export function draftEstimate(m: Manifest, keyframeSize: Size, pinned = pinnedModes(m)): PlanModesResult {
-  const script = requireScript(m);
   const { modeBudgetUsd: budgetUsd, modePrices: prices } = m.request;
   if (m.request.modes || budgetUsd === undefined || prices === undefined) {
     throw new Error("a draft estimate needs an auto run (this run has explicit modes)");
   }
-  const profile = videoProfileOf(m.request.videoProfile);
   const durations = draftDurations(m);
   return planModes({
-    scenes: script.scenes.map((s, i) => ({
-      actionLevel: s.actionLevel ?? "high",
-      shot: s.shot,
-      requestedSec: profile.clipSec(durations[i]),
-      narrationChars: s.narration.length,
-    })),
+    scenes: ruleScenes(m, (i) => durations[i]),
     prices,
     keyframeSize,
     budgetUsd,
     videoProfile: m.request.videoProfile,
     imageProfile: m.request.imageProfile,
-    pinned,
+    pinned: pinnedForRules(m, pinned),
   });
 }
 

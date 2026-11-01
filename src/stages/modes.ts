@@ -13,12 +13,11 @@ export const SPEAKING_REASON = "a person speaks in it";
 const speakingOf = (m: Manifest): number[] => m.scenes.map((s) => s.idx).filter((i) => isSpeaking(m, i));
 
 /**
- * The modes pinned for the rules: the user's, with every speaking scene pinned to Mode 1 over them. Undefined when nothing
- * is pinned, so a run without either keeps its modes cache key.
+ * The modes pinned for the rules: the user's (or `user`, a draft's pins being tried), with every speaking scene pinned to
+ * Mode 1 over them. Undefined when nothing is pinned, so a run without either keeps its modes cache key.
  */
-function pinnedForRules(m: Manifest): Array<Mode | null> | undefined {
+export function pinnedForRules(m: Manifest, user = pinnedModes(m)): Array<Mode | null> | undefined {
   const speaking = speakingOf(m);
-  const user = pinnedModes(m);
   if (speaking.length === 0) return user;
   return m.scenes.map((_, i) => (speaking.includes(i) ? 1 : (user?.[i] ?? null)));
 }
@@ -29,24 +28,34 @@ export function pinnedModes(m: Manifest): Array<Mode | null> | undefined {
   return overrides?.some((o) => o !== null) ? overrides : undefined;
 }
 
+/**
+ * The scenes as the mode rules see them, for the modes stage (on the real voiceovers) and the draft (on their estimated
+ * lengths, `voiceSec`) alike: the draft's approved price must plan what the stage decides, or a speaking scene the draft
+ * priced as a voiced still is forced into a clip later and the run stops at its media checkpoint over the cap, after its
+ * voiceover was bought. `voiceSec` is read only for a scene that does not speak.
+ */
+export function ruleScenes(m: Manifest, voiceSec: (i: number) => number): PlanModesInput["scenes"] {
+  const profile = videoProfileOf(m.request.videoProfile);
+  return requireScript(m).scenes.map((s, i) => ({
+    actionLevel: s.actionLevel ?? "high",
+    shot: s.shot,
+    // (a speaking scene has no length before its clip, which comes after this stage: it is priced at the clip it buys)
+    requestedSec: isSpeaking(m, i) ? SPEAKING_CLIP_SEC : profile.clipSec(voiceSec(i)),
+    // (no voiceover is bought for a speaking scene: its voice is in its clip)
+    narrationChars: isSpeaking(m, i) ? 0 : s.narration.length,
+  }));
+}
+
 /** The mode rules' inputs; null for explicit runs (--modes / --mode 1|2), whose modes are copied as given. */
 function autoInputs(ctx: StageContext): PlanModesInput | null {
   const m = ctx.manifest;
   if (m.request.modes) return null;
-  const script = requireScript(m);
   const { modeBudgetUsd: budgetUsd, modePrices: prices } = m.request;
   if (budgetUsd === undefined || prices === undefined) {
     throw new Error("auto modes need the budget and price table frozen at creation");
   }
   return {
-    scenes: m.scenes.map((s, i) => ({
-      actionLevel: script.scenes[i].actionLevel ?? "high",
-      shot: script.scenes[i].shot,
-      // (a speaking scene has no length before its clip, which comes after this stage: it is priced at the clip it buys)
-      requestedSec: isSpeaking(m, i) ? SPEAKING_CLIP_SEC : videoProfileOf(m.request.videoProfile).clipSec(requireAudio(s).duration),
-      // (no voiceover is bought for a speaking scene: its voice is in its clip)
-      narrationChars: isSpeaking(m, i) ? 0 : script.scenes[i].narration.length,
-    })),
+    scenes: ruleScenes(m, (i) => requireAudio(m.scenes[i]).duration),
     prices,
     keyframeSize: ctx.keyframeSize,
     budgetUsd,
