@@ -247,11 +247,22 @@ function ltxWords(raw: unknown): WordTiming[] | undefined | "malformed" {
  * LTX (phase 15), from the LTX worker: 640x1152 at 24 fps, with the clip's own sound and, when asked, its speech's words.
  */
 export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> implements VideoProvider {
+  /**
+   * Present only for Wan. The LTX worker's contract refuses `{task: "warm"}`, and the early start is fired by every run
+   * whose provider has one (`warmClipsEarly`): left on, each LTX run would buy a refused job before its first clip.
+   */
+  readonly warm?: (opts: SubmitOptions) => Promise<string>;
+  readonly warmCost?: (jobId: string, opts: WaitOptions) => Promise<number>;
+
   constructor(deps: RunpodDeps, target: Target) {
     // An LTX worker's first job after a cold start assembles about 68 GB of weights, and the longest clip measured took
     // about 300 s on top: Wan's ten minutes to run and twenty to wait would give up on a clip that is still being paid for.
     const ltx = target.workflow === RUNPOD_WORKFLOWS.clipLtx.workflow;
     super(deps, target, { executionTimeout: ltx ? 1_200_000 : 600_000, ttl: 3_600_000 }, (ltx ? 30 : 20) * 60_000, "mp4");
+    if (!ltx) {
+      this.warm = (opts) => this.warmWan(opts);
+      this.warmCost = (jobId, opts) => this.warmCostWan(jobId, opts);
+    }
   }
 
   private get ltx(): boolean {
@@ -312,11 +323,11 @@ export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> impleme
    * then finds a worker that is up instead of waiting for one (phase 5 spec §9.15). The job makes nothing and
    * uploads nothing; it is billed for the seconds the start takes, as the first clip was before.
    */
-  async warm(opts: SubmitOptions): Promise<string> {
+  private async warmWan(opts: SubmitOptions): Promise<string> {
     return this.deps.client.run(this.target.endpointId, { task: "warm" }, { executionTimeout: 300_000, ttl: 900_000 }, opts.signal);
   }
 
-  async warmCost(jobId: string, opts: WaitOptions): Promise<number> {
+  private async warmCostWan(jobId: string, opts: WaitOptions): Promise<number> {
     const { pollMs = 3000, sleep = realSleep, now = Date.now } = this.deps.poll ?? {};
     const deadline = now() + opts.timeoutMs;
     for (;;) {

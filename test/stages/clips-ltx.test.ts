@@ -15,7 +15,12 @@ import { abs, paths } from "../../src/stages/paths.js";
 import { scriptStage } from "../../src/stages/script.js";
 import { silenceStage } from "../../src/stages/silence.js";
 import { ttsStage } from "../../src/stages/tts.js";
-import { WARMUP_KEY } from "../../src/stages/warmup.js";
+import { WARMUP_KEY, warmClipsEarly } from "../../src/stages/warmup.js";
+import { runpodRates } from "../../src/config.js";
+import type { R2 } from "../../src/providers/r2.js";
+import { RunpodClient } from "../../src/providers/runpod.js";
+import { RunpodVideo } from "../../src/providers/runpod-providers.js";
+import { FakeRunpodApi } from "../fakes/runpod.js";
 import { clipPrompt, motionPrompt, sceneFrames } from "../../src/stages/visual.js";
 import { videoProfileOf } from "../../src/video-profiles.js";
 import { FakeLtxVideo, FakeUpscale } from "../fakes/providers.js";
@@ -158,6 +163,21 @@ describe("the clips stage on LTX", () => {
     expect(ctx.manifest.warmup).toBeUndefined();
     expect(ctx.manifest.inFlight?.[WARMUP_KEY]).toBeUndefined();
     expect(ctx.manifest.abandonedUsd).toBeUndefined();
+  });
+
+  it("submits no job for the early-start step to a real LTX provider, and one to a real Wan provider", async () => {
+    // (the stand-in above has no `warm` at all; this asks the real provider, whose LTX contract refuses a warm-up)
+    const submitted = async (workflow: string) => {
+      const { ctx } = await ltxRun();
+      await runPipeline(ctx, [scriptStage, ttsStage, silenceStage], auto);
+      const api = new FakeRunpodApi(() => [{ status: "COMPLETED", executionTime: 1000 }]);
+      const client = new RunpodClient("k", { fetch: api.fetch });
+      ctx.providers = { ...ctx.providers, video: new RunpodVideo({ client, r2: {} as R2, rates: runpodRates(ctx.prices) }, { endpointId: "ep", workflow, version: 1 }) };
+      await warmClipsEarly({ ...ctx, inputHash: "", charge: async () => {} }, 1, false);
+      return api.runs;
+    };
+    expect(await submitted("clip-ltx25")).toEqual([]);
+    expect(await submitted("clip-wan22-480p")).toEqual([expect.objectContaining({ input: { task: "warm" } })]);
   });
 
   it("fits a 24 fps clip to exactly the scene's frames at the video's rate, and chains from its last shown frame", async () => {

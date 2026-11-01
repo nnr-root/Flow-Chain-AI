@@ -306,23 +306,23 @@ describe("the clip worker's early start (RunPod)", () => {
   it("asks the clip endpoint for a job that carries nothing of the run, and reads its cost from the measured time", async () => {
     const api = new FakeRunpodApi(() => [{ status: "IN_QUEUE" }, { status: "IN_PROGRESS" }, { status: "COMPLETED", output: { warmedBytes: 1 }, executionTime: 100_000 }]);
     const video = new RunpodVideo(deps(api), clipTarget);
-    const id = await video.warm({ signal: signal() });
+    const id = await video.warm!({ signal: signal() });
     expect(api.runs).toEqual([expect.objectContaining({ endpointId: "ep-c", input: { task: "warm" }, policy: { executionTimeout: 300_000, ttl: 900_000 } })]);
-    expect(await video.warmCost(id, { timeoutMs: 60_000 })).toBe(0.0306); // 100 s × $0.000306
+    expect(await video.warmCost!(id, { timeoutMs: 60_000 })).toBe(0.0306); // 100 s × $0.000306
     expect(api.runs).toHaveLength(1); // asking what it cost buys nothing
   });
 
   it("costs nothing when it never reached a GPU, what it ran when it failed, and says so when it cannot be known", async () => {
     const never = new RunpodVideo(deps(new FakeRunpodApi(() => [{ status: "CANCELLED" }])), clipTarget);
-    expect(await never.warmCost(await never.warm({ signal: signal() }), { timeoutMs: 60_000 })).toBe(0);
+    expect(await never.warmCost!(await never.warm!({ signal: signal() }), { timeoutMs: 60_000 })).toBe(0);
     const failed = new RunpodVideo(deps(new FakeRunpodApi(() => [{ status: "FAILED", error: "oom", executionTime: 20_000 }])), clipTarget);
-    expect(await failed.warmCost(await failed.warm({ signal: signal() }), { timeoutMs: 60_000 })).toBe(0.0061);
+    expect(await failed.warmCost!(await failed.warm!({ signal: signal() }), { timeoutMs: 60_000 })).toBe(0.0061);
     const api = new FakeRunpodApi(() => [{ status: "IN_QUEUE" }]);
     const gone = new RunpodVideo(deps(api), clipTarget);
-    const id = await gone.warm({ signal: signal() });
-    await expect(gone.warmCost(id, { timeoutMs: 5000 })).rejects.toThrow(/still IN_QUEUE/);
+    const id = await gone.warm!({ signal: signal() });
+    await expect(gone.warmCost!(id, { timeoutMs: 5000 })).rejects.toThrow(/still IN_QUEUE/);
     api.expire(id);
-    await expect(gone.warmCost(id, { timeoutMs: 5000 })).rejects.toThrow(/no longer knows/);
+    await expect(gone.warmCost!(id, { timeoutMs: 5000 })).rejects.toThrow(/no longer knows/);
   });
 });
 
@@ -336,6 +336,15 @@ describe("the LTX clip worker (phase 15)", () => {
     await makeImage(join(dir, "wide.png"), { width: 1920, height: 1088 });
     return { tall: join(dir, "tall.png"), wide: join(dir, "wide.png") };
   }
+
+  it("offers no early start on the LTX worker, whose contract refuses one, and keeps Wan's", () => {
+    const l = new RunpodVideo(deps(new FakeRunpodApi(() => [])), ltx);
+    const w = new RunpodVideo(deps(new FakeRunpodApi(() => [])), wan);
+    expect(typeof l.warm).toBe("undefined");
+    expect(typeof l.warmCost).toBe("undefined");
+    expect(typeof w.warm).toBe("function");
+    expect(typeof w.warmCost).toBe("function");
+  });
 
   it("asks for a 5.04 s portrait clip as the worker's contract says: 121 frames at 24 fps, 640x1152, the seed, and no speech unless asked", async () => {
     const { tall, wide } = await pictures();
