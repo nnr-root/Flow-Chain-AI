@@ -75,8 +75,14 @@ abstract class RunpodQueued<Req, Out extends { url: string; costUsd?: number; re
    */
   protected abstract output(jobId: string, out: { url: string; seed?: number }, costUsd: number | undefined, raw?: Record<string, unknown>): Out;
 
+  /** Whether the job names its workflow: every worker reads it but the LTX one, whose contract refuses any field it does not list. */
+  protected withWorkflowKey(): boolean {
+    return true;
+  }
+
   async prepare(req: Req): Promise<PreparedJob> {
-    const input = { ...(await this.input(req)), workflow: `${this.target.workflow}@${this.target.version}` };
+    const fields = await this.input(req);
+    const input = this.withWorkflowKey() ? { ...fields, workflow: `${this.target.workflow}@${this.target.version}` } : fields;
     const bytes = Buffer.byteLength(JSON.stringify(input));
     if (bytes > MAX_INPUT_BYTES) {
       throw new NonRetryableError(`RunPod input is ${(bytes / 1048576).toFixed(1)} MB; the limit is 9 MB`);
@@ -267,6 +273,11 @@ export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> impleme
 
   private get ltx(): boolean {
     return this.target.workflow === RUNPOD_WORKFLOWS.clipLtx.workflow;
+  }
+
+  // (a real LTX job was refused "unknown field workflow" on 2026-11-01: its worker makes one thing and is not told which)
+  protected override withWorkflowKey(): boolean {
+    return !this.ltx;
   }
 
   protected async input(req: VideoRequest) {

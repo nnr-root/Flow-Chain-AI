@@ -346,13 +346,13 @@ describe("the LTX clip worker (phase 15)", () => {
     expect(typeof w.warmCost).toBe("function");
   });
 
-  it("asks for a 5.04 s portrait clip as the worker's contract says: 121 frames at 24 fps, 640x1152, the seed, and no speech unless asked", async () => {
+  it("asks for a 5.04 s portrait clip as the worker's contract says: 121 frames at 24 fps, 640x1152, the seed, no workflow key, and no speech unless asked", async () => {
     const { tall, wide } = await pictures();
     const video = new RunpodVideo(deps(new FakeRunpodApi(() => [])), ltx);
     const job = await video.prepare({ imagePath: tall, prompt: "A fox turns its head. Audio: wind.", durationSec: 121 / 24, height: 640, seed: 1234 });
+    // (no `workflow` key: the LTX worker's contract is a closed list without it, and a real job was refused for it on 2026-11-01)
     expect(job.input).toEqual({
       task: "clip",
-      workflow: "clip-ltx25@1",
       image: (await readFile(tall)).toString("base64"),
       prompt: "A fox turns its head. Audio: wind.",
       frames: 121,
@@ -365,6 +365,31 @@ describe("the LTX clip worker (phase 15)", () => {
     expect((await video.prepare({ imagePath: wide, prompt: "p", durationSec: 49 / 24, seed: 0 })).input).toMatchObject({ frames: 49, width: 1152, height: 640 });
     // the words of the speech are asked for only for a scene that speaks
     expect((await video.prepare({ imagePath: tall, prompt: "p", durationSec: 121 / 24, seed: 1, speechLanguage: "tr" })).input).toMatchObject({ speech_language: "tr" });
+  });
+
+  it("sends the LTX worker only fields its contract lists, portrait or landscape, speaking or not", async () => {
+    // The worker refuses any field it does not list (worker-ltx contract.py, FIELDS). The list is read from the Python
+    // file itself rather than copied here, so the two cannot drift; a shared JSON file would have to be baked into the image.
+    const contract = await readFile(new URL("../../worker-ltx/src/flowchain_ltx/contract.py", import.meta.url), "utf8");
+    const line = /^FIELDS\s*=\s*\{([^}]*)\}/m.exec(contract);
+    expect(line, "FIELDS = {...} in contract.py").not.toBeNull();
+    const fields = [...line![1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+    expect(fields).toEqual(expect.arrayContaining(["task", "image", "prompt", "frames", "fps", "width", "height", "seed", "speech_language"]));
+    const { tall, wide } = await pictures();
+    const video = new RunpodVideo(deps(new FakeRunpodApi(() => [])), ltx);
+    for (const imagePath of [tall, wide]) {
+      for (const speechLanguage of [undefined, "en"]) {
+        const { input } = await video.prepare({ imagePath, prompt: "p", durationSec: 121 / 24, seed: 3, ...(speechLanguage ? { speechLanguage } : {}) });
+        const extra = Object.keys(input).filter((k) => !fields.includes(k));
+        expect(extra, `${imagePath} ${speechLanguage}`).toEqual([]);
+      }
+    }
+  });
+
+  it("still names the workflow to every other worker, which reads it", async () => {
+    const { tall } = await pictures();
+    expect((await new RunpodVideo(deps(new FakeRunpodApi(() => [])), wan).prepare({ imagePath: tall, prompt: "m", durationSec: 81 / 16 })).input).toMatchObject({ workflow: "clip-wan22-480p@1" });
+    expect((await new RunpodImage(deps(new FakeRunpodApi(() => [])), target).prepare({ prompt: "p", width: 8, height: 8 })).input).toMatchObject({ workflow: "keyframe-sdxl@1" });
   });
 
   it("refuses before anything is bought a length that is not 8k+1 frames from 49 to 361, a missing seed and any other size", async () => {
