@@ -205,8 +205,9 @@ export const clipsStage: Stage = {
       // the run has its own copy now: the one the worker uploaded is taken out of the bucket
       await result.remove?.();
       // the clip's own frame rate and sound, only where the provider told them (an LTX clip): a Wan clip's record is as it
-      // was. A paid result reused after a stop keeps only its url, so an LTX clip's rate then comes from its profile
-      // (one rate); whether it has sound is left unknown, never false.
+      // was. A paid result reused after a stop keeps its rate, sound and words with it (they are saved in the job's
+      // result); only one recovered from the bucket without the worker's answer has its url alone: its rate then comes from
+      // its profile (one rate), and whether it has sound is left unknown, never false.
       const fps = result.fps ?? (m.request.videoProfile === "ltx25@1" ? LTX_FPS : undefined);
       state.clip = {
         path: paths.clip(i),

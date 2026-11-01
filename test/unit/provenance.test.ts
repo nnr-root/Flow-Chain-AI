@@ -8,8 +8,11 @@ import { describe, expect, it } from "vitest";
 
 const ROOTS = ["src/media", "src/stages"];
 
-/** The flags that drop or rewrite what a file carries: `-map_metadata -1`, `-fflags +bitexact`, `-metadata k=v`. */
-const STRIPPING: RegExp[] = [/map_metadata/, /-fflags/, /bitexact/, /["'`]-metadata["'`]/, /-metadata(?::[sgcp])?\s/];
+/**
+ * The flags that drop or rewrite what a file carries: `-map_metadata -1`, `-fflags +bitexact`, `-metadata k=v`, also with a
+ * specifier (`"-metadata:s:a:0"`, `"-metadata:g"`) as an argument in an array or on a command line.
+ */
+const STRIPPING: RegExp[] = [/map_metadata/, /-fflags/, /bitexact/, /["'`]-metadata(?::[^"'`]*)?["'`]/, /-metadata(?::\S*)?\s/];
 
 /**
  * Uses that are allowed on purpose, by file (relative to the repository) and the line's text. None today: a use added
@@ -44,6 +47,8 @@ describe("what a clip carries", () => {
       'const args = ["-fflags", "+bitexact", "-i", clip];',
       'args.push("-flags:a", "+bitexact");',
       'await ffmpeg(["-i", clip, "-metadata", "comment=", out]);',
+      'await ffmpeg(["-i", clip, "-metadata:s:a:0", "handler_name=", out]);',
+      'await ffmpeg(["-i", clip, "-metadata:g", "comment=", out]);',
     ]) {
       expect(strippingUses("src/media/x.ts", line)).toHaveLength(1);
     }

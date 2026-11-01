@@ -181,7 +181,7 @@ describe("runpod deploy", () => {
     expect(store.templates.find((t) => t.id === ltx.templateId)).toMatchObject({ name: NAMES.ltxTemplate, imageName: image, containerDiskInGb: 160, isServerless: true });
     expect(DEFAULTS.ltxGpus).toEqual(["NVIDIA A100 80GB PCIe", "NVIDIA A100-SXM4-80GB", "NVIDIA L40S", "NVIDIA RTX 6000 Ada Generation", "NVIDIA A40"]);
     // workersMax 1: worker-ltx assumes one job at a time
-    expect(ltx).toMatchObject({ gpuTypeIds: DEFAULTS.ltxGpus, workersMin: 0, workersMax: 1, idleTimeout: 30, executionTimeoutMs: 900_000, flashboot: false, minCudaVersion: DEFAULTS.ltxMinCuda });
+    expect(ltx).toMatchObject({ gpuTypeIds: DEFAULTS.ltxGpus, workersMin: 0, workersMax: 1, idleTimeout: 30, executionTimeoutMs: 1_200_000, flashboot: false, minCudaVersion: DEFAULTS.ltxMinCuda });
     for (const field of ["networkVolumeId", "networkVolumeIds", "dataCenterIds"]) expect(ltx).not.toHaveProperty(field);
     expect(envValuesOf(deployed).RUNPOD_LTX_ENDPOINT).toBe(ltx.id);
     await applyDeploy(rest, { ...cfg, ltxImage: `${image}2` }, () => {});

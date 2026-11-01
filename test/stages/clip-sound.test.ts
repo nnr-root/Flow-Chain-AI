@@ -205,6 +205,28 @@ describe("a scene's own clip sound", () => {
     expect(Object.keys(wan.ctx.manifest.scenes[0].stages)).not.toContain("sound");
   });
 
+  it("is a silent track when a clip whose sound was unknown turns out to have none: done, for nothing, and not made again on resume", async () => {
+    const { ctx, ltx } = await ltxRun();
+    ltx.silent = true;
+    await runPipeline(ctx, MEDIA.slice(0, -1), auto);
+    // (as a clip recovered from the bucket without the worker's answer is recorded: whether it has sound is unknown)
+    for (const s of ctx.manifest.scenes) delete s.clip!.hasAudio;
+    await runPipeline(ctx, MEDIA, auto);
+    const m = ctx.manifest;
+    for (const i of [0, 1, 2]) {
+      const sound = m.scenes[i].sound!;
+      expect(sound).toMatchObject({ path: paths.sound(i), source: "clip" });
+      expect(sound.seconds).toBeCloseTo(sceneSec(ctx, i), 2);
+      expect(await probeDuration(abs(ctx, sound.path))).toBeCloseTo(sceneSec(ctx, i), 1);
+      // digital silence throughout
+      const log = await ffmpeg(["-i", abs(ctx, sound.path), "-af", "volumedetect", "-f", "null", "-"], { logLevel: "info" });
+      expect(Number(/max_volume: (-?[\d.]+) dB/.exec(log)![1])).toBeLessThan(-90);
+      expect(m.scenes[i].stages.sound).toMatchObject({ status: "done", costUsd: 0 });
+    }
+    expect(m.ledger.filter((e) => e.stage === "sound")).toEqual([]);
+    expect((await planRun(ctx, MEDIA)).items).toEqual([]);
+  });
+
   it("keeps what the clip carries: its metadata is in the sound, and the clip itself is never rewritten", async () => {
     const { ctx } = await ltxRun();
     await runPipeline(ctx, MEDIA.slice(0, -1), auto);

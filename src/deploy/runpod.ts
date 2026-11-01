@@ -310,15 +310,18 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(foleyTemplate.id, cfg.foleyGpus ?? DEFAULTS.foleyGpus, 300_000, { minCudaVersion: "12.8" });
     foleyEndpointId = (await upsert(rest, "endpoints", existing.foley, NAMES.foley, anywhere, anywhere)).id;
   }
-  // LTX clips (phase 15): its code is in its image and its weights come from Hugging Face at the first cold start
+  // LTX clips (phase 15): its code and its weights are in its image (split across layers); a worker only JOINS the weights
+  // onto its own disk at its first cold start, and downloads nothing
   let ltxEndpointId: string | undefined;
   if (cfg.ltxImage) {
     // 160: the image is about 72 GB, and at its first cold start the worker joins about 68 GB of split weights onto its own disk
     const ltxBody = { imageName: cfg.ltxImage, containerDiskInGb: 160, env };
     const ltxTemplate = await upsert(rest, "templates", existing.ltxTemplate, NAMES.ltxTemplate, { ...ltxBody, isServerless: true }, ltxBody);
-    // 900 s: the first job after a cold start assembles those weights before it generates, and the longest clip measured took
-    // about 300 s on an A40. One worker (`endpoint()` sets workersMax 1): worker-ltx handles one job at a time.
-    const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(ltxTemplate.id, cfg.ltxGpus ?? DEFAULTS.ltxGpus, 900_000, { minCudaVersion: DEFAULTS.ltxMinCuda });
+    // 1200 s, the same as the request policy each clip job carries (`RunpodVideo`), which is what RunPod applies: the first
+    // job after a cold start joins those weights before it generates, and the longest clip measured took about 300 s on an
+    // A40. One limit in both places, so the endpoint never says a different one than the jobs run under. One worker
+    // (`endpoint()` sets workersMax 1): worker-ltx handles one job at a time.
+    const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(ltxTemplate.id, cfg.ltxGpus ?? DEFAULTS.ltxGpus, 1_200_000, { minCudaVersion: DEFAULTS.ltxMinCuda });
     ltxEndpointId = (await upsert(rest, "endpoints", existing.ltx, NAMES.ltx, anywhere, anywhere)).id;
   }
   return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id, ...(upscaleEndpointId ? { upscaleEndpointId } : {}), ...(foleyEndpointId ? { foleyEndpointId } : {}), ...(ltxEndpointId ? { ltxEndpointId } : {}), ...(keyframe3EndpointId ? { keyframe3EndpointId } : {}), movedVolume };

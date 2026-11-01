@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readdir, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -27,6 +27,9 @@ async function run(env: Record<string, string>, prices?: object, ...args: string
   } catch (e) {
     const err = e as { code?: number; stdout?: string; stderr?: string };
     return { code: err.code ?? -1, out: (err.stdout ?? "") + (err.stderr ?? ""), runs: await readdir(runs).catch(() => []) };
+  } finally {
+    // (what the folder held is read above; left behind, every run of this file adds one to the system's temp folder)
+    await rm(cwd, { recursive: true, force: true });
   }
 }
 
