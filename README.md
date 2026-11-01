@@ -205,6 +205,54 @@ character is in is conditioned on it; `reroll <runId> --stage reference --scene 
 redone from it). Clips are 480p (upscaled to the output size) with frame interpolation to 32 fps. GPU time is
 charged per job from RunPod's measured execution time; cold starts and idle time are not attributed per job.
 
+### Clips with LTX (optional)
+
+A scene's clip can be made by LTX-2.5 on the studio's own GPU endpoint (`worker-ltx/`) instead of Wan. Its clips are up to 15 seconds,
+cost about a third to a half of Wan's, and carry their own sound; a scene can also have a character who speaks (below). Wan stays the clip
+engine until the LTX endpoint and its three prices both exist: without them a new video is made on Wan exactly as before, and removing Wan is a
+later step that waits for you to watch a real LTX video and approve it. A video keeps the engine it was made with (`models.video`).
+
+In order:
+
+1. Build the image. The `ltx` job of `.github/workflows/worker-image.yml` builds `flowchain-ltx` when `worker-ltx/` changes (the tag is `l-` and
+   the first 12 characters of that folder's tree hash). It needs the repository secret `HF_TOKEN_LTX`: a read-only Hugging Face token of an account
+   that has accepted the LTX-2.5 licence (it reaches the build as a BuildKit secret, never as an argument). The build needs about 100 GB of free
+   runner disk (the job frees what it can) and may run up to 150 minutes. The image is about 72 GB; the container disk is 160 GB because the worker joins
+   about 68 GB of split weights (the registry allows 10 GB a layer) at its first cold start on a host. Make the package public the first time.
+2. `npm run runpod:deploy` (it prints its plan first) makes the LTX endpoint. The cards are tried in order: A100 80 GB, A100 SXM, L40S, RTX 6000 Ada,
+   A40, and the A100 80 GB is often out of stock, so nothing may depend on it. The endpoint needs a host with CUDA 13.2, because the image runs the stack
+   the spike ran (torch 2.13 for CUDA 13.2, with natten); which CUDA versions RunPod accepts is confirmed at the first deploy. `-- --no-ltx` leaves the
+   endpoint out, and `RUNPOD_LTX_IMAGE=ghcr.io/<owner>/flowchain-ltx:l-<tree> npm run runpod:deploy` names an image. While the image is not built it skips LTX
+   with one line. The deploy writes `RUNPOD_LTX_ENDPOINT`.
+3. Make one video and one with a speaking scene, and measure them (each is cents; the owner's click). In `prices.json` set `runpodLtxUsdPerSec` (the rate of
+   the card the endpoint actually got), `runpodLtxSecPerClipSec` and `runpodLtxColdStartSec`. On the spike an A40 at USD 0.59/h took about 29 GPU seconds
+   per second of clip, model load included; measure again on the card the endpoint gets. Keep the three while any LTX video may be resumed or remade.
+4. Only then set `FLOWCHAIN_SPEECH=on`. The order matters: between the deploy and the prices the studio keeps making Wan videos, and a speech draft would be
+   accepted and then refused.
+
+What the studio offers: the sound option is on when Foley or LTX is on (an LTX clip's own sound plays under the narration); the "Let a character speak"
+switch only with LTX and `FLOWCHAIN_SPEECH=on`, and only for English and Turkish; 60 fps is hidden while LTX makes the clips.
+
+**A speaking scene.** The script may write, for up to two scenes, a short sentence (at most about 14 words) that an invented person says; the scene's own clip
+makes the face, the mouth and the voice. That scene's voice and length come from the clip, not from the voiceover: it has no narration line, and its
+words (for the captions) come from the worker's own speech recognition. A speaking clip is 7.04 s long and its speech must fit 6.5 s; a sentence that
+does not fit fails the stage and names the scene, and is never cut. The voice can differ between scenes. It is never a real person (no photo or face is
+accepted), and a video with a speaking scene gets no language versions.
+
+**The licence** (LTX-2.x Community License; a reading, not legal advice). Free below USD 10 million of yearly revenue; above it a paid agreement is needed.
+Hosting it for others is allowed only if its use restrictions (Attachment A) are in the terms users accept; the draft is in
+`docs/superpowers/specs/phase15-terms-draft.md` and waits for your approval. The model's own provenance marks must be kept, and nothing in the pipeline strips
+them. **Item 20 is open**: the model may not be used in a product that competes with the licensor's own, and a studio that turns a topic into a video can be
+read as one. Write to licensing@ltx.io and keep the answer in writing before a paying customer is served an LTX video; ask in the same email whether any
+territory is excluded (none was found in the text). Your own machine and tests are not concerned. An image is rebuilt on purpose, never silently.
+
+**Known limits.** A vertical multi-shot clip comes out letterboxed, so every scene is its own clip. Audio-to-video with the studio's own voice failed the spike
+(the mouth stays still). A clip's ambient sound is never stretched: when the fit slows the picture it plays at its own speed and may end early. The web app
+cannot read `prices.json`, so the health answer can offer speech and sound before the prices exist; the CLI refuses such a draft in one plain sentence. The
+sound option's note that sound "adds to the price" is wrong for LTX-only sound (a known wording issue).
+
+Rollback: unset `RUNPOD_LTX_ENDPOINT` (and `FLOWCHAIN_SPEECH`); new videos are made on Wan again. A video already made on LTX refuses to resume without its three prices.
+
 ### Topic ideas (optional)
 
 The new-video form can offer "Suggest a topic": one model call with Google Search (and, with a key, YouTube's public most-popular
