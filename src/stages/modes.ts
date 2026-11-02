@@ -1,5 +1,6 @@
 import type { Manifest, Mode } from "../manifest/schema.js";
 import { planModes, type PlanModesInput } from "../modes.js";
+import { PICTURES_ONLY, picturesOnly } from "../providers/model-id.js";
 import { videoProfileOf } from "../video-profiles.js";
 import { speakingClipSec } from "./clips.js";
 import { requireAudio, requireScript } from "./require.js";
@@ -17,6 +18,8 @@ const speakingOf = (m: Manifest): number[] => m.scenes.map((s) => s.idx).filter(
  * Mode 1 over them. Undefined when nothing is pinned, so a run without either keeps its modes cache key.
  */
 export function pinnedForRules(m: Manifest, user = pinnedModes(m)): Array<Mode | null> | undefined {
+  // a run of pictures made without a clip engine (phase 15 spec §13.10) is pictures whatever was pinned: the rules never give it a clip
+  if (picturesOnly(m.models)) return m.scenes.map((): Mode => 2);
   const speaking = speakingOf(m);
   if (speaking.length === 0) return user;
   return m.scenes.map((_, i) => (speaking.includes(i) ? 1 : (user?.[i] ?? null)));
@@ -93,6 +96,8 @@ export const modesStage: Stage = {
   estimateCostUsd: () => 0,
   async run(ctx) {
     const m = ctx.manifest;
+    // (an explicit run of pictures without a clip engine was refused any clip at creation; this says so if one ever got through)
+    if (picturesOnly(m.models) && m.request.modes?.some((mode) => mode !== 2)) throw new Error(PICTURES_ONLY);
     const auto = autoInputs(ctx);
     if (!auto) {
       m.scenes.forEach((s, i) => {

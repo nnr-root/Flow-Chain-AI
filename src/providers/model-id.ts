@@ -28,6 +28,11 @@ export function parseModelId(id: string): ModelRef {
  */
 export const NO_CLIPS_MODEL = "no-clips";
 export const CLIPS_UNAVAILABLE = "moving clips are not available in this studio right now";
+/** What a run of pictures made without a clip engine is told when any scene of it is asked to be other than a picture. */
+export const PICTURES_ONLY = `this video is made of pictures only: ${CLIPS_UNAVAILABLE}`;
+
+/** Whether a run was frozen as pictures only, with no clip engine (`NO_CLIPS_MODEL`): every scene of it is a picture, always. */
+export const picturesOnly = (models: { video: string }): boolean => models.video === NO_CLIPS_MODEL;
 
 export function runpodModelId(endpointId: string, workflow: string, version: number): string {
   return `runpod:${endpointId}/${workflow}@${version}`;

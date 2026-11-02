@@ -11,6 +11,7 @@ import { scriptStage } from "../../src/stages/script.js";
 import { silenceStage } from "../../src/stages/silence.js";
 import { ttsStage } from "../../src/stages/tts.js";
 import { makeTestContext } from "../helpers/context.js";
+import { NO_CLIPS_MODEL, PICTURES_ONLY } from "../../src/providers/model-id.js";
 
 const STAGES = [scriptStage, ttsStage, silenceStage, modesStage, keyframesStage, clipsStage];
 const AUDIO = [scriptStage, ttsStage, silenceStage, modesStage];
@@ -24,6 +25,24 @@ function capture() {
 }
 
 describe("modes stage", () => {
+  it("never gives a run of pictures made without a clip engine a clip, not even a high-action scene left to the rules", async () => {
+    const { ctx, fakes } = await makeTestContext({ modes: "auto", actionLevels: ["high", "high", "medium"] });
+    ctx.manifest.models.video = NO_CLIPS_MODEL;
+    ctx.manifest.request.videoProfile = "ltx25@1";
+    for (const s of ctx.manifest.scenes) s.mode = 2;
+    // (its pins lost, as a run made before they were enforced could have them: the rules still see every scene as a picture)
+    delete ctx.manifest.request.modeOverrides;
+    await runPipeline(ctx, AUDIO, capture().opts);
+    expect(ctx.manifest.scenes.map((s) => s.mode)).toEqual([2, 2, 2]);
+    expect(fakes.video.submits).toHaveLength(0);
+  });
+
+  it("refuses an explicit clip in a run of pictures made without a clip engine, plainly", async () => {
+    const { ctx } = await makeTestContext({ modes: [1, 2] });
+    ctx.manifest.models.video = NO_CLIPS_MODEL;
+    await expect(runPipeline(ctx, AUDIO, capture().opts)).rejects.toThrow(PICTURES_ONLY);
+  });
+
   it("auto: high and medium become Mode 1, low becomes Mode 2, each with its reason", async () => {
     const { ctx } = await makeTestContext({ modes: "auto", actionLevels: ["high", "medium", "low"] });
     await runPipeline(ctx, AUDIO, capture().opts);

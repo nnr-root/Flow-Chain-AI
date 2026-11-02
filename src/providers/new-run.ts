@@ -73,10 +73,11 @@ export function newRunRestore(env: Env, prices: Prices): string {
  * new workflow; Full HD alone stays on the old workflow, so its jobs and keys do not change (phase 11 spec §2).
  */
 export function restorerFor(opts: { fps?: string; upscale?: boolean; videoProfile?: VideoProfileId }, env: Env, prices: Prices): string | undefined {
-  // smooth motion was measured on Wan's 16 fps clips only; an LTX clip is 24 (phase 15 spec §13.5). Refused now, before
-  // anything is bought, in words that name no model (the studio's job log shows them)
+  // smooth motion was measured on Wan's 16 fps clips only; an LTX clip is 24 (phase 15 spec §13.5), and every new run has LTX's
+  // profile since Wan was removed (§13.10), a run of pictures too, which has no clip at all. Refused now, before anything is
+  // bought, in words that name no model and assume no clip (the studio's job log shows them)
   if (opts.fps === "60" && opts.videoProfile === "ltx25@1") {
-    throw new Error("smooth motion is not available yet for clips made at 24 frames a second");
+    throw new Error("smooth motion is not available for new videos");
   }
   if (opts.fps === "60") return newRunRestore(env, prices);
   if (opts.upscale) return newRunUpscale(env);

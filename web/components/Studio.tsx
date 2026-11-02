@@ -18,6 +18,7 @@ import { OtherLanguages, type VersionChoices } from "./OtherLanguages";
 import { SPEECH_LANGUAGES, type SpeechLanguage } from "@src/voice/language";
 import { StudioPlayer, type StudioPlayerHandle } from "./StudioPlayer";
 import { Button, ErrorNote, Field, Panel, Segmented, StateBadge } from "./ui";
+import { picturesOnly } from "@src/providers/model-id";
 
 /** Player props together with the look and media version they were built for: file URLs must carry the same. */
 type Preview = { props: RenderProps; draft: boolean; lookKey: string; mediaKey: string };
@@ -304,6 +305,7 @@ export function Studio({ initial, initialLog, kits, publishing = false, versions
                   draft={state === "draft"}
                   canReroll={!working && (state === "done" || RESUMABLE.includes(state))}
                   version={Boolean(status.versionOf)}
+                  picturesOnly={picturesOnly(status.models)}
                   busy={busy}
                   onMode={(mode) => setMode(s.scene, mode)}
                   onReroll={(stage, label) => askReroll(s.scene, stage, label)}
@@ -444,8 +446,8 @@ function pictureOf(runId: string, scene: SceneStatus, version: string): string |
 }
 
 /** A scene as a panel of the board: its picture in a drawn frame, its line, and in red pencil what it is and how long it runs. */
-function SceneRow({ scene, picture, draft, canReroll, version = false, busy, onMode, onReroll }: {
-  scene: SceneStatus; picture: string | null; draft: boolean; canReroll: boolean; version?: boolean; busy: boolean;
+export function SceneRow({ scene, picture, draft, canReroll, version = false, picturesOnly = false, busy, onMode, onReroll }: {
+  scene: SceneStatus; picture: string | null; draft: boolean; canReroll: boolean; version?: boolean; picturesOnly?: boolean; busy: boolean;
   onMode: (mode: Mode) => void; onReroll: (stage: string, label: string) => void;
 }) {
   const has = (stage: string) => scene.steps.some((s) => s.stage === stage);
@@ -466,7 +468,10 @@ function SceneRow({ scene, picture, draft, canReroll, version = false, busy, onM
         {scene.shot === "continue" && <span>carries on from scene {scene.scene - 1}</span>}
         {scene.modeReason ? <span>{scene.modeReason}</span> : draft ? <span>provisional</span> : null}
         <span className="ml-auto">
-          {draft ? (
+          {/* (a video of pictures made where no clip engine is set up is never offered a clip, nor Auto, which could choose one) */}
+          {draft && picturesOnly ? (
+            <span data-testid={`scene-${scene.scene}-pictures-only`}>still only</span>
+          ) : draft ? (
             <Segmented<"auto" | "1" | "2">
               label={`Scene ${scene.scene} mode`}
               value={scene.override === null ? "auto" : (String(scene.override) as "1" | "2")}

@@ -54,7 +54,7 @@ export type DeployConfig = {
 export const DEFAULTS = {
   dataCenterId: "EU-RO-1",
   // Sized when it also held 31 GB of Wan's clip weights beside the picture model's 16 GB; a volume can grow, never
-  // shrink, so it keeps its size (a deploy takes the weights no worker lists off it).
+  // shrink, so it keeps its size. Wan's weights are still on it: only Wan's own worker took weights off the volume, and it is gone.
   volumeGb: 50,
   // 47 GB as above, plus the FLUX 3 weights and text encoder (about 20 GB): grown first, never shrunk
   volumeGbWithFlux3: 80,

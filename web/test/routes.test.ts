@@ -23,7 +23,7 @@ import { POST as makeVersion } from "@/app/api/runs/[id]/versions/route";
 import { POST as versionPrice } from "@/app/api/runs/[id]/versions/price/route";
 import { decodeLookToken, encodeLookToken } from "@/lib/look-token";
 import { readJob } from "@/server/jobs";
-import { CLIPS_UNAVAILABLE, NO_CLIPS_MODEL } from "@src/providers/model-id";
+import { CLIPS_UNAVAILABLE, NO_CLIPS_MODEL, PICTURES_ONLY } from "@src/providers/model-id";
 import { calls, draftManifest, finishedManifest, nextRunId, params, request, saveRun, stub, until, useStudio, withKeys } from "./helpers";
 
 const studio = useStudio();
@@ -357,19 +357,20 @@ describe("pricing and paid actions", () => {
     expect((await error(refused)).code).toBe("not_draft");
   });
 
-  it("refuses a clip pinned on a draft of pictures made where no clip engine was set up, and lets it pin pictures", async () => {
+  it("refuses a clip or Auto on a draft of pictures made where no clip engine was set up, and lets it pin a picture for every scene", async () => {
     const id = nextRunId();
     const m = draftManifest(id);
     m.models.video = NO_CLIPS_MODEL;
     await saveRun(studio, m);
     await stub(studio, "_plan.json", { items: [], totalUsd: 0.05 });
-    for (const pinned of [[1, 2, 2], [2, 1, null]]) {
+    // (Auto too: the rules could choose a clip, whose price would be approved and the clip then refused after the media was bought)
+    for (const pinned of [[1, 2, 2], [2, 1, null], [2, 2, null], [null, null, null]]) {
       const refused = await modes(request(`/api/runs/${id}/modes`, { json: { modes: pinned } }), params({ id }));
       expect(refused.status).toBe(400);
-      expect(await error(refused)).toMatchObject({ code: "validation", message: `modes: ${CLIPS_UNAVAILABLE}` });
+      expect(await error(refused)).toMatchObject({ code: "validation", message: `modes: ${PICTURES_ONLY}` });
     }
     expect(await calls(studio)).toEqual([]);
-    const ok = await modes(request(`/api/runs/${id}/modes`, { json: { modes: [2, 2, null] } }), params({ id }));
+    const ok = await modes(request(`/api/runs/${id}/modes`, { json: { modes: [2, 2, 2] } }), params({ id }));
     expect(ok.status).toBe(200);
   });
 

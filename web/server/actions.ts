@@ -10,7 +10,7 @@ import { requireManifest } from "./runs";
 import { multiTenant } from "./tenant";
 import { nativeVoices, offeredLanguages, readyVoices } from "./voices";
 import { soundNotMade } from "@src/stages/sound";
-import { CLIPS_UNAVAILABLE, NO_CLIPS_MODEL } from "@src/providers/model-id";
+import { CLIPS_UNAVAILABLE, PICTURES_ONLY, picturesOnly } from "@src/providers/model-id";
 import { versionProblem } from "@src/versions";
 import { canSpeakIn, type SpeechLanguage } from "@src/voice/language";
 import { draftArgs, formProblem, kitDir, type Look, modesArg, musicPath, type NewVideo, rerenderArgs } from "./schemas";
@@ -96,8 +96,9 @@ export async function setModes(runId: string, modes: Array<1 | 2 | null>): Promi
   const m = await requireManifest(runId);
   if (!statusOf(m).draft) throw new ApiError("not_draft", "media was already bought for this run, so its modes are fixed");
   if (m.request.modes) throw new ApiError("not_draft", "this run was created with fixed modes");
-  // a draft made of pictures where no clip engine was set up can never buy a clip: told now, not when it is generated
-  if (m.models.video === NO_CLIPS_MODEL && modes.includes(1)) throw new ApiError("validation", `modes: ${CLIPS_UNAVAILABLE}`);
+  // a draft made of pictures where no clip engine was set up can never buy a clip, pinned or chosen by the rules (Auto):
+  // told now, before a price is approved, not when it is generated (the CLI's `setDraftModes` refuses it too)
+  if (picturesOnly(m.models) && modes.some((mode) => mode !== 2)) throw new ApiError("validation", `modes: ${PICTURES_ONLY}`);
   if (await busy(runId)) throw new ApiError("job_active", `run ${runId} is working`);
   await cliJson(["draft-modes", runId, "--modes", modesArg(modes), "--json"]);
   return price(runId);

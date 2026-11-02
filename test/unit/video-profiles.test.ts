@@ -44,6 +44,8 @@ describe("the Wan profiles (old runs only)", () => {
       }
     }
     expect(RETIRED_CLIP_ENGINE).not.toMatch(/wan|runpod|ltx/i);
+    // (a Kling run, bought per clip, still has no run overhead)
+    expect(VIDEO_PROFILES["kling-v2"].runOverheadUsd(prices)).toBe(0);
   });
 });
 

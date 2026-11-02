@@ -3,6 +3,7 @@ import type { Manifest, Mode } from "../manifest/schema.js";
 import type { TimedWord } from "../media/remotion/caption-pages.js";
 import { audioStarts } from "../media/timeline.js";
 import { planModes, type PlanModesResult } from "../modes.js";
+import { PICTURES_ONLY, picturesOnly } from "../providers/model-id.js";
 import { pinnedForRules, pinnedModes, ruleScenes } from "../stages/modes.js";
 import { requireScript } from "../stages/require.js";
 import { wordsPerSecond } from "../duration.js";
@@ -84,6 +85,10 @@ export function setDraftModes(m: Manifest, overrides: Array<Mode | null>, keyfra
   if (overrides.length !== m.request.sceneCount) {
     throw new Error(`expected ${m.request.sceneCount} modes (one per scene), got ${overrides.length}`);
   }
+  // A run of pictures made without a clip engine can never buy a clip: not a pinned one, and not one the rules would choose
+  // for a scene left to them (Auto), whose price the owner would approve before the clip was refused after the voice and
+  // pictures were bought. Only a picture for every scene is accepted (phase 15 spec §13.10).
+  if (picturesOnly(m.models) && overrides.some((o) => o !== 2)) throw new Error(PICTURES_ONLY);
   if (overrides.some((o) => o !== null)) m.request.modeOverrides = overrides;
   else delete m.request.modeOverrides;
   const plan = draftEstimate(m, keyframeSize);

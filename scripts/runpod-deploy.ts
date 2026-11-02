@@ -128,7 +128,7 @@ async function fetchAll(client: RunpodClient, deployed: { keyframeEndpointId: st
     console.log(`Fetching ${kind} model weights onto the volume (the first time takes a while)…`);
     const done = await fetchModels(client, id, kind);
     console.log(`  downloaded ${done.downloaded.length}, already present ${done.skipped.length}`);
-    // weights the worker no longer lists (retired, or now inside its image) are taken off the volume
+    // (a worker that takes weights it no longer lists off the volume says which; the picture worker takes none, so Wan's stay on it)
     if (done.removed?.length) console.log(`  removed from the volume: ${done.removed.join(", ")}`);
   }
 }

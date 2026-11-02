@@ -16,6 +16,7 @@ import { statusOf } from "../../src/studio/status.js";
 import { fakeScript } from "../fakes/providers.js";
 import { planModes } from "../../src/modes.js";
 import { videoProfileOf } from "../../src/video-profiles.js";
+import { NO_CLIPS_MODEL, PICTURES_ONLY } from "../../src/providers/model-id.js";
 
 const opts = { dir: "/run", fontsDir: "/fonts", fps: 30, size: { width: 1080, height: 1920 } };
 const keyframeSize = { width: 1000, height: 1000 };
@@ -118,6 +119,31 @@ describe("draft modes", () => {
     expect(m.scenes.map((s) => s.mode)).toEqual([2, 2, 2]);
     expect(plan.reasons).toEqual(["set by you", "set by you", "auto: low action"]);
     expect(plan.estimatedUsd).toBeLessThan(before);
+  });
+
+  it("accepts only a picture for every scene of a run of pictures made without a clip engine, and refuses a clip or Auto plainly", () => {
+    const pictures = () => {
+      const m = draft();
+      m.models.video = NO_CLIPS_MODEL;
+      m.request.videoProfile = "ltx25@1";
+      m.request.modeOverrides = [2, 2, 2];
+      return m;
+    };
+    // Auto included: the rules would make the high-action scene a clip, priced and approved, then refused after the media was bought
+    for (const asked of [[1, 2, 2], [2, 2, null], [null, null, null], [2, 1, null]] as const) {
+      const m = pictures();
+      expect(() => setDraftModes(m, [...asked], keyframeSize), JSON.stringify(asked)).toThrow(PICTURES_ONLY);
+      expect(m.request.modeOverrides).toEqual([2, 2, 2]);
+    }
+    expect(PICTURES_ONLY).not.toMatch(/ltx|wan|runpod|FLOWCHAIN|endpoint|price/i);
+    const m = pictures();
+    const plan = setDraftModes(m, [2, 2, 2], keyframeSize);
+    expect(plan.modes).toEqual([2, 2, 2]);
+    expect(m.scenes.map((s) => s.mode)).toEqual([2, 2, 2]);
+    // and its estimate never plans a clip, whatever was pinned (no LTX rate is read: the table here has none)
+    const unpinned = pictures();
+    delete unpinned.request.modeOverrides;
+    expect(draftEstimate(unpinned, keyframeSize).modes).toEqual([2, 2, 2]);
   });
 
   it("clearing every pin removes the field, so the run is again as if it never had overrides", () => {

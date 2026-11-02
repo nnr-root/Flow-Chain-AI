@@ -25,9 +25,10 @@ describe("the restorer model a run freezes", () => {
 });
 
 describe("smooth motion on a run whose clips are not Wan's", () => {
-  it("is refused when the run is created, plainly and without naming a model, until a 24 fps clip is measured", () => {
-    expect(() => restorerFor({ fps: "60", videoProfile: "ltx25@1" }, env, prices)).toThrow(/24 frames a second/);
-    expect(() => restorerFor({ fps: "60", upscale: true, videoProfile: "ltx25@1" }, env, prices)).toThrow(/24 frames a second/);
+  it("is refused when the run is created, plainly, naming no model and assuming no clip (a run of pictures has none)", () => {
+    expect(() => restorerFor({ fps: "60", videoProfile: "ltx25@1" }, env, prices)).toThrow("smooth motion is not available for new videos");
+    expect(() => restorerFor({ fps: "60", upscale: true, videoProfile: "ltx25@1" }, env, prices)).toThrow("smooth motion is not available for new videos");
+    expect(() => restorerFor({ fps: "60", videoProfile: "ltx25@1" }, env, prices)).not.toThrow(/clip|24 frames/i);
     expect(() => restorerFor({ fps: "60", videoProfile: "ltx25@1" }, env, prices)).not.toThrow(/ltx|lightricks/i);
   });
 
