@@ -454,3 +454,13 @@ LTX run and the owner's viewing it was to wait for: the owner decided. LTX is th
 - **Not changed:** the warm-up stage (`src/stages/warmup.ts`) stays as it is, as a provider-neutral step: no clip provider has an early
   start any more, so it asks for none. An old Wan run stopped while its warm-up was pending keeps that record (its expected cost stays in
   `inFlight`), since no clip of it is bought again and so none settles it.
+- **Parked (task 16 review):** the form's Frame-rate control, `health().smooth`, the `createDraft`/`generate` gates on `smooth` and the series'
+  60 fps stop stay as dead-by-design code with no positive test until 60 fps returns for LTX, which needs a RIFE measurement on its 24 fps clips
+  (to 48, or thinned to 60). Every new run is refused at 60 fps meanwhile ("smooth motion is not available for new videos"); a 60 fps run made
+  before still loads and re-renders for free.
+- **Pictures only, enforced (task 16 review):** a run frozen with `NO_CLIPS_MODEL` accepts only a picture for every scene. `setDraftModes`
+  (the studio's and the CLI's `draft-modes`) refuses any other choice, Auto included (the rules could give a scene a clip whose price the owner
+  would approve and which would then be refused after the voice and pictures were bought), with `PICTURES_ONLY` ("this video is made of
+  pictures only: moving clips are not available in this studio right now"); the studio's `setModes` refuses it before the CLI is asked; the
+  draft page shows such a scene as a still with no Auto or Clip choice; and the rules (`pinnedForRules`) see every scene of such a run pinned
+  to a picture, so the modes stage never gives it a clip.

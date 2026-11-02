@@ -138,12 +138,13 @@ Both picture models are one image and one template, so any `runpod:deploy` puts 
 
 ### Smooth motion (60 fps, optional)
 
-A video can be made at 60 frames a second instead of 30. It is a choice made when the video is created (`--fps 60`, or "Frame rate" in
-the studio's form once it is switched on); it cannot be added to a video that exists, because chained clips are made for one frame rate.
-**Not available now.** Smooth motion was measured on Wan's clips only (made at 16 fps, delivered at 32 after its worker's own RIFE), and
+A video could be made at 60 frames a second instead of 30, chosen when it was created (`--fps 60`, or "Frame rate" in the studio's form);
+it cannot be added to a video that exists, because chained clips are made for one frame rate. **Not available now.** Smooth motion was measured on Wan's clips only (made at 16 fps, delivered at 32 after its worker's own RIFE), and
 Wan was removed on 2026-11-02; LTX's clips are 24 fps, and a new video asking for 60 fps is refused when it is created
-("smooth motion is not available yet for clips made at 24 frames a second"). The studio does not offer it, whatever
-`FLOWCHAIN_SMOOTH_MOTION` says, until it is measured on LTX's clips. What follows is how it worked on Wan's clips, and what to measure again.
+("smooth motion is not available for new videos"). The studio does not offer it, whatever
+`FLOWCHAIN_SMOOTH_MOTION` says, and `npm run flowchain -- run … --fps 60` is refused too, until it is measured on LTX's clips (RIFE
+from 24 to 48 or 60). A 60 fps video made before still loads and re-renders for free. What follows is how it worked on Wan's clips, and what to
+measure again.
 
 The default stays 30. At 60, every moving clip went through the restorer
 worker (`worker-upscale/`, the one that does Full HD), which interpolated it from 32 to 64 fps; the fit then thins 64 to 60, so one frame
@@ -163,7 +164,7 @@ To go back to the restorer image from before smooth motion, in this order:
 2. Wait for any 60 fps run that is already generating to end, or stop it: it would buy its clips and then fail at the restorer.
 3. `RUNPOD_UPSCALE_IMAGE=ghcr.io/<owner>/flowchain-upscale:u-415cd27e11cc npm run runpod:deploy`. That takes smooth motion down but not Full HD (the old image has the old workflow).
 
-The switch gates the studio only. `npm run flowchain -- run … --fps 60` (your own tool) is not gated by it, only by the four prices, so a 60 fps run from the command line after the rollback fails at the restorer.
+When it worked, the switch gated the studio only and the command line was gated by the four prices. Today every new 60 fps run is refused when it is created, from the studio and from the command line alike.
 
 ### Scene sound (optional)
 

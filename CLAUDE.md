@@ -66,7 +66,6 @@ read the one for the area you are changing before changing it (table at the end)
 npm run typecheck          # tsc for the pipeline and for web/
 npm test                   # everything in vitest (≈ 10 min; needs ffmpeg; more runs with the items below)
 npx vitest run <file>      # one file — the normal loop
-npm run flowchain -- run … --fps 60   # smooth motion (a paid run: the owner's click); not for an existing run
 npm run test:e2e           # studio in a browser, fixtures + stand-in CLI
 npm run test:accounts      # studio with accounts in a browser (needs db:start, redis-server); run it ALONE:
                            # it switches a database-wide setting on for a moment
@@ -156,8 +155,9 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
   be added to an existing run (chained clips are keyed on the frame rate). Rollback, in this order: (1) `FLOWCHAIN_SMOOTH_MOTION=off` FIRST (the form hides the control; new drafts and `generate` of
   60 fps drafts are refused; a series with a 60 fps recipe stops), (2) wait for any 60 fps run already generating to end or stop it (it
   would fail at the restorer after its clips are bought), (3) `RUNPOD_UPSCALE_IMAGE=ghcr.io/<owner>/flowchain-upscale:u-415cd27e11cc
-  npm run runpod:deploy` puts back the pre-phase-11 restorer image (smooth motion goes down, Full HD stays). `npm run flowchain -- run … --fps 60`
-  (the owner's own tool) is not gated by the switch, only by the four prices.
+  npm run runpod:deploy` puts back the pre-phase-11 restorer image (smooth motion goes down, Full HD stays). Today every new run is
+  refused at 60 fps by `restorerFor` (the CLI too, whatever the switch and the prices say); a 60 fps run made before still loads and
+  re-renders for free.
 - **A video is built from four layers chosen apart** (phase 8 spec §1): a niche (what it is about, its rules of
   truth), a type (`src/formats.ts`: how it is told), a style (how a picture is drawn) and an edit (`src/edits.ts`:
   camera, cuts, a finish over the frame). The niche's rules always hold; a type decides the hook and shape; an edit's
