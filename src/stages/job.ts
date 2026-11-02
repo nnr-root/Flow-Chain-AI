@@ -30,9 +30,15 @@ const WAIT_SLACK_MS = 30_000;
  * What an LTX clip's answer carries beyond its url (phase 15): kept with the result, as the provider gave it, so a stop
  * after the job is charged loses none of it. Only the keys a result has: every other kind of result is kept as it was.
  */
-function heard(result: object): Pick<NonNullable<ProviderJob["result"]>, "fps" | "hasAudio" | "words"> {
-  const r = result as Pick<NonNullable<ProviderJob["result"]>, "fps" | "hasAudio" | "words">;
-  return { ...(r.fps === undefined ? {} : { fps: r.fps }), ...(r.hasAudio === undefined ? {} : { hasAudio: r.hasAudio }), ...(r.words === undefined ? {} : { words: r.words }) };
+type Heard = Pick<NonNullable<ProviderJob["result"]>, "fps" | "hasAudio" | "words" | "voiceHeard">;
+function heard(result: object): Heard {
+  const r = result as Heard;
+  return {
+    ...(r.fps === undefined ? {} : { fps: r.fps }),
+    ...(r.hasAudio === undefined ? {} : { hasAudio: r.hasAudio }),
+    ...(r.words === undefined ? {} : { words: r.words }),
+    ...(r.voiceHeard === undefined ? {} : { voiceHeard: r.voiceHeard }),
+  };
 }
 
 /**

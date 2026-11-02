@@ -298,6 +298,8 @@ export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> impleme
         ...ltxSize(req.height, portrait),
         seed: req.seed,
         ...(req.speechLanguage === undefined ? {} : { speech_language: req.speechLanguage }),
+        // (only when asked: a worker image from before the voice check refuses a field it does not list)
+        ...(req.detectVoice === true ? { detect_voice: true } : {}),
       };
     }
     return {
@@ -322,11 +324,22 @@ export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> impleme
     if (raw === undefined) return { ...base, fps: LTX_FPS };
     const hasAudio = raw.has_audio;
     const words = ltxWords(raw.words);
+    const voiceHeard = raw.voice_heard ?? undefined;
     // (the clip is paid for either way: a malformed answer is unusable at its cost, never free and never retried)
-    if ((hasAudio !== undefined && typeof hasAudio !== "boolean") || words === "malformed") {
-      throw new UnusableResultError(`RunPod job ${jobId} answered a malformed has_audio or words`, costUsd);
+    if (
+      (hasAudio !== undefined && typeof hasAudio !== "boolean") ||
+      words === "malformed" ||
+      (voiceHeard !== undefined && typeof voiceHeard !== "boolean")
+    ) {
+      throw new UnusableResultError(`RunPod job ${jobId} answered a malformed has_audio, words or voice_heard`, costUsd);
     }
-    return { ...base, fps: LTX_FPS, ...(hasAudio === undefined ? {} : { hasAudio }), ...(words === undefined ? {} : { words }) };
+    return {
+      ...base,
+      fps: LTX_FPS,
+      ...(hasAudio === undefined ? {} : { hasAudio }),
+      ...(words === undefined ? {} : { words }),
+      ...(voiceHeard === undefined ? {} : { voiceHeard }),
+    };
   }
 
   /**

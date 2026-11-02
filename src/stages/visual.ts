@@ -56,15 +56,30 @@ export function motionPrompt(script: Script, i: number, preset: StylePreset | nu
 }
 
 /**
+ * What an ordinary LTX scene's prompt ends with (phase 15 spec §13.10): in a narrated video the narrator is the only voice,
+ * and LTX makes the sound with the picture, so it is told not to make another. Fixed words, after the scene's own
+ * "Audio:" sentence; a change to them changes every ordinary LTX clip's key.
+ */
+export const NO_VOICES_SENTENCE = " No voices, no speech, no singing; only ambience and sound effects.";
+
+/**
  * The prompt a scene's clip is asked with. An LTX run sends the script's own `videoPrompt` and nothing else: the
  * preset's motion keywords, the edit's motion words ("cinematic") and the art style pull LTX towards a widescreen film
  * look in a vertical frame (phase 15 spec §1, §4). A scene without one (a script written before it) falls back to the
- * motion prompt; every other profile is asked exactly as before, so its clips keep their keys.
+ * motion prompt; every other profile is asked exactly as before, so its clips keep their keys. An LTX scene that does not
+ * speak also asks for no voice; a `speaking` one is asked as it was, since its voice is the point of it.
  */
-export function clipPrompt(script: Script, i: number, preset: StylePreset | null, edit: Edit | undefined, profile: VideoProfileId | undefined): string {
-  const own = script.scenes[i].videoPrompt?.trim();
-  if (profile === "ltx25@1" && own) return own;
-  return motionPrompt(script, i, preset, edit);
+export function clipPrompt(
+  script: Script,
+  i: number,
+  preset: StylePreset | null,
+  edit: Edit | undefined,
+  profile: VideoProfileId | undefined,
+  speaking: boolean,
+): string {
+  if (profile !== "ltx25@1") return motionPrompt(script, i, preset, edit);
+  const prompt = script.scenes[i].videoPrompt?.trim() || motionPrompt(script, i, preset, edit);
+  return speaking ? prompt : `${prompt}${NO_VOICES_SENTENCE}`;
 }
 
 /**

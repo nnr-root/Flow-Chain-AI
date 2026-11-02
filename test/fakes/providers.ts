@@ -235,7 +235,14 @@ export class FakeLtxVideo extends FakeQueue<VideoRequest, VideoOutput> implement
   silent = false;
   /** Seconds the clip's sound runs past its picture (0: cut to it), as an mp4's sound track can by a few ms. */
   audioTailSec = 0;
+  /** Whether the worker hears a voice in the clip a request makes, answered only when the request asks (`detectVoice`). */
+  voiceIn: (req: VideoRequest) => boolean = () => false;
   protected async render(req: VideoRequest, n: number, path: (name: string) => string) {
+    const made = await this.renderClip(req, n, path);
+    return req.detectVoice ? { ...made, out: { ...made.out, voiceHeard: !this.silent && this.voiceIn(req) } } : made;
+  }
+
+  private async renderClip(req: VideoRequest, n: number, path: (name: string) => string): Promise<{ out: VideoOutput; file: string }> {
     const file = path(`ltx_${n}.mp4`);
     const frames = Math.round(req.durationSec * 24);
     const video = ["-f", "lavfi", "-i", `color=black:s=180x320:r=24,geq=lum='16+mod(N*37+${(n * 53) % 200}\\,200)':cb=128:cr=128`];

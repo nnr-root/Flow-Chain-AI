@@ -15,7 +15,7 @@ import { scriptStage } from "../../src/stages/script.js";
 import { silenceStage } from "../../src/stages/silence.js";
 import { soundStage } from "../../src/stages/sound.js";
 import { ttsStage } from "../../src/stages/tts.js";
-import { sceneFrames } from "../../src/stages/visual.js";
+import { NO_VOICES_SENTENCE, sceneFrames } from "../../src/stages/visual.js";
 import { sceneStagesShown } from "../../src/studio/status.js";
 import { FakeLtxVideo, FakeSound, fakeScript } from "../fakes/providers.js";
 import { makeTestContext } from "../helpers/context.js";
@@ -239,5 +239,53 @@ describe("a scene's own clip sound", () => {
     expect(await fileSha256(clip)).toBe(before);
     const log = await ffmpeg(["-i", abs(ctx, paths.sound(0)), "-f", "null", "-"], { logLevel: "info" });
     expect(log).toMatch(/comment\s*:\s*provenance-test/);
+  });
+});
+
+// Phase 15 spec §13.10: in a narrated video, a character is never heard speaking in an ordinary scene's clip sound.
+describe("a voice in an ordinary scene's clip sound", () => {
+  it("is asked against in the prompt and listened for in every ordinary scene, and in no speaking scene", async () => {
+    const { ctx, ltx } = await ltxRun({ speaking: [1] });
+    await runPipeline(ctx, MEDIA, auto);
+    const script = ctx.manifest.script!;
+    // (scene 1 is made second: the clips stage runs scene by scene)
+    const [first, spoken, last] = ltx.submits;
+    expect(first.prompt).toBe(script.scenes[0].videoPrompt + NO_VOICES_SENTENCE);
+    expect(last.prompt).toBe(script.scenes[2].videoPrompt + NO_VOICES_SENTENCE);
+    expect(spoken.prompt).toBe(script.scenes[1].videoPrompt);
+    expect([first.detectVoice, spoken.detectVoice, last.detectVoice]).toEqual([true, undefined, true]);
+  });
+
+  it("takes the clip's sound out of the video: the scene gets no sound step and the render lays no sound under it", async () => {
+    const { ctx, ltx } = await ltxRun();
+    const voiced = (req: { prompt: string }) => req.prompt.startsWith(ctx.manifest.script!.scenes[1].videoPrompt!);
+    ltx.voiceIn = voiced;
+    await runPipeline(ctx, MEDIA.slice(0, -1), auto);
+    const m = ctx.manifest;
+    expect(m.scenes.map((s) => s.clip!.voiceHeard)).toEqual([false, true, false]);
+    expect((await planRun(ctx, MEDIA)).items.filter((i) => i.stage === "sound").map((i) => i.scene)).toEqual([0, 2]);
+    await runPipeline(ctx, MEDIA, auto);
+    expect(m.scenes[1].sound).toBeUndefined();
+    expect(sceneStagesShown(m, 1)).not.toContain("sound");
+    expect(props(ctx).audio.sound.map((s) => s.src)).toEqual([paths.sound(0), paths.sound(2)]);
+    expect(renderStage.deps(m).filter((d) => d.stage === "sound").map((d) => d.scene)).toEqual([0, 2]);
+  });
+
+  it("is never played from a sound kept from an earlier clip of a scene whose new clip was heard to carry a voice", async () => {
+    const { ctx } = await ltxRun();
+    await runPipeline(ctx, MEDIA, auto);
+    expect(props(ctx).audio.sound).toHaveLength(3);
+    // (as a clip made again carries a voice: the sound taken from the clip before it is still on record)
+    ctx.manifest.scenes[1].clip!.voiceHeard = true;
+    expect(ctx.manifest.scenes[1].sound).toBeDefined();
+    expect(props(ctx).audio.sound.map((s) => s.src)).toEqual([paths.sound(0), paths.sound(2)]);
+  });
+
+  it("leaves a clip whose voice is unknown, as in a run made before the check, with its sound as before", async () => {
+    const { ctx } = await ltxRun();
+    await runPipeline(ctx, MEDIA.slice(0, -1), auto);
+    for (const s of ctx.manifest.scenes) delete s.clip!.voiceHeard;
+    await runPipeline(ctx, MEDIA, auto);
+    expect(ctx.manifest.scenes.map((s) => s.sound?.source)).toEqual(["clip", "clip", "clip"]);
   });
 });

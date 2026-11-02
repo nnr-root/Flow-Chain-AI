@@ -367,6 +367,16 @@ describe("the LTX clip worker (phase 15)", () => {
     expect((await video.prepare({ imagePath: tall, prompt: "p", durationSec: 121 / 24, seed: 1, speechLanguage: "tr" })).input).toMatchObject({ speech_language: "tr" });
   });
 
+  it("asks the LTX worker to listen for a voice only when the request says so, and sends nothing otherwise", async () => {
+    const { tall } = await pictures();
+    const video = new RunpodVideo(deps(new FakeRunpodApi(() => [])), ltx);
+    const ask = (detectVoice?: boolean) =>
+      video.prepare({ imagePath: tall, prompt: "p", durationSec: 121 / 24, seed: 1, ...(detectVoice === undefined ? {} : { detectVoice }) });
+    expect((await ask(true)).input).toMatchObject({ detect_voice: true });
+    expect((await ask(false)).input).not.toHaveProperty("detect_voice");
+    expect((await ask()).input).not.toHaveProperty("detect_voice");
+  });
+
   it("sends the LTX worker only fields its contract lists, portrait or landscape, speaking or not", async () => {
     // The worker refuses any field it does not list (worker-ltx contract.py, FIELDS). The list is read from the Python
     // file itself rather than copied here, so the two cannot drift; a shared JSON file would have to be baked into the image.
@@ -374,14 +384,16 @@ describe("the LTX clip worker (phase 15)", () => {
     const line = /^FIELDS\s*=\s*\{([^}]*)\}/m.exec(contract);
     expect(line, "FIELDS = {...} in contract.py").not.toBeNull();
     const fields = [...line![1].matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
-    expect(fields).toEqual(expect.arrayContaining(["task", "image", "prompt", "frames", "fps", "width", "height", "seed", "speech_language"]));
+    expect(fields).toEqual(expect.arrayContaining(["task", "image", "prompt", "frames", "fps", "width", "height", "seed", "speech_language", "detect_voice"]));
     const { tall, wide } = await pictures();
     const video = new RunpodVideo(deps(new FakeRunpodApi(() => [])), ltx);
     for (const imagePath of [tall, wide]) {
       for (const speechLanguage of [undefined, "en"]) {
-        const { input } = await video.prepare({ imagePath, prompt: "p", durationSec: 121 / 24, seed: 3, ...(speechLanguage ? { speechLanguage } : {}) });
-        const extra = Object.keys(input).filter((k) => !fields.includes(k));
-        expect(extra, `${imagePath} ${speechLanguage}`).toEqual([]);
+        for (const detectVoice of [false, true]) {
+          const { input } = await video.prepare({ imagePath, prompt: "p", durationSec: 121 / 24, seed: 3, detectVoice, ...(speechLanguage ? { speechLanguage } : {}) });
+          const extra = Object.keys(input).filter((k) => !fields.includes(k));
+          expect(extra, `${imagePath} ${speechLanguage} ${detectVoice}`).toEqual([]);
+        }
       }
     }
   });
@@ -416,6 +428,7 @@ describe("the LTX clip worker (phase 15)", () => {
     const before = { task: "clip", image: (await readFile(tall)).toString("base64"), prompt: "m", frames: 81, fps: 16, width: 480, height: 832, workflow: "clip-wan22-480p@1" };
     expect((await video.prepare({ imagePath: tall, prompt: "m", durationSec: 81 / 16 })).input).toEqual(before);
     expect((await video.prepare({ imagePath: tall, prompt: "m", durationSec: 81 / 16, seed: 9, speechLanguage: "en" })).input).toEqual(before);
+    expect((await video.prepare({ imagePath: tall, prompt: "m", durationSec: 81 / 16, detectVoice: true })).input).toEqual(before);
     // and in the same order, which is what goes over the wire
     expect(Object.keys((await video.prepare({ imagePath: tall, prompt: "m", durationSec: 81 / 16 })).input)).toEqual(["task", "image", "prompt", "frames", "fps", "width", "height", "workflow"]);
   });
@@ -450,11 +463,19 @@ describe("the LTX clip worker (phase 15)", () => {
     expect((await collected({ url: "https://r2/c.mp4", has_audio: true, words: [{ text: "a", start: 0, end: 0 }] })).words).toEqual([{ text: "a", start: 0, end: 0 }]);
   });
 
+  it("reads whether a voice was heard in an LTX clip, and leaves it unknown when the worker did not say", async () => {
+    expect((await collected({ url: "https://r2/c.mp4", has_audio: true, words: null, voice_heard: true })).voiceHeard).toBe(true);
+    expect((await collected({ url: "https://r2/c.mp4", has_audio: true, words: null, voice_heard: false })).voiceHeard).toBe(false);
+    const unasked = await collected({ url: "https://r2/c.mp4", has_audio: true, words: null });
+    expect(unasked).not.toHaveProperty("voiceHeard");
+  });
+
   it("returns none of the three for a Wan clip, whatever its answer carries", async () => {
-    const out = await collected({ url: "https://r2/c.mp4", has_audio: true, words: [{ text: "x", start: 0, end: 1 }] }, wan);
+    const out = await collected({ url: "https://r2/c.mp4", has_audio: true, words: [{ text: "x", start: 0, end: 1 }], voice_heard: true }, wan);
     expect(out).not.toHaveProperty("fps");
     expect(out).not.toHaveProperty("hasAudio");
     expect(out).not.toHaveProperty("words");
+    expect(out).not.toHaveProperty("voiceHeard");
   });
 
   it("refuses a malformed answer as paid for but unusable, with the job's cost", async () => {
@@ -469,6 +490,8 @@ describe("the LTX clip worker (phase 15)", () => {
       { has_audio: true, words: [{ text: "a", start: -0.1, end: 1 }] },
       { has_audio: true, words: [{ text: "a", start: 0, end: -1 }] },
       { has_audio: true, words: [{ text: "a", start: 1.2, end: 1.1 }] },
+      { has_audio: true, voice_heard: "no" },
+      { has_audio: true, voice_heard: 1 },
     ]) {
       const err = await collected({ url: "https://r2/c.mp4", ...bad }).catch((e: unknown) => e);
       expect(err, JSON.stringify(bad)).toBeInstanceOf(UnusableResultError);
@@ -486,6 +509,7 @@ describe("the LTX clip worker (phase 15)", () => {
     expect(out.hasAudio).toBeUndefined();
     expect(out.words).toBeUndefined();
     expect(out.words).not.toEqual([]);
+    expect(out.voiceHeard).toBeUndefined();
   });
 });
 

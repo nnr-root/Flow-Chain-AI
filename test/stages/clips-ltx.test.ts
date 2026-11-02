@@ -21,7 +21,7 @@ import type { R2 } from "../../src/providers/r2.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
 import { RunpodVideo } from "../../src/providers/runpod-providers.js";
 import { FakeRunpodApi } from "../fakes/runpod.js";
-import { clipPrompt, motionPrompt, sceneFrames } from "../../src/stages/visual.js";
+import { clipPrompt, motionPrompt, NO_VOICES_SENTENCE, sceneFrames } from "../../src/stages/visual.js";
 import { videoProfileOf } from "../../src/video-profiles.js";
 import { FakeLtxVideo, FakeUpscale } from "../fakes/providers.js";
 import { makeTestContext } from "../helpers/context.js";
@@ -46,7 +46,8 @@ describe("the clips stage on LTX", () => {
     const { ctx, ltx } = await ltxRun({ seed: 7 });
     await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
     const script = ctx.manifest.script!;
-    expect(ltx.submits.map((r) => r.prompt)).toEqual([script.scenes[0].videoPrompt, script.scenes[1].videoPrompt]);
+    // (an ordinary scene's prompt ends by asking for no voice: the narrator is the only one such a video has)
+    expect(ltx.submits.map((r) => r.prompt)).toEqual([script.scenes[0].videoPrompt + NO_VOICES_SENTENCE, script.scenes[1].videoPrompt + NO_VOICES_SENTENCE]);
     expect(ltx.submits.map((r) => r.height)).toEqual([640, 640]);
     ltx.submits.forEach((r, i) => {
       const frames = r.durationSec * 24;
@@ -57,6 +58,36 @@ describe("the clips stage on LTX", () => {
     expect(ltx.submits.map((r) => r.seed)).toEqual([soundSeed(7, 0, 0), soundSeed(7, 1, 0)]);
     // nothing a scene speaks is asked for here (a speaking scene is a later task)
     expect(ltx.submits.every((r) => r.speechLanguage === undefined)).toBe(true);
+    // and the worker is asked to listen for a voice in every one of them
+    expect(ltx.submits.map((r) => r.detectVoice)).toEqual([true, true]);
+  });
+
+  it("records whether a voice was heard on the clip and with the job's answer, and keeps it when the paid result is reused", async () => {
+    const { ctx, ltx } = await ltxRun();
+    ltx.voiceIn = (req) => req.seed === clipSeed(ctx.manifest, 1);
+    await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
+    const m = ctx.manifest;
+    expect(m.scenes.map((s) => s.clip!.voiceHeard)).toEqual([false, true]);
+    expect(m.scenes[1].jobs.clips!.result).toMatchObject({ voiceHeard: true });
+    // stopped after the job was paid for and before the clip was recorded
+    delete m.scenes[1].clip;
+    delete m.scenes[1].stages.clips;
+    await runPipeline(ctx, [clipsStage], auto);
+    expect(ltx.submits).toHaveLength(2);
+    expect(m.scenes[1].clip!.voiceHeard).toBe(true);
+  });
+
+  it("leaves a voice unknown, never absent, for a result kept before the worker answered it", async () => {
+    const { ctx, ltx } = await ltxRun({ shots: ["cut"] });
+    ltx.voiceIn = () => true;
+    await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
+    const job = ctx.manifest.scenes[0].jobs.clips!;
+    job.result = { url: job.result!.url, fps: 24, hasAudio: true };
+    delete ctx.manifest.scenes[0].clip;
+    delete ctx.manifest.scenes[0].stages.clips;
+    await runPipeline(ctx, [clipsStage], auto);
+    expect(ltx.submits).toHaveLength(1);
+    expect(ctx.manifest.scenes[0].clip).not.toHaveProperty("voiceHeard");
   });
 
   it("records the clip's own frame rate and sound on the clip", async () => {
@@ -64,7 +95,7 @@ describe("the clips stage on LTX", () => {
     await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
     const clip = ctx.manifest.scenes[0].clip!;
     expect(clip).toMatchObject({ path: paths.clip(0), fps: 24, hasAudio: true });
-    expect(Object.keys(clip).sort()).toEqual(["duration", "fps", "hasAudio", "path", "requestedSec", "sourceUrl"]);
+    expect(Object.keys(clip).sort()).toEqual(["duration", "fps", "hasAudio", "path", "requestedSec", "sourceUrl", "voiceHeard"]);
     expect((await probeVideo(abs(ctx, clip.path))).fps).toBe(24);
   });
 
@@ -142,14 +173,23 @@ describe("the clips stage on LTX", () => {
     await runPipeline(ctx, [scriptStage], auto);
     ctx.manifest.script!.scenes[0].videoPrompt = "";
     await runPipeline(ctx, [ttsStage, silenceStage, keyframesStage, clipsStage], auto);
-    expect(ltx.submits[0].prompt).toBe(motionPrompt(ctx.manifest.script!, 0, PRESETS.cinematic_history));
+    expect(ltx.submits[0].prompt).toBe(motionPrompt(ctx.manifest.script!, 0, PRESETS.cinematic_history) + NO_VOICES_SENTENCE);
+  });
+
+  it("keys an ordinary scene's clip on the prompt that asks for no voice, so a clip bought before the guard is bought again", async () => {
+    const { ctx } = await ltxRun({ shots: ["cut"] });
+    await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage], auto);
+    const inputs = (await clipsStage.inputsFor(ctx, 0)) as Record<string, unknown>;
+    // (the key a clip of this scene had before: the script's prompt alone)
+    const before = await computeHash(ctx, { ...clipsStage, inputsFor: async () => ({ ...inputs, prompt: ctx.manifest.script!.scenes[0].videoPrompt }) }, 0);
+    expect(await computeHash(ctx, clipsStage, 0)).not.toBe(before);
   });
 
   it("keys the clip on the prompt it sends and on its seed", async () => {
     const { ctx } = await ltxRun();
     await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
     const hash = await computeHash(ctx, clipsStage, 0);
-    expect(await clipsStage.inputsFor(ctx, 0)).toMatchObject({ prompt: ctx.manifest.script!.scenes[0].videoPrompt, seed: clipSeed(ctx.manifest, 0), height: 640 });
+    expect(await clipsStage.inputsFor(ctx, 0)).toMatchObject({ prompt: ctx.manifest.script!.scenes[0].videoPrompt + NO_VOICES_SENTENCE, seed: clipSeed(ctx.manifest, 0), height: 640 });
     ctx.manifest.script!.scenes[0].videoPrompt = "A grey fox sits still. Audio: wind.";
     const reprompted = await computeHash(ctx, clipsStage, 0);
     expect(reprompted).not.toBe(hash);
@@ -218,6 +258,7 @@ describe("a Wan run's clips are asked for and keyed exactly as before", () => {
     await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
     expect(fakes.video.submits[0].prompt).toBe(motionPrompt(ctx.manifest.script!, 0, PRESETS.cinematic_history));
     expect(fakes.video.submits[0].seed).toBeUndefined();
+    expect(fakes.video.submits[0].detectVoice).toBeUndefined();
     expect(Object.keys(ctx.manifest.scenes[0].clip!).sort()).toEqual(["duration", "path", "requestedSec", "sourceUrl"]);
   });
 
@@ -227,11 +268,14 @@ describe("a Wan run's clips are asked for and keyed exactly as before", () => {
       await runPipeline(ctx, [scriptStage], auto);
       const s = ctx.manifest.script!;
       for (const p of [undefined, "kling-v2", "wan22-480p@1", "wan22-720p@1"] as const) {
-        expect(clipPrompt(s, 0, PRESETS.anime, undefined, p)).toBe(motionPrompt(s, 0, PRESETS.anime));
+        for (const speaking of [false, true]) expect(clipPrompt(s, 0, PRESETS.anime, undefined, p, speaking)).toBe(motionPrompt(s, 0, PRESETS.anime));
       }
-      expect(clipPrompt(s, 0, PRESETS.anime, undefined, "ltx25@1")).toBe(s.scenes[0].videoPrompt);
+      // an ordinary LTX scene ends by asking for no voice; a speaking one is asked exactly as before
+      expect(clipPrompt(s, 0, PRESETS.anime, undefined, "ltx25@1", false)).toBe(s.scenes[0].videoPrompt + NO_VOICES_SENTENCE);
+      expect(clipPrompt(s, 0, PRESETS.anime, undefined, "ltx25@1", true)).toBe(s.scenes[0].videoPrompt);
       delete s.scenes[0].videoPrompt;
-      expect(clipPrompt(s, 0, PRESETS.anime, undefined, "ltx25@1")).toBe(motionPrompt(s, 0, PRESETS.anime));
+      expect(clipPrompt(s, 0, PRESETS.anime, undefined, "ltx25@1", false)).toBe(motionPrompt(s, 0, PRESETS.anime) + NO_VOICES_SENTENCE);
+      expect(clipPrompt(s, 0, PRESETS.anime, undefined, "ltx25@1", true)).toBe(motionPrompt(s, 0, PRESETS.anime));
     });
   });
 });

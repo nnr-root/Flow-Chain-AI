@@ -132,13 +132,31 @@ export type ImageProvider = QueuedProvider<ImageRequest, ImageOutput>;
 /**
  * `height`: the short side clips are generated at (480 or 720 for Wan, 640 for LTX), where the run chooses; absent = the provider's own.
  * `seed`: the scene's own (LTX requires one; Wan is not sent it). `speechLanguage`: only for a scene that speaks (LTX), so its words come back.
+ * `detectVoice`: only for an LTX scene that does not speak, so the worker says whether a voice is heard in its sound anyway.
  */
-export type VideoRequest = { imagePath: string; prompt: string; durationSec: number; height?: number; seed?: number; speechLanguage?: string };
+export type VideoRequest = {
+  imagePath: string;
+  prompt: string;
+  durationSec: number;
+  height?: number;
+  seed?: number;
+  speechLanguage?: string;
+  detectVoice?: boolean;
+};
 /**
  * `fps`, `hasAudio`, `words`: what an LTX clip carries (phase 15); absent for any other clip. `words` absent = not asked for
- * or not known (a clip recovered from the bucket); `[]` = asked for, and nothing was said.
+ * or not known (a clip recovered from the bucket); `[]` = asked for, and nothing was said. `voiceHeard`: the answer to
+ * `detectVoice`; absent = not asked for or not known.
  */
-export type VideoOutput = { url: string; costUsd?: number; remove?: () => Promise<void>; fps?: number; hasAudio?: boolean; words?: WordTiming[] };
+export type VideoOutput = {
+  url: string;
+  costUsd?: number;
+  remove?: () => Promise<void>;
+  fps?: number;
+  hasAudio?: boolean;
+  words?: WordTiming[];
+  voiceHeard?: boolean;
+};
 export type VideoProvider = QueuedProvider<VideoRequest, VideoOutput> & {
   /**
    * Starts the provider's worker ahead of the first clip and returns the request's id without waiting. It buys

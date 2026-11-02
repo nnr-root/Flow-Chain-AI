@@ -219,10 +219,19 @@ export const ProviderJob = z.object({
    * clip's frame rate, whether it has sound and the words heard in it are kept with it (phase 15): a speaking scene's
    * audio is made from them. Absent on every other result and on results kept before. `savedBytes`: the size of the run's
    * own copy once it was downloaded, written before the provider's copy is taken away, so a reuse takes the file on
-   * disk instead of downloading what is no longer there.
+   * disk instead of downloading what is no longer there. `voiceHeard`: whether a voice was heard in an ordinary LTX
+   * clip's sound (spec §13.10), kept so a reused clip still keeps a stranger's voice out of the video.
    */
   result: z
-    .object({ url: z.string(), seed: z.number().optional(), fps: z.number().positive().optional(), hasAudio: z.boolean().optional(), words: z.array(HeardWordSchema).optional(), savedBytes: z.number().int().positive().optional() })
+    .object({
+      url: z.string(),
+      seed: z.number().optional(),
+      fps: z.number().positive().optional(),
+      hasAudio: z.boolean().optional(),
+      words: z.array(HeardWordSchema).optional(),
+      voiceHeard: z.boolean().optional(),
+      savedBytes: z.number().int().positive().optional(),
+    })
     .optional(),
 });
 export type ProviderJob = z.infer<typeof ProviderJob>;
@@ -262,6 +271,11 @@ export const SceneState = z.object({
       fps: z.number().positive().optional(),
       /** Whether the clip carries its own sound (an LTX clip); absent on every clip made before, which has none. */
       hasAudio: z.boolean().optional(),
+      /**
+       * Whether a voice was heard in an ordinary LTX clip's sound (phase 15 spec §13.10): then its sound is never used.
+       * Absent = not listened for (a clip made before the check, a speaking scene's, a Wan clip) or not known.
+       */
+      voiceHeard: z.boolean().optional(),
     })
     .optional(),
   /** The clip upscaled to full HD (phase 8 spec §8): what the fit plays where the run asked for it. */

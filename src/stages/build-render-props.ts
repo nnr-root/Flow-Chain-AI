@@ -74,7 +74,10 @@ export function buildRenderProps(m: Manifest, opts: RenderPropsOptions, captions
     narration: { rel: paths.narration, abs: join(opts.dir, paths.narration) },
     sound: (i, publish) => {
       const sound = m.scenes[i].sound;
-      return m.request.render.sfx && sound ? publish(sound.path, join(opts.dir, sound.path)) : null;
+      // a clip's own sound is never played once its clip was heard to carry a voice (phase 15 spec §13.10): the sound
+      // stage no longer applies to that scene, but a sound taken from a clip made before it would still be on record
+      const voiced = sound?.source === "clip" && m.scenes[i].clip?.voiceHeard === true;
+      return m.request.render.sfx && sound && !voiced ? publish(sound.path, join(opts.dir, sound.path)) : null;
     },
   });
 }

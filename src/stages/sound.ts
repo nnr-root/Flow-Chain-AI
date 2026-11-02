@@ -38,13 +38,17 @@ export function soundNotMade(m: Manifest): boolean {
  * wins wherever a run has it (§6.3). A speaking scene has none: its clip's sound already is its voice, and laid down again
  * it would be heard twice. Not tied to sound effects being on: it is made for nothing, so a re-render that turns them on
  * finds it there, and the render plays it only while they are on (as it does a Foley sound).
+ * A clip in whose sound the worker heard a voice has none either (spec §13.10): the narrator is the only voice a
+ * narrated video has, and silence is better than a stranger speaking over them. A false alarm (ambience heard as a word)
+ * costs that scene only its ambience; a clip never listened to (made before the check) keeps its sound as before.
  */
 export const hasClipSound = (m: Manifest, i: number): boolean =>
   m.request.videoProfile === "ltx25@1" &&
   m.request.sceneSound !== true &&
   m.scenes[i].mode === 1 &&
   !isSpeaking(m, i) &&
-  m.scenes[i].clip?.hasAudio !== false;
+  m.scenes[i].clip?.hasAudio !== false &&
+  m.scenes[i].clip?.voiceHeard !== true;
 
 /** Whether scene i has a sound stage at all: a Foley sound bought for it, or its clip's own taken out of it. */
 export const soundApplies = (m: Manifest, i: number): boolean => hasSceneSound(m, i) || hasClipSound(m, i);

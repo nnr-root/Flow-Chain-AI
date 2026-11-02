@@ -208,6 +208,20 @@ describe("what an LTX run adds to the manifest (phase 15)", () => {
     expect(loaded.request.speech).toBe(true);
   });
 
+  it("keeps whether a voice was heard in an ordinary LTX clip, on the clip and with the job's answer, and loads one that never said", () => {
+    const m = withScript([scene]);
+    m.scenes[0].clip = { path: "c.mp4", duration: 5.04, fps: 24, hasAudio: true, voiceHeard: true };
+    m.scenes[0].jobs.clips = { requestId: "j1", inputHash: "h", submittedAt: "2026-11-02T00:00:00Z", chargedUsd: 0.03, result: { url: "https://r2/c.mp4", fps: 24, hasAudio: true, voiceHeard: false } };
+    const loaded = Manifest.parse(JSON.parse(JSON.stringify(m)));
+    expect(loaded.scenes[0].clip?.voiceHeard).toBe(true);
+    expect(loaded.scenes[0].jobs.clips?.result?.voiceHeard).toBe(false);
+    delete m.scenes[0].clip!.voiceHeard;
+    delete m.scenes[0].jobs.clips!.result!.voiceHeard;
+    const before = Manifest.parse(JSON.parse(JSON.stringify(m)));
+    expect(before.scenes[0].clip).not.toHaveProperty("voiceHeard");
+    expect(before.scenes[0].jobs.clips?.result).not.toHaveProperty("voiceHeard");
+  });
+
   it("loads a script being written in parts that was stopped before scenes had a sound prompt, a prompt for LTX or a sentence", () => {
     const answered = { ...scene, actionLevel: "high", suggestedTransition: "fade", showsCharacter: true };
     const m = { ...createManifest("run-1", request, models), scriptParts: { inputHash: "h", parts: [[{ ...answered, soundPrompt: "wind" }], [answered]] } };

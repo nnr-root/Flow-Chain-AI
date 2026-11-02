@@ -157,7 +157,7 @@ export const clipsStage: Stage = {
     const base = {
       mode: 1,
       model: m.models.video,
-      prompt: clipPrompt(script, i, effectivePreset(m), editById(m.request.edit), m.request.videoProfile),
+      prompt: clipPrompt(script, i, effectivePreset(m), editById(m.request.edit), m.request.videoProfile, isSpeaking(m, i)),
       requestedSec: clipSeconds(m, i),
       // (only where the run chose a size: Wan 480p has none, so every earlier run's cache keys stay as they were)
       ...(profile.clipHeight ? { height: profile.clipHeight } : {}),
@@ -216,11 +216,13 @@ export const clipsStage: Stage = {
           const imagePath = needsKeyframe(m, i) ? abs(ctx, paths.keyframe(i)) : await writeSeam(ctx, i);
           return ctx.providers.video.prepare({
             imagePath,
-            prompt: clipPrompt(script, i, effectivePreset(m), editById(m.request.edit), m.request.videoProfile),
+            prompt: clipPrompt(script, i, effectivePreset(m), editById(m.request.edit), m.request.videoProfile, speaking),
             durationSec: seconds,
             ...(profile.clipHeight ? { height: profile.clipHeight } : {}),
             ...(seeded(m) ? { seed: clipSeed(m, i, remake) } : {}),
             ...(language === undefined ? {} : { speechLanguage: language }),
+            // an ordinary LTX scene is listened to for a voice the prompt asked it not to make (phase 15 spec §13.10)
+            ...(seeded(m) && !speaking ? { detectVoice: true } : {}),
           });
         },
         submit: (job, signal) => ctx.providers.video.submit(job, { signal }),
@@ -249,6 +251,8 @@ export const clipsStage: Stage = {
         requestedSec: seconds,
         ...(fps === undefined ? {} : { fps }),
         ...(result.hasAudio === undefined ? {} : { hasAudio: result.hasAudio }),
+        // (unknown where the worker did not say: a result kept before the check, or one recovered from the bucket)
+        ...(result.voiceHeard === undefined ? {} : { voiceHeard: result.voiceHeard }),
       };
       if (remake >= (MAX_REMAKES.clips ?? 0)) break;
       const look = await clipFrames(out, abs(ctx, `frames/look_${i + 1}`));
