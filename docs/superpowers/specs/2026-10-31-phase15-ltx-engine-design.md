@@ -468,3 +468,38 @@ LTX run and the owner's viewing it was to wait for: the owner decided. LTX is th
 ### 13.11 The Wan resources on RunPod (2026-11-02)
 
 On the owner's word ("Wan'ı sil") the idle endpoint `flowchain-clip` (id `1suajtiyoa47kr`: no queue, no workers) and its template `flowchain-worker` (id `ug9tka6z26`) were deleted through RunPod's REST API; both answered 204 and a second listing no longer shows them. Not touched: the network volume `flowchain-weights` (shared with the picture endpoints, still holding Wan's model files: they cost storage only; removing them needs a pod and is left), the picture, upscale, voice, Foley and LTX endpoints, and the registry image `ghcr.io/nnr-root/flowchain-worker:w-3b68cb11d681` (the way back with the git tag `wan-last`). `RUNPOD_CLIP_ENDPOINT` was removed from the owner's local `.env`.
+
+### 13.12 Foley removed (2026-11-02, phase 15c Task 18, on the owner's word; wins over every earlier section and over phase 14)
+
+A scene's sound is its own LTX clip's (§6, §13.7, §13.10), and nothing else. The phase 14 scene-sound worker (HunyuanVideo-Foley) is gone from the code.
+
+- **The way back:** the local git tag `foley-last` (on `024aa7c`, the commit before this task; pushing it is the owner's click) and the image
+  `ghcr.io/nnr-root/flowchain-foley:f-645a196b2127`, which stays in the registry. Not a switch. `runpod:deploy` no longer makes or changes the
+  RunPod template and endpoint (both `flowchain-foley`); deleting them is Task 19, the owner's click.
+- **Gone:** `worker-foley/`, its image job (`foley`) and its path in `.github/workflows/worker-image.yml`, and its tests in `npm run test:worker`;
+  the deploy's Foley template, endpoint, `foleyGpus`, `chooseFoleyImage`, `foleyImageTag`, `--no-foley`, `RUNPOD_FOLEY_IMAGE` and the
+  `RUNPOD_FOLEY_ENDPOINT` write; `RunpodFoley`, `RUNPOD_WORKFLOWS.sound`, the `SoundRequest`/`SoundProvider` types and `Providers.sound`;
+  `foleyRates`, `FOLEY_RATES_MISSING`, `newRunSound` (the CLI never sets `request.sceneSound` or `models.sound` again) and the doctor's
+  scene-sound endpoint check; the paid branch of the `sound` stage, `soundCost`, `src/media/sound-input.ts` and the stage's input video
+  (`paths.soundInput`). `Health.sound` is now exactly "LTX is on" (`FLOWCHAIN_LTX=on` and its endpoint); the Foley switch and endpoint offer
+  nothing. The new-video form's switch and the hidden-form rule stay; its note says each moving scene keeps its own clip's sound and that it costs
+  nothing more (the wrong "adds to the price" is gone). The studio's "New sound" button is gone and `reroll --stage sound` is refused for every
+  scene ("sound" stays a name the CLI and the API accept): a clip's sound comes new with a new clip, and a bought one cannot be bought again.
+- **Kept for old runs.** `request.sceneSound`, `models.sound` and a bought sound's record (`seed`, `guidance`, `steps`, `prompt`, no `source`)
+  stay in the schema, optional as before. A run made with Foley loads, its stage keys are what they were (the phase 14 key is written out with
+  its literals in `src/stages/sound.ts`, `boughtKey`: negative prompt, 50 steps, guidance 3.5/4.5/5.5 by action level, the asked seconds
+  between 1 and 10, the track's seconds and fade, the picture's hash, `soundSeed`), so it plans nothing paid and re-renders for free, playing
+  the sounds on disk. It gets no clip sound of its own in any scene (`hasClipSound` keeps `sceneSound !== true`), and its clips are still not
+  listened to for a voice. A sound it would have to buy (a file gone, a reroll, sound effects turned on that were off when it was made) is
+  refused before anything is bought, in planning (`estimateCostUsd`), in a run and in `bumpNonce`, with `RETIRED_SOUND_ENGINE`: "this run's
+  scene sounds came from a sound engine this studio no longer uses; it can be re-rendered, but no sound can be bought for it". `sound-foley`
+  model ids parse as retired and get no provider. `FLOWCHAIN_SCENE_SOUND`, `RUNPOD_FOLEY_ENDPOINT` and the three `runpodFoley*` prices stay
+  accepted, read by nothing. `soundSeed` stays (the clips stage seeds every clip with it), and so do the loudness helpers the clip sound uses.
+  Pinned in `test/pipeline/foley-old-run.test.ts` (written and committed before the removal, passing on the code before it);
+  `test/unit/no-foley.test.ts` lists the only files that may still name Foley (`src/config.ts`, `src/manifest/schema.ts`,
+  `src/providers/model-id.ts`, `web/lib/engines.ts`) and fails if any code sets `sceneSound` or reads the removed switch or endpoint.
+- **Not changed:** `soundBible`/`soundPrompt` in the script (they steer the clip's `Audio:` sentence) and `PROMPT_VERSION`; the LTX licence notes.
+  The README's Foley licence note (the EU, the UK and South Korea) is removed with the worker.
+- **Parked:** the finished video's sound effects switch is still shown only for a run made with scene sound (`status.sceneSound`), so an LTX
+  video's clip sound can be turned on or off again only from the command line (`rerender --sfx`/`--no-sfx`, free). Showing it wherever a run
+  has a clip sound is a studio change of its own, not part of this removal.

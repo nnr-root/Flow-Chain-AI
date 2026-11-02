@@ -58,8 +58,8 @@ cuts: `auto` (default: the one Gemini suggests for each cut), `cut`, `fade`, `di
 
 The first 3 s open with a hook: a snap zoom and a big title Gemini writes (or `--hook "…"`)
 (`--no-hook` turns it off, and `rerender --hook-on` brings a removed hook back). The script also writes a sound bible
-(the video's sound palette) and a sound prompt for every scene; a sound is made from each prompt (`--no-sfx` and `--sfx-gain`
-control it; see "Scene sound" below).
+(the video's sound palette) and a sound prompt for every scene; they steer what each LTX clip is asked to sound like, and a
+moving scene's sound is its own clip's (`--no-sfx` and `--sfx-gain` control it; see "Scene sound" below).
 
 A brand kit is a folder with `brand.json` (see `assets/brand/example`): a logo watermarked at a corner, and an
 optional font, text and accent colours and character bible. `--brand <dir>` copies it into the run;
@@ -166,48 +166,24 @@ To go back to the restorer image from before smooth motion, in this order:
 
 When it worked, the switch gated the studio only and the command line was gated by the four prices. Today every new 60 fps run is refused when it is created, from the studio and from the command line alike.
 
-### Scene sound (optional)
+### Scene sound
 
-Each scene can have a sound layer made for it: the script writes a sound prompt for the scene, and a sound model on the studio's own
-GPU endpoint listens to the scene's picture and makes what would be heard there (wind, footsteps, a machine). It plays under the whole
-scene, under the narration and ducked while it speaks. It replaces the old library of bundled sound effects: those, the hook's impact,
-the cut sounds and `npm run make:sfx` are gone. A video made with the old library and rendered again has no sound effects; nothing makes
-them any more.
+A scene's sound is its own clip's. An LTX clip is made with its sound (phase 15 spec §6): the script writes a sound bible for the video and a
+sound prompt for each scene, and they steer the clip's "Audio:" sentence. The sound stage takes that sound out of each ordinary moving scene's
+clip, for nothing (no provider, no charge, no ledger line), levels it to one loudness and keeps it as `sound/scene_NN.wav`; the render lays it under
+the scene, under the narration and ducked while it speaks. A still scene, a speaking scene (its clip's sound already is its voice) and a scene
+whose clip was heard to carry a voice have none: **a voice is never kept** in an ordinary scene's sound (see "No other voice in an ordinary
+scene" below). A clip's sound is never stretched: where the fit slows the picture it plays at its own speed and may end early, faded.
+`--no-sfx` keeps it off the render and `--sfx-gain` sets its level; it is made either way, so `rerender --sfx` turns it on for free. A video of
+pictures only has no scene sound. Nothing is set up for it beyond LTX itself: the studio offers the sound effects switch exactly where LTX is
+switched on, and it costs nothing more.
 
-**Where the model's licence does not apply.** It is under the Tencent Hunyuan Community License: commercial use is allowed, but the
-licence does not apply in the European Union, the United Kingdom and South Korea; outputs may not be used to improve another AI model;
-above 100 million monthly active users a separate licence is needed. You accepted this knowing it. Whether to offer the layer to users in
-those three places is yours to decide (spec §7); `FLOWCHAIN_SCENE_SOUND` is the one switch, and a video without sound is complete.
-
-Settings, in `.env`. On a server they are the worker's: `npm run server:setup` writes them (with whatever
-`deploy/server.env` sets over them) into the worker's settings file, and the web app's file never carries them. The web app does not need
-them: with the queue it learns whether scene sound is offered from the worker's health answer, the form shows the switch only then, and a
-new draft carries `--no-sfx` whenever that answer does not offer it, so a customer who was shown no switch is never sold sound (a series on
-a schedule is begun by the worker, which asks its own settings the same way). In the owner's own studio without the queue, `.env` is both.
-
-- `FLOWCHAIN_SCENE_SOUND=on|off` (default off). A new video gets scene sound only when this is `on`, the endpoint is set, the three prices
-  exist and its sound effects are not switched off. The choice is frozen when the video is created.
-- `RUNPOD_FOLEY_ENDPOINT`: written by `npm run runpod:deploy`.
-- In `prices.json`: `runpodFoleyUsdPerSec` (the 24 GB flex rate per second, from RunPod's published price: look it up and cite it),
-  `runpodFoleySecPerClipSec` (seconds of work for one second of scene) and `runpodFoleyColdStartSec`. Keep them while any run made with
-  sound may be resumed or remade.
-
-In order:
-
-1. Push. The worker-image workflow builds `flowchain-foley` (tag `f-` and the first 12 characters of `worker-foley/`'s tree hash). The image
-   is large (25 to 30 GB with the model inside) and the build may take long; its first build has never been run and may need fixes.
-2. In GitHub's web UI, make the `flowchain-foley` package public (the first time).
-3. `npm run runpod:deploy` (it prints its plan first). While the image is missing it skips Foley with one line and deploys the rest.
-4. Measure on the real endpoint (each step is cents): the same clip with three seeds and two guidance values, and listen (are they different
-   enough?); a 10 s and a 15 s clip (what the model does at its limit); the job's `executionTime` and `delayTime` from RunPod's status
-   right after a run on a warm worker, then a cold one, for the three prices; then one whole four-scene video, its cost, and how the layer sits
-   under the narration (tune `SOUND_MIX` and `LOUDNESS_TARGET_LUFS` by ear). Update `web/content/measured.json` with the new full-video cost.
-5. Set `runpodFoley*` in `prices.json`, then `FLOWCHAIN_SCENE_SOUND=on` in `.env` (on a server: then `npm run server:setup`, which
-   writes it into the worker's settings).
-
-Rollback: set `FLOWCHAIN_SCENE_SOUND=off` in `.env` (on a server: in `deploy/server.env`, which wins over `.env`, then
-`npm run server:setup`, which rewrites the worker's settings; `server:deploy` does not). The form hides the control and new videos are
-made without sound; a video already made keeps its sound and plays it.
+**The scene-sound worker was removed** (2026-11-02, phase 15 spec §13.12): sounds used to be bought for each scene from a Foley model on the
+studio's own endpoint (`worker-foley/`, `FLOWCHAIN_SCENE_SOUND`, `RUNPOD_FOLEY_ENDPOINT`, the three `runpodFoley*` prices). A video made with it
+keeps its sounds on disk: it loads, plays them and re-renders for free, and any sound it would have to buy again (a file gone, a remade sound,
+sound effects turned on that were off when it was made) is refused in plain words. Its settings and prices are still accepted and read by
+nothing; they can be taken out of `.env` and `prices.json`. The way back: its code is at the local git tag `foley-last`, and its last image is kept in
+the registry as `ghcr.io/nnr-root/flowchain-foley:f-645a196b2127`.
 
 Runs with characters get one generated reference portrait (or a brand kit's `reference` image), made after the
 voice and straight before the pictures so the picture worker starts once; every keyframe of a scene the
@@ -251,7 +227,7 @@ In order (every step that spends money or touches a real account is your click):
 7. Only after the licence answer (below) and the approved `/terms` words, set `FLOWCHAIN_LTX=on` in the **server's** worker settings
    (`deploy/server.env`, which wins over `.env`, or `.env`) and run `npm run server:setup` (your click). From then on new videos are made on LTX.
 
-What the studio offers: the sound option is on when Foley or LTX (switched on) is on (an LTX clip's own sound plays under the narration); the "Let a character speak"
+What the studio offers: the sound option only with LTX switched on (an LTX clip's own sound plays under the narration, for nothing more); the "Let a character speak"
 switch only with LTX switched on (`FLOWCHAIN_LTX=on`, the endpoint set) and `FLOWCHAIN_SPEECH=on`, and only for English and Turkish; 60 fps is hidden while LTX makes the clips.
 
 **A speaking scene.** The script may write, for up to two scenes, a short sentence (at most about 14 words) that an invented person says; the scene's own clip
@@ -269,7 +245,7 @@ effects."; and the worker listens to every ordinary clip it makes (its speech re
 says only whether it heard a voice. A clip with a voice in it is kept for its picture, but its sound is never used: the scene has no ambience,
 since silence is better than a stranger speaking over the narrator. A false alarm (ambience heard as a word) costs that scene only its ambience,
 and so does a clip whose sound could not be checked (the check failed on the worker, or the clip was recovered without the worker's answer).
-A run made with scene sound (Foley) is not checked: its clips' own sound is never used.
+A run made with scene sound (the removed Foley worker) is not checked: its clips' own sound is never used.
 Speaking scenes are not affected. The worker changed, so its image must be rebuilt (your push runs the `ltx` image job) and the endpoint's
 template moved to the new tag with `npm run runpod:deploy` (your click). Every ordinary clip now loads the speech recognition, so
 `runpodLtxSecPerClipSec` (11) and `runpodLtxColdStartSec` (110), measured before, must be measured again on the first real run after the rebuild; an older image refuses the new field, and every ordinary LTX clip fails
@@ -286,7 +262,7 @@ territory is excluded (none was found in the text). Your own machine and tests a
 **Known limits.** A vertical multi-shot clip comes out letterboxed, so every scene is its own clip. Audio-to-video with the studio's own voice failed the spike
 (the mouth stays still). A clip's ambient sound is never stretched: when the fit slows the picture it plays at its own speed and may end early. The web app
 cannot read `prices.json`, so the health answer can offer speech and sound before the prices exist; the CLI refuses such a draft in one plain sentence. The
-sound option's note that sound "adds to the price" is wrong for LTX-only sound (a known wording issue).
+sound option's note says the clip's own sound costs nothing more.
 
 Rollback: set `FLOWCHAIN_LTX=off` (on a server in `deploy/server.env`, then `npm run server:setup`); new videos can then be made of pictures only, and speech is no longer offered (Wan is gone: going back to it is `git checkout wan-last`, above). A video already made on LTX still finishes on it, and refuses to resume without its three prices.
 
@@ -680,4 +656,4 @@ calculator, a topic carried through sign-up, welcome credit, how fast it paints 
 sign-up, credit, a video, buying a top-up and a plan, and a second user who sees none of it. It turns a
 database-wide setting on for a moment, so run it on its own, not beside `npm test`. Payments are tested against a
 stand-in Stripe (`web/test/stripe.ts`); no test reaches Stripe or needs its keys. The RunPod workers' Python tests: `npm run setup:worker` once,
-then `npm run test:worker` (the voice, picture, restorer and Foley workers; the LTX worker's are run with `python3.11 -m pytest worker-ltx/tests`).
+then `npm run test:worker` (the voice, picture and restorer workers; the LTX worker's are run with `python3.11 -m pytest worker-ltx/tests`).
