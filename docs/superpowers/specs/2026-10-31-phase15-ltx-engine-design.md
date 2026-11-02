@@ -505,3 +505,7 @@ A scene's sound is its own LTX clip's (§6, §13.7, §13.10), and nothing else. 
 - **Parked:** the finished video's sound effects switch is still shown only for a run made with scene sound (`status.sceneSound`), so an LTX
   video's clip sound can be turned on or off again only from the command line (`rerender --sfx`/`--no-sfx`, free). Showing it wherever a run
   has a clip sound is a studio change of its own, not part of this removal.
+
+### 13.13 The Foley resources on RunPod (2026-11-02)
+
+On the owner's word the idle endpoint `flowchain-foley` (id `ye852efg5mpi5w`: no queue, no running worker) and its template `flowchain-foley` (id `3k8j60axhb`, image `ghcr.io/nnr-root/flowchain-foley:f-645a196b2127`) were deleted through RunPod's REST API (both 204; a second listing no longer shows them). Not touched: the shared volume `flowchain-weights`, the picture, upscale, voice and LTX endpoints, and the registry image (the way back, with the local git tag `foley-last`, which is pushed only when the owner clicks). `RUNPOD_FOLEY_ENDPOINT` was removed from the owner's local `.env`.
