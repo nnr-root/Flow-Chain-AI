@@ -492,7 +492,9 @@ A scene's sound is its own LTX clip's (§6, §13.7, §13.10), and nothing else. 
   the sounds on disk. It gets no clip sound of its own in any scene (`hasClipSound` keeps `sceneSound !== true`), and its clips are still not
   listened to for a voice. A sound it would have to buy (a file gone, a reroll, sound effects turned on that were off when it was made) is
   refused before anything is bought, in planning (`estimateCostUsd`), in a run and in `bumpNonce`, with `RETIRED_SOUND_ENGINE`: "this run's
-  scene sounds came from a sound engine this studio no longer uses; it can be re-rendered, but no sound can be bought for it". `sound-foley`
+  scene sounds came from a sound engine this studio no longer uses; it can be re-rendered, or made with its sound effects turned off, but no
+  sound can be bought for it" (review fix: an old draft made with Foley is told the way on; with its sound effects off it is generated with no
+  sound due). `sound-foley`
   model ids parse as retired and get no provider. `FLOWCHAIN_SCENE_SOUND`, `RUNPOD_FOLEY_ENDPOINT` and the three `runpodFoley*` prices stay
   accepted, read by nothing. `soundSeed` stays (the clips stage seeds every clip with it), and so do the loudness helpers the clip sound uses.
   Pinned in `test/pipeline/foley-old-run.test.ts` (written and committed before the removal, passing on the code before it);

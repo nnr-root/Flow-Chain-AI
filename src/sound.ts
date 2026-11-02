@@ -13,10 +13,12 @@ const MAX_GAIN_DB = 30;
 
 /**
  * What a run made with scene sound (phase 14) is told when a sound of its would have to be bought again: the worker that
- * made it was removed (phase 15 spec §13.12). It reaches a customer's job log, so it names no model, setting or provider.
+ * made it was removed (phase 15 spec §13.12). It says the way on: a finished run re-renders, and a draft (or a run whose
+ * sounds were never made) is made with its sound effects turned off, since then no sound is due. It reaches a customer's
+ * job log, so it names no model, setting or provider.
  */
 export const RETIRED_SOUND_ENGINE =
-  "this run's scene sounds came from a sound engine this studio no longer uses; it can be re-rendered, but no sound can be bought for it";
+  "this run's scene sounds came from a sound engine this studio no longer uses; it can be re-rendered, or made with its sound effects turned off, but no sound can be bought for it";
 
 /**
  * Scene i's seed: from the run's seed, the scene and the scene's reroll count, so the scenes of one run differ from

@@ -185,3 +185,39 @@ describe("a run finished with Foley, asked for a sound it does not have", () => 
     expect((await planRun(free, STAGES)).items).toEqual([]);
   }, 180_000);
 });
+
+describe("a draft made with Foley before it was removed", () => {
+  /** A draft as it was left: its script written with sound prompts, nothing else made, sound effects on. */
+  async function foleyDraft() {
+    const made = await makeTestContext({ modes: [1, 1], seed: 4242 });
+    made.ctx.manifest.request.sceneSound = true;
+    made.ctx.manifest.models.sound = FOLEY_MODEL;
+    await runPipeline(made.ctx, STAGES.slice(0, 1), auto);
+    return made;
+  }
+
+  it("is refused when it is generated with sound effects on, before anything is bought, in words that say they can be turned off", async () => {
+    const { ctx, fakes } = await foleyDraft();
+    await expect(planRun(ctx, STAGES)).rejects.toThrow(RETIRED_SOUND_ENGINE);
+    expect(RETIRED_SOUND_ENGINE).toMatch(/sound effects turned off/);
+    await expect(runPipeline(ctx, STAGES, auto)).rejects.toThrow(RETIRED_SOUND_ENGINE);
+    expect(fakes.tts.calls).toHaveLength(0);
+    expect(fakes.image.submits).toHaveLength(0);
+  });
+
+  it("is generated as any other once its sound effects are turned off, with no sound to buy", async () => {
+    const { ctx } = await foleyDraft();
+    const plan = await planRun({ ...ctx, manifest: withLook(ctx.manifest, { sfx: false }) }, STAGES);
+    expect(plan.items.length).toBeGreaterThan(0);
+    expect(plan.items.some((i) => i.stage === "sound")).toBe(false);
+  });
+});
+
+describe("a run's status", () => {
+  it("says it was made with scene sound only when it was", async () => {
+    const { ctx } = await makeTestContext({ modes: [1, 1] });
+    expect("sceneSound" in statusOf(ctx.manifest)).toBe(false);
+    ctx.manifest.request.sceneSound = true;
+    expect(statusOf(ctx.manifest).sceneSound).toBe(true);
+  });
+});

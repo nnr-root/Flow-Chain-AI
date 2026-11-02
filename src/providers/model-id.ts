@@ -11,7 +11,10 @@ export type ModelRef =
 
 const RUNPOD = /^runpod:([A-Za-z0-9_-]+)\/([a-z0-9-]+)@(\d+)$/;
 
-/** Workflows of RunPod workers the studio no longer has (their endpoints are deleted, their code is at the tags `wan-last` and `foley-last`). */
+/**
+ * Workflows of RunPod workers the studio no longer has: their endpoints are no longer used (Wan's is deleted; the scene-sound
+ * worker's is deleted by the owner's own step, phase 15 spec §13.12), and their code is at the tags `wan-last` and `foley-last`.
+ */
 const RETIRED_WORKFLOWS = /^(clip-wan22-|sound-foley$)/;
 
 export function parseModelId(id: string): ModelRef {

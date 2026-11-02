@@ -156,8 +156,9 @@ export async function saveLook(runId: string, look: Look): Promise<void> {
 /** Re-renders with a new look: free, and the CLI itself refuses if anything paid would have to run. */
 export async function rerender(runId: string, look: Look): Promise<JobView> {
   const m = await requireManifest(runId);
-  // turning sound effects on where they were never made would need them bought (phase 14 spec §3): the CLI refuses it
-  // in its own words ("use resume"); the customer is told why, in theirs, before a job is started
+  // turning sound effects on where they were never made would need them bought (phase 14 spec §3), and an old run made with
+  // scene sound can no longer buy any (phase 15 spec §13.12): the CLI refuses it with `RETIRED_SOUND_ENGINE`; the customer is
+  // told why, in the studio's own words, before a job is started
   if (look.sfx === true && !m.request.render.sfx && soundNotMade(m)) {
     throw new ApiError("validation", "sound effects were off when this video was made, so it has none to turn on: a re-render never makes anything new", "make a new video with sound effects on");
   }

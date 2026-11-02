@@ -83,7 +83,9 @@ describe("a run made with the scene-sound worker that was removed (phase 15 spec
   });
 
   it("is told, when a sound would have to be bought for it, in words that name no model, provider or setting", () => {
-    expect(RETIRED_SOUND_ENGINE).toBe("this run's scene sounds came from a sound engine this studio no longer uses; it can be re-rendered, but no sound can be bought for it");
+    expect(RETIRED_SOUND_ENGINE).toBe(
+      "this run's scene sounds came from a sound engine this studio no longer uses; it can be re-rendered, or made with its sound effects turned off, but no sound can be bought for it",
+    );
     expect(RETIRED_SOUND_ENGINE).not.toMatch(/foley|hunyuan|runpod|FLOWCHAIN_|_ENDPOINT|prices\.json/i);
   });
 });
