@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Prices } from "../../src/config.js";
 import { fileSha256 } from "../../src/manifest/hash.js";
 import { ffmpeg, probeDuration } from "../../src/media/ffmpeg.js";
-import { planRun, type RunOptions, runPipeline } from "../../src/pipeline.js";
+import { computeHash, planRun, type RunOptions, runPipeline } from "../../src/pipeline.js";
 import { guidanceFor, LOUDNESS_TARGET_LUFS, SCENE_SOUND_MAX_SEC, SOUND_NEGATIVE_PROMPT, SOUND_STEPS, soundAskSeconds, soundSeed } from "../../src/sound.js";
 import { buildRenderProps } from "../../src/stages/build-render-props.js";
 import { clipsStage } from "../../src/stages/clips.js";
@@ -279,6 +279,22 @@ describe("a voice in an ordinary scene's clip sound", () => {
     ctx.manifest.scenes[1].clip!.voiceHeard = true;
     expect(ctx.manifest.scenes[1].sound).toBeDefined();
     expect(props(ctx).audio.sound.map((s) => s.src)).toEqual([paths.sound(0), paths.sound(2)]);
+  });
+
+  it("is not listened for in a run made with scene sound, whose clip sound is never used, and the clip's key is the same either way", async () => {
+    const { ctx, ltx } = await ltxRun();
+    ctx.providers = { ...ctx.providers, sound: new FakeSound(join(ctx.dir, "_fakes")) };
+    Object.assign(ctx.prices, FOLEY_RATES);
+    ctx.manifest.request.sceneSound = true;
+    ctx.manifest.models.sound = "runpod:fo1/sound-foley@1";
+    await runPipeline(ctx, MEDIA.slice(0, -2), auto);
+    const withFoley = await computeHash(ctx, clipsStage, 0);
+    await runPipeline(ctx, MEDIA, auto);
+    expect(ltx.submits.map((r) => r.detectVoice)).toEqual([undefined, undefined, undefined]);
+    // (not asked, so not taken as heard: unknown, as the voice of a clip whose sound is replaced by Foley is)
+    expect(ctx.manifest.scenes.map((s) => s.clip!.voiceHeard)).toEqual([undefined, undefined, undefined]);
+    delete ctx.manifest.request.sceneSound;
+    expect(await computeHash(ctx, clipsStage, 0)).toBe(withFoley);
   });
 
   it("leaves a clip whose voice is unknown, as in a run made before the check, with its sound as before", async () => {

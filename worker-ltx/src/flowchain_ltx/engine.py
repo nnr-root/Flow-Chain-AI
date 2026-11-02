@@ -100,7 +100,13 @@ def _load_whisper():
     from faster_whisper import WhisperModel
 
     # a folder, not a name: the image holds the model there and the worker never reaches the Hub
-    return WhisperModel(WHISPER_DIR, device="cuda", compute_type=WHISPER_COMPUTE)
+    model = WhisperModel(WHISPER_DIR, device="cuda", compute_type=WHISPER_COMPUTE)
+    # the voice filter a voice check runs (silero through onnxruntime, cached by faster-whisper) is loaded here too, before
+    # any clip is generated: a missing onnxruntime or asset then fails a job that bought nothing, not one with a paid clip
+    from faster_whisper.vad import get_vad_model
+
+    get_vad_model()
+    return model
 
 
 def pipeline_args(req, image_path, out_path):
@@ -248,5 +254,11 @@ def make_clip(req, workdir="/tmp", generate=None, transcribe=None, load_listener
     if check_voice:
         # silence has no voice in it; Whisper is not run on a sound it was never given. Only the answer leaves the worker,
         # never the words: nothing downstream may show or use what a stranger's voice said
-        voice_heard = has_audio and _hears_a_voice(out_path, heard_by)
+        try:
+            voice_heard = has_audio and _hears_a_voice(out_path, heard_by)
+        except Exception as err:  # noqa: BLE001 - listening must never lose a clip that was paid for
+            # an unchecked sound is not trusted: the scene loses only its ambience. The error's kind alone is logged,
+            # never what was heard
+            print(f"voice check failed ({type(err).__name__}); the clip's sound is treated as carrying a voice", flush=True)
+            voice_heard = True
     return ClipResult(mp4_path=out_path, seconds=seconds, has_audio=has_audio, words=words, voice_heard=voice_heard)

@@ -10,6 +10,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import handler as h  # noqa: E402
 
 from flowchain_ltx import engine, storage, weights  # noqa: E402
+from test_engine import BrokenWhisper, FakePipeline, needs_ffmpeg  # noqa: E402
+
+REAL_MAKE_CLIP = engine.make_clip
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"pixels"
 GOOD = {
@@ -78,6 +81,16 @@ def test_a_job_that_asks_for_a_voice_check_returns_whether_a_voice_was_heard(wor
 def test_a_job_that_did_not_ask_for_a_voice_check_carries_no_voice_answer(world):
     assert "voice_heard" not in h.handler({"id": "job1", "input": GOOD})
     assert "voice_heard" not in h.handler({"id": "job2", "input": {**GOOD, "speech_language": "en"}})
+
+
+@needs_ffmpeg
+def test_a_voice_check_that_fails_still_uploads_and_returns_the_paid_clip_as_one_with_a_voice(world, monkeypatch):
+    monkeypatch.setattr(engine, "make_clip", REAL_MAKE_CLIP)
+    monkeypatch.setattr(engine, "_generate", FakePipeline())
+    monkeypatch.setattr(engine, "listener", lambda: BrokenWhisper([]))
+    out = h.handler({"id": "job7", "input": {**GOOD, "frames": 49, "detect_voice": True}})
+    assert out["voice_heard"] is True and out["url"] == "https://r2.example/flowchain/job7.mp4"
+    assert world["uploads"] == [("flowchain/job7.mp4", "video/mp4")]
 
 
 def test_the_clip_is_uploaded_under_flowchain_as_an_mp4(world):

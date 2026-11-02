@@ -6,6 +6,7 @@ import { countFrames, probeDuration, probeVideo } from "../../src/media/ffmpeg.j
 import { computeHash, runPipeline, type RunOptions } from "../../src/pipeline.js";
 import { PRESETS } from "../../src/presets.js";
 import { soundSeed } from "../../src/sound.js";
+import { hasClipSound } from "../../src/stages/sound.js";
 import { clipSeed, clipsStage } from "../../src/stages/clips.js";
 import { fitStage } from "../../src/stages/fit.js";
 import { interpolateStage } from "../../src/stages/interpolate.js";
@@ -77,17 +78,20 @@ describe("the clips stage on LTX", () => {
     expect(m.scenes[1].clip!.voiceHeard).toBe(true);
   });
 
-  it("leaves a voice unknown, never absent, for a result kept before the worker answered it", async () => {
+  it("records a voice as heard when a checked clip comes back without the worker's answer, so its unchecked sound is never used", async () => {
     const { ctx, ltx } = await ltxRun({ shots: ["cut"] });
-    ltx.voiceIn = () => true;
     await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
+    expect(ctx.manifest.scenes[0].clip!.voiceHeard).toBe(false);
+    expect(hasClipSound(ctx.manifest, 0)).toBe(true);
+    // (as a clip RunPod forgot is recovered from the bucket: its url and rate, nothing the worker heard)
     const job = ctx.manifest.scenes[0].jobs.clips!;
-    job.result = { url: job.result!.url, fps: 24, hasAudio: true };
+    job.result = { url: job.result!.url, fps: 24 };
     delete ctx.manifest.scenes[0].clip;
     delete ctx.manifest.scenes[0].stages.clips;
     await runPipeline(ctx, [clipsStage], auto);
     expect(ltx.submits).toHaveLength(1);
-    expect(ctx.manifest.scenes[0].clip).not.toHaveProperty("voiceHeard");
+    expect(ctx.manifest.scenes[0].clip!.voiceHeard).toBe(true);
+    expect(hasClipSound(ctx.manifest, 0)).toBe(false);
   });
 
   it("records the clip's own frame rate and sound on the clip", async () => {

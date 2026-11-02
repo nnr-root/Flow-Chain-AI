@@ -465,3 +465,10 @@ def test_the_build_check_refuses_other_bytes_or_another_size(tmp_path):
     assert _lfs_check(tmp_path, oid, 11, str(a)).returncode != 0
     good = weights.pointer_oid(hashlib.sha256(b"hello world").hexdigest(), 11)
     assert _lfs_check(tmp_path, good, 12, str(a)).returncode != 0
+
+
+def test_the_build_loads_the_voice_filter_with_whisper_so_a_missing_onnxruntime_fails_the_build_not_a_job():
+    with open(DOCKERFILE) as f:
+        step = next(line for line in f if "WhisperModel('/models/whisper'" in line)
+    assert "from faster_whisper.vad import get_vad_model" in step and "get_vad_model()" in step
+

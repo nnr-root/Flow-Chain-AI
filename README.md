@@ -257,9 +257,12 @@ effects, never a character speaking. Three guards keep it so. The script is told
 "Audio:" sentence; every ordinary scene's clip prompt ends with the fixed sentence "No voices, no speech, no singing; only ambience and sound
 effects."; and the worker listens to every ordinary clip it makes (its speech recognition, any language, loaded before the clip is generated) and
 says only whether it heard a voice. A clip with a voice in it is kept for its picture, but its sound is never used: the scene has no ambience,
-since silence is better than a stranger speaking over the narrator. A false alarm (ambience heard as a word) costs that scene only its ambience.
+since silence is better than a stranger speaking over the narrator. A false alarm (ambience heard as a word) costs that scene only its ambience,
+and so does a clip whose sound could not be checked (the check failed on the worker, or the clip was recovered without the worker's answer).
+A run made with scene sound (Foley) is not checked: its clips' own sound is never used.
 Speaking scenes are not affected. The worker changed, so its image must be rebuilt (your push runs the `ltx` image job) and the endpoint's
-template moved to the new tag with `npm run runpod:deploy` (your click); an older image refuses the new field, and every ordinary LTX clip fails
+template moved to the new tag with `npm run runpod:deploy` (your click). Every ordinary clip now loads the speech recognition, so
+`runpodLtxSecPerClipSec` (11) and `runpodLtxColdStartSec` (110), measured before, must be measured again on the first real run after the rebuild; an older image refuses the new field, and every ordinary LTX clip fails
 until it is replaced. The extra prompt sentence changes an ordinary LTX scene's clip key: an LTX video made before this change buys those clips
 again if it is resumed.
 

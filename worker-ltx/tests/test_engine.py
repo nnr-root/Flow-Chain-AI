@@ -127,6 +127,61 @@ def test_a_voice_check_of_a_clip_without_sound_hears_nothing_and_never_runs_whis
     assert result.voice_heard is False and whisper.calls == []
 
 
+class BrokenWhisper(FakeWhisper):
+    def transcribe(self, path, **options):
+        self.calls.append((path, options))
+        raise RuntimeError("CUDA failed with error out of memory")
+
+
+@needs_ffmpeg
+def test_a_voice_check_that_fails_after_the_clip_is_made_keeps_the_paid_clip_and_counts_as_a_voice_heard(tmp_path, capsys):
+    whisper = BrokenWhisper([])
+    result = listen_for_voices(tmp_path, whisper)
+    # the clip was bought: it is kept and its sound is not trusted, so that scene loses only its ambience
+    assert result.voice_heard is True and result.words is None
+    assert os.path.getsize(result.mp4_path) > 0
+    assert whisper.calls and "voice check failed" in capsys.readouterr().out
+
+
+def _fake_gpu_and_whisper(monkeypatch, vad_error=None):
+    torch = types.ModuleType("torch")
+    torch.cuda = types.SimpleNamespace(is_available=lambda: True)
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    fw = types.ModuleType("faster_whisper")
+    fw.WhisperModel = lambda *a, **k: FakeWhisper([])
+    vad = types.ModuleType("faster_whisper.vad")
+    loads = []
+
+    def get_vad_model():
+        loads.append("vad")
+        if vad_error:
+            raise vad_error
+        return "VAD"
+
+    vad.get_vad_model = get_vad_model
+    fw.vad = vad
+    monkeypatch.setitem(sys.modules, "faster_whisper", fw)
+    monkeypatch.setitem(sys.modules, "faster_whisper.vad", vad)
+    monkeypatch.setattr(engine, "_WHISPER", None)
+    return loads
+
+
+def test_the_real_listener_loads_the_voice_filter_with_whisper(monkeypatch):
+    loads = _fake_gpu_and_whisper(monkeypatch)
+    assert isinstance(engine.listener(), FakeWhisper)
+    assert loads == ["vad"]
+
+
+@pytest.mark.parametrize("speech", [None, "en"])
+def test_a_voice_filter_that_cannot_load_fails_the_job_before_any_clip_is_generated(monkeypatch, tmp_path, speech):
+    _fake_gpu_and_whisper(monkeypatch, vad_error=RuntimeError("onnxruntime is not installed"))
+    pipeline = FakePipeline()
+    req = request(detect_voice=speech is None, speech_language=speech)
+    with pytest.raises(RuntimeError, match="onnxruntime"):
+        engine.make_clip(req, workdir=str(tmp_path), generate=pipeline)
+    assert pipeline.calls == []
+
+
 @needs_ffmpeg
 def test_a_clip_that_asks_neither_for_speech_nor_a_voice_check_reports_no_answer_and_loads_nothing(tmp_path):
     loads = []

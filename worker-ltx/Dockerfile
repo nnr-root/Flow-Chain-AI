@@ -92,8 +92,9 @@ ENV LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/u
 # the file). Its header is read from the start of the first part; its tokenizer and small files are a few MB of tensor data
 # read by offset from the parts.
 # Whisper loads offline from its folder (on the CPU here; the worker uses the card). model.bin is 1.6 GB, the only model file
-# a build step loads.
-RUN HF_HUB_OFFLINE=1 python3.11 -c "from faster_whisper import WhisperModel; WhisperModel('/models/whisper', device='cpu', compute_type='int8')"
+# a build step loads. Its voice filter (silero, through onnxruntime) is loaded with it, as the worker loads it before a clip:
+# a missing onnxruntime or asset fails the build, not a paid job.
+RUN HF_HUB_OFFLINE=1 python3.11 -c "from faster_whisper import WhisperModel; WhisperModel('/models/whisper', device='cpu', compute_type='int8'); from faster_whisper.vad import get_vad_model; get_vad_model()"
 # The CLI takes the flags the spike used, and engine.py calls the program's functions with these parameters, by name: if the
 # program ever differs, the build fails here rather than the first paid job
 RUN python3.11 -m ltx_pipelines.distilled --help > /tmp/help.txt \

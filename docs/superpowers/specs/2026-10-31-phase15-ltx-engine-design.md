@@ -407,12 +407,19 @@ since a model's own audio can ignore a prompt:
    the worker loads its Whisper before generating (the same order rule as speech: a worker that cannot load it fails before buying a clip),
    transcribes the clip's sound with the language left to Whisper and `vad_filter=True`, and answers `voice_heard` (any word heard), never the words.
    A clip without sound is `voice_heard: false` without running Whisper. The answer carries `voice_heard` only when it was asked.
-3. **The pipeline.** The clips stage asks `detectVoice` for every LTX scene that does not speak and keeps `voiceHeard` on the clip and in the job's
-   kept result (a reused paid result keeps it). `hasClipSound` is false when `voiceHeard === true`: the scene gets no `sound` step and the render lays
-   no sound under it (the render also skips a clip sound kept from an earlier clip of such a scene). Unknown (a clip made before the check, or
-   recovered without the worker's answer) or false is as before.
+   The voice filter (silero through onnxruntime, `faster_whisper.vad.get_vad_model()`) is loaded with Whisper, before generating, and
+   the image's build loads it too, so a missing onnxruntime or asset fails the build or a job that bought nothing. A check that fails
+   after the clip is made never loses the paid clip: it answers `voice_heard: true` (one log line, no transcript) and the clip is uploaded.
+3. **The pipeline.** The clips stage asks `detectVoice` for every LTX scene that does not speak, except in a run made with scene sound (Foley),
+   whose clip sound is never used; `detectVoice` is not in the clip's key, so that exception changes no key. It keeps `voiceHeard` on the clip and
+   in the job's kept result (a reused paid result keeps it). A clip that was asked to be checked and came back without the answer (recovered
+   from the bucket after RunPod forgot the job) is recorded `voiceHeard: true`: its sound was never checked, so that scene loses only its
+   ambience. `hasClipSound` is false when `voiceHeard === true`: the scene gets no `sound` step and the render lays no sound under it (the render
+   also skips a clip sound kept from an earlier clip of such a scene). Unknown on a clip never asked (made before the check) or false is as before.
 
 A false alarm (ambience Whisper takes for a word) costs that scene only its ambience; it is never retried or re-bought. The worker changed: its image
 must be rebuilt (the owner's push runs the `ltx` job of the image workflow) and the endpoint's template moved to the new tag by `npm run runpod:deploy`
-(the owner's click). Until then an old image refuses `detect_voice` as an unknown field, and every ordinary LTX clip fails (refused before any clip is made, so at most the worker's start is billed).
+(the owner's click). Every ordinary clip now loads Whisper and its voice filter, which a clip without speech did not before: the measured
+`runpodLtxSecPerClipSec` (11) and `runpodLtxColdStartSec` (110) predate that and are measured again on the first real run after the rebuild.
+Until then an old image refuses `detect_voice` as an unknown field, and every ordinary LTX clip fails (refused before any clip is made, so at most the worker's start is billed).
 

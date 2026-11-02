@@ -199,6 +199,10 @@ export const clipsStage: Stage = {
     const seconds = clipSeconds(m, i);
     const speaking = isSpeaking(m, i);
     const language = speaking ? spokenLanguage(m, i) : undefined;
+    // An ordinary LTX scene is listened to for a voice the prompt asked it not to make (phase 15 spec §13.10); not in a run
+    // made with scene sound, where a clip's own sound is never used (Foley wins, §6.3). Not part of the clip's key: only
+    // what is done with the clip's sound depends on it.
+    const checkVoice = seeded(m) && !speaking && m.request.sceneSound !== true;
     // (an earlier clip's sound is not this one's: until this clip gives the scene its audio, the scene has none)
     if (speaking) delete state.audio;
     let made: VideoOutput | undefined;
@@ -221,8 +225,7 @@ export const clipsStage: Stage = {
             ...(profile.clipHeight ? { height: profile.clipHeight } : {}),
             ...(seeded(m) ? { seed: clipSeed(m, i, remake) } : {}),
             ...(language === undefined ? {} : { speechLanguage: language }),
-            // an ordinary LTX scene is listened to for a voice the prompt asked it not to make (phase 15 spec §13.10)
-            ...(seeded(m) && !speaking ? { detectVoice: true } : {}),
+            ...(checkVoice ? { detectVoice: true } : {}),
           });
         },
         submit: (job, signal) => ctx.providers.video.submit(job, { signal }),
@@ -243,6 +246,10 @@ export const clipsStage: Stage = {
       // result); only one recovered from the bucket without the worker's answer has its url alone: its rate then comes from
       // its profile (one rate), and whether it has sound is left unknown, never false.
       const fps = result.fps ?? (m.request.videoProfile === "ltx25@1" ? LTX_FPS : undefined);
+      // A clip that was asked to be checked and came back without the answer (recovered from the bucket after RunPod forgot
+      // the job) has an unchecked sound: it is taken as carrying a voice, so that scene loses only its ambience and a
+      // stranger's voice can never reach the video.
+      const voiceHeard = result.voiceHeard ?? (checkVoice ? true : undefined);
       state.clip = {
         path: paths.clip(i),
         sourceUrl: result.url,
@@ -251,8 +258,8 @@ export const clipsStage: Stage = {
         requestedSec: seconds,
         ...(fps === undefined ? {} : { fps }),
         ...(result.hasAudio === undefined ? {} : { hasAudio: result.hasAudio }),
-        // (unknown where the worker did not say: a result kept before the check, or one recovered from the bucket)
-        ...(result.voiceHeard === undefined ? {} : { voiceHeard: result.voiceHeard }),
+        // (unknown only where no check was asked: a speaking scene, a run with scene sound, a Wan clip)
+        ...(voiceHeard === undefined ? {} : { voiceHeard }),
       };
       if (remake >= (MAX_REMAKES.clips ?? 0)) break;
       const look = await clipFrames(out, abs(ctx, `frames/look_${i + 1}`));
