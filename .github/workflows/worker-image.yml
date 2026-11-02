@@ -1,42 +1,16 @@
-# Builds the RunPod worker image (2.4 spec §4.2) and pushes it to GitHub's container registry.
+# Builds the RunPod worker images (2.4 spec §4.2) and pushes them to GitHub's container registry. Wan's clip worker
+# (workers/, the flowchain-worker image) was removed on 2026-11-02 (phase 15 spec §13.10); its last image stays in the
+# registry and its code at the tag wan-last.
 name: worker-image
 on:
   push:
     branches: [main]
-    paths: ["workers/**", "worker-voice/**", "worker-picture/**", "worker-upscale/**", "worker-foley/**", "worker-ltx/**", ".github/workflows/worker-image.yml"]
+    paths: ["worker-voice/**", "worker-picture/**", "worker-upscale/**", "worker-foley/**", "worker-ltx/**", ".github/workflows/worker-image.yml"]
   workflow_dispatch:
 permissions:
   contents: read
   packages: write
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      # the deploy pulls an immutable tag derived from the content of workers/ (npm run runpod:deploy)
-      - id: tree
-        run: echo "tag=w-$(git rev-parse HEAD:workers | cut -c1-12)" >> "$GITHUB_OUTPUT"
-      # the CUDA/PyTorch base image needs more disk than a hosted runner has free by default
-      - uses: jlumbroso/free-disk-space@v1.3.1
-        with:
-          tool-cache: true
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - id: name
-        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/flowchain-worker" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v6
-        with:
-          context: workers
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ${{ steps.name.outputs.image }}:latest
-            ${{ steps.name.outputs.image }}:${{ github.sha }}
-            ${{ steps.name.outputs.image }}:${{ steps.tree.outputs.tag }}
-
   # The voice worker (phase 5 spec §6.1): its own image, tagged by the content of worker-voice/.
   voice:
     runs-on: ubuntu-latest

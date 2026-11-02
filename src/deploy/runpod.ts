@@ -4,12 +4,12 @@ import type { RunpodClient } from "../providers/runpod.js";
 
 export const NAMES = {
   // A volume cannot shrink, so the smaller one is a new one under a new name (phase 5 spec §9.15).
+  // (Wan's clip template and endpoint, "flowchain-worker" and "flowchain-clip", are no longer made or changed: Wan was
+  // removed on 2026-11-02, phase 15 spec §13.10. The volume stays: the picture endpoints read their weights from it.)
   volume: "flowchain-weights",
-  template: "flowchain-worker",
-  /** the picture worker's own template (phase 5 spec §6.2): another image, the same volume and secrets */
+  /** the picture worker's own template (phase 5 spec §6.2): its own image, the volume and the secrets */
   pictureTemplate: "flowchain-picture",
   keyframe: "flowchain-keyframe",
-  clip: "flowchain-clip",
   /** the FLUX 3 picture endpoint (phase 10 spec §3): the picture worker's template, other cards */
   keyframe3: "flowchain-keyframe-flux3",
   /** full HD (phase 8 spec §8): its own image, with its model inside, and no volume */
@@ -30,13 +30,11 @@ export const RETIRED_VOLUMES = ["flowchain-models"];
 export const SECRET_NAMES = { accessKeyId: "flowchain_r2_access_key_id", secretAccessKey: "flowchain_r2_secret_access_key", hfToken: "flowchain_hf_token" };
 
 export type DeployConfig = {
-  image: string;
-  /** The picture worker's image (the keyframe endpoint); `image` is the clip worker's. */
+  /** The picture worker's image (the keyframe endpoints). */
   pictureImage: string;
   dataCenterId: string;
   volumeGb: number;
   keyframeGpus: string[];
-  clipGpus: string[];
   /** The upscaling worker's image (phase 8 spec §8); absent = no full HD endpoint is made or changed. */
   upscaleImage?: string;
   upscaleGpus?: string[];
@@ -55,14 +53,12 @@ export type DeployConfig = {
 
 export const DEFAULTS = {
   dataCenterId: "EU-RO-1",
-  // Holds 31 GB of clip weights and 16 GB for the picture model: 47 GB. There is room for nothing else; a
-  // model added later means growing it first (a volume can grow, never shrink).
+  // Sized when it also held 31 GB of Wan's clip weights beside the picture model's 16 GB; a volume can grow, never
+  // shrink, so it keeps its size (a deploy takes the weights no worker lists off it).
   volumeGb: 50,
   // 47 GB as above, plus the FLUX 3 weights and text encoder (about 20 GB): grown first, never shrunk
   volumeGbWithFlux3: 80,
   keyframeGpus: ["NVIDIA GeForce RTX 4090"],
-  // 24 GB: Wan 2.2 fp8 loads one expert at a time; no 48 GB card was in stock in the volume's data centre (spec §16)
-  clipGpus: ["NVIDIA GeForce RTX 4090"],
   // 24 GB: SeedVR2's 3B model fits with full HD decoded in tiles; it reads no volume, so any data centre will do
   // FLUX 3 klein (phase 10 spec §3): 48 GB or more. The volume sits in one data centre, so a short list of one card type
   // was throttled for hours on 2026-10-30 (the A100 80 GB was not to be had): every card RunPod accepts here that holds the
@@ -147,7 +143,7 @@ function findByName(list: Resource[], kind: Kind, name: string): Resource | unde
 
 export type Step = { what: string; name: string; action: "create" | "update" };
 
-type Existing = { volume?: Resource; template?: Resource; pictureTemplate?: Resource; keyframe?: Resource; clip?: Resource; keyframe3?: Resource; upscaleTemplate?: Resource; upscale?: Resource; foleyTemplate?: Resource; foley?: Resource; ltxTemplate?: Resource; ltx?: Resource };
+type Existing = { volume?: Resource; pictureTemplate?: Resource; keyframe?: Resource; keyframe3?: Resource; upscaleTemplate?: Resource; upscale?: Resource; foleyTemplate?: Resource; foley?: Resource; ltxTemplate?: Resource; ltx?: Resource };
 
 /** What RunPod already has for our four resources (matched by name); throws when a name is ambiguous. Read-only. */
 async function lookupExisting(rest: RunpodRest): Promise<Existing> {
@@ -158,10 +154,8 @@ async function lookupExisting(rest: RunpodRest): Promise<Existing> {
   ]);
   return {
     volume: findByName(volumes, "networkvolumes", NAMES.volume),
-    template: findByName(templates, "templates", NAMES.template),
     pictureTemplate: findByName(templates, "templates", NAMES.pictureTemplate),
     keyframe: findByName(endpoints, "endpoints", NAMES.keyframe),
-    clip: findByName(endpoints, "endpoints", NAMES.clip),
     keyframe3: findByName(endpoints, "endpoints", NAMES.keyframe3),
     upscaleTemplate: findByName(templates, "templates", NAMES.upscaleTemplate),
     upscale: findByName(endpoints, "endpoints", NAMES.upscale),
@@ -182,10 +176,8 @@ export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean; pi
   });
   return [
     step("network volume", found.volume, NAMES.volume),
-    step("template", found.template, NAMES.template),
     step("template", found.pictureTemplate, NAMES.pictureTemplate),
     step("endpoint", found.keyframe, NAMES.keyframe),
-    step("endpoint", found.clip, NAMES.clip),
     ...(opts.picture3 ? [step("endpoint", found.keyframe3, NAMES.keyframe3)] : []),
     ...(opts.upscale ? [step("template", found.upscaleTemplate, NAMES.upscaleTemplate), step("endpoint", found.upscale, NAMES.upscale)] : []),
     ...(opts.foley ? [step("template", found.foleyTemplate, NAMES.foleyTemplate), step("endpoint", found.foley, NAMES.foley)] : []),
@@ -194,7 +186,7 @@ export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean; pi
 }
 
 /** `movedVolume`: an endpoint that existed was reading from another volume until now. */
-export type Deployed = { volumeId: string; templateId: string; keyframeEndpointId: string; clipEndpointId: string; upscaleEndpointId?: string; foleyEndpointId?: string; ltxEndpointId?: string; keyframe3EndpointId?: string; movedVolume: boolean };
+export type Deployed = { volumeId: string; keyframeEndpointId: string; upscaleEndpointId?: string; foleyEndpointId?: string; ltxEndpointId?: string; keyframe3EndpointId?: string; movedVolume: boolean };
 
 async function upsert(
   rest: RunpodRest,
@@ -216,7 +208,7 @@ async function upsert(
   return Object.keys(after).length ? rest.update(kind, made.id, after) : made;
 }
 
-/** Creates or updates the volume, template and both endpoints; returns their ids. Safe to re-run. */
+/** Creates or updates the volume, the templates and the endpoints; returns their ids. Safe to re-run. */
 export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: string) => void): Promise<Deployed> {
   // every lookup and check comes before the first write, so an ambiguous or unusable setup changes nothing
   const existing = await lookupExisting(rest);
@@ -252,9 +244,6 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     R2_ACCESS_KEY_ID: `{{ RUNPOD_SECRET_${SECRET_NAMES.accessKeyId} }}`,
     R2_SECRET_ACCESS_KEY: `{{ RUNPOD_SECRET_${SECRET_NAMES.secretAccessKey} }}`,
   };
-  // 40: the image holds the text encoder and the VAE now (7 GB more), and the disk must hold it unpacked
-  const templateBody = { imageName: cfg.image, containerDiskInGb: 40, env };
-  const template = await upsert(rest, "templates", existing.template, NAMES.template, { ...templateBody, isServerless: true }, templateBody);
   const pictureEnv = cfg.hfToken ? { ...env, HF_TOKEN: `{{ RUNPOD_SECRET_${SECRET_NAMES.hfToken} }}` } : env;
   const pictureBody = { imageName: cfg.pictureImage, containerDiskInGb: 20, env: pictureEnv };
   const pictureTemplate = await upsert(rest, "templates", existing.pictureTemplate, NAMES.pictureTemplate, { ...pictureBody, isServerless: true }, pictureBody);
@@ -279,16 +268,14 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
   });
   // the picture worker's PyTorch is built for CUDA 12.8: a host with an older driver would run it on the CPU
   const keyframe = endpoint(pictureTemplate.id, cfg.keyframeGpus, 120_000, { minCudaVersion: "12.8" });
-  const clip = endpoint(template.id, cfg.clipGpus, 600_000);
   const keyframeEndpoint = await upsert(rest, "endpoints", existing.keyframe, NAMES.keyframe, keyframe, keyframe);
-  const clipEndpoint = await upsert(rest, "endpoints", existing.clip, NAMES.clip, clip, clip);
   let keyframe3EndpointId: string | undefined;
   if (cfg.keyframe3Gpus?.length) {
     // sixteen steps on a bigger card: a job may take several times the 4B's, so the limit is longer
     const flux3 = endpoint(pictureTemplate.id, cfg.keyframe3Gpus, 300_000, { minCudaVersion: "12.8" });
     keyframe3EndpointId = (await upsert(rest, "endpoints", existing.keyframe3, NAMES.keyframe3, flux3, flux3)).id;
   }
-  const movedVolume = [existing.keyframe, existing.clip, existing.keyframe3].some(
+  const movedVolume = [existing.keyframe, existing.keyframe3].some(
     (e) => (e?.networkVolumeId !== undefined && e.networkVolumeId !== volume.id) || e?.networkVolumeIds?.some((id) => id !== volume.id),
   );
   // full HD (phase 8 spec §8): its model is in its image, so it reads no volume and may run in any data centre
@@ -325,7 +312,7 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(ltxTemplate.id, cfg.ltxGpus ?? DEFAULTS.ltxGpus, 1_200_000, { minCudaVersion: DEFAULTS.ltxMinCuda });
     ltxEndpointId = (await upsert(rest, "endpoints", existing.ltx, NAMES.ltx, anywhere, anywhere)).id;
   }
-  return { volumeId: volume.id, templateId: template.id, keyframeEndpointId: keyframeEndpoint.id, clipEndpointId: clipEndpoint.id, ...(upscaleEndpointId ? { upscaleEndpointId } : {}), ...(foleyEndpointId ? { foleyEndpointId } : {}), ...(ltxEndpointId ? { ltxEndpointId } : {}), ...(keyframe3EndpointId ? { keyframe3EndpointId } : {}), movedVolume };
+  return { volumeId: volume.id, keyframeEndpointId: keyframeEndpoint.id, ...(upscaleEndpointId ? { upscaleEndpointId } : {}), ...(foleyEndpointId ? { foleyEndpointId } : {}), ...(ltxEndpointId ? { ltxEndpointId } : {}), ...(keyframe3EndpointId ? { keyframe3EndpointId } : {}), movedVolume };
 }
 
 /**
@@ -357,7 +344,7 @@ export async function removeRetiredVolumes(rest: RunpodRest): Promise<string[]> 
 export async function fetchModels(
   client: RunpodClient,
   endpointId: string,
-  only: "keyframe" | "clip" | "keyframe3",
+  only: "keyframe" | "keyframe3",
   opts: { pollMs?: number; sleep?: (ms: number) => Promise<void>; timeoutMs?: number } = {},
 ): Promise<{ downloaded: string[]; skipped: string[]; removed?: string[] }> {
   const { pollMs = 15_000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), timeoutMs = 3_600_000 } = opts;
@@ -396,11 +383,6 @@ export async function writeEnvValues(path: string, values: Record<string, string
     // no .env yet: keep the default mode
   }
   await rename(temp, path);
-}
-
-/** The immutable worker image tag for a tree hash of `workers/` (`git rev-parse HEAD:workers`); the workflow pushes the same tag. */
-export function workerImageTag(workersTreeHash: string): string {
-  return `w-${workersTreeHash.slice(0, 12)}`;
 }
 
 const MANIFEST_ACCEPT = [
@@ -469,7 +451,7 @@ export const VOICE_DEFAULTS = {
 
 export type VoiceDeployConfig = { image: string; gpus: string[] };
 
-/** The image tag for a tree hash of `worker-voice/`; the workflow pushes the same tag. */
+/** The immutable image tag for a tree hash of `worker-voice/` (`git rev-parse HEAD:worker-voice`); the workflow pushes the same tag. */
 export const voiceImageTag = (treeHash: string): string => `v-${treeHash.slice(0, 12)}`;
 /** And for `worker-upscale/`. */
 export const upscaleImageTag = (treeHash: string): string => `u-${treeHash.slice(0, 12)}`;
@@ -488,7 +470,6 @@ export function envValuesOf(d: Deployed): Record<string, string> {
     ...(d.upscaleEndpointId ? { RUNPOD_UPSCALE_ENDPOINT: d.upscaleEndpointId } : {}),
     ...(d.foleyEndpointId ? { RUNPOD_FOLEY_ENDPOINT: d.foleyEndpointId } : {}),
     ...(d.ltxEndpointId ? { RUNPOD_LTX_ENDPOINT: d.ltxEndpointId } : {}),
-    RUNPOD_CLIP_ENDPOINT: d.clipEndpointId,
   };
 }
 

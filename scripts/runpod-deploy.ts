@@ -1,12 +1,13 @@
 /**
- * npm run runpod:deploy [-- --yes]: creates or updates the RunPod volume, template and endpoints, seeds the model
- * weights and writes the endpoint ids into .env (2.4 spec §4.3). Asks before creating billable resources.
+ * npm run runpod:deploy [-- --yes]: creates or updates the RunPod volume, templates and endpoints, seeds the picture
+ * model weights and writes the endpoint ids into .env (2.4 spec §4.3). Wan's clip template and endpoint are no longer
+ * made or changed (removed on 2026-11-02, phase 15 spec §13.10); LTX makes the clips. Asks before creating billable resources.
  * With `--remove-old-volume` it does one other thing instead: deletes the volume used before this one.
  */
 import { createInterface } from "node:readline/promises";
 import { execa } from "execa";
 import {
-  applyDeploy, assertImageInGhcr, chooseFoleyImage, chooseLtxImage, DEFAULTS, envValuesOf, fetchModels, picture3GpusOf, foleyImageTag, ltxImageTag, NAMES, pictureImageTag, planDeploy, removeRetiredVolumes, RETIRED_VOLUMES, RunpodRest, upscaleImageTag, workerImageTag, writeEnvValues,
+  applyDeploy, assertImageInGhcr, chooseFoleyImage, chooseLtxImage, DEFAULTS, envValuesOf, fetchModels, picture3GpusOf, foleyImageTag, ltxImageTag, NAMES, pictureImageTag, planDeploy, removeRetiredVolumes, RETIRED_VOLUMES, RunpodRest, upscaleImageTag, writeEnvValues,
 } from "../src/deploy/runpod.js";
 import { R2 } from "../src/providers/r2.js";
 import { RunpodClient } from "../src/providers/runpod.js";
@@ -17,18 +18,16 @@ function need(name: string): string {
   return value;
 }
 
-async function defaultImage(which: "clip" | "picture" | "upscale" | "foley" | "ltx"): Promise<string> {
+async function defaultImage(which: "picture" | "upscale" | "foley" | "ltx"): Promise<string> {
   const { stdout } = await execa("git", ["remote", "get-url", "origin"]);
   const owner = /github\.com[:/]([^/]+)\//.exec(stdout)?.[1];
-  if (!owner) throw new Error("cannot tell the GitHub owner from the origin remote; set RUNPOD_WORKER_IMAGE and RUNPOD_PICTURE_IMAGE");
+  if (!owner) throw new Error("cannot tell the GitHub owner from the origin remote; set RUNPOD_PICTURE_IMAGE");
   // each tag follows the content of its worker's folder, so a template always points at the image built from this checkout
   const tree = async (dir: string) => (await execa("git", ["rev-parse", `HEAD:${dir}`])).stdout.trim();
   if (which === "upscale") return `ghcr.io/${owner.toLowerCase()}/flowchain-upscale:${upscaleImageTag(await tree("worker-upscale"))}`;
   if (which === "foley") return `ghcr.io/${owner.toLowerCase()}/flowchain-foley:${foleyImageTag(await tree("worker-foley"))}`;
   if (which === "ltx") return `ghcr.io/${owner.toLowerCase()}/flowchain-ltx:${ltxImageTag(await tree("worker-ltx"))}`;
-  return which === "clip"
-    ? `ghcr.io/${owner.toLowerCase()}/flowchain-worker:${workerImageTag(await tree("workers"))}`
-    : `ghcr.io/${owner.toLowerCase()}/flowchain-picture:${pictureImageTag(await tree("worker-picture"))}`;
+  return `ghcr.io/${owner.toLowerCase()}/flowchain-picture:${pictureImageTag(await tree("worker-picture"))}`;
 }
 
 async function main(): Promise<void> {
@@ -62,12 +61,10 @@ async function main(): Promise<void> {
   if (ltx.message) console.log(ltx.message);
   const picture3Gpus = picture3GpusOf(process.env.RUNPOD_PICTURE3_GPUS);
   const cfg = {
-    image: process.env.RUNPOD_WORKER_IMAGE ?? (await defaultImage("clip")),
     pictureImage: process.env.RUNPOD_PICTURE_IMAGE ?? (await defaultImage("picture")),
     dataCenterId: process.env.RUNPOD_DATACENTER ?? DEFAULTS.dataCenterId,
     volumeGb: picture3Gpus ? DEFAULTS.volumeGbWithFlux3 : DEFAULTS.volumeGb,
     keyframeGpus: DEFAULTS.keyframeGpus,
-    clipGpus: DEFAULTS.clipGpus,
     // full HD (phase 8 spec §8): `-- --no-upscale` leaves its endpoint out
     ...(process.argv.includes("--no-upscale") ? {} : { upscaleImage: process.env.RUNPOD_UPSCALE_IMAGE ?? (await defaultImage("upscale")), upscaleGpus: DEFAULTS.upscaleGpus }),
     ...(foley.image ? { foleyImage: foley.image, foleyGpus: DEFAULTS.foleyGpus } : {}),
@@ -81,12 +78,11 @@ async function main(): Promise<void> {
       secretAccessKey: need("R2_SECRET_ACCESS_KEY"),
     },
   };
-  await assertImageInGhcr(cfg.image, console.warn); // before anything is created
-  await assertImageInGhcr(cfg.pictureImage, console.warn);
+  await assertImageInGhcr(cfg.pictureImage, console.warn); // before anything is created
   if (cfg.upscaleImage) await assertImageInGhcr(cfg.upscaleImage, console.warn);
   const rest = new RunpodRest(apiKey);
   const steps = await planDeploy(rest, { upscale: Boolean(cfg.upscaleImage), picture3: Boolean(cfg.keyframe3Gpus), foley: Boolean(cfg.foleyImage), ltx: Boolean(cfg.ltxImage) });
-  console.log(`RunPod deploy (clips ${cfg.image}, pictures ${cfg.pictureImage}, data centre ${cfg.dataCenterId}):`);
+  console.log(`RunPod deploy (pictures ${cfg.pictureImage}, data centre ${cfg.dataCenterId}):`);
   for (const s of steps) console.log(`  ${s.action.padEnd(6)} ${s.what} ${s.name}`);
   const monthly = cfg.volumeGb * DEFAULTS.volumeUsdPerGbMonth;
   console.log(`Costs: the ${cfg.volumeGb} GB volume ≈ $${monthly.toFixed(2)}/month; the one-time model download runs on`);
@@ -101,7 +97,7 @@ async function main(): Promise<void> {
     }
   }
   const deployed = await applyDeploy(rest, cfg, console.log);
-  console.log(`Endpoints: keyframe ${deployed.keyframeEndpointId}, clip ${deployed.clipEndpointId}`);
+  console.log(`Endpoints: keyframe ${deployed.keyframeEndpointId}${deployed.ltxEndpointId ? `, LTX clips ${deployed.ltxEndpointId}` : ""}`);
   // saved before the long model downloads, so a failed download never loses the ids of what was just created
   await writeEnvValues(".env", envValuesOf(deployed));
   console.log(`Wrote ${Object.keys(envValuesOf(deployed)).join(", ")} to .env.`);
@@ -127,8 +123,8 @@ async function main(): Promise<void> {
   console.log(`An earlier volume (${RETIRED_VOLUMES.join(", ")}), if there is one, is still there and still billed: once a run has worked, npm run runpod:deploy -- --remove-old-volume deletes it.`);
 }
 
-async function fetchAll(client: RunpodClient, deployed: { keyframeEndpointId: string; clipEndpointId: string; keyframe3EndpointId?: string }): Promise<void> {
-  for (const [kind, id] of [["keyframe", deployed.keyframeEndpointId], ["clip", deployed.clipEndpointId], ...(deployed.keyframe3EndpointId ? [["keyframe3", deployed.keyframe3EndpointId] as const] : [])] as const) {
+async function fetchAll(client: RunpodClient, deployed: { keyframeEndpointId: string; keyframe3EndpointId?: string }): Promise<void> {
+  for (const [kind, id] of [["keyframe", deployed.keyframeEndpointId], ...(deployed.keyframe3EndpointId ? [["keyframe3", deployed.keyframe3EndpointId] as const] : [])] as const) {
     console.log(`Fetching ${kind} model weights onto the volume (the first time takes a while)…`);
     const done = await fetchModels(client, id, kind);
     console.log(`  downloaded ${done.downloaded.length}, already present ${done.skipped.length}`);

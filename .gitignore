@@ -4,7 +4,7 @@ node_modules/
 .env.*.tmp
 .DS_Store
 coverage/
-workers/.venv/
+.venv-workers/
 __pycache__/
 .pytest_cache/
 web/.next/

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   applyDeploy, applyVoiceDeploy, assertImageInGhcr, chooseFoleyImage, chooseLtxImage, DEFAULTS, envValuesOf, ImageMissing, fetchModels, foleyImageTag, ltxImageTag, NAMES, picture3GpusOf, planDeploy, planVoiceDeploy, removeRetiredVolumes, RunpodRest, VOICE_DEFAULTS, voiceImageTag,
-  workerImageTag, writeEnvValues,
+  writeEnvValues,
 } from "../../src/deploy/runpod.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
 import { FakeRunpodApi } from "../fakes/runpod.js";
@@ -59,45 +59,50 @@ function fakeRest() {
 }
 
 const cfg = {
-  image: "ghcr.io/me/flowchain-worker:latest",
   pictureImage: "ghcr.io/me/flowchain-picture:latest",
   dataCenterId: "EU-RO-1",
   volumeGb: 80,
   keyframeGpus: DEFAULTS.keyframeGpus,
-  clipGpus: DEFAULTS.clipGpus,
   r2: { accountId: "acc", bucket: "out", accessKeyId: "AK", secretAccessKey: "SK" },
 };
 
 describe("runpod deploy", () => {
-  it("creates the volume, a template for each worker and both endpoints, with R2 keys as secrets", async () => {
+  it("creates the volume, the picture worker's template and its endpoint, with R2 keys as secrets, and nothing for Wan", async () => {
     const { rest, store, secrets } = fakeRest();
     expect((await planDeploy(rest)).map((s) => `${s.action} ${s.name}`)).toEqual([
       "create flowchain-weights",
-      "create flowchain-worker",
       "create flowchain-picture",
       "create flowchain-keyframe",
-      "create flowchain-clip",
     ]);
     const ids = await applyDeploy(rest, cfg, () => {});
     expect(store.networkvolumes[0]).toMatchObject({ name: NAMES.volume, size: 80, dataCenterId: "EU-RO-1" });
+    expect(store.templates).toHaveLength(1);
     expect(store.templates[0]).toMatchObject({
-      name: NAMES.template,
-      imageName: cfg.image,
+      name: NAMES.pictureTemplate,
+      imageName: cfg.pictureImage,
       isServerless: true,
       env: { R2_ACCOUNT_ID: "acc", R2_BUCKET: "out", R2_ACCESS_KEY_ID: "{{ RUNPOD_SECRET_flowchain_r2_access_key_id }}" },
     });
-    // the picture worker has its own image, with the same bucket settings and secrets
-    expect(store.templates[1]).toMatchObject({ name: NAMES.pictureTemplate, imageName: cfg.pictureImage, isServerless: true, env: store.templates[0].env });
-    // each endpoint runs its own worker; the picture worker's PyTorch needs a host with CUDA 12.8
-    expect(store.endpoints.map((e) => [e.name, e.templateId, e.minCudaVersion])).toEqual([
-      [NAMES.keyframe, store.templates[1].id, "12.8"],
-      [NAMES.clip, store.templates[0].id, undefined],
-    ]);
+    // the picture worker's PyTorch needs a host with CUDA 12.8; it reads its weights from the volume
+    expect(store.endpoints.map((e) => [e.name, e.templateId, e.minCudaVersion])).toEqual([[NAMES.keyframe, store.templates[0].id, "12.8"]]);
     expect(store.endpoints.map((e) => [e.name, e.gpuTypeIds, e.executionTimeoutMs, e.workersMax, e.networkVolumeId])).toEqual([
       [NAMES.keyframe, ["NVIDIA GeForce RTX 4090"], 120_000, 1, ids.volumeId],
-      [NAMES.clip, ["NVIDIA GeForce RTX 4090"], 600_000, 1, ids.volumeId],
     ]);
     expect([...secrets].sort()).toEqual(["flowchain_r2_access_key_id", "flowchain_r2_secret_access_key"]);
+    // (Wan's template and endpoint are neither planned nor made, and no clip endpoint id is written to .env)
+    const names = [...store.templates, ...store.endpoints].map((r) => r.name);
+    expect(names).not.toContain("flowchain-worker");
+    expect(names).not.toContain("flowchain-clip");
+    expect(Object.keys(envValuesOf(ids))).not.toContain("RUNPOD_CLIP_ENDPOINT");
+  });
+
+  it("leaves Wan's template and endpoint alone where they still exist, neither planning nor changing them", async () => {
+    const { rest, store, calls } = fakeRest();
+    store.templates.push({ id: "t-wan", name: "flowchain-worker" });
+    store.endpoints.push({ id: "e-wan", name: "flowchain-clip", templateId: "t-wan" });
+    expect((await planDeploy(rest)).map((s) => s.name)).not.toContain("flowchain-clip");
+    await applyDeploy(rest, cfg, () => {});
+    expect(calls.filter((c) => c.includes("t-wan") || c.includes("e-wan"))).toEqual([]);
   });
 
   it("makes the full HD endpoint only when its image is given: its own template, no volume, any data centre (phase 8 spec §8)", async () => {
@@ -125,7 +130,7 @@ describe("runpod deploy", () => {
     expect(plain.foleyEndpointId).toBeUndefined();
     expect(without.store.endpoints.map((e) => e.name)).not.toContain(NAMES.foley);
     expect((await planDeploy(without.rest)).map((s) => s.name)).toEqual([
-      "flowchain-weights", "flowchain-worker", "flowchain-picture", "flowchain-keyframe", "flowchain-clip",
+      "flowchain-weights", "flowchain-picture", "flowchain-keyframe",
     ]);
     expect(Object.keys(envValuesOf(plain))).not.toContain("RUNPOD_FOLEY_ENDPOINT");
 
@@ -240,10 +245,10 @@ describe("runpod deploy", () => {
     const { rest, store } = fakeRest();
     const first = await applyDeploy(rest, cfg, () => {});
     const logs: string[] = [];
-    const second = await applyDeploy(rest, { ...cfg, image: "ghcr.io/me/flowchain-worker:abc123" }, (m) => logs.push(m));
+    const second = await applyDeploy(rest, { ...cfg, pictureImage: "ghcr.io/me/flowchain-picture:abc123" }, (m) => logs.push(m));
     expect(second).toEqual(first);
-    expect([store.networkvolumes.length, store.templates.length, store.endpoints.length]).toEqual([1, 2, 2]);
-    expect(store.templates[0].imageName).toBe("ghcr.io/me/flowchain-worker:abc123");
+    expect([store.networkvolumes.length, store.templates.length, store.endpoints.length]).toEqual([1, 1, 1]);
+    expect(store.templates[0].imageName).toBe("ghcr.io/me/flowchain-picture:abc123");
     expect(logs).toContain("secret flowchain_r2_access_key_id already exists (kept; delete it on RunPod to change it)");
     expect((await planDeploy(rest)).every((s) => s.action === "update")).toBe(true);
   });
@@ -254,7 +259,7 @@ describe("runpod deploy", () => {
     store.endpoints[0].name = `${NAMES.keyframe} -fb`;
     expect((await planDeploy(rest)).every((s) => s.action === "update")).toBe(true);
     await applyDeploy(rest, cfg, () => {});
-    expect(store.endpoints.map((e) => e.name)).toEqual([`${NAMES.keyframe} -fb`, NAMES.clip]);
+    expect(store.endpoints.map((e) => e.name)).toEqual([`${NAMES.keyframe} -fb`]);
   });
 
   it("refuses to pick between two resources with the same name, before creating anything", async () => {
@@ -268,8 +273,8 @@ describe("runpod deploy", () => {
 
   it("refuses an ambiguous endpoint name before anything is written, secrets included", async () => {
     const { rest, store, calls, secrets } = fakeRest();
-    store.endpoints.push({ id: "e1", name: NAMES.clip }, { id: "e2", name: `${NAMES.clip} -fb` });
-    await expect(applyDeploy(rest, cfg, () => {})).rejects.toThrow(/endpoints.*flowchain-clip/);
+    store.endpoints.push({ id: "e1", name: NAMES.keyframe }, { id: "e2", name: `${NAMES.keyframe} -fb` });
+    await expect(applyDeploy(rest, cfg, () => {})).rejects.toThrow(/endpoints.*flowchain-keyframe/);
     expect(calls.filter((c) => !c.startsWith("GET"))).toEqual([]);
     expect(secrets.size).toBe(0);
   });
@@ -277,9 +282,9 @@ describe("runpod deploy", () => {
   it("keeps the endpoints warm for 30 s between a run's sequential jobs", async () => {
     const { rest, store } = fakeRest();
     await applyDeploy(rest, cfg, () => {});
-    expect(store.endpoints.map((e) => e.idleTimeout)).toEqual([30, 30]);
+    expect(store.endpoints.map((e) => e.idleTimeout)).toEqual([30]);
     // a worker keeps nothing of a job after it stops: no state is carried over to its next start
-    expect(store.endpoints.map((e) => e.flashboot)).toEqual([false, false]);
+    expect(store.endpoints.map((e) => e.flashboot)).toEqual([false]);
   });
 
   it("grows a smaller volume, leaves a big enough one alone and refuses one in another data centre", async () => {
@@ -315,17 +320,17 @@ describe("runpod deploy", () => {
 
   it("seeds an endpoint's weights with a job that may run longer than the endpoint's normal limit", async () => {
     const api = new FakeRunpodApi(() => [{ status: "IN_PROGRESS" }, { status: "COMPLETED", output: { downloaded: ["a"], skipped: ["b"] } }]);
-    const done = await fetchModels(new RunpodClient("k", { fetch: api.fetch }), "ep-c", "clip", { pollMs: 1, sleep: async () => {} });
+    const done = await fetchModels(new RunpodClient("k", { fetch: api.fetch }), "ep-k", "keyframe", { pollMs: 1, sleep: async () => {} });
     expect(done).toEqual({ downloaded: ["a"], skipped: ["b"] });
-    expect(api.runs[0].input).toEqual({ task: "fetch-models", only: "clip" });
+    expect(api.runs[0].input).toEqual({ task: "fetch-models", only: "keyframe" });
     expect(api.runs[0].policy).toEqual({ executionTimeout: 3_600_000, ttl: 2 * 3_600_000 });
   });
 
   it("writes the endpoint ids into .env, replacing old values and keeping everything else", async () => {
     const path = join(await tempDir(), ".env");
-    await writeFile(path, "GEMINI_API_KEY=g\nRUNPOD_CLIP_ENDPOINT=old\n");
-    await writeEnvValues(path, { RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c" });
-    expect(await readFile(path, "utf8")).toBe("GEMINI_API_KEY=g\nRUNPOD_CLIP_ENDPOINT=ep-c\nRUNPOD_KEYFRAME_ENDPOINT=ep-k\n");
+    await writeFile(path, "GEMINI_API_KEY=g\nRUNPOD_LTX_ENDPOINT=old\n");
+    await writeEnvValues(path, { RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_LTX_ENDPOINT: "ep-l" });
+    expect(await readFile(path, "utf8")).toBe("GEMINI_API_KEY=g\nRUNPOD_LTX_ENDPOINT=ep-l\nRUNPOD_KEYFRAME_ENDPOINT=ep-k\n");
   });
 
   it("writes .env through a temp file that is renamed over it, leaving no temp file behind", async () => {
@@ -342,14 +347,8 @@ describe("runpod deploy", () => {
   });
 });
 
-describe("worker image tag", () => {
-  it("follows the first 12 characters of the tree hash of workers/", () => {
-    expect(workerImageTag("0123456789abcdef0123456789abcdef01234567")).toBe("w-0123456789ab");
-  });
-});
-
 describe("assertImageInGhcr", () => {
-  const image = "ghcr.io/me/flowchain-worker:w-0123456789ab";
+  const image = "ghcr.io/me/flowchain-picture:p-0123456789ab";
 
   /** A GHCR stand-in: the token endpoint answers `token`, the manifest HEAD answers `manifest`. */
   function ghcr(token: number | Error, manifest: number | Error = 200) {
@@ -367,8 +366,8 @@ describe("assertImageInGhcr", () => {
   it("passes when the manifest exists, asking anonymously for the tag", async () => {
     const { fetchImpl, calls } = ghcr(200);
     await assertImageInGhcr(image, () => {}, fetchImpl);
-    expect(calls[0].url).toBe("https://ghcr.io/token?scope=repository:me/flowchain-worker:pull");
-    expect(calls[1]).toMatchObject({ url: "https://ghcr.io/v2/me/flowchain-worker/manifests/w-0123456789ab", method: "HEAD" });
+    expect(calls[0].url).toBe("https://ghcr.io/token?scope=repository:me/flowchain-picture:pull");
+    expect(calls[1]).toMatchObject({ url: "https://ghcr.io/v2/me/flowchain-picture/manifests/p-0123456789ab", method: "HEAD" });
     expect(calls[1].headers.get("authorization")).toBe("Bearer tok");
     expect(calls[1].headers.get("accept")).toContain("application/vnd.oci.image.index.v1+json");
   });
@@ -410,17 +409,17 @@ describe("the voice endpoint's deploy", () => {
     expect(store.networkvolumes).toEqual([]);
   });
 
-  it("updates in place on a second run, and leaves the picture and clip endpoints alone", async () => {
+  it("updates in place on a second run, and leaves the picture endpoint alone", async () => {
     const { rest, store } = fakeRest();
     await applyDeploy(rest, cfg, () => {});
     const first = await applyVoiceDeploy(rest, voice);
     expect((await planVoiceDeploy(rest)).map((s) => s.action)).toEqual(["update", "update"]);
     const second = await applyVoiceDeploy(rest, { ...voice, image: "ghcr.io/me/flowchain-voice:v-def" });
     expect(second).toEqual(first);
-    expect(store.templates.map((t) => [t.name, t.imageName])).toEqual([[NAMES.template, cfg.image], [NAMES.pictureTemplate, cfg.pictureImage], ["flowchain-voice", "ghcr.io/me/flowchain-voice:v-def"]]);
-    expect(store.endpoints.map((e) => e.name)).toEqual([NAMES.keyframe, NAMES.clip, "flowchain-voice"]);
-    // the other endpoints still read their weights from the volume
-    expect(store.endpoints.filter((e) => e.networkVolumeId).map((e) => e.name)).toEqual([NAMES.keyframe, NAMES.clip]);
+    expect(store.templates.map((t) => [t.name, t.imageName])).toEqual([[NAMES.pictureTemplate, cfg.pictureImage], ["flowchain-voice", "ghcr.io/me/flowchain-voice:v-def"]]);
+    expect(store.endpoints.map((e) => e.name)).toEqual([NAMES.keyframe, "flowchain-voice"]);
+    // the picture endpoint still reads its weights from the volume
+    expect(store.endpoints.filter((e) => e.networkVolumeId).map((e) => e.name)).toEqual([NAMES.keyframe]);
   });
 
   it("tags the image by the content of its own folder", () => {
@@ -431,15 +430,15 @@ describe("the voice endpoint's deploy", () => {
 describe("the volume used before", () => {
   const old = { id: "v-old", name: "flowchain-models", size: 110, dataCenterId: "EU-RO-1" };
 
-  it("is left alone by a deploy, which makes the smaller one beside it and points both endpoints there", async () => {
+  it("is left alone by a deploy, which makes the smaller one beside it and points the picture endpoint there", async () => {
     const { rest, store } = fakeRest();
     store.networkvolumes.push({ ...old });
-    store.endpoints.push({ id: "e-k", name: NAMES.keyframe, networkVolumeId: "v-old", networkVolumeIds: ["v-old"] }, { id: "e-c", name: NAMES.clip, networkVolumeId: "v-old", networkVolumeIds: ["v-old"] });
+    store.endpoints.push({ id: "e-k", name: NAMES.keyframe, networkVolumeId: "v-old", networkVolumeIds: ["v-old"] });
     const ids = await applyDeploy(rest, { ...cfg, volumeGb: DEFAULTS.volumeGb }, () => {});
     expect(store.networkvolumes.map((v) => [v.name, v.size])).toEqual([["flowchain-models", 110], ["flowchain-weights", 50]]);
-    expect(store.endpoints.map((e) => e.networkVolumeId)).toEqual([ids.volumeId, ids.volumeId]);
+    expect(store.endpoints.map((e) => e.networkVolumeId)).toEqual([ids.volumeId]);
     // the list RunPod keeps beside the single id is moved with it: left alone it went on naming the old volume
-    expect(store.endpoints.map((e) => e.networkVolumeIds)).toEqual([[ids.volumeId], [ids.volumeId]]);
+    expect(store.endpoints.map((e) => e.networkVolumeIds)).toEqual([[ids.volumeId]]);
     expect(ids.volumeId).not.toBe("v-old");
     // said, so the models are asked for twice: a worker may still answer from the old volume just after the move
     expect(ids.movedVolume).toBe(true);
@@ -453,7 +452,7 @@ describe("the volume used before", () => {
 
     const inUse = fakeRest();
     inUse.store.networkvolumes.push({ ...old }, { id: "v-new", name: NAMES.volume, size: 50 });
-    inUse.store.endpoints.push({ id: "e-c", name: NAMES.clip, networkVolumeId: "v-old" });
+    inUse.store.endpoints.push({ id: "e-c", name: "flowchain-clip", networkVolumeId: "v-old" });
     await expect(removeRetiredVolumes(inUse.rest)).rejects.toThrow(/still read by flowchain-clip/);
     expect(inUse.store.networkvolumes).toHaveLength(2);
     // as it was after the first move: the single id says the new volume, the list still says the old one
@@ -466,7 +465,7 @@ describe("the volume used before", () => {
 
     const moved = fakeRest();
     moved.store.networkvolumes.push({ ...old }, { id: "v-new", name: NAMES.volume, size: 50 }, { id: "v-x", name: "someone-elses", size: 10 });
-    moved.store.endpoints.push({ id: "e-c", name: NAMES.clip, networkVolumeId: "v-new" });
+    moved.store.endpoints.push({ id: "e-k", name: NAMES.keyframe, networkVolumeId: "v-new" });
     expect(await removeRetiredVolumes(moved.rest)).toEqual(["flowchain-models"]);
     expect(moved.store.networkvolumes.map((v) => v.name)).toEqual([NAMES.volume, "someone-elses"]);
     // said again, there is nothing to do, and nothing is touched
@@ -498,13 +497,13 @@ describe("runpod deploy of the FLUX 3 picture endpoint (phase 10 spec §3)", () 
 
   it("gives the picture worker the Hugging Face token as a secret, never in plain text", async () => {
     const { rest, store, secrets } = fakeRest();
-    await applyDeploy(rest, withFlux3, () => {});
+    await applyDeploy(rest, { ...withFlux3, upscaleImage: "ghcr.io/me/flowchain-upscale:u-1" }, () => {});
     expect(secrets.has("flowchain_hf_token")).toBe(true);
     const pictureTemplate = store.templates.find((t) => t.name === NAMES.pictureTemplate)!;
     expect(pictureTemplate.env).toMatchObject({ HF_TOKEN: "{{ RUNPOD_SECRET_flowchain_hf_token }}" });
     expect(JSON.stringify(store)).not.toContain("hf_secret_value");
-    // the clip worker's template does not get it
-    expect(store.templates.find((t) => t.name === NAMES.template)!.env).not.toHaveProperty("HF_TOKEN");
+    // no other worker's template gets it
+    expect(store.templates.find((t) => t.name === NAMES.upscaleTemplate)!.env).not.toHaveProperty("HF_TOKEN");
   });
 
   it("asks the worker for the FLUX 3 weights by name", async () => {
