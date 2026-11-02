@@ -42,7 +42,8 @@ def world(monkeypatch, tmp_path):
         if seen.get("boom"):
             raise RuntimeError("the model failed")
         words = [{"text": "hi", "start": 0.1, "end": 0.4}] if req.speech_language else None
-        return engine.ClipResult(mp4_path=out, seconds=5.04, has_audio=True, words=words)
+        voice_heard = seen.get("voice_heard") if req.detect_voice and not req.speech_language else None
+        return engine.ClipResult(mp4_path=out, seconds=5.04, has_audio=True, words=words, voice_heard=voice_heard)
 
     monkeypatch.setattr(engine, "make_clip", fake_make_clip)
 
@@ -64,6 +65,19 @@ def test_a_valid_job_returns_the_url_the_seconds_the_sound_and_the_words(world):
 def test_a_speaking_job_returns_its_words(world):
     out = h.handler({"id": "job1", "input": {**GOOD, "speech_language": "en"}})
     assert out["words"] == [{"text": "hi", "start": 0.1, "end": 0.4}]
+
+
+@pytest.mark.parametrize("heard", [True, False])
+def test_a_job_that_asks_for_a_voice_check_returns_whether_a_voice_was_heard(world, heard):
+    world["voice_heard"] = heard
+    out = h.handler({"id": "job1", "input": {**GOOD, "detect_voice": True}})
+    assert out["voice_heard"] is heard and out["words"] is None
+    assert world["calls"][0].detect_voice is True
+
+
+def test_a_job_that_did_not_ask_for_a_voice_check_carries_no_voice_answer(world):
+    assert "voice_heard" not in h.handler({"id": "job1", "input": GOOD})
+    assert "voice_heard" not in h.handler({"id": "job2", "input": {**GOOD, "speech_language": "en"}})
 
 
 def test_the_clip_is_uploaded_under_flowchain_as_an_mp4(world):

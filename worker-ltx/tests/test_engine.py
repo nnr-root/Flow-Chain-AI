@@ -48,11 +48,103 @@ class FakeListener:
         return self.words
 
 
+class FakeWhisper:
+    """Stands in for faster-whisper's model: records how it was asked to transcribe and hears what it is given."""
+
+    def __init__(self, words):
+        self.words = words
+        self.calls = []
+
+    def transcribe(self, path, **options):
+        self.calls.append((path, options))
+        word = lambda w: types.SimpleNamespace(word=w["text"], start=w["start"], end=w["end"])
+        segments = [types.SimpleNamespace(words=[word(w) for w in self.words])] if self.words else []
+        return iter(segments), None
+
+
 def make(tmp_path, req=None, pipeline=None, listener=None, load_listener=None):
     return engine.make_clip(
         req or request(), workdir=str(tmp_path), generate=pipeline or FakePipeline(), transcribe=listener or FakeListener([]),
         load_listener=load_listener or (lambda: "W"),
     )
+
+
+def listen_for_voices(tmp_path, whisper, pipeline=None, order=None, **over):
+    """Makes an ordinary clip that asks whether a voice is heard, with the real transcription over a fake Whisper."""
+    order = order if order is not None else []
+    p = pipeline or FakePipeline()
+    return engine.make_clip(
+        request(detect_voice=True, **over), workdir=str(tmp_path), generate=lambda args: order.append("generate") or p(args),
+        load_listener=lambda: order.append("load") or whisper,
+    )
+
+
+@needs_ffmpeg
+def test_a_clip_that_asks_for_a_voice_check_loads_whisper_before_the_clip_is_generated(tmp_path):
+    order = []
+    listen_for_voices(tmp_path, FakeWhisper([]), order=order)
+    assert order == ["load", "generate"]
+
+
+def test_a_voice_check_whose_whisper_cannot_load_is_refused_before_any_clip_is_generated(tmp_path):
+    pipeline = FakePipeline()
+
+    def broken():
+        raise RuntimeError("libcudnn_ops.so.9: cannot open shared object file")
+
+    with pytest.raises(RuntimeError, match="libcudnn"):
+        engine.make_clip(request(detect_voice=True), workdir=str(tmp_path), generate=pipeline, load_listener=broken)
+    assert pipeline.calls == []
+
+
+@needs_ffmpeg
+def test_a_voice_heard_in_an_ordinary_clip_is_reported_and_its_words_are_never_returned(tmp_path):
+    result = listen_for_voices(tmp_path, FakeWhisper([{"text": " hello", "start": 0.2, "end": 0.5}]))
+    assert result.voice_heard is True
+    assert result.words is None
+
+
+@needs_ffmpeg
+def test_an_ordinary_clip_where_nothing_is_heard_reports_no_voice(tmp_path):
+    result = listen_for_voices(tmp_path, FakeWhisper([]))
+    assert result.voice_heard is False and result.words is None
+
+
+@needs_ffmpeg
+def test_a_voice_check_detects_the_language_and_skips_what_is_not_speech(tmp_path):
+    whisper = FakeWhisper([])
+    listen_for_voices(tmp_path, whisper)
+    path, options = whisper.calls[0]
+    # any language a stranger's voice could be in: the check is whether anyone speaks, not what is said
+    assert path.endswith(".mp4") and options.get("language") is None
+    assert options["vad_filter"] is True
+
+
+@needs_ffmpeg
+def test_a_voice_check_of_a_clip_without_sound_hears_nothing_and_never_runs_whisper(tmp_path):
+    whisper = FakeWhisper([{"text": "hi", "start": 0.1, "end": 0.4}])
+    result = listen_for_voices(tmp_path, whisper, pipeline=FakePipeline(audio=False))
+    assert result.voice_heard is False and whisper.calls == []
+
+
+@needs_ffmpeg
+def test_a_clip_that_asks_neither_for_speech_nor_a_voice_check_reports_no_answer_and_loads_nothing(tmp_path):
+    loads = []
+    result = make(tmp_path, load_listener=lambda: loads.append("load") or "W")
+    assert result.voice_heard is None and loads == []
+
+
+@needs_ffmpeg
+def test_a_speaking_clip_that_also_asks_for_a_voice_check_keeps_its_words_and_gives_no_voice_answer(tmp_path):
+    listener = FakeListener([{"text": "Merhaba", "start": 0.1, "end": 0.5}])
+    loads = []
+    result = make(
+        tmp_path, req=request(speech_language="tr", detect_voice=True), listener=listener,
+        load_listener=lambda: loads.append("load") or "W",
+    )
+    assert [w["text"] for w in result.words] == ["Merhaba"]
+    assert result.voice_heard is None
+    assert loads == ["load"] and listener.calls[0][1] == "tr"
 
 
 @needs_ffmpeg

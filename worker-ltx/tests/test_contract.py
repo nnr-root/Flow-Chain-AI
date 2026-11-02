@@ -29,6 +29,20 @@ def test_takes_a_speech_language(language):
     assert contract.parse({**MINIMAL, "speech_language": language}).speech_language == language
 
 
+def test_a_request_that_does_not_ask_to_detect_a_voice_does_not():
+    assert contract.parse(MINIMAL).detect_voice is False
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_takes_detect_voice_as_a_bool(value):
+    assert contract.parse({**MINIMAL, "detect_voice": value}).detect_voice is value
+
+
+def test_takes_detect_voice_together_with_a_speech_language():
+    req = contract.parse({**MINIMAL, "detect_voice": True, "speech_language": "en"})
+    assert (req.detect_voice, req.speech_language) == (True, "en")
+
+
 @pytest.mark.parametrize(
     "change, why",
     [
@@ -59,6 +73,9 @@ def test_takes_a_speech_language(language):
         ({"seed": True}, "seed must be"),
         ({"speech_language": "de"}, "speech_language must be"),
         ({"speech_language": ""}, "speech_language must be"),
+        ({"detect_voice": 1}, "detect_voice must be"),
+        ({"detect_voice": "yes"}, "detect_voice must be"),
+        ({"detect_voice": None}, "detect_voice must be"),
     ],
 )
 def test_refuses_what_is_not_the_contract(change, why):

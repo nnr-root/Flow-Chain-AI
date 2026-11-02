@@ -45,6 +45,8 @@ class ClipResult:
     has_audio: bool
     # None unless the request asked for speech; then every word heard, in order
     words: list | None
+    # None unless an ordinary clip asked for a voice check; then whether Whisper heard any word in its sound
+    voice_heard: bool | None = None
 
 
 def _require_gpu():
@@ -183,6 +185,13 @@ def _transcribe(path, language, model=None):
     return [{"text": w.word, "start": w.start, "end": w.end} for s in segments for w in (s.words or [])]
 
 
+def _hears_a_voice(path, model):
+    """Whether Whisper hears any word in the clip's sound. The language is left to Whisper (a stranger's voice can be in
+    any) and its voice filter skips what is not speech, so ambience is less often taken for a word."""
+    segments, _ = model.transcribe(path, word_timestamps=True, beam_size=5, condition_on_previous_text=False, vad_filter=True)
+    return len(clean_words({"text": w.word, "start": w.start, "end": w.end} for s in segments for w in (s.words or []))) > 0
+
+
 def clean_words(raw):
     """Words with text, in order of their start, each ending after it starts, times in seconds to the millisecond."""
     words = []
@@ -212,7 +221,9 @@ def probe(path):
 def make_clip(req, workdir="/tmp", generate=None, transcribe=None, load_listener=None):
     """Makes the clip the request asks for in workdir; returns a ClipResult."""
     heard_by = None
-    if req.speech_language is not None:
+    # a voice check is only for a clip that does not ask for speech: a speaking clip's words already say who speaks
+    check_voice = req.detect_voice and req.speech_language is None
+    if req.speech_language is not None or check_voice:
         # Whisper is loaded before the clip is made: a worker whose CUDA 12 or cuDNN libraries are wrong then fails a
         # job that bought nothing, instead of generating a paid clip and failing to hear it afterwards.
         heard_by = (load_listener or listener)()
@@ -233,4 +244,9 @@ def make_clip(req, workdir="/tmp", generate=None, transcribe=None, load_listener
             words = clean_words(transcribe(out_path, req.speech_language))
         else:
             words = clean_words(_transcribe(out_path, req.speech_language, heard_by))
-    return ClipResult(mp4_path=out_path, seconds=seconds, has_audio=has_audio, words=words)
+    voice_heard = None
+    if check_voice:
+        # silence has no voice in it; Whisper is not run on a sound it was never given. Only the answer leaves the worker,
+        # never the words: nothing downstream may show or use what a stranger's voice said
+        voice_heard = has_audio and _hears_a_voice(out_path, heard_by)
+    return ClipResult(mp4_path=out_path, seconds=seconds, has_audio=has_audio, words=words, voice_heard=voice_heard)

@@ -37,7 +37,11 @@ def handler(job):
         url = storage.upload(made.mp4_path, f"flowchain/{job_id}.mp4", "video/mp4")
     finally:
         shutil.rmtree(workdir, ignore_errors=True)
-    return {"url": url, "seconds": made.seconds, "has_audio": made.has_audio, "words": made.words}
+    out = {"url": url, "seconds": made.seconds, "has_audio": made.has_audio, "words": made.words}
+    # only when a voice check was asked and made: a client that never asked keeps the answer it always had
+    if made.voice_heard is not None:
+        out["voice_heard"] = made.voice_heard
+    return out
 
 
 if __name__ == "__main__":

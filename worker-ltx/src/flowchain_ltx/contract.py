@@ -15,7 +15,7 @@ MAX_PROMPT = 4000
 MAX_SEED = 2**63 - 1
 SPEECH_LANGUAGES = ("en", "tr")
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
-FIELDS = {"task", "image", "prompt", "frames", "fps", "width", "height", "seed", "speech_language"}
+FIELDS = {"task", "image", "prompt", "frames", "fps", "width", "height", "seed", "speech_language", "detect_voice"}
 REQUIRED = ("image", "prompt", "frames", "fps", "width", "height", "seed")
 
 
@@ -34,6 +34,9 @@ class ClipRequest:
     seed: int
     # present = run Whisper over the clip's audio and return the words with their times
     speech_language: str | None = None
+    # true = listen to an ordinary clip's audio and say only whether anyone speaks in it (phase 15 spec §13.10): the
+    # narrator is the only voice such a video may have. Ignored when speech_language is set: the words already tell
+    detect_voice: bool = False
 
 
 def frames_for_seconds(seconds: float) -> int:
@@ -96,6 +99,9 @@ def parse(payload: dict) -> ClipRequest:
     language = payload.get("speech_language")
     if language is not None and language not in SPEECH_LANGUAGES:
         raise ContractError(f"speech_language must be one of {', '.join(SPEECH_LANGUAGES)}")
+    detect_voice = payload.get("detect_voice", False)
+    if not isinstance(detect_voice, bool):
+        raise ContractError("detect_voice must be true or false")
     return ClipRequest(
         image_png=_image(payload["image"]),
         prompt=prompt,
@@ -105,4 +111,5 @@ def parse(payload: dict) -> ClipRequest:
         height=_side(payload, "height"),
         seed=_int(payload, "seed", 0, MAX_SEED),
         speech_language=language,
+        detect_voice=detect_voice,
     )
