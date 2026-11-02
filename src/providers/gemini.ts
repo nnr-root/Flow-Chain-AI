@@ -134,6 +134,8 @@ const videoPromptRules = (speaking: boolean): string[] => [
   '- videoPrompt, what it shows: the frame of the imagePrompt and the motion of the motionPrompt: one subject doing one action from start to end, and one camera move. When a person stays still, say what does not move (for example "her hands stay folded in her lap and her body does not turn"), or the model moves them.',
   '- videoPrompt, what it never asks for: a cut, a sequence of shots, or a change of place or angle inside the clip; and never a look that draws a widescreen picture inside the frame: no "cinematic", "film", "widescreen", "letterbox" or "black bars".',
   `- videoPrompt, its "Audio:" sentence: repeats the ideas of this scene's soundPrompt (the same sources and materials, in words of its own), ${speaking ? "with no music and no voice but the sentence in speech" : "with no music and no voices"}.`,
+  // (phase 15 spec §13.10: a narrated video's only voice is its narrator's; a clip model told of a voice makes one)
+  '- videoPrompt, its "Audio:" sentence in a scene without speech: only ambience and sound effects (what moves, what it touches, the place\'s own tone), never a voice, speech, a whisper, the talk of a crowd or singing, not even far away; the narrator is the only voice the video has.',
 ];
 
 /**

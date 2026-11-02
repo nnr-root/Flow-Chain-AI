@@ -43,6 +43,18 @@ describe("the prompt written for the clip model (videoPrompt)", () => {
     expect(p).toContain("say what does not move");
   });
 
+  it("tells every scene that does not speak to name only ambience and effects in its Audio: sentence, in a whole script and in a part, with speech or without", () => {
+    for (const p of [buildScriptPrompt(base), buildScriptPrompt({ ...base, speech: true }), part(1), part(0, { speech: true })]) {
+      const rule = p.split("\n").find((l) => l.startsWith('- videoPrompt, its "Audio:" sentence in a scene without speech:'));
+      expect(rule, p.slice(0, 40)).toBeDefined();
+      for (const word of ["only ambience and sound effects", "a voice", "speech", "a whisper", "the talk of a crowd", "singing"]) expect(rule).toContain(word);
+    }
+    // a speaking scene keeps its own rules: its videoPrompt quotes the sentence and its Audio: sentence has that voice
+    const speaking = buildScriptPrompt({ ...base, speech: true });
+    expect(speaking).toContain("lips moving precisely with every word");
+    expect(speaking).toContain("with no music and no voice but the sentence in speech");
+  });
+
   it("leaves the motionPrompt's own rules as they were, since a Wan run still reads them", () => {
     expect(buildScriptPrompt(base)).toContain("Nothing new enters the frame, nothing changes place or shape, and nobody speaks to the camera.");
   });

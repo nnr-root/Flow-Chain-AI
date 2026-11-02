@@ -391,3 +391,28 @@ Deployed (`runpod:deploy`, the owner's click) and run with `FLOWCHAIN_LTX=on` fo
 6. **Results** (a Gemini model watching the finished videos, 10-point scales): a 2-scene explainer with clip sound: captions 7, narration 7, ambient sound 7, picture 7, motion 6; a 3-scene video with two speaking scenes: speech matches its line 7, lip sync 7, captions 7, voice 7, no repeated or cut-off sentence. The model's clip files carry no provenance tags beyond the encoder's (`Lavf`); the final video carries only `Made with Remotion`. §9.4 therefore has nothing to preserve at the container level today; the licensor's answer decides what is required (the email draft is on the owner's Desktop).
 7. **The 180 s `render` timeout** (`Timeout exceeded rendering the component initially`) appeared once on a loaded machine while test suites ran; it passed when the machine was quiet. It is the same flake the README names for the render test.
 8. **Cost shape of a Wan + Foley video** (run `20261031-135445-f163fa`, 4 scenes, 23.7 s, USD 0.97 in total, with a retried picture endpoint): pictures 0.58, scene sound 0.13, clips 0.13, voice 0.12. FLUX 3's A100 rate is the largest line, not the clips.
+
+### 13.10 No voice in an ordinary scene's clip sound (2026-11-02, phase 15b Task 15; wins over every earlier section)
+
+The owner's rule: in a video whose voice is the narrator's (the hosted voice or the studio's own), LTX's clip sound may be ambience and effects,
+but a character is never heard speaking in it. Speaking scenes (`isSpeaking`, §5) are a separate, explicit feature and are unchanged. Three layers,
+since a model's own audio can ignore a prompt:
+
+1. **The prompt.** Gemini's `videoPrompt` rules tell a scene without speech to name only ambience and effects in its "Audio:" sentence, never a
+   voice, speech, a whisper, the talk of a crowd or singing (`PROMPT_VERSION` `2026-11-02.25`). `clipPrompt` ends every LTX prompt of a scene that
+   does not speak with the fixed `NO_VOICES_SENTENCE` (" No voices, no speech, no singing; only ambience and sound effects."); a speaking scene's
+   prompt is unchanged. The sentence is part of the clips stage's key, so an ordinary LTX clip made before it is bought again on resume (only the
+   owner's test runs exist); Wan's prompts and keys are unchanged.
+2. **The worker.** The contract gains `detect_voice: bool` (default false; ignored when `speech_language` is set, whose words already tell). With it,
+   the worker loads its Whisper before generating (the same order rule as speech: a worker that cannot load it fails before buying a clip),
+   transcribes the clip's sound with the language left to Whisper and `vad_filter=True`, and answers `voice_heard` (any word heard), never the words.
+   A clip without sound is `voice_heard: false` without running Whisper. The answer carries `voice_heard` only when it was asked.
+3. **The pipeline.** The clips stage asks `detectVoice` for every LTX scene that does not speak and keeps `voiceHeard` on the clip and in the job's
+   kept result (a reused paid result keeps it). `hasClipSound` is false when `voiceHeard === true`: the scene gets no `sound` step and the render lays
+   no sound under it (the render also skips a clip sound kept from an earlier clip of such a scene). Unknown (a clip made before the check, or
+   recovered without the worker's answer) or false is as before.
+
+A false alarm (ambience Whisper takes for a word) costs that scene only its ambience; it is never retried or re-bought. The worker changed: its image
+must be rebuilt (the owner's push runs the `ltx` job of the image workflow) and the endpoint's template moved to the new tag by `npm run runpod:deploy`
+(the owner's click). Until then an old image refuses `detect_voice` as an unknown field, and every ordinary LTX clip fails (refused before any clip is made, so at most the worker's start is billed).
+

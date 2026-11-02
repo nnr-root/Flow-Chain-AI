@@ -9,7 +9,7 @@ import { TEMPERATURE, UPSAMPLE_DECODING } from "../../src/providers/prompt-versi
 import type { ScriptRequest } from "../../src/providers/types.js";
 import { ideasPrompt } from "../../src/trends/prompt.js";
 import { REFERENCE_NOTE } from "../../src/stages/references.js";
-import { imagePrompt, motionPrompt } from "../../src/stages/visual.js";
+import { clipPrompt, imagePrompt, motionPrompt } from "../../src/stages/visual.js";
 import type { SpeechLanguage } from "../../src/voice/language.js";
 import { fakeScript } from "../fakes/providers.js";
 
@@ -74,6 +74,9 @@ export function pinnedPrompts(): Record<string, string> {
     out[`visual:${name}`] = `${imagePrompt(script as never, 0, preset)}\n${motionPrompt(script as never, 0, preset)}`;
   }
   for (const e of EDITS) out[`visual:edit:${e.id}`] = `${imagePrompt(script as never, 0, null, e)}\n${motionPrompt(script as never, 0, null, e)}`;
+  // an LTX clip's prompt, ordinary (it asks for no voice) and speaking (asked as the script wrote it)
+  out["visual:clip:ltx"] = clipPrompt(script as never, 0, null, undefined, "ltx25@1", false);
+  out["visual:clip:ltx:speaking"] = clipPrompt(script as never, 0, null, undefined, "ltx25@1", true);
   return out;
 }
 
