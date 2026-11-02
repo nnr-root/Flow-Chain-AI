@@ -40,12 +40,12 @@ describe("the health answer's speaking character", () => {
 });
 
 describe("the health answer's sound effects, with clips that carry their own sound", () => {
-  it("are offered with the scene-sound endpoint switched on, with the clip endpoint that makes sound, with both, and not with neither", async () => {
-    expect((await answer("RUNPOD_FOLEY_ENDPOINT=f\nFLOWCHAIN_SCENE_SOUND=on\n")).sound).toBe(true);
+  it("are offered with the clip endpoint that makes sound switched on, and only then: the removed scene-sound worker's switch offers nothing", async () => {
     expect((await answer(LTX)).sound).toBe(true);
     expect((await answer(`${LTX}RUNPOD_FOLEY_ENDPOINT=f\nFLOWCHAIN_SCENE_SOUND=on\n`)).sound).toBe(true);
+    expect((await answer(LTX_UNSWITCHED)).sound).toBeUndefined();
+    expect((await answer("RUNPOD_FOLEY_ENDPOINT=f\nFLOWCHAIN_SCENE_SOUND=on\n")).sound).toBeUndefined();
     expect((await answer("")).sound).toBeUndefined();
-    expect((await answer("RUNPOD_FOLEY_ENDPOINT=f\n")).sound).toBeUndefined();
   });
 });
 

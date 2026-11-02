@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createElement } from "react";
@@ -5,9 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { GET as health } from "@/app/api/health/route";
 import { POST as createDraft } from "@/app/api/drafts/route";
-import { POST as generate } from "@/app/api/runs/[id]/generate/route";
 import { POST as rerender } from "@/app/api/runs/[id]/rerender/route";
-import { POST as reroll } from "@/app/api/runs/[id]/reroll/route";
 import { NewVideoForm, sfxToSend } from "@/components/NewVideoForm";
 import { namesInternals, SELF_NAMES } from "@/lib/engines";
 import { STAGE_LABELS } from "@/lib/labels";
@@ -18,7 +17,11 @@ import { calls, draftManifest, finishedManifest, nextRunId, params, request, sav
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => {}, refresh: () => {} }) }));
 
-/* Phase 14 spec §6: the studio offers scene sound where it is set up, says what it is, and holds credit that covers it. */
+/*
+ * Phase 14 spec §6, phase 15 spec §6 and §13.12: a scene's sound is its own clip's, so the studio offers sound effects
+ * exactly where its clips are made with sound, and says they cost nothing more. (The scene-sound worker that once bought a
+ * sound for each scene was removed: its switch and its endpoint offer nothing now.)
+ */
 const studio = useStudio();
 const sound = async (env: string) => {
   await writeFile(join(studio.root, ".env"), env);
@@ -26,15 +29,31 @@ const sound = async (env: string) => {
 };
 
 describe("the health answer's scene sound", () => {
-  it("is offered only when its endpoint is set AND the owner switched it on, and is absent otherwise", async () => {
-    expect(await sound("RUNPOD_FOLEY_ENDPOINT=secret-f\n")).toBeUndefined();
-    expect(await sound("FLOWCHAIN_SCENE_SOUND=on\n")).toBeUndefined();
-    expect(await sound("RUNPOD_FOLEY_ENDPOINT=secret-f\nFLOWCHAIN_SCENE_SOUND=off\n")).toBeUndefined();
-    expect(await sound("RUNPOD_FOLEY_ENDPOINT=secret-f\nFLOWCHAIN_SCENE_SOUND=on\n")).toBe(true);
+  const LTX = "RUNPOD_LTX_ENDPOINT=secret-l\nFLOWCHAIN_LTX=on\n";
+  // (the clip engine's endpoint and switch are read from the studio's .env here, not from what other tests left behind)
+  const fresh = () => {
+    delete process.env.FLOWCHAIN_LTX;
+    delete process.env.RUNPOD_LTX_ENDPOINT;
+  };
+
+  it("is offered exactly when the clip engine, whose clips carry their own sound, is set up and switched on", async () => {
+    fresh();
+    expect(await sound(LTX)).toBe(true);
+    expect(await sound("RUNPOD_LTX_ENDPOINT=secret-l\n")).toBeUndefined();
+    expect(await sound("FLOWCHAIN_LTX=on\n")).toBeUndefined();
+    expect(await sound("")).toBeUndefined();
+  });
+
+  it("is not offered by the removed scene-sound worker's endpoint and switch, with the clip engine or without it", async () => {
+    fresh();
+    expect(await sound("RUNPOD_FOLEY_ENDPOINT=secret-f\nFLOWCHAIN_SCENE_SOUND=on\n")).toBeUndefined();
+    expect(await sound(`RUNPOD_LTX_ENDPOINT=secret-l\nRUNPOD_FOLEY_ENDPOINT=secret-f\nFLOWCHAIN_SCENE_SOUND=on\n`)).toBeUndefined();
+    expect(await sound(`${LTX}RUNPOD_FOLEY_ENDPOINT=secret-f\nFLOWCHAIN_SCENE_SOUND=off\n`)).toBe(true);
   });
 
   it("never says where the sound is made", async () => {
-    await writeFile(join(studio.root, ".env"), "RUNPOD_FOLEY_ENDPOINT=secret-f\nFLOWCHAIN_SCENE_SOUND=on\n");
+    fresh();
+    await writeFile(join(studio.root, ".env"), `${LTX}RUNPOD_FOLEY_ENDPOINT=secret-f\nFLOWCHAIN_SCENE_SOUND=on\n`);
     expect(await (await health(request("/api/health"), undefined)).text()).not.toContain("secret");
   });
 });
@@ -43,12 +62,17 @@ describe("the new-video form's sound effects", () => {
   const form = (h: Partial<StudioHealth>) =>
     renderToStaticMarkup(createElement(NewVideoForm, { health: { missing: [], queue: { mode: "local" }, ...h }, kits: [], tracks: [], presets: [] }));
 
-  it("are a switch and a level only where scene sound is offered, with a note that it is made for each scene and adds to the price", () => {
+  const note = (h: Partial<StudioHealth>) => /data-testid="sound-note"[^>]*>([^<]*)</.exec(form(h))![1];
+
+  it("are a switch and a level only where scene sound is offered, with a note that each scene keeps its own clip's sound and that it costs nothing more", () => {
     const on = form({ sound: true });
     expect(on).toContain('aria-label="Sound effects"');
     expect(on).toContain('data-testid="sound-note"');
-    expect(on).toMatch(/made for each scene/);
-    expect(on).toMatch(/adds to the price/);
+    expect(note({ sound: true })).toMatch(/its own clip/);
+    expect(note({ sound: true })).toMatch(/costs nothing more/);
+    // (the sound is free: neither note, the switch on or off, says it adds to the price, nor that the price is lower without it)
+    expect(on).not.toMatch(/adds to the price|price is lower|made for each scene/);
+    expect(readFileSync(join(import.meta.dirname, "../components/NewVideoForm.tsx"), "utf8")).not.toMatch(/adds to the price|price is lower/);
     const off = form({});
     expect(off).not.toContain('aria-label="Sound effects"');
     expect(off).not.toContain('data-testid="sound-note"');
@@ -96,7 +120,7 @@ describe("a new draft's scene sound", () => {
   // the studio's own health answer is the one gate: here (no queue) it is read from the studio's .env
   const draftCommand = async (env: string, json: object) => {
     withKeys();
-    // (a video of pictures in a studio without the clip engine, whose clips carry their own sound: only the Foley switch decides)
+    // (the clip engine's switch from the studio's .env alone: it is what offers sound)
     delete process.env.FLOWCHAIN_LTX;
     await writeFile(join(studio.root, ".env"), env);
     await stub(studio, "_draft-manifest.json", draftManifest("placeholder"));
@@ -108,9 +132,10 @@ describe("a new draft's scene sound", () => {
   };
 
   it("is asked for only while the studio offers it, and never when the customer turned it off", async () => {
-    expect(await draftCommand("RUNPOD_FOLEY_ENDPOINT=f\nFLOWCHAIN_SCENE_SOUND=on\n", {})).not.toContain("--no-sfx");
-    expect(await draftCommand("RUNPOD_FOLEY_ENDPOINT=f\nFLOWCHAIN_SCENE_SOUND=on\n", { sfx: false })).toContain("--no-sfx");
-    expect(await draftCommand("RUNPOD_FOLEY_ENDPOINT=f\n", { sfx: true })).toContain("--no-sfx");
+    expect(await draftCommand("FLOWCHAIN_LTX=on\n", {})).not.toContain("--no-sfx");
+    expect(await draftCommand("FLOWCHAIN_LTX=on\n", { sfx: false })).toContain("--no-sfx");
+    // (the removed scene-sound worker's switch offers nothing)
+    expect(await draftCommand("RUNPOD_FOLEY_ENDPOINT=f\nFLOWCHAIN_SCENE_SOUND=on\n", { sfx: true })).toContain("--no-sfx");
   });
 });
 
@@ -125,56 +150,7 @@ describe("what the studio calls the sound step", () => {
   });
 });
 
-describe("the credit a video with scene sound holds", () => {
-  const SOUND_PLAN = {
-    items: [
-      { stage: "clips", scene: 1, costUsd: 0.2 },
-      { stage: "sound", scene: 1, costUsd: 0.0318 },
-      { stage: "sound", scene: 2, costUsd: 0.0048 },
-      { stage: "sound", scene: 3, costUsd: 0.0048 },
-      { stage: "render", scene: null, costUsd: 0 },
-    ],
-    totalUsd: 0.2414,
-  };
-  const draft = async () => {
-    const id = nextRunId();
-    const m = draftManifest(id);
-    m.request.sceneSound = true;
-    await saveRun(studio, m);
-    await stub(studio, "_plan.json", SOUND_PLAN);
-    return id;
-  };
-
-  it("is the plan's whole figure, the sound in it, when a draft is generated", async () => {
-    const id = await draft();
-    expect((await generate(request(`/api/runs/${id}/generate`, { json: { approvedUsd: 0.2414 } }), params({ id }))).status).toBe(202);
-    await until(() => readJob(join(studio.runs, id))?.state === "ended");
-    expect((await calls(studio)).at(-1)).toEqual(["resume", id, "--budget", "0.2414", "--cap", "0.2414"]);
-  });
-
-  it("is refused when what was approved leaves the sound out, before anything starts", async () => {
-    const id = await draft();
-    const res = await generate(request(`/api/runs/${id}/generate`, { json: { approvedUsd: 0.2 } }), params({ id }));
-    expect(res.status).toBe(409);
-    expect((await res.json()).error).toMatchObject({ code: "estimate_changed", totalUsd: 0.2414 });
-    expect((await calls(studio)).filter((c) => c[0] !== "plan")).toEqual([]);
-  });
-
-  it("is the plan's figure for one scene's new sound", async () => {
-    const id = nextRunId();
-    const m = finishedManifest(id);
-    m.request.sceneSound = true;
-    await saveRun(studio, m);
-    await stub(studio, "_plan-reroll.json", { items: [{ stage: "sound", scene: 2, costUsd: 0.0048 }, { stage: "render", scene: null, costUsd: 0 }], totalUsd: 0.0048 });
-    const res = await reroll(request(`/api/runs/${id}/reroll`, { json: { scene: 2, stage: "sound", approvedUsd: 0.0048 } }), params({ id }));
-    expect(res.status).toBe(202);
-    await until(() => readJob(join(studio.runs, id))?.state === "ended");
-    const all = await calls(studio);
-    expect(all.find((c) => c[0] === "plan" && c[1] === id)).toEqual(["plan", id, "--json", "--reroll", "2:sound"]);
-    expect(all.at(-1)).toEqual(["reroll", id, "--scene", "2", "--stage", "sound", "--budget", "0.0048", "--cap", "0.0048"]);
-  });
-});
-
+// (an old run made with scene sound, whose sounds were bought before the worker that made them was removed)
 describe("re-rendering a finished video with sound effects turned on", () => {
   const finished = async (made: boolean) => {
     const id = nextRunId();

@@ -304,7 +304,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
               <input type="range" min={0} max={1} step={0.05} value={f.musicGain} onChange={(e) => set("musicGain", Number(e.target.value))} className="w-full" />
             </Field>
           )}
-          {/* (only where scene sound is offered: elsewhere there is nothing for the switch to turn on) */}
+          {/* (only where scene sound is offered, its clips being made with their own sound: elsewhere there is nothing for the switch to turn on) */}
           {health.sound && (
             <Field label={`Sound effects ${f.sfx ? `(${Math.round(f.sfxGain * 100)}%)` : "(off)"}`}>
               <div className="flex items-center gap-2">
@@ -313,8 +313,8 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
               </div>
               <span className="mt-1.5 block text-[0.85rem] text-graphite" data-testid="sound-note">
                 {f.sfx
-                  ? "A sound is made for each scene, from what is seen in it, and played under the voice. It adds to the price: the draft shows it before anything is made."
-                  : "No sound effects: nothing is made for them, and the price is lower."}
+                  ? "Each moving scene keeps the sound of its own clip, played under the voice. It costs nothing more."
+                  : "No sound effects: the scenes are silent under the voice and the music. The price is the same."}
               </span>
             </Field>
           )}

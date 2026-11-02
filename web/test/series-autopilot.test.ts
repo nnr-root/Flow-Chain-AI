@@ -235,8 +235,12 @@ describe.skipIf(!supa || !hasRedisServer())("a series on a schedule", () => {
     expect(await soundDraft()).toContain("--no-sfx");
   });
 
-  it("asks for scene sound while the worker offers it", async () => {
-    expect(await soundDraft({ RUNPOD_FOLEY_ENDPOINT: "ep-f", FLOWCHAIN_SCENE_SOUND: "on" })).not.toContain("--no-sfx");
+  it("asks for scene sound while the worker offers it: its clips are made with their own sound", async () => {
+    expect(await soundDraft({ RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_LTX: "on" })).not.toContain("--no-sfx");
+  });
+
+  it("asks for no scene sound on the removed scene-sound worker's switch alone", async () => {
+    expect(await soundDraft({ RUNPOD_FOLEY_ENDPOINT: "ep-f", FLOWCHAIN_SCENE_SOUND: "on" })).toContain("--no-sfx");
   });
 
   // (phase 15: a recipe's speech is passed as its sound is, and only where the worker offers it)

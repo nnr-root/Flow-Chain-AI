@@ -91,10 +91,9 @@ export type Health = {
   /** Whether topic ideas (phase 13) are offered: the key is there, the owner switched them on and, with accounts, a price is set. Present only when true, like `smooth`. */
   ideas?: true;
   /**
-   * Whether scene sound (phase 14 spec §6) can be offered: its endpoint is set and the owner switched it on, or new runs'
-   * clips are made on the LTX endpoint (set, and switched on by `FLOWCHAIN_LTX`), whose clips carry their own sound (phase 15 spec §13.7). Present only when true,
-   * like `smooth`. Its prices are not read here (the web never reads `prices.json`): the CLI's own gate decides at
-   * creation, and a run made without them is made without sound and says so.
+   * Whether scene sound can be offered: exactly when new runs' clips are made on the LTX endpoint (set, and switched on by
+   * `FLOWCHAIN_LTX`), whose clips carry their own sound (phase 15 spec §13.7), the only scene sound since the worker that
+   * bought one was removed (§13.12; its switch and endpoint are read by nothing). Present only when true, like `smooth`.
    */
   sound?: true;
   /**
@@ -119,8 +118,9 @@ export function health(): Health {
     missing: [...unset(NEEDS), ...(unset(VOICE_NEEDS).length === VOICE_NEEDS.length ? [`${VOICE_NEEDS[0]} (or ${VOICE_NEEDS[1]})`] : [])],
     ...(ltx ? { clips: true as const } : {}),
     fullHd: Boolean(env.RUNPOD_UPSCALE_ENDPOINT?.trim()),
-    // an LTX clip carries its own sound (phase 15 spec §13.7): without this the form would send --no-sfx and it would be silent
-    ...(ltx || (env.RUNPOD_FOLEY_ENDPOINT?.trim() && env.FLOWCHAIN_SCENE_SOUND?.trim() === "on") ? { sound: true as const } : {}),
+    // an LTX clip carries its own sound (phase 15 spec §13.7), and it is the only scene sound since the worker that bought one
+    // was removed (§13.12): without this the form would send --no-sfx and it would be silent
+    ...(ltx ? { sound: true as const } : {}),
     ...(ltx && env.FLOWCHAIN_SPEECH?.trim() === "on" ? { speech: true as const } : {}),
     ...(env.GEMINI_API_KEY?.trim() && env.FLOWCHAIN_TREND_IDEAS?.trim() === "on" && (!multiTenant() || ideasPriceUsd() !== undefined) ? { ideas: true as const } : {}),
   };

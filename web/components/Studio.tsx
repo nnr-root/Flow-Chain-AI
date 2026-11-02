@@ -37,8 +37,8 @@ const REROLLS: Array<{ stage: string; label: string }> = [
   { stage: "upscale", label: "full HD clip" },
   // (and this one only on a moving clip of a 60 fps run that is not in full HD)
   { stage: "interpolate", label: "smooth motion" },
-  // (and this one only on a scene of a run made with scene sound, whose sound effects are on)
-  { stage: "sound", label: "sound" },
+  // (no "sound": a scene's sound is its own clip's, new with a new clip, and an old run's bought sound can no longer be
+  // bought, phase 15 spec §13.12)
 ];
 
 export function Studio({ initial, initialLog, kits, publishing = false, versions }: { initial: RunView; initialLog: string[]; kits: KitSummary[]; publishing?: boolean; versions?: VersionChoices }) {
@@ -218,7 +218,6 @@ export function Studio({ initial, initialLog, kits, publishing = false, versions
             {preview.draft && (
               <p data-testid="draft-note" className="bg-wash px-3 py-2 text-[0.85rem]">
                 Draft preview: placeholder pictures, estimated timing, no voice yet. The captions, the opening title, the cuts, the brand and the music are real.
-                {status?.sceneSound && status.render.sfx ? " Each scene's sound is made with the video." : ""}
               </p>
             )}
             <StudioPlayer ref={player} props={preview.props} resolve={resolve} className="overflow-hidden rounded-[26px] bg-stage ring-1 ring-hairline" />
@@ -488,8 +487,8 @@ export function SceneRow({ scene, picture, draft, canReroll, version = false, pi
       <p className="mt-1 text-[0.85rem] text-graphite">{scene.imagePrompt}</p>
       {canReroll && (
         <div className="mt-2 flex flex-wrap gap-2">
-          {/* (a version's pictures and clips are its original's: only its voice and its scenes' sound are its own) */}
-          {REROLLS.filter((r) => has(r.stage) && (!version || r.stage === "tts" || r.stage === "sound")).map((r) => (
+          {/* (a version's pictures and clips are its original's: only its voice is its own) */}
+          {REROLLS.filter((r) => has(r.stage) && (!version || r.stage === "tts")).map((r) => (
             <Button key={r.stage} className="!px-2 !py-1 !text-[0.85rem]" disabled={busy} onClick={() => onReroll(r.stage, r.label)}>New {r.label}</Button>
           ))}
           {has("reference") && !version && <Button className="!px-2 !py-1 !text-[0.85rem]" disabled={busy} onClick={() => onReroll("reference", "character portrait")}>New portrait</Button>}
