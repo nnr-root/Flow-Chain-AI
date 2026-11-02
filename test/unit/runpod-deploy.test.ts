@@ -2,7 +2,7 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  applyDeploy, applyVoiceDeploy, assertImageInGhcr, chooseFoleyImage, chooseLtxImage, DEFAULTS, envValuesOf, ImageMissing, fetchModels, foleyImageTag, ltxImageTag, NAMES, picture3GpusOf, planDeploy, planVoiceDeploy, removeRetiredVolumes, RunpodRest, VOICE_DEFAULTS, voiceImageTag,
+  applyDeploy, applyVoiceDeploy, assertImageInGhcr, chooseLtxImage, DEFAULTS, envValuesOf, ImageMissing, fetchModels, ltxImageTag, NAMES, picture3GpusOf, planDeploy, planVoiceDeploy, removeRetiredVolumes, RunpodRest, VOICE_DEFAULTS, voiceImageTag,
   writeEnvValues,
 } from "../../src/deploy/runpod.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
@@ -124,48 +124,19 @@ describe("runpod deploy", () => {
     expect((await planDeploy(rest, { upscale: true })).find((s) => s.name === NAMES.upscale)?.action).toBe("update");
   });
 
-  it("makes the Foley endpoint only when its image is given: its own template with room for the model, 24 GB cards with a driver for CUDA 12.8, no volume, anywhere (phase 14)", async () => {
+  it("makes no scene-sound endpoint any more, and leaves the removed worker's template and endpoint alone where they still exist (phase 15 spec §13.12)", async () => {
     const without = fakeRest();
-    const plain = await applyDeploy(without.rest, cfg, () => {});
-    expect(plain.foleyEndpointId).toBeUndefined();
-    expect(without.store.endpoints.map((e) => e.name)).not.toContain(NAMES.foley);
-    expect((await planDeploy(without.rest)).map((s) => s.name)).toEqual([
-      "flowchain-weights", "flowchain-picture", "flowchain-keyframe",
-    ]);
+    const plain = await applyDeploy(without.rest, { ...cfg, upscaleImage: "u:1", ltxImage: "l:1" }, () => {});
+    expect(without.store.endpoints.map((e) => e.name)).not.toContain("flowchain-foley");
+    expect(without.store.templates.map((t) => t.name)).not.toContain("flowchain-foley");
     expect(Object.keys(envValuesOf(plain))).not.toContain("RUNPOD_FOLEY_ENDPOINT");
 
-    const { rest, store } = fakeRest();
-    const image = `ghcr.io/me/flowchain-foley:${foleyImageTag("0123456789abcdef0123")}`;
-    expect(image).toMatch(/:f-[0-9a-f]{12}$/);
-    expect((await planDeploy(rest, { foley: true })).slice(-2).map((s) => `${s.action} ${s.what} ${s.name}`)).toEqual(["create template flowchain-foley", "create endpoint flowchain-foley"]);
-    const deployed = await applyDeploy(rest, { ...cfg, foleyImage: image }, () => {});
-    const foley = store.endpoints.find((e) => e.name === NAMES.foley)!;
-    expect(deployed.foleyEndpointId).toBe(foley.id);
-    expect(store.templates.find((t) => t.id === foley.templateId)).toMatchObject({ name: NAMES.foleyTemplate, imageName: image, containerDiskInGb: 80, isServerless: true });
-    expect(foley).toMatchObject({ gpuTypeIds: DEFAULTS.foleyGpus, workersMin: 0, workersMax: 1, idleTimeout: 30, executionTimeoutMs: 300_000, flashboot: false, minCudaVersion: "12.8" });
-    expect(DEFAULTS.foleyGpus).not.toContain("NVIDIA L4");
-    for (const field of ["networkVolumeId", "networkVolumeIds", "dataCenterIds"]) expect(foley).not.toHaveProperty(field);
-    expect(envValuesOf(deployed).RUNPOD_FOLEY_ENDPOINT).toBe(foley.id);
-    // a second deploy changes it in place
-    await applyDeploy(rest, { ...cfg, foleyImage: `${image}2` }, () => {});
-    expect(store.endpoints.filter((e) => e.name === NAMES.foley)).toHaveLength(1);
-    expect(store.templates.filter((t) => t.name === NAMES.foleyTemplate)).toHaveLength(1);
-    expect((await planDeploy(rest, { foley: true })).find((s) => s.name === NAMES.foley)?.action).toBe("update");
-  });
-
-  it("skips a default Foley image that is not built yet, but not one the owner named", async () => {
-    const probed: string[] = [];
-    const absent = async (i: string) => { probed.push(i); throw new ImageMissing("gone"); };
-    const present = async (i: string) => { probed.push(i); };
-    const defaultImage = async () => "ghcr.io/me/flowchain-foley:f-abc";
-    const miss = await chooseFoleyImage({ skip: false, defaultImage, probe: absent });
-    expect(miss.image).toBeUndefined();
-    expect(miss.message).toBe("the Foley image f-abc is not in GHCR yet, or is not public: skipping the Foley endpoint (build and publish it, then run this again)");
-    expect(await chooseFoleyImage({ skip: false, defaultImage, probe: present })).toEqual({ image: "ghcr.io/me/flowchain-foley:f-abc" });
-    await expect(chooseFoleyImage({ skip: false, explicit: "ghcr.io/me/x:1", defaultImage, probe: absent })).rejects.toBeInstanceOf(ImageMissing);
-    probed.length = 0;
-    expect(await chooseFoleyImage({ skip: true, defaultImage, probe: absent })).toEqual({});
-    expect(probed).toEqual([]);
+    const { rest, store, calls } = fakeRest();
+    store.templates.push({ id: "t-fo", name: "flowchain-foley" });
+    store.endpoints.push({ id: "e-fo", name: "flowchain-foley", templateId: "t-fo" });
+    expect((await planDeploy(rest, { upscale: true, ltx: true })).map((s) => s.name)).not.toContain("flowchain-foley");
+    await applyDeploy(rest, { ...cfg, upscaleImage: "u:1", ltxImage: "l:1" }, () => {});
+    expect(calls.filter((c) => c.includes("t-fo") || c.includes("e-fo"))).toEqual([]);
   });
 
   it("makes the LTX endpoint only when its image is given: its own template with a disk for the image and the joined weights, five 48 and 80 GB cards, CUDA 13.2, one worker, no volume, anywhere (phase 15)", async () => {
@@ -209,8 +180,8 @@ describe("runpod deploy", () => {
 
   it("sends only CUDA versions RunPod accepts, in every endpoint the planner builds", async () => {
     const { rest, store } = fakeRest();
-    await applyDeploy(rest, { ...cfg, upscaleImage: "u:1", foleyImage: "f:1", ltxImage: "l:1", keyframe3Gpus: ["NVIDIA A40"] }, () => {});
-    expect(store.endpoints.length).toBeGreaterThanOrEqual(5);
+    await applyDeploy(rest, { ...cfg, upscaleImage: "u:1", ltxImage: "l:1", keyframe3Gpus: ["NVIDIA A40"] }, () => {});
+    expect(store.endpoints.length).toBeGreaterThanOrEqual(4);
     for (const e of store.endpoints) if (e.minCudaVersion !== undefined) expect(RUNPOD_CUDA_VERSIONS, String(e.name)).toContain(e.minCudaVersion);
     const voice = fakeRest();
     await applyVoiceDeploy(voice.rest, { image: "v:1", gpus: ["NVIDIA GeForce RTX 4090"] });

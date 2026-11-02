@@ -1,11 +1,12 @@
 # Builds the RunPod worker images (2.4 spec §4.2) and pushes them to GitHub's container registry. Wan's clip worker
 # (workers/, the flowchain-worker image) was removed on 2026-11-02 (phase 15 spec §13.10); its last image stays in the
-# registry and its code at the tag wan-last.
+# registry and its code at the tag wan-last. The scene-sound worker (worker-foley/, the flowchain-foley
+# image) was removed the same day (§13.12): its last image stays in the registry and its code at the tag foley-last.
 name: worker-image
 on:
   push:
     branches: [main]
-    paths: ["worker-voice/**", "worker-picture/**", "worker-upscale/**", "worker-foley/**", "worker-ltx/**", ".github/workflows/worker-image.yml"]
+    paths: ["worker-voice/**", "worker-picture/**", "worker-upscale/**", "worker-ltx/**", ".github/workflows/worker-image.yml"]
   workflow_dispatch:
 permissions:
   contents: read
@@ -83,37 +84,6 @@ jobs:
       - uses: docker/build-push-action@v6
         with:
           context: worker-upscale
-          platforms: linux/amd64
-          push: true
-          tags: |
-            ${{ steps.name.outputs.image }}:latest
-            ${{ steps.name.outputs.image }}:${{ steps.tree.outputs.tag }}
-
-  # The Foley worker (phase 14 spec §4): its own image, with its models inside, tagged by the content of worker-foley/.
-  foley:
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
-    steps:
-      - uses: actions/checkout@v4
-      - id: tree
-        run: echo "tag=f-$(git rev-parse HEAD:worker-foley | cut -c1-12)" >> "$GITHUB_OUTPUT"
-      # the image's layers, the build cache and the push need about 25-30 GB at their peak: free everything the action can
-      - uses: jlumbroso/free-disk-space@v1.3.1
-        with:
-          tool-cache: true
-          large-packages: true
-          docker-images: true
-          swap-storage: true
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - id: name
-        run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/flowchain-foley" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v6
-        with:
-          context: worker-foley
           platforms: linux/amd64
           push: true
           tags: |

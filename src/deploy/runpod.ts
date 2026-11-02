@@ -15,9 +15,8 @@ export const NAMES = {
   /** full HD (phase 8 spec §8): its own image, with its model inside, and no volume */
   upscaleTemplate: "flowchain-upscale",
   upscale: "flowchain-upscale",
-  /** scene sound (phase 14 spec §4): its own image, with its models inside, and no volume */
-  foleyTemplate: "flowchain-foley",
-  foley: "flowchain-foley",
+  // (the scene-sound worker's template and endpoint are no longer made or changed: it was removed on 2026-11-02, phase 15
+  // spec §13.12, which names them)
   /** the LTX clip worker (phase 15): its own image, with its code inside, and no volume */
   ltxTemplate: "flowchain-ltx",
   ltx: "flowchain-ltx",
@@ -38,9 +37,6 @@ export type DeployConfig = {
   /** The upscaling worker's image (phase 8 spec §8); absent = no full HD endpoint is made or changed. */
   upscaleImage?: string;
   upscaleGpus?: string[];
-  /** The Foley worker's image (phase 14 spec §4); absent = no Foley endpoint is made or changed. */
-  foleyImage?: string;
-  foleyGpus?: string[];
   /** The LTX worker's image (phase 15); absent = no LTX endpoint is made or changed. */
   ltxImage?: string;
   ltxGpus?: string[];
@@ -65,9 +61,6 @@ export const DEFAULTS = {
   // model. `RUNPOD_PICTURE3_GPUS=default` means this list.
   picture3Gpus: ["NVIDIA A100 80GB PCIe", "NVIDIA A100-SXM4-80GB", "NVIDIA RTX 6000 Ada Generation", "NVIDIA L40S", "NVIDIA A40", "NVIDIA RTX A6000"],
   upscaleGpus: ["NVIDIA GeForce RTX 4090", "NVIDIA RTX A5000", "NVIDIA GeForce RTX 3090"],
-  // 24 GB cards, spelled as RunPod takes them for the upscale endpoint; it reads no volume either. NVIDIA L4 is left
-  // out on purpose: the names RunPod accepts were not checked for it, and a wrong name would fail the whole create.
-  foleyGpus: ["NVIDIA GeForce RTX 4090", "NVIDIA RTX A5000", "NVIDIA GeForce RTX 3090"],
   // LTX (phase 15): 48 GB or more. The order is a preference, not a requirement: the A100 80 GB is often out of stock,
   // and RunPod gives the job to whichever of these has a free worker. It reads no volume, so any data centre will do.
   ltxGpus: ["NVIDIA A100 80GB PCIe", "NVIDIA A100-SXM4-80GB", "NVIDIA L40S", "NVIDIA RTX 6000 Ada Generation", "NVIDIA A40"],
@@ -143,7 +136,7 @@ function findByName(list: Resource[], kind: Kind, name: string): Resource | unde
 
 export type Step = { what: string; name: string; action: "create" | "update" };
 
-type Existing = { volume?: Resource; pictureTemplate?: Resource; keyframe?: Resource; keyframe3?: Resource; upscaleTemplate?: Resource; upscale?: Resource; foleyTemplate?: Resource; foley?: Resource; ltxTemplate?: Resource; ltx?: Resource };
+type Existing = { volume?: Resource; pictureTemplate?: Resource; keyframe?: Resource; keyframe3?: Resource; upscaleTemplate?: Resource; upscale?: Resource; ltxTemplate?: Resource; ltx?: Resource };
 
 /** What RunPod already has for our four resources (matched by name); throws when a name is ambiguous. Read-only. */
 async function lookupExisting(rest: RunpodRest): Promise<Existing> {
@@ -159,15 +152,13 @@ async function lookupExisting(rest: RunpodRest): Promise<Existing> {
     keyframe3: findByName(endpoints, "endpoints", NAMES.keyframe3),
     upscaleTemplate: findByName(templates, "templates", NAMES.upscaleTemplate),
     upscale: findByName(endpoints, "endpoints", NAMES.upscale),
-    foleyTemplate: findByName(templates, "templates", NAMES.foleyTemplate),
-    foley: findByName(endpoints, "endpoints", NAMES.foley),
     ltxTemplate: findByName(templates, "templates", NAMES.ltxTemplate),
     ltx: findByName(endpoints, "endpoints", NAMES.ltx),
   };
 }
 
 /** What a deploy will do, given what already exists (matched by name). */
-export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean; picture3?: boolean; foley?: boolean; ltx?: boolean } = {}): Promise<Step[]> {
+export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean; picture3?: boolean; ltx?: boolean } = {}): Promise<Step[]> {
   const found = await lookupExisting(rest);
   const step = (what: string, existing: Resource | undefined, name: string): Step => ({
     what,
@@ -180,13 +171,12 @@ export async function planDeploy(rest: RunpodRest, opts: { upscale?: boolean; pi
     step("endpoint", found.keyframe, NAMES.keyframe),
     ...(opts.picture3 ? [step("endpoint", found.keyframe3, NAMES.keyframe3)] : []),
     ...(opts.upscale ? [step("template", found.upscaleTemplate, NAMES.upscaleTemplate), step("endpoint", found.upscale, NAMES.upscale)] : []),
-    ...(opts.foley ? [step("template", found.foleyTemplate, NAMES.foleyTemplate), step("endpoint", found.foley, NAMES.foley)] : []),
     ...(opts.ltx ? [step("template", found.ltxTemplate, NAMES.ltxTemplate), step("endpoint", found.ltx, NAMES.ltx)] : []),
   ];
 }
 
 /** `movedVolume`: an endpoint that existed was reading from another volume until now. */
-export type Deployed = { volumeId: string; keyframeEndpointId: string; upscaleEndpointId?: string; foleyEndpointId?: string; ltxEndpointId?: string; keyframe3EndpointId?: string; movedVolume: boolean };
+export type Deployed = { volumeId: string; keyframeEndpointId: string; upscaleEndpointId?: string; ltxEndpointId?: string; keyframe3EndpointId?: string; movedVolume: boolean };
 
 async function upsert(
   rest: RunpodRest,
@@ -286,18 +276,6 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(upscaleTemplate.id, cfg.upscaleGpus ?? DEFAULTS.upscaleGpus, 900_000, { minCudaVersion: "12.8" });
     upscaleEndpointId = (await upsert(rest, "endpoints", existing.upscale, NAMES.upscale, anywhere, anywhere)).id;
   }
-  // scene sound (phase 14 spec §4): its models are in its image too, so it is made the way full HD is
-  let foleyEndpointId: string | undefined;
-  if (cfg.foleyImage) {
-    // 80, not the upscale worker's 30: at a cold start the worker joins its 10 GB model file from two image layers
-    // onto its own disk, so the disk holds the image unpacked and that file once more
-    const foleyBody = { imageName: cfg.foleyImage, containerDiskInGb: 80, env };
-    const foleyTemplate = await upsert(rest, "templates", existing.foleyTemplate, NAMES.foleyTemplate, { ...foleyBody, isServerless: true }, foleyBody);
-    // 300 s: the image is large, so the first job after a cold start must fit inside the limit. Its PyTorch is built
-    // for CUDA 12.8 as the picture worker's is: a host with an older driver has no usable GPU for it
-    const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(foleyTemplate.id, cfg.foleyGpus ?? DEFAULTS.foleyGpus, 300_000, { minCudaVersion: "12.8" });
-    foleyEndpointId = (await upsert(rest, "endpoints", existing.foley, NAMES.foley, anywhere, anywhere)).id;
-  }
   // LTX clips (phase 15): its code and its weights are in its image (split across layers); a worker only JOINS the weights
   // onto its own disk at its first cold start, and downloads nothing
   let ltxEndpointId: string | undefined;
@@ -312,7 +290,7 @@ export async function applyDeploy(rest: RunpodRest, cfg: DeployConfig, log: (m: 
     const { networkVolumeId: _v, networkVolumeIds: _vs, dataCenterIds: _dc, ...anywhere } = endpoint(ltxTemplate.id, cfg.ltxGpus ?? DEFAULTS.ltxGpus, 1_200_000, { minCudaVersion: DEFAULTS.ltxMinCuda });
     ltxEndpointId = (await upsert(rest, "endpoints", existing.ltx, NAMES.ltx, anywhere, anywhere)).id;
   }
-  return { volumeId: volume.id, keyframeEndpointId: keyframeEndpoint.id, ...(upscaleEndpointId ? { upscaleEndpointId } : {}), ...(foleyEndpointId ? { foleyEndpointId } : {}), ...(ltxEndpointId ? { ltxEndpointId } : {}), ...(keyframe3EndpointId ? { keyframe3EndpointId } : {}), movedVolume };
+  return { volumeId: volume.id, keyframeEndpointId: keyframeEndpoint.id, ...(upscaleEndpointId ? { upscaleEndpointId } : {}), ...(ltxEndpointId ? { ltxEndpointId } : {}), ...(keyframe3EndpointId ? { keyframe3EndpointId } : {}), movedVolume };
 }
 
 /**
@@ -456,9 +434,6 @@ export const voiceImageTag = (treeHash: string): string => `v-${treeHash.slice(0
 /** And for `worker-upscale/`. */
 export const upscaleImageTag = (treeHash: string): string => `u-${treeHash.slice(0, 12)}`;
 
-/** And for `worker-foley/`. */
-export const foleyImageTag = (treeHash: string): string => `f-${treeHash.slice(0, 12)}`;
-
 /** And for `worker-ltx/`. */
 export const ltxImageTag = (treeHash: string): string => `l-${treeHash.slice(0, 12)}`;
 
@@ -468,37 +443,14 @@ export function envValuesOf(d: Deployed): Record<string, string> {
     RUNPOD_KEYFRAME_ENDPOINT: d.keyframeEndpointId,
     ...(d.keyframe3EndpointId ? { RUNPOD_PICTURE3_ENDPOINT: d.keyframe3EndpointId } : {}),
     ...(d.upscaleEndpointId ? { RUNPOD_UPSCALE_ENDPOINT: d.upscaleEndpointId } : {}),
-    ...(d.foleyEndpointId ? { RUNPOD_FOLEY_ENDPOINT: d.foleyEndpointId } : {}),
     ...(d.ltxEndpointId ? { RUNPOD_LTX_ENDPOINT: d.ltxEndpointId } : {}),
   };
 }
 
 /**
- * Which Foley image a deploy uses. An image the owner named must exist (a missing one throws); the default one
- * may not have been built yet, and then Foley is skipped with a message so routine redeploys of the rest go on.
+ * Which LTX image a deploy uses. An image the owner named must exist (a missing one throws); the default one may not have
+ * been built yet, and then LTX is skipped with a message so routine redeploys of the rest go on.
  */
-export async function chooseFoleyImage(o: {
-  skip: boolean;
-  explicit?: string;
-  defaultImage: () => Promise<string>;
-  probe: (image: string) => Promise<void>;
-}): Promise<{ image?: string; message?: string }> {
-  if (o.skip) return {};
-  if (o.explicit) {
-    await o.probe(o.explicit);
-    return { image: o.explicit };
-  }
-  const image = await o.defaultImage();
-  try {
-    await o.probe(image);
-    return { image };
-  } catch (err) {
-    if (!(err instanceof ImageMissing)) throw err;
-    return { message: `the Foley image ${image.slice(image.lastIndexOf(":") + 1)} is not in GHCR yet, or is not public: skipping the Foley endpoint (build and publish it, then run this again)` };
-  }
-}
-
-/** The same choice for the LTX image: a named one must exist, the default one may not be built yet (then LTX is skipped). */
 export async function chooseLtxImage(o: {
   skip: boolean;
   explicit?: string;

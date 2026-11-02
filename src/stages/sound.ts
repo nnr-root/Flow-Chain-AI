@@ -58,7 +58,7 @@ const sceneSeconds = (ctx: StageContext, i: number): number => sceneFrames(ctx.m
 
 /*
  * The key an old run's bought sound was made on (phase 14 spec §3), frozen: a key that moved would make a finished run's
- * sound stale, and a stale one can no longer be bought (test/pipeline/foley-old-run.test.ts pins it as literals).
+ * sound stale, and a stale one can no longer be bought (an old-run test in test/pipeline pins it as literals).
  */
 const BOUGHT_NEGATIVE_PROMPT = "speech, voice, vocals, singing, music, narration, noise, distortion";
 const BOUGHT_STEPS = 50;
