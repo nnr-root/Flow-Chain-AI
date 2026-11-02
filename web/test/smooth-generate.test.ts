@@ -28,12 +28,13 @@ describe("generating a 60 fps draft", () => {
     expect(await calls(studio)).toEqual([]);
   });
 
-  it("goes through while it is offered", async () => {
+  it("is refused even with the restorer switched on, now that no clip engine makes the clips it was measured on", async () => {
     await on();
     const id = await draft(60);
-    expect((await go(id)).status).toBe(202);
-    await until(() => readJob(join(studio.runs, id))?.state === "ended");
-    expect((await calls(studio)).at(-1)).toEqual(["resume", id, "--budget", "0.25", "--cap", "0.25"]);
+    const res = await go(id);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatchObject({ code: "validation", message: "smooth motion is not available in this studio right now" });
+    expect(await calls(studio)).toEqual([]);
   });
 
   it("leaves a draft without 60 fps alone, offered or not", async () => {

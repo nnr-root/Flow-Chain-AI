@@ -15,7 +15,7 @@ const KEYS = [
   "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "STRIPE_API_BASE",
   "STUDIO_BUCKET", "STUDIO_S3_ENDPOINT", "STUDIO_R2_ACCOUNT_ID", "STUDIO_R2_ACCESS_KEY_ID", "STUDIO_R2_SECRET_ACCESS_KEY",
   "GEMINI_API_KEY", "FLOWCHAIN_BUDGET_USD",
-  "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT", "RUNPOD_VOICE_ENDPOINT", "ELEVENLABS_API_KEY", "ELEVENLABS_MODEL", "ELEVENLABS_API_BASE", "FLOWCHAIN_VOICE", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
+  "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT", "RUNPOD_LTX_ENDPOINT", "FLOWCHAIN_LTX", "RUNPOD_VOICE_ENDPOINT", "ELEVENLABS_API_KEY", "ELEVENLABS_MODEL", "ELEVENLABS_API_BASE", "FLOWCHAIN_VOICE", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
 ];
 
 export type Studio = { root: string; runs: string };
@@ -41,9 +41,9 @@ export function useStudio(): Studio {
   return studio;
 }
 
-/** The keys a run needs, so the new-video form's check passes. */
+/** The keys a run needs, so the new-video form's check passes, and the clip engine, so it may ask for moving clips. */
 export function withKeys(): void {
-  Object.assign(process.env, { GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c", RUNPOD_VOICE_ENDPOINT: "ep-v", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s" });
+  Object.assign(process.env, { GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_LTX: "on", RUNPOD_VOICE_ENDPOINT: "ep-v", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s" });
 }
 
 const done = { status: "done" as const, inputHash: "h", costUsd: 0, finishedAt: "t" };

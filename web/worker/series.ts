@@ -123,6 +123,8 @@ export function autopilot({ db, line, asUser, here, post, busy, log }: Autopilot
     // A recipe that asks for smooth motion cannot be made while it is not offered (a rollback of the restorer): the
     // video would buy its script, voice, pictures and clips and fail at the end. It stops and waits for its owner.
     if (recipe.data.fps === 60 && !health().smooth) return finish(s, "", "failed", "its next video asks for smooth motion, which is not available right now");
+    // the same for moving clips, where no clip engine is set up (phase 15 spec §13.10): the CLI would refuse its draft
+    if (recipe.data.motion !== "stills" && !health().clips) return finish(s, "", "failed", "its next video asks for moving clips, which are not available right now");
     const tied = await db.from("runs").select("id").eq("series_id", s.id).order("created_at");
     if (tied.error) throw new Error(`reading a series' runs: ${tied.error.message}`);
     const runId = newRunId();

@@ -62,7 +62,7 @@ describe.skipIf(!supa || !hasRedisServer())("publishing to a user's own channel"
       REDIS_URL: redis.url, FLOWCHAIN_ROOT: studio.root, RUNS_DIR: studio.runs, FLOWCHAIN_CLI: process.env.FLOWCHAIN_CLI!,
       DATABASE_URL: s.worker, WORKER_RECONCILE_MS: "1000", WORKER_SERIES_MS: "400", WORKER_RECONCILE_KNOWN_USERS_ONLY: "1",
       YOUTUBE_CLIENT_ID: "yt-id", YOUTUBE_CLIENT_SECRET: "yt-secret", CHANNEL_KEY: KEY, GOOGLE_TOKEN_URL: `${youtube.url}/token`, YOUTUBE_API_BASE: youtube.url,
-      GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c", RUNPOD_VOICE_ENDPOINT: "ep-v", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s",
+      GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_VOICE_ENDPOINT: "ep-v", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s",
       ...env,
     });
     workers.push(w);
@@ -228,7 +228,7 @@ describe.skipIf(!supa || !hasRedisServer())("publishing to a user's own channel"
     await writeFile(join(folder(a), "_plan.json"), JSON.stringify({ items: [], totalUsd: 0.2 }));
     await writeFile(join(folder(a), "_behave.json"), JSON.stringify({ spendUsd: 0.1, makesVideo: true }));
     const series = async (reviewFirst: boolean) => {
-      const made = await createSeries(as(aCookie, "/api/series", { json: { name: reviewFirst ? "Shown first" : "By itself", premise: "Foxes", recipe: {} } }), undefined);
+      const made = await createSeries(as(aCookie, "/api/series", { json: { name: reviewFirst ? "Shown first" : "By itself", premise: "Foxes", recipe: { motion: "stills" } } }), undefined);
       const { id } = (await made.json()) as { id: string };
       expect((await changeSeries(as(aCookie, `/api/series/${id}`, { json: { publishing: { channelId: channel.id, reviewFirst } }, method: "PATCH" }), params({ id }))).status).toBe(200);
       expect((await changeSeries(as(aCookie, `/api/series/${id}`, { json: { schedule: { cadence: "daily" } }, method: "PATCH" }), params({ id }))).status).toBe(200);

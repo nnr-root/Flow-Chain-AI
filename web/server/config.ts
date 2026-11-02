@@ -65,7 +65,7 @@ function pipelineEnv(): Record<string, string | undefined> {
 }
 
 const NEEDS = [
-  "GEMINI_API_KEY", "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT",
+  "GEMINI_API_KEY", "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT",
   "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY",
 ] as const;
 /** A voice: the hosted one's key, or the studio's own endpoint (phase 5 spec §11). Either will do. */
@@ -74,9 +74,19 @@ const VOICE_NEEDS = ["ELEVENLABS_API_KEY", "RUNPOD_VOICE_ENDPOINT"] as const;
 export type Health = {
   /** Names of the settings a new run needs that are not set. */
   missing: string[];
+  /**
+   * Whether moving clips can be offered: the LTX endpoint is set and the owner switched it on (phase 15 spec §7, §13.8). LTX
+   * is the only clip engine since Wan was removed (§13.10); a studio without it makes videos of pictures only. Present only
+   * when true, like `smooth`. Its rates are the CLI's to check (the web never reads `prices.json`).
+   */
+  clips?: true;
   /** Whether full HD (upscaled clips, phase 8 spec §8) can be offered: its endpoint is set. */
   fullHd?: boolean;
-  /** Whether smooth motion (60 fps, phase 11 spec §2) can be offered: the restorer endpoint is set and the owner switched it on, and new runs' clips are not made on the LTX endpoint, switched on by `FLOWCHAIN_LTX` (phase 15 spec §13.5, §13.8). Present only when true, so every studio without it answers exactly as before (the existing health test compares the whole answer). */
+  /**
+   * Whether smooth motion (60 fps, phase 11 spec §2) can be offered. Never, for now: it was measured on Wan's 16 fps clips
+   * only and the CLI refuses it for LTX's 24 fps ones (phase 15 spec §13.5), and Wan is gone (§13.10). Kept, absent, so the
+   * form and the switch come back as they were once it is measured on LTX's clips.
+   */
   smooth?: boolean;
   /** Whether topic ideas (phase 13) are offered: the key is there, the owner switched them on and, with accounts, a price is set. Present only when true, like `smooth`. */
   ideas?: true;
@@ -98,18 +108,17 @@ export type Health = {
 export function health(): Health {
   const env = pipelineEnv();
   const unset = (names: readonly string[]) => names.filter((n) => !env[n]?.trim());
-  // While the LTX endpoint is set and switched on it makes new runs' clips (phase 15 spec §7), so the older clip endpoint is not asked for.
+  // While the LTX endpoint is set and switched on it makes new runs' clips (phase 15 spec §7); without it a studio still makes
+  // videos of pictures only, so it is not "missing" anything (Wan's endpoint, which made clips before, is gone: §13.10).
   // The trade-off: LTX is used only with its three rates too, and the web never reads `prices.json`. Between a deploy
-  // (which writes the endpoint) and the owner setting the rates, a studio without the older clip endpoint says nothing
-  // is missing, offers sound and (switched on) speech, and its runs are refused by the CLI's own check; a studio that has
-  // both endpoints makes its runs on Wan as before, and `--speech` is refused at creation in one plain sentence.
+  // (which writes the endpoint) and the owner setting the rates, a studio offers clips, sound and (switched on) speech,
+  // and a run that may need a clip is refused by the CLI's own check in one plain sentence.
   // (only while the owner switched it on, as the CLI requires for a new run: the endpoint alone changes nothing)
   const ltx = env.FLOWCHAIN_LTX?.trim() === "on" && Boolean(env.RUNPOD_LTX_ENDPOINT?.trim());
   return {
-    missing: [...unset(ltx ? NEEDS.filter((n) => n !== "RUNPOD_CLIP_ENDPOINT") : NEEDS), ...(unset(VOICE_NEEDS).length === VOICE_NEEDS.length ? [`${VOICE_NEEDS[0]} (or ${VOICE_NEEDS[1]})`] : [])],
+    missing: [...unset(NEEDS), ...(unset(VOICE_NEEDS).length === VOICE_NEEDS.length ? [`${VOICE_NEEDS[0]} (or ${VOICE_NEEDS[1]})`] : [])],
+    ...(ltx ? { clips: true as const } : {}),
     fullHd: Boolean(env.RUNPOD_UPSCALE_ENDPOINT?.trim()),
-    // smooth motion was measured on 16 fps clips only: the CLI refuses it for a 24 fps clip, so the form must not offer it
-    ...(!ltx && env.RUNPOD_UPSCALE_ENDPOINT?.trim() && env.FLOWCHAIN_SMOOTH_MOTION?.trim() === "on" ? { smooth: true } : {}),
     // an LTX clip carries its own sound (phase 15 spec §13.7): without this the form would send --no-sfx and it would be silent
     ...(ltx || (env.RUNPOD_FOLEY_ENDPOINT?.trim() && env.FLOWCHAIN_SCENE_SOUND?.trim() === "on") ? { sound: true as const } : {}),
     ...(ltx && env.FLOWCHAIN_SPEECH?.trim() === "on" ? { speech: true as const } : {}),

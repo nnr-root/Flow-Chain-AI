@@ -34,6 +34,10 @@ export default defineConfig({
       FLOWCHAIN_CLI: join(web, "test/stub-cli.mjs"),
       BRAND_KITS_DIR: join(web, ".e2e/brand-kits"),
       STUDIO_UPLOADS_DIR: join(web, ".e2e/uploads"),
+      // the clip engine, so the form offers moving clips whatever this machine's .env says (Wan, which made them without a
+      // switch, is gone: phase 15 spec §13.10); the stand-in CLI never reaches it
+      FLOWCHAIN_LTX: "on",
+      RUNPOD_LTX_ENDPOINT: "e2e",
     },
   },
 });

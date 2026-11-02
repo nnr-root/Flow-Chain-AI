@@ -147,7 +147,7 @@ describe.skipIf(!supa || !hasRedisServer())("an ideas job through the queue", ()
       DATABASE_URL: s.worker, WORKER_RECONCILE_MS: "1000",
       // other test files use the same database at the same time: this worker leaves their users' credit alone
       WORKER_RECONCILE_KNOWN_USERS_ONLY: "1",
-      GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c", RUNPOD_VOICE_ENDPOINT: "ep-v", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s", ...env,
+      GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_VOICE_ENDPOINT: "ep-v", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s", ...env,
     });
     workers.push(w);
     await until(() => w.output().includes("ready") || w.child.exitCode !== null);

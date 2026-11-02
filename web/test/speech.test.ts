@@ -49,31 +49,62 @@ describe("the health answer's sound effects, with clips that carry their own sou
   });
 });
 
-describe("the health answer's smooth motion, while clips are made at 24 frames a second", () => {
-  it("is hidden while the clip endpoint that makes sound is set, even with the restorer switched on", async () => {
-    expect((await answer("RUNPOD_UPSCALE_ENDPOINT=u\nFLOWCHAIN_SMOOTH_MOTION=on\n")).smooth).toBe(true);
-    expect((await answer(`${LTX}RUNPOD_UPSCALE_ENDPOINT=u\nFLOWCHAIN_SMOOTH_MOTION=on\n`)).smooth).toBeUndefined();
-  });
-});
-
-describe("the health answer while the owner has not switched the clip endpoint that makes sound on", () => {
-  it("offers what it offered before that endpoint existed: no speech, no clip sound, smooth motion, and asks for the older clip endpoint", async () => {
-    for (const off of [LTX_UNSWITCHED, `${LTX_UNSWITCHED}FLOWCHAIN_LTX=off\n`]) {
-      const h = await answer(`${off}FLOWCHAIN_SPEECH=on\nRUNPOD_UPSCALE_ENDPOINT=u\nFLOWCHAIN_SMOOTH_MOTION=on\n`);
-      expect(h.speech).toBeUndefined();
-      expect(h.sound).toBeUndefined();
-      expect(h.smooth).toBe(true);
-      expect(h.missing).toContain("RUNPOD_CLIP_ENDPOINT");
+describe("the health answer's smooth motion, now that Wan is gone", () => {
+  it("is never offered, with the clip engine or without it, even with the restorer switched on: it was measured on Wan's clips only", async () => {
+    for (const env of ["", LTX, LTX_UNSWITCHED]) {
+      expect((await answer(`${env}RUNPOD_UPSCALE_ENDPOINT=u\nFLOWCHAIN_SMOOTH_MOTION=on\n`)).smooth, env).toBeUndefined();
     }
   });
 });
 
-describe("the health answer's missing settings, with clips made on the endpoint that makes sound", () => {
-  it("does not ask for the older clip endpoint when that one is set, and still does when neither is", async () => {
-    expect((await answer(LTX)).missing).not.toContain("RUNPOD_CLIP_ENDPOINT");
-    expect((await answer("")).missing).toContain("RUNPOD_CLIP_ENDPOINT");
-    // (everything else a run needs is still asked for)
-    expect((await answer(LTX)).missing).toContain("RUNPOD_KEYFRAME_ENDPOINT");
+describe("the health answer while the owner has not switched the clip endpoint that makes sound on", () => {
+  it("offers a studio of pictures only: no clips, no speech, no clip sound, no smooth motion, and nothing missing for it", async () => {
+    for (const off of [LTX_UNSWITCHED, `${LTX_UNSWITCHED}FLOWCHAIN_LTX=off\n`, "", "RUNPOD_CLIP_ENDPOINT=c\n"]) {
+      const h = await answer(`${off}FLOWCHAIN_SPEECH=on\nRUNPOD_UPSCALE_ENDPOINT=u\nFLOWCHAIN_SMOOTH_MOTION=on\n`);
+      expect(h.clips, off).toBeUndefined();
+      expect(h.speech).toBeUndefined();
+      expect(h.sound).toBeUndefined();
+      expect(h.smooth).toBeUndefined();
+      expect(h.missing).not.toContain("RUNPOD_CLIP_ENDPOINT");
+      expect(h.missing).not.toContain("RUNPOD_LTX_ENDPOINT");
+    }
+  });
+
+  it("offers moving clips once it is switched on, without saying where they are made", async () => {
+    const h = await answer(LTX);
+    expect(h.clips).toBe(true);
+    expect(JSON.stringify(h)).not.toContain("secret");
+  });
+});
+
+describe("the health answer's missing settings", () => {
+  it("never asks for Wan's clip endpoint, with the clip engine or without it, and still asks for everything else a run needs", async () => {
+    for (const env of [LTX, ""]) {
+      expect((await answer(env)).missing).not.toContain("RUNPOD_CLIP_ENDPOINT");
+      expect((await answer(env)).missing).toContain("RUNPOD_KEYFRAME_ENDPOINT");
+    }
+  });
+});
+
+describe("the new-video form's choice of what a video is made of", () => {
+  const form = (h: Partial<StudioHealth>) =>
+    renderToStaticMarkup(createElement(NewVideoForm, { health: { missing: [], queue: { mode: "local" }, ...h }, kits: [], tracks: [], presets: [] }));
+
+  it("offers pictures only, and says why, where no clip engine is set up", () => {
+    const page = form({});
+    expect(page).toContain("Pictures only");
+    expect(page).not.toContain("Pictures and clips");
+    expect(page).not.toContain("Clips only");
+    expect(page).toContain("Moving clips are not available in this studio right now.");
+  });
+
+  it("offers clips where it is, and no clip size but full HD where that is offered", () => {
+    const page = form({ clips: true });
+    expect(page).toContain("Pictures and clips");
+    expect(page).toContain("Clips only");
+    expect(page).not.toMatch(/720p|HD \(720p\)/);
+    expect(page).not.toContain('aria-label="Clip quality"');
+    expect(form({ clips: true, fullHd: true })).toContain("Full HD (1080p)");
   });
 });
 

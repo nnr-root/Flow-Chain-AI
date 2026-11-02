@@ -18,7 +18,7 @@ describe("the new-video form", () => {
     for (const style of PresetName.options) expect(NewVideo.parse({ ...base, style }).style).toBe(style);
     for (const captionStyle of [...CaptionStyleName.options, "preset"]) expect(NewVideo.safeParse({ ...base, captionStyle }).success).toBe(true);
     for (const transition of [...Transition.options, "auto"]) expect(NewVideo.safeParse({ ...base, transition }).success).toBe(true);
-    // clips at 480p or 720p, or full HD: 480p upscaled (phase 8 spec §8)
+    // full HD (phase 8 spec §8); 480p and 720p, Wan's sizes, are still read from a series' saved recipe (and mean the one size)
     for (const clips of ["480p", "720p", "1080p"]) expect(NewVideo.parse({ ...base, clips }).clips).toBe(clips);
     for (const bad of [{ aspect: "1:1" }, { style: "noir" }, { captionStyle: "comic" }, { transition: "wipe" }, { durationSec: 25 }, { durationSec: 660 }, { durationSec: 0 }, { sceneSec: { min: 1, max: 5 } }, { sceneSec: { min: 3, max: 6 } }, { sceneSec: { min: 5, max: 3 } }, { sceneSec: { min: 2.5, max: 4 } }, { clips: "2160p" }, { topic: " " }, { topic: undefined }]) {
       expect(NewVideo.safeParse({ ...base, ...bad }).success).toBe(false);
@@ -53,7 +53,7 @@ describe("the new-video form", () => {
     const minimal = draftArgs(NewVideo.parse(base), "20261006-120000-abcdef", true);
     expect(minimal).toEqual([
       "run", "--draft", "--yes", "--run-id", "20261006-120000-abcdef", "--topic", "foxes", "--aspect", "9:16", "--duration", "60", "--scene-seconds", "3-5",
-      "--language", "en", "--mode", "auto", "--clips", "480p", "--budget", "100", "--caption-style", "preset", "--transition", "auto",
+      "--language", "en", "--mode", "auto", "--budget", "100", "--caption-style", "preset", "--transition", "auto",
       "--bgm-gain", "0.35", "--sfx-gain", "0.6",
       // (phase 15: speech is always said, so a worker that offers it never speaks for a form that showed no switch)
       "--no-speech",
@@ -70,7 +70,9 @@ describe("the new-video form", () => {
     // the studio no longer chooses where pictures are made: every run is made on its own GPU endpoints
     expect(full).not.toContain("--provider");
     expect(after("--style")).toBe("anime");
-    expect(after("--clips")).toBe("720p");
+    // clips are made at one size: a recipe saved with 720p asks for nothing more (`--clips` is gone with Wan)
+    expect(full).not.toContain("--clips");
+    expect(full).not.toContain("--upscale");
     expect(after("--pin-modes")).toBe("2");
     expect(after("--brand")).toBe(join(studio.root, "brand-kits/acme"));
     expect(after("--bgm")).toBe(join(studio.root, "uploads/music/song.mp3"));
@@ -81,6 +83,12 @@ describe("the new-video form", () => {
     expect(after("--voice")).toBe("narrator-f");
     expect(after("--language")).toBe("tr");
     expect(draftArgs(NewVideo.parse({ ...base, hook: { mode: "off" }, motion: "clips" }), "x", true)).toEqual(expect.arrayContaining(["--no-hook", "--pin-modes", "1"]));
+    // full HD is the one clip choice left, and it is asked for by itself
+    for (const clips of ["480p", "720p", "1080p"] as const) {
+      const args = draftArgs(NewVideo.parse({ ...base, clips }), "x", true);
+      expect(args).not.toContain("--clips");
+      expect(args.includes("--upscale")).toBe(clips === "1080p");
+    }
   });
 });
 

@@ -106,7 +106,7 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
       DATABASE_URL: s.worker, WORKER_RECONCILE_MS: "1000",
       // other test files use the same database at the same time: this worker leaves their users' credit alone
       WORKER_RECONCILE_KNOWN_USERS_ONLY: "1",
-      GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c", RUNPOD_VOICE_ENDPOINT: "ep-v", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s", ...bucket?.env, ...env,
+      GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_VOICE_ENDPOINT: "ep-v", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s", ...bucket?.env, ...env,
     });
     workers.push(w);
     await until(() => w.output().includes("ready") || w.child.exitCode !== null);
@@ -181,7 +181,7 @@ describe.skipIf(!supa || !hasRedisServer())("credit through the queue", () => {
     await worker();
     await grant(a, 1);
     await writeFile(join(folder(a), "_draft-manifest.json"), JSON.stringify(draftManifest("20261006-120000-000000")));
-    const input = { topic: "foxes at night", aspect: "9:16", durationSec: 30, sceneSec: { min: 3, max: 5 }, language: "en", style: "auto", motion: "auto", clips: "480p", captionStyle: "preset", transition: "auto", musicGain: 0.35, sfxGain: 0.6, sfx: true, hook: { mode: "auto" } };
+    const input = { topic: "foxes at night", aspect: "9:16", durationSec: 30, sceneSec: { min: 3, max: 5 }, language: "en", style: "auto", motion: "stills", clips: "480p", captionStyle: "preset", transition: "auto", musicGain: 0.35, sfxGain: 0.6, sfx: true, hook: { mode: "auto" } };
     const res = await createDraft(as(aCookie, "/api/drafts", { json: input }), undefined);
     expect(res.status).toBe(202);
     const { runId } = (await res.json()) as { runId: string };

@@ -48,7 +48,11 @@ export const NewVideo = z.object({
    * each scene by how much happens in it. (It is where every scene's own switch starts on the draft's page.)
    */
   motion: z.enum(["auto", "clips", "stills"]).default("auto"),
-  /** The size moving clips are generated at; 720p costs about twice as much. */
+  /**
+   * `1080p` = full HD: every moving clip is upscaled (phase 8 spec §8). Clips are made at one size now (Wan, which made them
+   * at 480p or 720p, was removed on 2026-11-02, phase 15 spec §13.10), so `480p` and `720p` both mean the ordinary size: they
+   * stay accepted so a series' recipe saved with one still loads, and say nothing more.
+   */
   clips: z.enum(["480p", "720p", "1080p"]).default("480p"),
   /** 60 = smooth motion (phase 11 spec §2); an older recipe without it is 30, and its command line is unchanged. */
   fps: z.union([z.literal(30), z.literal(60)]).default(30),
@@ -141,8 +145,7 @@ export function draftArgs(input: NewVideo, runId: string, soundOffered: boolean,
   const args = [
     "run", "--draft", "--yes", "--run-id", runId, "--topic", input.topic, "--aspect", input.aspect,
     "--duration", String(input.durationSec), "--scene-seconds", input.sceneSec.min === input.sceneSec.max ? String(input.sceneSec.min) : `${input.sceneSec.min}-${input.sceneSec.max}`,
-    // (full HD is a 480p clip upscaled: phase 8 spec §8)
-    "--language", input.language, "--mode", "auto", "--clips", input.clips === "1080p" ? "480p" : input.clips, "--budget", String(NO_BUDGET_USD),
+    "--language", input.language, "--mode", "auto", "--budget", String(NO_BUDGET_USD),
     "--caption-style", input.captionStyle, "--transition", input.transition,
     "--bgm-gain", String(input.musicGain), "--sfx-gain", String(input.sfxGain),
   ];

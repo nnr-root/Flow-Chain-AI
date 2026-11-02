@@ -10,6 +10,7 @@ import { requireManifest } from "./runs";
 import { multiTenant } from "./tenant";
 import { nativeVoices, offeredLanguages, readyVoices } from "./voices";
 import { soundNotMade } from "@src/stages/sound";
+import { CLIPS_UNAVAILABLE, NO_CLIPS_MODEL } from "@src/providers/model-id";
 import { versionProblem } from "@src/versions";
 import { canSpeakIn, type SpeechLanguage } from "@src/voice/language";
 import { draftArgs, formProblem, kitDir, type Look, modesArg, musicPath, type NewVideo, rerenderArgs } from "./schemas";
@@ -25,7 +26,7 @@ type RerollTarget = { scene: number; stage: string };
 /** Buys the script for a new run and stops there. The keys a run needs must be set first. */
 /** `seriesId`: the run is one of that series' videos (the caller's own series: the database checks). */
 export async function createDraft(input: NewVideo, seriesId?: string): Promise<{ runId: string; job: JobView }> {
-  const { missing, queue, fullHd, smooth, sound, speech } = await studioHealthRaw();
+  const { missing, queue, clips, fullHd, smooth, sound, speech } = await studioHealthRaw();
   // with the queue the keys are the worker's: when it cannot be asked, nothing is known about them
   if (queue.mode === "queue" && !(queue.redis && queue.worker)) {
     throw new ApiError(queue.redis ? "worker_offline" : "queue_unavailable", queue.redis ? "the worker is offline" : "the job queue is unavailable", "nothing was started; try again in a moment");
@@ -42,6 +43,8 @@ export async function createDraft(input: NewVideo, seriesId?: string): Promise<{
   if (input.voiceId && !readyVoices().includes(input.voiceId)) throw new ApiError("validation", `voiceId: the voice ${input.voiceId} is not ready yet`);
   // a language only the hosted voice speaks is not offered without it (phase 7 spec §17)
   if (input.language && !offeredLanguages().includes(input.language)) throw new ApiError("validation", `language: ${input.language} is not offered in this studio`);
+  // a video that may have a moving clip only where a clip engine is set up (phase 15 spec §13.10); pictures only are made anywhere
+  if (input.motion !== "stills" && !clips) throw new ApiError("validation", `motion: ${CLIPS_UNAVAILABLE}`);
   // full HD is offered only where its worker is set up (phase 8 spec §8)
   if (input.clips === "1080p" && !fullHd) throw new ApiError("validation", "clips: full HD is not available in this studio yet");
   // smooth motion is offered only where the restorer is set up and switched on (phase 11 spec §11)
@@ -93,6 +96,8 @@ export async function setModes(runId: string, modes: Array<1 | 2 | null>): Promi
   const m = await requireManifest(runId);
   if (!statusOf(m).draft) throw new ApiError("not_draft", "media was already bought for this run, so its modes are fixed");
   if (m.request.modes) throw new ApiError("not_draft", "this run was created with fixed modes");
+  // a draft made of pictures where no clip engine was set up can never buy a clip: told now, not when it is generated
+  if (m.models.video === NO_CLIPS_MODEL && modes.includes(1)) throw new ApiError("validation", `modes: ${CLIPS_UNAVAILABLE}`);
   if (await busy(runId)) throw new ApiError("job_active", `run ${runId} is working`);
   await cliJson(["draft-modes", runId, "--modes", modesArg(modes), "--json"]);
   return price(runId);

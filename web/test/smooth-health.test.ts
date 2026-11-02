@@ -12,11 +12,11 @@ const smooth = async (env: string) => {
 };
 
 describe("the health answer's smooth motion", () => {
-  it("is offered only when the restorer is set up AND the owner switched it on, and is absent otherwise", async () => {
+  it("is not offered, whatever the restorer and the owner's switch say: it was measured on Wan's clips only, and Wan is gone (phase 15 spec §13.5, §13.10)", async () => {
     expect(await smooth("RUNPOD_UPSCALE_ENDPOINT=secret-u\n")).toBeUndefined();
     expect(await smooth("FLOWCHAIN_SMOOTH_MOTION=on\n")).toBeUndefined();
     expect(await smooth("RUNPOD_UPSCALE_ENDPOINT=secret-u\nFLOWCHAIN_SMOOTH_MOTION=off\n")).toBeUndefined();
-    expect(await smooth("RUNPOD_UPSCALE_ENDPOINT=secret-u\nFLOWCHAIN_SMOOTH_MOTION=on\n")).toBe(true);
+    expect(await smooth("RUNPOD_UPSCALE_ENDPOINT=secret-u\nFLOWCHAIN_SMOOTH_MOTION=on\n")).toBeUndefined();
   });
 
   it("never says where the restorer is", async () => {
@@ -28,7 +28,7 @@ describe("the health answer's smooth motion", () => {
 describe("a draft that asks for smooth motion", () => {
   it("is refused while it is not offered, before anything is started", async () => {
     withKeys();
-    await writeFile(join(studio.root, ".env"), "RUNPOD_UPSCALE_ENDPOINT=secret-u\n");
+    await writeFile(join(studio.root, ".env"), "RUNPOD_UPSCALE_ENDPOINT=secret-u\nFLOWCHAIN_SMOOTH_MOTION=on\n");
     const res = await createDraft(request("/api/drafts", { json: { topic: "foxes", fps: 60 } }), undefined);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatchObject({ code: "validation", message: "fps: smooth motion is not available in this studio yet" });

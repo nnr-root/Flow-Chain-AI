@@ -96,9 +96,11 @@ describe("a new draft's scene sound", () => {
   // the studio's own health answer is the one gate: here (no queue) it is read from the studio's .env
   const draftCommand = async (env: string, json: object) => {
     withKeys();
+    // (a video of pictures in a studio without the clip engine, whose clips carry their own sound: only the Foley switch decides)
+    delete process.env.FLOWCHAIN_LTX;
     await writeFile(join(studio.root, ".env"), env);
     await stub(studio, "_draft-manifest.json", draftManifest("placeholder"));
-    const res = await createDraft(request("/api/drafts", { json: { topic: "foxes", ...json } }), undefined);
+    const res = await createDraft(request("/api/drafts", { json: { topic: "foxes", motion: "stills", ...json } }), undefined);
     expect(res.status).toBe(202);
     const { runId } = await res.json();
     await until(() => readJob(join(studio.runs, runId))?.state === "ended");

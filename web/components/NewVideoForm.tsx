@@ -91,6 +91,10 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
   const balance = useBalance();
   const set = <K extends keyof typeof f>(key: K, value: (typeof f)[K]) => setF((old) => ({ ...old, [key]: value }));
   const missing = health.missing;
+  // without a clip engine a studio makes videos of pictures only (phase 15 spec §13.10): the other two choices are not shown,
+  // and a choice made while they were is sent as pictures, which the CLI would otherwise refuse
+  const madeOf = health.clips ? MADE_OF : MADE_OF.filter((m) => m.value === "stills");
+  const motion = health.clips ? f.motion : "stills";
   const timing = { targetSec: f.durationSec, sceneSec: { min: f.sceneMin, max: f.sceneMax } };
   // what the script may cost follows from the length: a long video's script is written in several answers
   const hold = draftCapUsd(timing);
@@ -119,7 +123,7 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
     setError("");
     try {
       const choices = {
-        aspect: f.aspect, durationSec: f.durationSec, sceneSec: { min: f.sceneMin, max: f.sceneMax }, style: f.style, motion: f.motion, clips: f.clips, fps: f.fps,
+        aspect: f.aspect, durationSec: f.durationSec, sceneSec: { min: f.sceneMin, max: f.sceneMax }, style: f.style, motion, clips: motion === "stills" ? "480p" : f.clips, fps: f.fps,
         brandKit: f.brandKit || null, music: f.music || null, musicGain: f.musicGain,
         hook: f.hookMode === "custom" ? { mode: "custom", text: f.hookText } : { mode: f.hookMode },
         sfx: sfxToSend(health, f.sfx), sfxGain: f.sfxGain, speech: speechToSend(health, f.speech, f.language), captionStyle: f.captionStyle, transition: f.transition,
@@ -226,19 +230,17 @@ export function NewVideoForm({ health: initialHealth, kits, tracks: initialTrack
       <Panel title="Made of">
         <div className="space-y-5">
           <div className="flex flex-wrap items-center gap-3 text-[0.95rem]">
-            <Segmented label="What the video is made of" value={f.motion} onChange={(v) => set("motion", v)} options={MADE_OF.map(({ value, label }) => ({ value, label }))} />
-            <span className="text-[0.85rem] text-graphite" data-testid="made-of-note">{MADE_OF.find((m) => m.value === f.motion)?.note} You can still change any one scene on the draft, before anything is generated.</span>
+            <Segmented label="What the video is made of" value={motion} onChange={(v) => set("motion", v)} options={madeOf.map(({ value, label }) => ({ value, label }))} />
+            <span className="text-[0.85rem] text-graphite" data-testid="made-of-note">{MADE_OF.find((m) => m.value === motion)?.note} {health.clips ? "You can still change any one scene on the draft, before anything is generated." : "Moving clips are not available in this studio right now."}</span>
           </div>
-          {/* (a video of pictures only has no clip to choose a size for) */}
-          {f.motion !== "stills" && (
+          {/* (clips are made at one size; the one choice left is full HD, where it is offered. A video of pictures only has no clip to sharpen) */}
+          {motion !== "stills" && health.fullHd && (
             <div className="flex flex-wrap items-center gap-3 text-[0.95rem]">
               <span>Moving clips in</span>
-              <Segmented label="Clip quality" value={f.clips} onChange={(v) => set("clips", v)}
-                options={[{ value: "480p", label: "Standard" }, { value: "720p", label: "HD (720p)" }, ...(health.fullHd ? [{ value: "1080p", label: "Full HD (1080p)" }] : [])]} />
+              <Segmented label="Clip quality" value={f.clips === "1080p" ? "1080p" : "480p"} onChange={(v) => set("clips", v)}
+                options={[{ value: "480p", label: "Standard" }, { value: "1080p", label: "Full HD (1080p)" }]} />
               <span className="text-[0.85rem] text-graphite" data-testid="clips-note">
-                {f.clips === "1080p"
-                  ? "Every clip is sharpened to 1080p after it is made: the sharpest, at about six times the cost of a standard clip."
-                  : "HD clips are sharper and cost about twice as much."}{" "}The draft shows the price before anything is made.
+                {f.clips === "1080p" ? "Every clip is sharpened to 1080p after it is made: the sharpest, and it costs more." : "Clips are made at the standard size."}{" "}The draft shows the price before anything is made.
               </span>
             </div>
           )}

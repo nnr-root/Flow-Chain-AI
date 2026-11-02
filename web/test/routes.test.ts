@@ -23,6 +23,7 @@ import { POST as makeVersion } from "@/app/api/runs/[id]/versions/route";
 import { POST as versionPrice } from "@/app/api/runs/[id]/versions/price/route";
 import { decodeLookToken, encodeLookToken } from "@/lib/look-token";
 import { readJob } from "@/server/jobs";
+import { CLIPS_UNAVAILABLE, NO_CLIPS_MODEL } from "@src/providers/model-id";
 import { calls, draftManifest, finishedManifest, nextRunId, params, request, saveRun, stub, until, useStudio, withKeys } from "./helpers";
 
 const studio = useStudio();
@@ -35,7 +36,7 @@ describe("reads", () => {
     const res = await health(request("/api/health"), undefined);
     const text = await res.text();
     expect(JSON.parse(text)).toEqual({
-      missing: ["RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"],
+      missing: ["RUNPOD_KEYFRAME_ENDPOINT", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"],
       fullHd: false,
       queue: { mode: "local" },
     });
@@ -136,7 +137,7 @@ describe("creating a draft", () => {
   it("refuses, naming the variables, while keys are missing — before any run exists", async () => {
     const res = await createDraft(request("/api/drafts", { json: { topic: "foxes" } }), undefined);
     expect(res.status).toBe(400);
-    expect(await error(res)).toMatchObject({ code: "missing_keys", message: "not set in .env: GEMINI_API_KEY, RUNPOD_API_KEY, RUNPOD_KEYFRAME_ENDPOINT, RUNPOD_CLIP_ENDPOINT, R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, ELEVENLABS_API_KEY (or RUNPOD_VOICE_ENDPOINT)" });
+    expect(await error(res)).toMatchObject({ code: "missing_keys", message: "not set in .env: GEMINI_API_KEY, RUNPOD_API_KEY, RUNPOD_KEYFRAME_ENDPOINT, R2_ACCOUNT_ID, R2_BUCKET, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, ELEVENLABS_API_KEY (or RUNPOD_VOICE_ENDPOINT)" });
     expect(await calls(studio)).toEqual([]);
   });
 
@@ -153,6 +154,23 @@ describe("creating a draft", () => {
     expect(args.slice(0, 5)).toEqual(["run", "--draft", "--yes", "--run-id", runId]);
     expect(args).toEqual(expect.arrayContaining(["--topic", "foxes at night", "--duration", "60", "--scene-seconds", "5", "--budget", "100", "--pin-modes", "2"]));
     expect((await (await run(request(`/api/runs/${runId}`), params({ id: runId }))).json()).state).toBe("draft");
+  });
+
+  it("refuses a video that may have a moving clip while no clip engine is set up, before any run exists, and makes one of pictures", async () => {
+    withKeys();
+    delete process.env.FLOWCHAIN_LTX;
+    for (const motion of ["auto", "clips", undefined]) {
+      const res = await createDraft(request("/api/drafts", { json: { topic: "foxes", ...(motion ? { motion } : {}) } }), undefined);
+      expect(res.status).toBe(400);
+      expect(await error(res)).toMatchObject({ code: "validation", message: `motion: ${CLIPS_UNAVAILABLE}` });
+    }
+    expect(await calls(studio)).toEqual([]);
+    await stub(studio, "_draft-manifest.json", draftManifest("placeholder"));
+    const stills = await createDraft(request("/api/drafts", { json: { topic: "foxes", motion: "stills" } }), undefined);
+    expect(stills.status).toBe(202);
+    await jobDone((await stills.json()).runId);
+    expect((await calls(studio))[0]).toEqual(expect.arrayContaining(["--pin-modes", "2"]));
+    expect((await calls(studio))[0]).not.toContain("--clips");
   });
 
   it("validates the form and unknown kits or tracks", async () => {
@@ -337,6 +355,22 @@ describe("pricing and paid actions", () => {
     const refused = await modes(request(`/api/runs/${done}/modes`, { json: { modes: [1, 1, 1] } }), params({ id: done }));
     expect(refused.status).toBe(409);
     expect((await error(refused)).code).toBe("not_draft");
+  });
+
+  it("refuses a clip pinned on a draft of pictures made where no clip engine was set up, and lets it pin pictures", async () => {
+    const id = nextRunId();
+    const m = draftManifest(id);
+    m.models.video = NO_CLIPS_MODEL;
+    await saveRun(studio, m);
+    await stub(studio, "_plan.json", { items: [], totalUsd: 0.05 });
+    for (const pinned of [[1, 2, 2], [2, 1, null]]) {
+      const refused = await modes(request(`/api/runs/${id}/modes`, { json: { modes: pinned } }), params({ id }));
+      expect(refused.status).toBe(400);
+      expect(await error(refused)).toMatchObject({ code: "validation", message: `modes: ${CLIPS_UNAVAILABLE}` });
+    }
+    expect(await calls(studio)).toEqual([]);
+    const ok = await modes(request(`/api/runs/${id}/modes`, { json: { modes: [2, 2, null] } }), params({ id }));
+    expect(ok.status).toBe(200);
   });
 
   it("one job per run across actions; stop ends it; every write is refused cross-site", async () => {

@@ -68,7 +68,8 @@ describe.skipIf(!supa || !hasRedisServer())("a series on a schedule", () => {
   const open = async () => (await db().from("reservations").select("id").eq("status", "open").eq("user_id", a.id)).data!.length;
   /** A series made and given a schedule through the studio's own routes, as its owner. */
   const series = async (schedule: Record<string, unknown>, recipe: Record<string, unknown> = {}) => {
-    const made = await createSeries(as(cookie, "/api/series", { json: { name: "Foxes", premise: "Foxes at night, one story at a time", recipe } }), undefined);
+    // (pictures only unless a case says otherwise: these workers have no clip engine, phase 15 spec §13.10)
+    const made = await createSeries(as(cookie, "/api/series", { json: { name: "Foxes", premise: "Foxes at night, one story at a time", recipe: { motion: "stills", ...recipe } } }), undefined);
     expect(made.status).toBe(201);
     const { id } = (await made.json()) as { id: string };
     const set = await changeSeries(as(cookie, `/api/series/${id}`, { json: { schedule }, method: "PATCH" }), params({ id }));
@@ -82,7 +83,7 @@ describe.skipIf(!supa || !hasRedisServer())("a series on a schedule", () => {
       DATABASE_URL: s.worker, WORKER_RECONCILE_MS: "1000", WORKER_SERIES_MS: "400",
       // other test files use the same database at the same time: this worker leaves their users' credit alone
       WORKER_RECONCILE_KNOWN_USERS_ONLY: "1",
-      GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c", RUNPOD_VOICE_ENDPOINT: "ep-v", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s",
+      GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_VOICE_ENDPOINT: "ep-v", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s",
     });
     workers.push(w);
     await until(() => w.output().includes("ready") || w.child.exitCode !== null);
@@ -182,14 +183,42 @@ describe.skipIf(!supa || !hasRedisServer())("a series on a schedule", () => {
     expect(await open()).toBe(0);
   });
 
-  it("begins a 60 fps video while smooth motion is offered", async () => {
+  it("does not begin a 60 fps video though the restorer is switched on, since no clip engine makes the clips it was measured on: it stops, and buys nothing", async () => {
     await grant(5);
     await stage(0.31, { spendUsd: 0.2, makesVideo: true });
     const id = await series({ cadence: "daily" }, { fps: 60 });
     await worker({ RUNPOD_UPSCALE_ENDPOINT: "ep-u", FLOWCHAIN_SMOOTH_MOTION: "on" });
+    await until(async () => (await row(id)).status === "paused", 30_000);
+    expect(await row(id)).toMatchObject({ status: "paused", paused_reason: "failed", current_run: null });
+    expect(await runsOf(id)).toEqual([]);
+    expect(await calls()).toEqual([]);
+    expect(await balance()).toBe(5);
+  });
+
+  it("does not begin a video that may have moving clips where no clip engine is set up: it stops, and buys nothing", async () => {
+    await grant(5);
+    await stage(0.31, { spendUsd: 0.2, makesVideo: true });
+    for (const motion of ["auto", "clips"]) {
+      const id = await series({ cadence: "daily" }, { motion });
+      if (workers.length === 0) await worker({ RUNPOD_CLIP_ENDPOINT: "ep-c" });
+      await until(async () => (await row(id)).status === "paused", 30_000);
+      expect(await row(id)).toMatchObject({ status: "paused", paused_reason: "failed", current_run: null });
+      expect(await runsOf(id)).toEqual([]);
+    }
+    expect(await calls()).toEqual([]);
+    expect(await balance()).toBe(5);
+    expect(await open()).toBe(0);
+  });
+
+  it("begins a video with moving clips where the clip engine is set up", async () => {
+    await grant(5);
+    await stage(0.31, { spendUsd: 0.2, makesVideo: true });
+    const id = await series({ cadence: "daily" }, { motion: "auto" });
+    await worker({ RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_LTX: "on" });
     await until(async () => (await runsOf(id)).length === 1 && (await row(id)).current_run === null && (await open()) === 0, 30_000);
     const draft = (await calls()).find((c) => c[0] === "run")!;
-    expect(draft).toEqual(expect.arrayContaining(["--fps", "60"]));
+    expect(draft).not.toContain("--pin-modes");
+    expect(draft).not.toContain("--clips");
   });
 
   // (phase 14: the worker is the studio here, so its own switch decides; one worker per test, so no other picks it up)
@@ -272,7 +301,7 @@ describe.skipIf(!supa || !hasRedisServer())("a series on a schedule", () => {
     const w = startWorkerProcess({
       REDIS_URL: redis.url, FLOWCHAIN_ROOT: studio.root, RUNS_DIR: elsewhere, FLOWCHAIN_CLI: process.env.FLOWCHAIN_CLI!,
       DATABASE_URL: s.worker, WORKER_SERIES_MS: "300", WORKER_RECONCILE_KNOWN_USERS_ONLY: "1",
-      GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c", RUNPOD_VOICE_ENDPOINT: "ep-v", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s",
+      GEMINI_API_KEY: "g", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_VOICE_ENDPOINT: "ep-v", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s",
     });
     workers.push(w);
     await until(() => w.output().includes("ready") || w.child.exitCode !== null);

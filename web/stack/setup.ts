@@ -38,8 +38,9 @@ async function up(): Promise<void> {
   sh(process.execPath, ["--import", "tsx", "e2e/make-fixtures.ts", runs], web);
   const hash = execFileSync("docker", ["run", "--rm", "caddy:2", "caddy", "hash-password", "--plaintext", PASSWORD], { encoding: "utf8" }).trim();
   // names the worker's key check looks for; the stand-in CLI never uses a value
-  const keys = ["GEMINI_API_KEY", "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_CLIP_ENDPOINT", "RUNPOD_VOICE_ENDPOINT", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"];
-  writeFileSync(join(data, "worker.env"), keys.map((k) => `${k}=stack-test\n`).join(""));
+  const keys = ["GEMINI_API_KEY", "RUNPOD_API_KEY", "RUNPOD_KEYFRAME_ENDPOINT", "RUNPOD_LTX_ENDPOINT", "RUNPOD_VOICE_ENDPOINT", "R2_ACCOUNT_ID", "R2_BUCKET", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY"];
+  // (and the clip engine's switch, so the studio offers moving clips: phase 15 spec §13.10)
+  writeFileSync(join(data, "worker.env"), `${keys.map((k) => `${k}=stack-test\n`).join("")}FLOWCHAIN_LTX=on\n`);
   writeFileSync(join(data, "web.env"), "");
   writeFileSync(
     join(data, "compose.env"),
