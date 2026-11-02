@@ -87,6 +87,30 @@ describe("a scene's own clip sound", () => {
     expect((await planRun(ctx, MEDIA)).items).toEqual([]);
   });
 
+  it("levels a loud and a quiet clip alike, to within 1 dB of the scene-sound loudness", async () => {
+    for (const db of [-3, -30]) {
+      const { ctx, ltx } = await ltxRun();
+      ltx.toneDb = db;
+      await runPipeline(ctx, MEDIA, auto);
+      for (const s of ctx.manifest.scenes) expect(Math.abs((await loudness(abs(ctx, s.sound!.path))) - LOUDNESS_TARGET_LUFS), `${db} dB`).toBeLessThan(1);
+    }
+  });
+
+  it("keeps a clip's silent sound track silent, with no gain, and says so by the scene's number, never by a path on the machine", async () => {
+    const { ctx, ltx, logs } = await ltxRun();
+    ltx.toneDb = "silence";
+    await runPipeline(ctx, MEDIA, auto);
+    const silent = logs.filter((l) => /silent/.test(l));
+    expect(silent).toHaveLength(3);
+    expect(silent[1]).toMatch(/^scene 2's sound is silent/);
+    for (const line of silent) expect(line).not.toContain("/");
+    for (const s of ctx.manifest.scenes) {
+      expect(s.sound!.source).toBe("clip");
+      const log = await ffmpeg(["-i", abs(ctx, s.sound!.path), "-af", "volumedetect", "-f", "null", "-"], { logLevel: "info" });
+      expect(Number(/max_volume: (-?[\d.]+) dB/.exec(log)![1])).toBeLessThan(-90);
+    }
+  });
+
   it("is made though sound effects are off, and is not played until they are on", async () => {
     const { ctx } = await ltxRun();
     ctx.manifest.request.render.sfx = false;

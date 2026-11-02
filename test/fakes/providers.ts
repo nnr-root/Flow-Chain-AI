@@ -235,6 +235,8 @@ export class FakeLtxVideo extends FakeQueue<VideoRequest, VideoOutput> implement
   silent = false;
   /** Seconds the clip's sound runs past its picture (0: cut to it), as an mp4's sound track can by a few ms. */
   audioTailSec = 0;
+  /** The level of an ordinary clip's tone in dB (a loud or a quiet clip, for the levelling), or "silence": a sound track of nothing. */
+  toneDb: number | "silence" | undefined;
   /** Whether the worker hears a voice in the clip a request makes, answered only when the request asks (`detectVoice`). */
   voiceIn: (req: VideoRequest) => boolean = () => false;
   protected async render(req: VideoRequest, n: number, path: (name: string) => string) {
@@ -247,7 +249,10 @@ export class FakeLtxVideo extends FakeQueue<VideoRequest, VideoOutput> implement
     const frames = Math.round(req.durationSec * 24);
     const video = ["-f", "lavfi", "-i", `color=black:s=180x320:r=24,geq=lum='16+mod(N*37+${(n * 53) % 200}\\,200)':cb=128:cr=128`];
     const speaking = req.speechLanguage !== undefined;
-    let audio = ["-f", "lavfi", "-i", `sine=frequency=${300 + 40 * n}:sample_rate=48000`];
+    const tone = this.toneDb === "silence"
+      ? "anullsrc=r=48000:cl=mono"
+      : `sine=frequency=${300 + 40 * n}:sample_rate=48000${this.toneDb === undefined ? "" : `,volume=${this.toneDb}dB`}`;
+    let audio = ["-f", "lavfi", "-i", tone];
     if (this.audioTailSec > 0 && !speaking && !this.silent) {
       const long = path(`ltx_${n}.long.mp4`);
       await ffmpeg([
