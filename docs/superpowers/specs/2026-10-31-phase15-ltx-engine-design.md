@@ -464,3 +464,7 @@ LTX run and the owner's viewing it was to wait for: the owner decided. LTX is th
   pictures only: moving clips are not available in this studio right now"); the studio's `setModes` refuses it before the CLI is asked; the
   draft page shows such a scene as a still with no Auto or Clip choice; and the rules (`pinnedForRules`) see every scene of such a run pinned
   to a picture, so the modes stage never gives it a clip.
+
+### 13.11 The Wan resources on RunPod (2026-11-02)
+
+On the owner's word ("Wan'ı sil") the idle endpoint `flowchain-clip` (id `1suajtiyoa47kr`: no queue, no workers) and its template `flowchain-worker` (id `ug9tka6z26`) were deleted through RunPod's REST API; both answered 204 and a second listing no longer shows them. Not touched: the network volume `flowchain-weights` (shared with the picture endpoints, still holding Wan's model files: they cost storage only; removing them needs a pod and is left), the picture, upscale, voice, Foley and LTX endpoints, and the registry image `ghcr.io/nnr-root/flowchain-worker:w-3b68cb11d681` (the way back with the git tag `wan-last`). `RUNPOD_CLIP_ENDPOINT` was removed from the owner's local `.env`.
