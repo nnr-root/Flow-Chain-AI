@@ -97,9 +97,10 @@ function runpodEndpointIds(env: Env, models?: Models): string[] {
       .map(parseModelId)
       .flatMap((ref) => (ref.provider === "runpod" ? [ref.endpointId] : []));
   }
-  const ids = [env.RUNPOD_KEYFRAME_ENDPOINT, env.RUNPOD_CLIP_ENDPOINT];
-  if (ids.some((id) => !id)) throw new Error("RUNPOD_KEYFRAME_ENDPOINT and RUNPOD_CLIP_ENDPOINT must be set (npm run runpod:deploy)");
-  return ids as string[];
+  // the pictures' endpoint, and the clips' while LTX makes them (the only clip engine since Wan was removed, phase 15 spec
+  // §13.10): without it a new run can only be made of pictures, which is not a fault of the studio
+  if (!env.RUNPOD_KEYFRAME_ENDPOINT) throw new Error("RUNPOD_KEYFRAME_ENDPOINT must be set (npm run runpod:deploy)");
+  return [env.RUNPOD_KEYFRAME_ENDPOINT, ...(env.FLOWCHAIN_LTX === "on" && env.RUNPOD_LTX_ENDPOINT ? [env.RUNPOD_LTX_ENDPOINT] : [])];
 }
 
 /**

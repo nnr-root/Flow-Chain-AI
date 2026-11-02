@@ -27,8 +27,8 @@ import { GeminiLlm } from "./providers/gemini.js";
 import { fetchChart } from "./providers/youtube-chart.js";
 import { makeIdeas } from "./trends/run.js";
 import { createProviders } from "./providers/factory.js";
-import { frozenModePrices, newRunProviders, newRunSound, newRunSpeech, newRunVoice, restorerFor, SPEECH_REQUEST } from "./providers/new-run.js";
-import { CLIP_QUALITIES, type ClipQuality } from "./video-profiles.js";
+import { NO_CLIPS_MODEL } from "./providers/model-id.js";
+import { frozenModePrices, newRunProviders, newRunSound, newRunSpeech, newRunVoice, onlyPictures, restorerFor, SPEECH_REQUEST } from "./providers/new-run.js";
 import type { Providers } from "./providers/types.js";
 import { applyRenderOptions, assertRenderOnly, noPaidProviders, withLook } from "./rerender.js";
 import { bumpNonce, REROLLABLE } from "./reroll.js";
@@ -160,7 +160,6 @@ type RunFlags = {
   brand?: string;
   characters?: string;
   seed?: string;
-  clips?: ClipQuality;
   voice?: string;
   bgm?: string;
   captionStyle?: string;
@@ -247,7 +246,6 @@ program
   .option("--seed <n>", "seed shared by every keyframe (default: random)")
   .addOption(new Option("--fps <n>", "smooth motion: every moving clip is interpolated and the video is rendered at 60 frames a second (phase 11 spec §2)").choices(["60"]))
   .option("--upscale", "full HD: every moving clip is upscaled to 1080p before it is fitted, at about three times a clip's cost (phase 8 spec §8)")
-  .addOption(new Option("--clips <quality>", "the size moving clips are generated at: 480p, or 720p at about twice the cost (default: 480p)").choices(Object.keys(CLIP_QUALITIES)))
   .option("--voice <id>", "voice: narrator-m or narrator-f (default: FLOWCHAIN_VOICE)")
   .option("--bgm <file>", "background music, ducked under the narration")
   .addOption(new Option("--caption-style <style>", "caption look (default: the preset's)").choices(CAPTION_CHOICES))
@@ -271,9 +269,11 @@ program
     const budgetUsd = budget(o.budget, env);
     if (o.bgm && !existsSync(o.bgm)) throw new Error(`--bgm file not found: ${o.bgm}`);
     const kit: BrandKit | undefined = o.brand ? await loadBrandKit(o.brand) : undefined;
-    const providers = newRunProviders(env, o.clips, loadPrices());
+    const pinned = pins(o.pinModes, sceneCount);
+    // a run made only of pictures needs no clip engine; any other is refused here without one (phase 15 spec §13.10)
+    const providers = newRunProviders(env, loadPrices(), onlyPictures(modes, pinned));
     // refused now, before anything is bought, where the run's clips cannot speak (phase 15 spec §5, §7)
-    const speech = newRunSpeech(env, providers.videoProfile, o.speech, o.language);
+    const speech = newRunSpeech(env, providers.video === NO_CLIPS_MODEL ? undefined : providers.videoProfile, o.speech, o.language);
     const voice = newRunVoice(env, o.language);
     // scene sound is frozen now, on only when everything it needs is here (phase 14 spec §3); a switch that is on without
     // what it needs says so once, and nothing is said otherwise
@@ -305,7 +305,7 @@ program
       // auto runs freeze the budget and price table their mode rules use; a later --budget only changes when to ask
       modeBudgetUsd: modes ? undefined : budgetUsd,
       modePrices: modes ? undefined : frozenModePrices(loadPrices()),
-      modeOverrides: pins(o.pinModes, sceneCount),
+      modeOverrides: pinned,
       shots,
       style: o.style,
       // frozen with the run: they change what is bought

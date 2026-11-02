@@ -1,15 +1,15 @@
 import { type Env, foleyRates, flux3Rates, ltxRates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
 import type { ImageProfileId } from "../image-profiles.js";
-import { CLIP_QUALITIES, type ClipQuality, type VideoProfileId } from "../video-profiles.js";
+import type { VideoProfileId } from "../video-profiles.js";
 import { hostedModelFor } from "../voice/hosted.js";
 import { canSpeakIn, OWN_VOICE_LANGUAGES } from "../voice/language.js";
-import { RUNPOD_WORKFLOWS, runpodModelId } from "./model-id.js";
+import { CLIPS_UNAVAILABLE, NO_CLIPS_MODEL, RUNPOD_WORKFLOWS, runpodModelId } from "./model-id.js";
 
 export type NewRunProviders = { image: string; video: string; imageProfile: ImageProfileId; videoProfile: VideoProfileId };
 
 /**
  * The picture model a new run is frozen with: FLUX 3 klein while it is set up, else the 4B. Apart from the clips so that
- * tools which only draw pictures (make:styles, make:voices) never depend on the clip endpoint or on LTX.
+ * tools which only draw pictures (make:styles, make:voices) never depend on any clip setting.
  */
 export function newRunImage(env: Env, prices?: Prices): { image: string; imageProfile: ImageProfileId } {
   const ready = Boolean(env.RUNPOD_PICTURE3_ENDPOINT) && prices !== undefined && flux3Rates(prices) !== null;
@@ -24,33 +24,33 @@ export function newRunImage(env: Env, prices?: Prices): { image: string; imagePr
     : { image: runpodModelId(env.RUNPOD_KEYFRAME_ENDPOINT!, keyframe.workflow, keyframe.version), imageProfile: "runpod-klein@1" };
 }
 
-/** The models and cost profiles a new run is frozen with: the studio's own GPU endpoints (2.4 spec §3.4). */
-export function newRunProviders(env: Env, clips: ClipQuality = "480p", prices?: Prices): NewRunProviders {
-  // LTX takes the clips only when the owner switched it on and its endpoint and all three of its rates are set
-  // (phase 15 spec §7, §13.8): `runpod:deploy` writes the endpoint before the owner has measured the rates, and
-  // `server:setup` passes both on to the server, so the switch is what keeps customers on Wan until the licence is
-  // answered. Otherwise every new run is made on Wan exactly as before. The switch decides new runs only: a run already
-  // made on LTX resumes with its rates whatever it says, and still refuses to resume without them (`createProviders`, the
-  // profile's cost). The requested clip quality (`clips`) is ignored for an LTX run: it has one size.
+/**
+ * The models and cost profiles a new run is frozen with: the studio's own GPU endpoints (2.4 spec §3.4). LTX is the only
+ * clip engine (Wan was removed on 2026-11-02, phase 15 spec §13.10), and it makes clips only when the owner switched it on
+ * and its endpoint and all three of its rates are set (§7, §13.8). Without it a run that may need a moving clip is refused
+ * here, before anything is bought, in one sentence that reaches a customer's job log and so names no model or setting.
+ *
+ * `picturesOnly`: every scene of the run is a picture (`--mode 2`, `--modes` of 2s, or `--pin-modes 2`, which is the
+ * studio's "Pictures only"). Such a run needs no clip engine: without LTX it is frozen with `NO_CLIPS_MODEL`, whose provider
+ * refuses only if a clip is ever asked of it (a draft whose modes are changed later), and with LTX's profile, whose clip
+ * lengths its modes are planned on (no clip is priced in a run of pictures).
+ */
+export function newRunProviders(env: Env, prices?: Prices, picturesOnly = false): NewRunProviders {
   const ltx = env.FLOWCHAIN_LTX === "on" && Boolean(env.RUNPOD_LTX_ENDPOINT) && prices !== undefined && ltxRates(prices) !== undefined;
-  // The clip endpoint is checked first and the picture side after, as the two were named together in one message before.
-  const needClip = !ltx && !env.RUNPOD_CLIP_ENDPOINT;
-  let image: ReturnType<typeof newRunImage>;
-  try {
-    image = newRunImage(env, prices);
-  } catch (e) {
-    if (needClip && e instanceof Error && e.message.startsWith("RUNPOD_KEYFRAME_ENDPOINT not set")) {
-      throw new Error("RUNPOD_KEYFRAME_ENDPOINT and RUNPOD_CLIP_ENDPOINT not set; run npm run runpod:deploy first");
-    }
-    throw e;
-  }
-  if (needClip) throw new Error("RUNPOD_CLIP_ENDPOINT not set; run npm run runpod:deploy first");
-  const { clip, clipLtx } = RUNPOD_WORKFLOWS;
+  if (!ltx && !picturesOnly) throw new Error(CLIPS_UNAVAILABLE);
+  const image = newRunImage(env, prices);
+  const { clipLtx } = RUNPOD_WORKFLOWS;
   return {
     ...image,
-    video: ltx ? runpodModelId(env.RUNPOD_LTX_ENDPOINT!, clipLtx.workflow, clipLtx.version) : runpodModelId(env.RUNPOD_CLIP_ENDPOINT!, clip.workflow, clip.version),
-    videoProfile: ltx ? "ltx25@1" : CLIP_QUALITIES[clips],
+    video: ltx ? runpodModelId(env.RUNPOD_LTX_ENDPOINT!, clipLtx.workflow, clipLtx.version) : NO_CLIPS_MODEL,
+    videoProfile: "ltx25@1",
   };
+}
+
+/** Whether every scene of a new run is a picture (`resolveModes`' answer, or every scene pinned to Mode 2). */
+export function onlyPictures(modes: ReadonlyArray<1 | 2> | undefined, pinned: ReadonlyArray<1 | 2 | null> | undefined): boolean {
+  if (modes) return modes.length > 0 && modes.every((m) => m === 2);
+  return pinned !== undefined && pinned.length > 0 && pinned.every((m) => m === 2);
 }
 
 /** The endpoint a new run in full HD has its clips upscaled on (phase 8 spec §8). */
@@ -101,10 +101,11 @@ export function newRunSound(env: Env, prices: Prices, sfx: boolean): { model: st
  * Whether a new run lets a character speak (phase 15 spec §5): only when it asked to, its clips are made on LTX (the one
  * engine whose clip carries speech: its endpoint and rates are set), the owner switched speech on, and the video is in
  * a language speech was measured in (`canSpeakIn`). Anything else that asks is refused here, at creation, before
- * anything is bought, so no run is ever frozen with speech it cannot have. The words reach a customer's job log, so they
+ * anything is bought, so no run is ever frozen with speech it cannot have (a run without a clip engine passes no profile).
+ * The words reach a customer's job log, so they
  * name no model and no setting.
  */
-export function newRunSpeech(env: Env, videoProfile: VideoProfileId, asked: boolean | undefined, language: string | undefined): boolean {
+export function newRunSpeech(env: Env, videoProfile: VideoProfileId | undefined, asked: boolean | undefined, language: string | undefined): boolean {
   if (!asked) return false;
   if (videoProfile !== "ltx25@1" || env.FLOWCHAIN_SPEECH !== "on") throw new Error("speaking characters are not available in this studio");
   if (!canSpeakIn(language)) throw new Error("a character can speak only in a video in English or Turkish");
@@ -129,7 +130,6 @@ export function frozenModePrices(prices: Prices): Prices {
     runpodClipUsdPerSec: r.clipUsdPerSec,
     runpodKeyframeSec: r.keyframeSec,
     runpodReferenceSec: r.referenceSec,
-    runpodClipSecPerFrame: r.clipSecPerFrame,
     runpodColdStartSec: r.coldStartSec,
   };
 }

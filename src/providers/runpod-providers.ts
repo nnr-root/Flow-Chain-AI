@@ -16,9 +16,6 @@ import type { WordTiming } from "../manifest/schema.js";
 /** `/run` accepts at most 10 MB; base64 images are checked against this before anything is bought. */
 export const MAX_INPUT_BYTES = 9 * 1024 * 1024;
 
-/** Frames per second Wan generates at (2.4 spec §5.3). */
-export const WAN_FPS = 16;
-
 export type RunpodDeps = {
   client: RunpodClient;
   r2: R2;
@@ -36,15 +33,6 @@ const realSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(reso
 export function pngSize(png: Buffer): { width: number; height: number } {
   if (png.length < 24 || png.readUInt32BE(12) !== 0x49484452) throw new NonRetryableError("not a PNG image");
   return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
-}
-
-/** Frames a clip of `durationSec` needs at 16 fps: 4k+1 between 33 and 81 (2.4 spec §5.3). */
-export function clipFrames(durationSec: number): number {
-  const frames = Math.round(durationSec * WAN_FPS);
-  if (frames < 33 || frames > 81 || (frames - 1) % 4 !== 0) {
-    throw new NonRetryableError(`a Wan clip must be 4k+1 frames between 33 and 81 at ${WAN_FPS} fps; got ${durationSec} s (${frames})`);
-  }
-  return frames;
 }
 
 /**
@@ -205,13 +193,6 @@ export class RunpodImage extends RunpodQueued<ImageRequest, ImageOutput> impleme
   }
 }
 
-/** The size a clip is generated at: 480p unless the run asks for 720p, upright or on its side like its picture. */
-export function clipSize(short: number | undefined, portrait: boolean): { width: number; height: number } {
-  if (short !== undefined && short !== 480 && short !== 720) throw new NonRetryableError(`a clip is made at 480p or 720p, not ${short}p`);
-  const [a, b] = short === 720 ? [720, 1280] : [480, 832];
-  return portrait ? { width: a, height: b } : { width: b, height: a };
-}
-
 /** The one short side an LTX clip is made at (phase 15 spec §3); the long side is 1.8 times it, 1152. */
 export const LTX_SHORT = 640;
 
@@ -249,66 +230,40 @@ function ltxWords(raw: unknown): WordTiming[] | undefined | "malformed" {
 }
 
 /**
- * Clips from the Wan 2.2 worker (2.4 spec §5.3): 480p or 720p in the chain image's orientation; or, for a run made with
- * LTX (phase 15), from the LTX worker: 640x1152 at 24 fps, with the clip's own sound and, when asked, its speech's words.
+ * Clips from the LTX worker (phase 15): 640x1152 at 24 fps, with the clip's own sound and, when asked, its speech's words.
+ * It is the only clip worker: Wan's was removed on 2026-11-02 (§13.10), and a run made on it has a retired clip model.
  */
 export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> implements VideoProvider {
-  /**
-   * Present only for Wan. The LTX worker's contract refuses `{task: "warm"}`, and the early start is fired by every run
-   * whose provider has one (`warmClipsEarly`): left on, each LTX run would buy a refused job before its first clip.
-   */
-  readonly warm?: (opts: SubmitOptions) => Promise<string>;
-  readonly warmCost?: (jobId: string, opts: WaitOptions) => Promise<number>;
-
   constructor(deps: RunpodDeps, target: Target) {
     // An LTX worker's first job after a cold start assembles about 68 GB of weights, and the longest clip measured took
-    // about 300 s on top: Wan's ten minutes to run and twenty to wait would give up on a clip that is still being paid for.
-    const ltx = target.workflow === RUNPOD_WORKFLOWS.clipLtx.workflow;
-    super(deps, target, { executionTimeout: ltx ? 1_200_000 : 600_000, ttl: 3_600_000 }, (ltx ? 30 : 20) * 60_000, "mp4");
-    if (!ltx) {
-      this.warm = (opts) => this.warmWan(opts);
-      this.warmCost = (jobId, opts) => this.warmCostWan(jobId, opts);
-    }
-  }
-
-  private get ltx(): boolean {
-    return this.target.workflow === RUNPOD_WORKFLOWS.clipLtx.workflow;
+    // about 300 s on top: twenty minutes to run and thirty to wait, so a clip that is still being paid for is not given up.
+    super(deps, target, { executionTimeout: 1_200_000, ttl: 3_600_000 }, 30 * 60_000, "mp4");
   }
 
   // (a real LTX job was refused "unknown field workflow" on 2026-11-01: its worker makes one thing and is not told which)
   protected override withWorkflowKey(): boolean {
-    return !this.ltx;
+    return false;
   }
 
   protected async input(req: VideoRequest) {
     const png = await readFile(req.imagePath);
     const { width, height } = pngSize(png);
     const portrait = height >= width;
-    if (this.ltx) {
-      // The scene's own seed, so a clip asked for again is the same clip; the worker requires one.
-      if (req.seed === undefined || !Number.isSafeInteger(req.seed) || req.seed < 0) {
-        throw new NonRetryableError(`an LTX clip needs a seed, a whole number from 0; got ${req.seed}`);
-      }
-      return {
-        task: "clip",
-        image: png.toString("base64"),
-        prompt: req.prompt,
-        frames: ltxClipFrames(req.durationSec),
-        fps: LTX_FPS,
-        ...ltxSize(req.height, portrait),
-        seed: req.seed,
-        ...(req.speechLanguage === undefined ? {} : { speech_language: req.speechLanguage }),
-        // (only when asked: a worker image from before the voice check refuses a field it does not list)
-        ...(req.detectVoice === true ? { detect_voice: true } : {}),
-      };
+    // The scene's own seed, so a clip asked for again is the same clip; the worker requires one.
+    if (req.seed === undefined || !Number.isSafeInteger(req.seed) || req.seed < 0) {
+      throw new NonRetryableError(`an LTX clip needs a seed, a whole number from 0; got ${req.seed}`);
     }
     return {
       task: "clip",
       image: png.toString("base64"),
       prompt: req.prompt,
-      frames: clipFrames(req.durationSec),
-      fps: WAN_FPS,
-      ...clipSize(req.height, portrait),
+      frames: ltxClipFrames(req.durationSec),
+      fps: LTX_FPS,
+      ...ltxSize(req.height, portrait),
+      seed: req.seed,
+      ...(req.speechLanguage === undefined ? {} : { speech_language: req.speechLanguage }),
+      // (only when asked: a worker image from before the voice check refuses a field it does not list)
+      ...(req.detectVoice === true ? { detect_voice: true } : {}),
     };
   }
 
@@ -318,7 +273,6 @@ export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> impleme
 
   protected output(jobId: string, out: { url: string }, costUsd: number | undefined, raw?: Record<string, unknown>): VideoOutput {
     const base = { url: out.url, ...(costUsd === undefined ? {} : { costUsd }) };
-    if (!this.ltx) return base;
     // Recovered from the bucket (no answer to read): whether it has sound and what was said in it are unknown, and
     // are left undefined, never false or [], so a speaking scene cannot take "unknown" for "said nothing".
     if (raw === undefined) return { ...base, fps: LTX_FPS };
@@ -340,35 +294,6 @@ export class RunpodVideo extends RunpodQueued<VideoRequest, VideoOutput> impleme
       ...(words === undefined ? {} : { words }),
       ...(voiceHeard === undefined ? {} : { voiceHeard }),
     };
-  }
-
-  /**
-   * Asks the worker to start and load its models, while the run is still making pictures: the first clip
-   * then finds a worker that is up instead of waiting for one (phase 5 spec §9.15). The job makes nothing and
-   * uploads nothing; it is billed for the seconds the start takes, as the first clip was before.
-   */
-  private async warmWan(opts: SubmitOptions): Promise<string> {
-    return this.deps.client.run(this.target.endpointId, { task: "warm" }, { executionTimeout: 300_000, ttl: 900_000 }, opts.signal);
-  }
-
-  private async warmCostWan(jobId: string, opts: WaitOptions): Promise<number> {
-    const { pollMs = 3000, sleep = realSleep, now = Date.now } = this.deps.poll ?? {};
-    const deadline = now() + opts.timeoutMs;
-    for (;;) {
-      const job = await this.deps.client.status(this.target.endpointId, jobId);
-      if (job === null) throw new NonRetryableError(`RunPod no longer knows warm-up ${jobId}`);
-      if (job.status === "COMPLETED") {
-        const cost = this.cost(job);
-        if (cost === undefined) throw new NonRetryableError(`RunPod warm-up ${jobId} reports no execution time`);
-        return cost;
-      }
-      // one that never reached a GPU cost nothing; one that ran and then failed cost what it ran
-      if (job.status === "FAILED" || job.status === "TIMED_OUT" || job.status === "CANCELLED") {
-        return typeof job.executionTime === "number" && job.executionTime > 0 ? (this.cost(job) ?? 0) : 0;
-      }
-      if (now() >= deadline) throw new NonRetryableError(`RunPod warm-up ${jobId} is still ${job.status}`);
-      await sleep(pollMs);
-    }
   }
 }
 

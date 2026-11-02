@@ -2,13 +2,14 @@ import { type Env, FOLEY_RATES_MISSING, foleyRates, flux3Rates, LTX_RATES_MISSIN
 import type { Models } from "../manifest/schema.js";
 import { ElevenLabsTts } from "./elevenlabs.js";
 import { GeminiLlm } from "./gemini.js";
-import { parseModelId, RUNPOD_WORKFLOWS } from "./model-id.js";
+import { CLIPS_UNAVAILABLE, NO_CLIPS_MODEL, parseModelId, RUNPOD_WORKFLOWS } from "./model-id.js";
 import { R2 } from "./r2.js";
 import { RunpodClient } from "./runpod.js";
 import { type RunpodDeps, RunpodFoley, RunpodImage, RunpodUpscale, RunpodVideo } from "./runpod-providers.js";
 import { NonRetryableError } from "./retry.js";
 import { RunpodTts } from "./runpod-voice.js";
 import type { ImageProvider, Providers, QueuedProvider, SoundOutput, SoundRequest, TtsProvider, VideoProvider } from "./types.js";
+import { RETIRED_CLIP_ENGINE } from "../video-profiles.js";
 
 function need(value: string | undefined, name: string, why: string): string {
   if (!value) throw new Error(`${name} is not set; ${why}`);
@@ -26,6 +27,25 @@ export function retired<Req, Out>(what: string, model: string): QueuedProvider<R
     );
   };
   return { prepare: async () => refuse(), submit: async () => refuse(), wait: async () => refuse() };
+}
+
+/** A provider that refuses every call with `message`: everything a run already has is on disk, and nothing more is bought. */
+function refusing<Req, Out>(message: string): QueuedProvider<Req, Out> {
+  const refuse = (): never => {
+    throw new NonRetryableError(message);
+  };
+  return { prepare: async () => refuse(), submit: async () => refuse(), wait: async () => refuse() };
+}
+
+/**
+ * The clips of a run whose clip model is not a live one: a run of pictures made where no clip engine was set up; a run
+ * made on the studio's own worker that is gone (Wan, phase 15 spec §13.10), told in words that name no model since they
+ * reach a customer's job log; or a hosted model the studio stopped buying from.
+ */
+function retiredClips(model: string): VideoProvider {
+  if (model === NO_CLIPS_MODEL) return refusing(CLIPS_UNAVAILABLE);
+  if (model.startsWith("runpod:")) return refusing(RETIRED_CLIP_ENGINE);
+  return retired("clips", model);
 }
 
 /**
@@ -69,8 +89,8 @@ export function createProviders(env: Env, models: Models, prices: Prices): Provi
     if (!r) throw new NonRetryableError(RESTORE_RATES_MISSING);
     return { ...runpodDeps(), rates: { ...runpodDeps().rates, upscaleUsdPerSec: r.usdPerSec } };
   };
-  // An LTX clip runs on a larger card than Wan's, at its own measured rate (phase 15): the measured cost a run is charged
-  // must be that card's. Without the three rates a resumed LTX run refuses rather than charging Wan's rate.
+  // An LTX clip runs on a larger card than the pictures, at its own measured rate (phase 15): the measured cost a run is
+  // charged must be that card's. Without the three rates a resumed LTX run refuses rather than charging a guess.
   const videoDeps = (): RunpodDeps => {
     const deps = runpodDeps();
     if (videoRef.provider !== "runpod" || videoRef.workflow !== RUNPOD_WORKFLOWS.clipLtx.workflow) return deps;
@@ -81,7 +101,7 @@ export function createProviders(env: Env, models: Models, prices: Prices): Provi
   const image: ImageProvider =
     imageRef.provider === "retired" ? retired("pictures", imageRef.model) : new RunpodImage(imageDeps(), imageRef);
   const video: VideoProvider =
-    videoRef.provider === "retired" ? retired("clips", videoRef.model) : new RunpodVideo(videoDeps(), videoRef);
+    videoRef.provider === "retired" ? retiredClips(videoRef.model) : new RunpodVideo(videoDeps(), videoRef);
   // The voice follows the run too: a run spoken by the studio's own voice stays on the endpoint it was made
   // with, and a run spoken by the hosted voice stays there (phase 5 spec §11), for as long as its key is here.
   // Without the key such a run's speech is on disk, so it re-renders; a line that would have to be spoken again

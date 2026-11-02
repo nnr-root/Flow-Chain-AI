@@ -25,6 +25,7 @@ const Env = z.object({
   FLOWCHAIN_BUDGET_USD: z.coerce.number().positive().default(3),
   RUNPOD_API_KEY: z.string().min(1).optional(),
   RUNPOD_KEYFRAME_ENDPOINT: z.string().min(1).optional(),
+  /** Wan's clip worker, removed on 2026-11-02 (phase 15 spec §13.10): still accepted, so an older `.env` loads, and read by nothing. */
   RUNPOD_CLIP_ENDPOINT: z.string().min(1).optional(),
   /**
    * The hosted voice (phase 5 spec §11): with its key set, every new run is spoken there, and the studio's own
@@ -57,7 +58,8 @@ const Env = z.object({
    * The owner's switch for LTX clips (phase 15 spec §13.8): new runs are made on LTX only while this is `on`, its endpoint
    * is set and its three rates are in prices.json. `runpod:deploy` writes the endpoint and `server:setup` hands this
    * machine's settings to the server's worker, so without a switch of its own a routine setup after measuring the rates
-   * would move paying customers onto LTX before the licence is answered. Unset or `off`: Wan, exactly as before. It decides
+   * would move paying customers onto LTX before the licence is answered. Unset or `off`: no moving clips (Wan, which made
+   * them before, was removed on 2026-11-02, §13.10), so only a run made of pictures can be started. It decides
    * new runs only: a run already made on LTX resumes with its rates whatever it says. Any other word makes `loadEnv` throw.
    */
   FLOWCHAIN_LTX: z.enum(["on", "off"]).optional(),
@@ -107,6 +109,8 @@ export const Prices = z.strictObject({
   runpodClipUsdPerSec: z.number().optional(),
   runpodKeyframeSec: z.number().optional(),
   runpodReferenceSec: z.number().optional(),
+  // Wan's seconds a frame, at 480p and (below) 720p: read by nothing since Wan was removed (phase 15 spec §13.10), kept
+  // so an older prices.json, and the price tables frozen into older runs, still load
   runpodClipSecPerFrame: z.number().optional(),
   runpodColdStartSec: z.number().optional(),
   // The studio's own voice (5). Optional with no schema default, for the same reason as the fields above.
@@ -163,12 +167,6 @@ export function runpodRates(p: Prices) {
     clipUsdPerSec: p.runpodClipUsdPerSec ?? 0.000306, // RTX 4090 (no 48 GB card was in stock in the volume's data centre)
     keyframeSec: p.runpodKeyframeSec ?? 8,
     referenceSec: p.runpodReferenceSec ?? 8,
-    // What a clip is expected to cost before it is made (what it did cost is measured, job by job, and that is
-    // what a run is charged). 14 clips made on a warm worker in four runs on 2026-10-10 took 0.80 to 0.99 s a
-    // frame (49 to 64 s for 53 to 73 frames); 1.5 had been assumed, which priced a run's clips, and so the most
-    // its owner is asked to approve, half as high again as they came to. 1.0 is above every one measured: an
-    // estimate that is too low stops a run at its cap, so it is kept on the safe side of the measurements.
-    clipSecPerFrame: p.runpodClipSecPerFrame ?? 1.0,
     coldStartSec: p.runpodColdStartSec ?? 90,
     // Measured on the live endpoint (phase 5 spec §9.6): a line of about 85 characters took 4.6 s of GPU, and
     // the first line of a run another 40 s for the worker to load its models.
@@ -181,8 +179,6 @@ export function runpodRates(p: Prices) {
     pictureSec: p.runpodPictureSec ?? 6,
     portraitSec: p.runpodPortraitSec ?? 3,
     pictureColdStartSec: p.runpodPictureColdStartSec ?? 60,
-    // 720p clips on the same card: 157 s for 65 frames (§9.9)
-    clip720SecPerFrame: p.runpodClip720SecPerFrame ?? 2.5,
     // full HD (phase 8 spec §8.2): measured on the endpoint's own 24 GB card on 2026-10-16, 107-108 GPU seconds for
     // each second of a 480p clip in batches of 21 and tiles (the A100 of the trial took 40, in batches of 33). The
     // first clip of a run cost no more than the others: what a start costs is not in the billed time

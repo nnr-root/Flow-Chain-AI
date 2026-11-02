@@ -1,14 +1,15 @@
 import { z } from "zod";
 import { SPEECH_RATE } from "./voice/rates.js";
-import { LTX_RATES_MISSING, ltxRates, type Prices, runpodRates } from "./config.js";
+import { LTX_RATES_MISSING, ltxRates, type Prices } from "./config.js";
 import { round4, videoCost } from "./cost.js";
+import { NonRetryableError } from "./providers/retry.js";
 
 export const VideoProfileId = z.enum(["kling-v1", "kling-v2", "wan22-480p@1", "wan22-720p@1", "ltx25@1"]);
 export type VideoProfileId = z.infer<typeof VideoProfileId>;
 
 /**
  * How a video model is bought (2.3 spec §7): the clip length to request for a scene's trimmed narration, and
- * its price. A provider billed per second (e.g. Wan on RunPod) adds a profile here; nothing else changes.
+ * its price. A provider billed per second (e.g. LTX on RunPod) adds a profile here; nothing else changes.
  */
 export type VideoProfile = {
   id: VideoProfileId;
@@ -20,7 +21,7 @@ export type VideoProfile = {
   clipHeight?: number;
 };
 
-/** Wan's frame rate and the fit step's largest stretch (2.4 spec §5.3); LTX uses the same stretch. */
+/** Wan's frame rate (old runs' clip lengths) and the fit step's largest stretch (2.4 spec §5.3); LTX uses the same stretch. */
 const WAN_FPS = 16;
 const MAX_STRETCH = 1.25;
 
@@ -68,6 +69,17 @@ function ltxRatesOf(p: Prices) {
   return r;
 }
 
+/**
+ * What a run whose clips came from a clip engine the studio stopped using is told when something would buy a clip for it
+ * (phase 15 spec §13.10). It names no model: it reaches a customer's job log.
+ */
+export const RETIRED_CLIP_ENGINE =
+  "this run's clips came from a clip engine this studio no longer uses; it can be re-rendered, but no clip can be bought for it — start a new run instead";
+
+function refuseRetiredClip(): never {
+  throw new NonRetryableError(RETIRED_CLIP_ENGINE);
+}
+
 /** Frames for a Wan clip covering `narrationSec` after the fit step's stretch: 4k+1, between 33 and 81. */
 export function wanFrames(narrationSec: number): number {
   const needed = Math.ceil((narrationSec / MAX_STRETCH) * WAN_FPS) + 1;
@@ -82,21 +94,10 @@ export const VIDEO_PROFILES: Record<VideoProfileId, VideoProfile> = {
   "kling-v1": { id: "kling-v1", clipSec: (s) => (s <= 5 ? 5 : 10), costUsd: videoCost, runOverheadUsd: () => 0 },
   /** Kling's 5 s clip (≈ 5.04 s) also covers up to 6.0 s: the fit step slows it by at most ≈ 1.19×. */
   "kling-v2": { id: "kling-v2", clipSec: (s) => (s <= 6 ? 5 : 10), costUsd: videoCost, runOverheadUsd: () => 0 },
-  /** Wan 2.2 on RunPod: only the frames the narration needs, priced by GPU seconds per frame. */
-  "wan22-480p@1": {
-    id: "wan22-480p@1",
-    clipSec: (s) => wanFrames(s) / WAN_FPS,
-    costUsd: (p, clipSec) => round4(Math.round(clipSec * WAN_FPS) * runpodRates(p).clipSecPerFrame * runpodRates(p).clipUsdPerSec),
-    runOverheadUsd: (p) => round4(runpodRates(p).coldStartSec * runpodRates(p).clipUsdPerSec),
-  },
-  /** The same model at 720p (phase 5 spec §6.3): the same clip lengths, about 2.2 times the GPU seconds a frame. */
-  "wan22-720p@1": {
-    id: "wan22-720p@1",
-    clipSec: (s) => wanFrames(s) / WAN_FPS,
-    costUsd: (p, clipSec) => round4(Math.round(clipSec * WAN_FPS) * runpodRates(p).clip720SecPerFrame * runpodRates(p).clipUsdPerSec),
-    runOverheadUsd: (p) => round4(runpodRates(p).coldStartSec * runpodRates(p).clipUsdPerSec),
-    clipHeight: 720,
-  },
+  // Wan 2.2 on RunPod, removed on 2026-11-02 (phase 15 spec §13.10): a run made on it keeps its clip lengths and size, which
+  // are in its stages' keys, so it still loads and re-renders for free; nothing can be bought for it any more.
+  "wan22-480p@1": { id: "wan22-480p@1", clipSec: (s) => wanFrames(s) / WAN_FPS, costUsd: refuseRetiredClip, runOverheadUsd: refuseRetiredClip },
+  "wan22-720p@1": { id: "wan22-720p@1", clipSec: (s) => wanFrames(s) / WAN_FPS, costUsd: refuseRetiredClip, runOverheadUsd: refuseRetiredClip, clipHeight: 720 },
   /** LTX 2.5 on RunPod (phase 15): one size, clips with their own sound, priced by GPU seconds a clip second. */
   "ltx25@1": {
     id: "ltx25@1",
@@ -109,17 +110,10 @@ export const VIDEO_PROFILES: Record<VideoProfileId, VideoProfile> = {
       const r = ltxRatesOf(p);
       return round4(r.coldStartSec * r.usdPerSec);
     },
-    // The SHORT side, as 480/720 are for Wan; the provider derives the long side (1152) from the picture's orientation.
+    // The SHORT side (as 720 was for Wan); the provider derives the long side (1152) from the picture's orientation.
     clipHeight: 640,
   },
 };
-
-/** What a run may ask for by name, and the profile behind each. */
-export const CLIP_QUALITIES = { "480p": "wan22-480p@1", "720p": "wan22-720p@1" } as const satisfies Record<string, VideoProfileId>;
-export type ClipQuality = keyof typeof CLIP_QUALITIES;
-
-/** The profile new runs are created with. */
-export const NEW_RUN_VIDEO_PROFILE: VideoProfileId = "wan22-480p@1";
 
 /** A run's profile; runs without one were created before 2.3 and keep the Phase 1 rule. */
 export function videoProfileOf(id: VideoProfileId | undefined): VideoProfile {

@@ -118,8 +118,8 @@ describe("LTX settings", () => {
     expect(() => loadEnv({ ...required, FLOWCHAIN_LTX: "yes" })).toThrow();
   });
 
-  it("has a workflow id for the LTX clip beside Wan's", () => {
+  it("has a workflow id for the LTX clip, and none for Wan's, which is gone", () => {
     expect(RUNPOD_WORKFLOWS.clipLtx).toEqual({ workflow: "clip-ltx25", version: 1 });
-    expect(RUNPOD_WORKFLOWS.clip).toEqual({ workflow: "clip-wan22-480p", version: 1 });
+    expect(Object.values(RUNPOD_WORKFLOWS).map((w) => w.workflow)).not.toContain("clip-wan22-480p");
   });
 });

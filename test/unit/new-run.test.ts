@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { loadEnv, Prices } from "../../src/config.js";
 import { checkR2RoundTrip, checkRunpodEndpoints, usesGpu } from "../../src/doctor.js";
-import { frozenModePrices, newRunImage, newRunProviders, newRunSpeech, SPEECH_REQUEST } from "../../src/providers/new-run.js";
+import { frozenModePrices, newRunImage, newRunProviders, newRunSpeech, onlyPictures, SPEECH_REQUEST } from "../../src/providers/new-run.js";
+import { NO_CLIPS_MODEL, parseModelId } from "../../src/providers/model-id.js";
 import { RunRequest } from "../../src/manifest/schema.js";
 import type { R2 } from "../../src/providers/r2.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
@@ -12,58 +13,71 @@ const base = {
 };
 
 describe("newRunProviders", () => {
-  it("freezes the RunPod endpoints and worker versions with the RunPod profiles", () => {
-    const env = loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c" });
-    expect(newRunProviders(env)).toEqual({
+  const rates = Prices.parse({ runpodLtxUsdPerSec: 0.00016, runpodLtxSecPerClipSec: 29, runpodLtxColdStartSec: 120 });
+  const withLtx = { ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_LTX: "on" };
+  const CLIPS_UNAVAILABLE = "moving clips are not available in this studio right now";
+
+  it("freezes the picture endpoint and LTX, the only clip engine, when the owner switched it on and its endpoint and rates are set", () => {
+    expect(newRunProviders(loadEnv(withLtx), rates)).toEqual({
       image: "runpod:ep-k/keyframe-klein@1",
-      video: "runpod:ep-c/clip-wan22-480p@1",
+      video: "runpod:ep-l/clip-ltx25@1",
       imageProfile: "runpod-klein@1",
-      videoProfile: "wan22-480p@1",
+      videoProfile: "ltx25@1",
     });
+    // (a run of pictures made where clips can be made is frozen with them, so its draft may still be given a clip)
+    expect(newRunProviders(loadEnv(withLtx), rates, true).video).toBe("runpod:ep-l/clip-ltx25@1");
   });
 
-  it("freezes the clip size the run asked for: 480p unless it says 720p", () => {
-    const env = loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c" });
-    expect(newRunProviders(env).videoProfile).toBe("wan22-480p@1");
-    expect(newRunProviders(env, "720p")).toMatchObject({ videoProfile: "wan22-720p@1", video: "runpod:ep-c/clip-wan22-480p@1" });
+  it("refuses a run that may need a moving clip in one plain sentence while LTX is off, without its endpoint or with a rate missing", () => {
+    const partial = Prices.parse({ runpodLtxUsdPerSec: 0.00016, runpodLtxSecPerClipSec: 29 });
+    const cases: Array<[Record<string, string | undefined>, Prices | undefined]> = [
+      [{ ...withLtx, FLOWCHAIN_LTX: undefined }, rates],
+      [{ ...withLtx, FLOWCHAIN_LTX: "off" }, rates],
+      [{ ...withLtx, RUNPOD_LTX_ENDPOINT: undefined }, rates],
+      [withLtx, partial],
+      [withLtx, Prices.parse({})],
+      [withLtx, undefined],
+      // (an older .env's Wan clip endpoint makes no clip any more)
+      [{ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c" }, rates],
+    ];
+    for (const [env, prices] of cases) expect(() => newRunProviders(loadEnv(env), prices)).toThrow(CLIPS_UNAVAILABLE);
   });
 
-  describe("with the LTX endpoint", () => {
-    const rates = Prices.parse({ runpodLtxUsdPerSec: 0.00016, runpodLtxSecPerClipSec: 29, runpodLtxColdStartSec: 120 });
-    const withLtx = { ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_LTX_ENDPOINT: "ep-l", FLOWCHAIN_LTX: "on" };
-
-    it("freezes ltx25@1 and needs no Wan endpoint, whatever clip size was asked for", () => {
-      const env = loadEnv(withLtx);
-      for (const q of ["480p", "720p"] as const) {
-        expect(newRunProviders(env, q, rates)).toMatchObject({ videoProfile: "ltx25@1", video: "runpod:ep-l/clip-ltx25@1" });
-      }
-    });
-
-    it("makes the run on Wan exactly as before while a rate is missing, since a deploy writes the endpoint before the prices are measured", () => {
-      const env = loadEnv({ ...withLtx, RUNPOD_CLIP_ENDPOINT: "ep-c" });
-      const before = newRunProviders(loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c" }));
-      expect(newRunProviders(env, "480p", Prices.parse({}))).toEqual(before);
-      expect(newRunProviders(env)).toEqual(before);
-      expect(newRunProviders(env, "480p", Prices.parse({ runpodLtxUsdPerSec: 0.00016, runpodLtxSecPerClipSec: 29 }))).toEqual(before);
-    });
-
-    it("makes the run on Wan exactly as before until the owner switches LTX on, though its endpoint and rates are set", () => {
-      const before = newRunProviders(loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_CLIP_ENDPOINT: "ep-c" }));
-      for (const LTX of [undefined, "off"]) {
-        const env = loadEnv({ ...withLtx, RUNPOD_CLIP_ENDPOINT: "ep-c", FLOWCHAIN_LTX: LTX });
-        expect(newRunProviders(env, "480p", rates)).toEqual(before);
-      }
-    });
-
-    it("then needs the Wan clip endpoint again, as before", () => {
-      expect(() => newRunProviders(loadEnv(withLtx), "480p", Prices.parse({}))).toThrow("RUNPOD_CLIP_ENDPOINT not set; run npm run runpod:deploy first");
-    });
+  it("names no model, setting or provider in that sentence, since it reaches a customer's job log", () => {
+    expect(() => newRunProviders(loadEnv(base), rates)).toThrow(CLIPS_UNAVAILABLE);
+    expect(CLIPS_UNAVAILABLE).not.toMatch(/ltx|wan|runpod|FLOWCHAIN|endpoint|price/i);
   });
 
-  it("asks for a deploy when the endpoints are not configured", () => {
-    expect(() => newRunProviders(loadEnv(base))).toThrow(
-      "RUNPOD_KEYFRAME_ENDPOINT and RUNPOD_CLIP_ENDPOINT not set; run npm run runpod:deploy first",
-    );
+  it("makes a run of pictures only without any clip setting, with a clip model that refuses only if a clip is asked of it", () => {
+    const env = loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k" });
+    expect(newRunProviders(env, Prices.parse({}), true)).toEqual({
+      image: "runpod:ep-k/keyframe-klein@1",
+      video: NO_CLIPS_MODEL,
+      imageProfile: "runpod-klein@1",
+      videoProfile: "ltx25@1",
+    });
+    expect(parseModelId(NO_CLIPS_MODEL).provider).toBe("retired");
+  });
+
+  it("still asks for a deploy when there is no picture endpoint", () => {
+    expect(() => newRunProviders(loadEnv(base), Prices.parse({}), true)).toThrow("RUNPOD_KEYFRAME_ENDPOINT not set; run npm run runpod:deploy first");
+  });
+});
+
+describe("onlyPictures", () => {
+  it("is true for a run whose every scene is a picture, by its modes or by every scene pinned to one", () => {
+    expect(onlyPictures([2, 2, 2], undefined)).toBe(true);
+    expect(onlyPictures(undefined, [2, 2])).toBe(true);
+    expect(onlyPictures(undefined, [2])).toBe(true);
+  });
+
+  it("is false for an auto run, a run with any clip, and a run with any scene left to the rules", () => {
+    expect(onlyPictures(undefined, undefined)).toBe(false);
+    expect(onlyPictures([2, 1, 2], undefined)).toBe(false);
+    expect(onlyPictures([1, 1], undefined)).toBe(false);
+    expect(onlyPictures(undefined, [2, null])).toBe(false);
+    expect(onlyPictures(undefined, [1])).toBe(false);
+    expect(onlyPictures([], undefined)).toBe(false);
   });
 });
 
@@ -87,8 +101,8 @@ describe("newRunSpeech", () => {
     expect(newRunSpeech(on, "ltx25@1", true, "tr")).toBe(true);
   });
 
-  it("refuses a speaking character on any other clip profile (no endpoint, or its rates missing), in one plain sentence", () => {
-    for (const profile of ["wan22-480p@1", "wan22-720p@1", "kling-v2"] as const) {
+  it("refuses a speaking character on any other clip profile, or in a run with no clip engine, in one plain sentence", () => {
+    for (const profile of ["wan22-480p@1", "wan22-720p@1", "kling-v2", undefined] as const) {
       expect(() => newRunSpeech(on, profile, true, "en")).toThrow(NOT_HERE);
     }
   });
@@ -126,11 +140,11 @@ describe("newRunImage", () => {
     expect(() => newRunImage(loadEnv({ ...base, FLOWCHAIN_IMAGE_MODEL: "flux3", RUNPOD_KEYFRAME_ENDPOINT: "ep-k" }))).toThrow("FLOWCHAIN_IMAGE_MODEL=flux3 but FLUX 3 is not set up");
   });
 
-  it("does not need the clip endpoint, nor the LTX rates, which a picture-only tool never uses", () => {
-    const env = loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k", RUNPOD_LTX_ENDPOINT: "ep-l" });
-    expect(() => newRunImage(env)).not.toThrow();
-    // (a new run without the LTX rates is a Wan run, which does need its clip endpoint)
-    expect(() => newRunProviders(env)).toThrow("RUNPOD_CLIP_ENDPOINT not set");
+  it("does not need any clip setting, which a picture-only tool never uses", () => {
+    const env = loadEnv({ ...base, RUNPOD_KEYFRAME_ENDPOINT: "ep-k" });
+    expect(newRunImage(env)).toEqual({ image: "runpod:ep-k/keyframe-klein@1", imageProfile: "runpod-klein@1" });
+    // (while a new run that may need a clip is refused there)
+    expect(() => newRunProviders(env)).toThrow("moving clips are not available in this studio right now");
   });
 
   it("keeps the 4B when klein4b is forced, and takes FLUX 3 when it is ready", () => {
@@ -164,9 +178,10 @@ describe("frozenModePrices", () => {
       runpodClipUsdPerSec: 0.0009,
       runpodKeyframeSec: 8,
       runpodReferenceSec: 8,
-      runpodClipSecPerFrame: 1.0,
       runpodColdStartSec: 90,
     });
+    // (Wan's seconds a frame is no longer frozen into a new run's table: no new run has a Wan clip)
+    expect(frozen.runpodClipSecPerFrame).toBeUndefined();
     expect(Prices.parse(frozen)).toEqual(frozen);
   });
 });

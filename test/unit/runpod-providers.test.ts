@@ -4,11 +4,13 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LTX_RATES_MISSING, Prices, runpodRates } from "../../src/config.js";
 import { createProviders } from "../../src/providers/factory.js";
-import { parseModelId, runpodModelId } from "../../src/providers/model-id.js";
+import { CLIPS_UNAVAILABLE, NO_CLIPS_MODEL, parseModelId, runpodModelId } from "../../src/providers/model-id.js";
 import type { R2 } from "../../src/providers/r2.js";
 import { NonRetryableError, UnusableResultError } from "../../src/providers/retry.js";
 import { RunpodClient } from "../../src/providers/runpod.js";
-import { clipFrames, clipSize, RunpodImage, RunpodUpscale, RunpodVideo, type RunpodDeps } from "../../src/providers/runpod-providers.js";
+import { RunpodImage, RunpodUpscale, RunpodVideo, type RunpodDeps } from "../../src/providers/runpod-providers.js";
+import { RETIRED_CLIP_ENGINE } from "../../src/video-profiles.js";
+import type { VideoProvider } from "../../src/providers/types.js";
 import { FakeRunpodApi } from "../fakes/runpod.js";
 import { makeImage, tempDir } from "../helpers/media.js";
 
@@ -42,10 +44,10 @@ function deps(api: FakeRunpodApi, r2 = fakeR2()): RunpodDeps {
 describe("model ids", () => {
   it("routes runpod:<endpoint>/<workflow>@<version> to the GPU endpoints and marks anything else as a retired hosted model", () => {
     expect(parseModelId("fal-ai/flux/dev")).toEqual({ provider: "retired", model: "fal-ai/flux/dev" });
-    expect(parseModelId(runpodModelId("abc123", "clip-wan22-480p", 1))).toEqual({
+    expect(parseModelId(runpodModelId("abc123", "keyframe-klein", 1))).toEqual({
       provider: "runpod",
       endpointId: "abc123",
-      workflow: "clip-wan22-480p",
+      workflow: "keyframe-klein",
       version: 1,
     });
     expect(() => parseModelId("runpod:abc")).toThrow(/invalid RunPod model id/);
@@ -84,18 +86,6 @@ describe("RunPod request shapes", () => {
     expect(plain.input).not.toHaveProperty("reference");
   });
 
-  it("asks the clip worker for the frames the narration needs, at 480p in the image's orientation", async () => {
-    const dir = await tempDir();
-    await makeImage(join(dir, "tall.png"), { width: 1088, height: 1920 });
-    await makeImage(join(dir, "wide.png"), { width: 1920, height: 1088 });
-    const video = new RunpodVideo(deps(new FakeRunpodApi(() => [])), { ...target, workflow: "clip-wan22-480p" });
-    const tall = await video.prepare({ imagePath: join(dir, "tall.png"), prompt: "m", durationSec: 81 / 16 });
-    expect(tall.input).toMatchObject({ task: "clip", workflow: "clip-wan22-480p@1", frames: 81, fps: 16, width: 480, height: 832 });
-    expect(typeof tall.input.image).toBe("string");
-    const wide = await video.prepare({ imagePath: join(dir, "wide.png"), prompt: "m", durationSec: 33 / 16 });
-    expect(wide.input).toMatchObject({ frames: 33, width: 832, height: 480 });
-  });
-
   it("sends a clip to be upscaled inside the request, with the short side asked for (phase 8 spec §8)", async () => {
     const dir = await tempDir();
     await writeFile(join(dir, "clip.mp4"), Buffer.from("mp4-bytes"));
@@ -109,13 +99,6 @@ describe("RunPod request shapes", () => {
     expect(await billed.wait(id, { timeoutMs: 60_000 })).toMatchObject({ url: "https://r2/hd.mp4", costUsd: 0.0612 }); // 200 s x $0.000306/s
   });
 
-  it("accepts only 4k+1 frames between 33 and 81", () => {
-    expect(clipFrames(49 / 16)).toBe(49);
-    expect(() => clipFrames(5)).toThrow(/4k\+1 frames/);
-    expect(() => clipFrames(5)).toThrow(NonRetryableError); // a deterministic failure is not retried
-    expect(() => clipFrames(85 / 16)).toThrow(/4k\+1 frames/);
-  });
-
   it("refuses an input over 9 MB before anything is bought", async () => {
     const dir = await tempDir();
     await writeFile(join(dir, "huge.png"), Buffer.alloc(8 * 1024 * 1024));
@@ -125,14 +108,14 @@ describe("RunPod request shapes", () => {
     );
   });
 
-  it("submits once with RunPod's own caps: 120 s for keyframes, 600 s for clips, 1 h to live", async () => {
+  it("submits once with RunPod's own caps: 120 s for keyframes, 1200 s for clips, 1 h to live", async () => {
     const api = new FakeRunpodApi(() => []);
     const signal = new AbortController().signal;
     await new RunpodImage(deps(api), target).submit({ input: { task: "keyframe" } }, { signal });
-    await new RunpodVideo(deps(api), { ...target, endpointId: "ep-c" }).submit({ input: { task: "clip" } }, { signal });
+    await new RunpodVideo(deps(api), { ...target, endpointId: "ep-l", workflow: "clip-ltx25" }).submit({ input: { task: "clip" } }, { signal });
     expect(api.runs.map((r) => [r.endpointId, r.policy])).toEqual([
       ["ep-k", { executionTimeout: 120_000, ttl: 3_600_000 }],
-      ["ep-c", { executionTimeout: 600_000, ttl: 3_600_000 }],
+      ["ep-l", { executionTimeout: 1_200_000, ttl: 3_600_000 }],
     ]);
   });
 });
@@ -162,7 +145,7 @@ describe("RunPod waiting and billing", () => {
     const api = new FakeRunpodApi(() => [
       { status: "COMPLETED", output: { url: "https://r2/c.mp4" }, executionTime: 120_000 },
     ]);
-    const video = new RunpodVideo(deps(api), { ...target, endpointId: "ep-c", workflow: "clip-wan22-480p" });
+    const video = new RunpodVideo(deps(api), { ...target, endpointId: "ep-l", workflow: "clip-ltx25" });
     const id = await video.submit({ input: {} }, { signal: new AbortController().signal });
     const clip = await video.wait(id, { timeoutMs: 60_000 });
     expect(clip).toMatchObject({ url: "https://r2/c.mp4", costUsd: 0.0367 }); // 120 s x $0.000306/s
@@ -270,14 +253,36 @@ describe("createProviders", () => {
   it("serves a RunPod run from its own endpoints, with RunPod's longer waits", () => {
     const p = createProviders(
       runpodEnv,
-      { llm: "l", tts: "t", image: "runpod:ep-k/keyframe-sdxl@1", video: "runpod:ep-c/clip-wan22-480p@1" },
-      prices,
+      { llm: "l", tts: "t", image: "runpod:ep-k/keyframe-sdxl@1", video: "runpod:ep-l/clip-ltx25@1" },
+      Prices.parse({ runpodLtxUsdPerSec: 0.0011, runpodLtxSecPerClipSec: 30, runpodLtxColdStartSec: 120 }),
     );
     expect(p.image).toBeInstanceOf(RunpodImage);
     expect(p.video).toBeInstanceOf(RunpodVideo);
-    expect([p.image.waitMs, p.video.waitMs]).toEqual([600_000, 1_200_000]);
+    expect([p.image.waitMs, p.video.waitMs]).toEqual([600_000, 1_800_000]);
     // a RunPod submit uploads the image inside the request, so it gets three minutes instead of the 60 s default
     expect([p.image.submitMs, p.video.submitMs]).toEqual([180_000, 180_000]);
+  });
+
+  it("loads a run made on Wan, whose worker is gone, and refuses any clip for it in words that name no model", async () => {
+    const p = createProviders(runpodEnv, { llm: "l", tts: "t", image: "runpod:ep-k/keyframe-klein@1", video: "runpod:ep-c/clip-wan22-480p@1" }, prices);
+    // its pictures are still the studio's own endpoint's; only its clips are retired
+    expect(p.image).toBeInstanceOf(RunpodImage);
+    expect(p.video).not.toBeInstanceOf(RunpodVideo);
+    await expect(p.video.prepare({ imagePath: "x.png", prompt: "p", durationSec: 5 })).rejects.toThrow(RETIRED_CLIP_ENGINE);
+    await expect(p.video.submit({ input: {} }, { signal: new AbortController().signal })).rejects.toBeInstanceOf(NonRetryableError);
+    // a clip such a run left pending can no longer be collected: refused, never retried
+    await expect(p.video.wait("old-request", { timeoutMs: 1 })).rejects.toThrow(RETIRED_CLIP_ENGINE);
+    expect(RETIRED_CLIP_ENGINE).not.toMatch(/wan|runpod|ltx|kling/i);
+    // and the same for one made at 720p, without any RunPod key: nothing of it is bought
+    const hd = createProviders(env, { llm: "l", tts: "t", image: "fal-ai/flux/dev", video: "runpod:ep-c/clip-wan22-720p@1" }, prices);
+    await expect(hd.video.prepare({ imagePath: "x.png", prompt: "p", durationSec: 5 })).rejects.toThrow(RETIRED_CLIP_ENGINE);
+  });
+
+  it("loads a run of pictures made where no clip engine was set up, and refuses a clip for it in one plain sentence", async () => {
+    const p = createProviders(runpodEnv, { llm: "l", tts: "t", image: "runpod:ep-k/keyframe-klein@1", video: NO_CLIPS_MODEL }, prices);
+    expect(p.image).toBeInstanceOf(RunpodImage);
+    await expect(p.video.prepare({ imagePath: "x.png", prompt: "p", durationSec: 5 })).rejects.toThrow(CLIPS_UNAVAILABLE);
+    await expect(p.video.wait("r", { timeoutMs: 1 })).rejects.toBeInstanceOf(NonRetryableError);
   });
 
   it("names the missing key", () => {
@@ -287,48 +292,8 @@ describe("createProviders", () => {
   });
 });
 
-describe("the size a clip is made at", () => {
-  it("is 480p unless the run asks for 720p, upright or on its side like its picture", () => {
-    expect(clipSize(undefined, true)).toEqual({ width: 480, height: 832 });
-    expect(clipSize(480, false)).toEqual({ width: 832, height: 480 });
-    expect(clipSize(720, true)).toEqual({ width: 720, height: 1280 });
-    expect(clipSize(720, false)).toEqual({ width: 1280, height: 720 });
-    // nothing else is ever sent to the worker: a size it was not measured at is refused here, before a job is bought
-    for (const other of [1080, 360, 0]) expect(() => clipSize(other, true)).toThrow("480p or 720p");
-  });
-});
-
-
-describe("the clip worker's early start (RunPod)", () => {
-  const clipTarget = { endpointId: "ep-c", workflow: "clip-wan22-480p", version: 1 };
-  const signal = () => new AbortController().signal;
-
-  it("asks the clip endpoint for a job that carries nothing of the run, and reads its cost from the measured time", async () => {
-    const api = new FakeRunpodApi(() => [{ status: "IN_QUEUE" }, { status: "IN_PROGRESS" }, { status: "COMPLETED", output: { warmedBytes: 1 }, executionTime: 100_000 }]);
-    const video = new RunpodVideo(deps(api), clipTarget);
-    const id = await video.warm!({ signal: signal() });
-    expect(api.runs).toEqual([expect.objectContaining({ endpointId: "ep-c", input: { task: "warm" }, policy: { executionTimeout: 300_000, ttl: 900_000 } })]);
-    expect(await video.warmCost!(id, { timeoutMs: 60_000 })).toBe(0.0306); // 100 s × $0.000306
-    expect(api.runs).toHaveLength(1); // asking what it cost buys nothing
-  });
-
-  it("costs nothing when it never reached a GPU, what it ran when it failed, and says so when it cannot be known", async () => {
-    const never = new RunpodVideo(deps(new FakeRunpodApi(() => [{ status: "CANCELLED" }])), clipTarget);
-    expect(await never.warmCost!(await never.warm!({ signal: signal() }), { timeoutMs: 60_000 })).toBe(0);
-    const failed = new RunpodVideo(deps(new FakeRunpodApi(() => [{ status: "FAILED", error: "oom", executionTime: 20_000 }])), clipTarget);
-    expect(await failed.warmCost!(await failed.warm!({ signal: signal() }), { timeoutMs: 60_000 })).toBe(0.0061);
-    const api = new FakeRunpodApi(() => [{ status: "IN_QUEUE" }]);
-    const gone = new RunpodVideo(deps(api), clipTarget);
-    const id = await gone.warm!({ signal: signal() });
-    await expect(gone.warmCost!(id, { timeoutMs: 5000 })).rejects.toThrow(/still IN_QUEUE/);
-    api.expire(id);
-    await expect(gone.warmCost!(id, { timeoutMs: 5000 })).rejects.toThrow(/no longer knows/);
-  });
-});
-
 describe("the LTX clip worker (phase 15)", () => {
   const ltx = { endpointId: "ep-l", workflow: "clip-ltx25", version: 1 };
-  const wan = { endpointId: "ep-c", workflow: "clip-wan22-480p", version: 1 };
   const signal = () => new AbortController().signal;
   async function pictures() {
     const dir = await tempDir();
@@ -337,13 +302,10 @@ describe("the LTX clip worker (phase 15)", () => {
     return { tall: join(dir, "tall.png"), wide: join(dir, "wide.png") };
   }
 
-  it("offers no early start on the LTX worker, whose contract refuses one, and keeps Wan's", () => {
-    const l = new RunpodVideo(deps(new FakeRunpodApi(() => [])), ltx);
-    const w = new RunpodVideo(deps(new FakeRunpodApi(() => [])), wan);
+  it("offers no early start, which the LTX worker's contract refuses", () => {
+    const l: VideoProvider = new RunpodVideo(deps(new FakeRunpodApi(() => [])), ltx);
     expect(typeof l.warm).toBe("undefined");
     expect(typeof l.warmCost).toBe("undefined");
-    expect(typeof w.warm).toBe("function");
-    expect(typeof w.warmCost).toBe("function");
   });
 
   it("asks for a 5.04 s portrait clip as the worker's contract says: 121 frames at 24 fps, 640x1152, the seed, no workflow key, and no speech unless asked", async () => {
@@ -399,8 +361,6 @@ describe("the LTX clip worker (phase 15)", () => {
   });
 
   it("still names the workflow to every other worker, which reads it", async () => {
-    const { tall } = await pictures();
-    expect((await new RunpodVideo(deps(new FakeRunpodApi(() => [])), wan).prepare({ imagePath: tall, prompt: "m", durationSec: 81 / 16 })).input).toMatchObject({ workflow: "clip-wan22-480p@1" });
     expect((await new RunpodImage(deps(new FakeRunpodApi(() => [])), target).prepare({ prompt: "p", width: 8, height: 8 })).input).toMatchObject({ workflow: "keyframe-sdxl@1" });
   });
 
@@ -422,30 +382,17 @@ describe("the LTX clip worker (phase 15)", () => {
     }
   });
 
-  it("asks Wan for exactly what it always did, field for field, whatever the new request fields say", async () => {
-    const { tall } = await pictures();
-    const video = new RunpodVideo(deps(new FakeRunpodApi(() => [])), wan);
-    const before = { task: "clip", image: (await readFile(tall)).toString("base64"), prompt: "m", frames: 81, fps: 16, width: 480, height: 832, workflow: "clip-wan22-480p@1" };
-    expect((await video.prepare({ imagePath: tall, prompt: "m", durationSec: 81 / 16 })).input).toEqual(before);
-    expect((await video.prepare({ imagePath: tall, prompt: "m", durationSec: 81 / 16, seed: 9, speechLanguage: "en" })).input).toEqual(before);
-    expect((await video.prepare({ imagePath: tall, prompt: "m", durationSec: 81 / 16, detectVoice: true })).input).toEqual(before);
-    // and in the same order, which is what goes over the wire
-    expect(Object.keys((await video.prepare({ imagePath: tall, prompt: "m", durationSec: 81 / 16 })).input)).toEqual(["task", "image", "prompt", "frames", "fps", "width", "height", "workflow"]);
-  });
-
-  it("gives an LTX job longer than Wan to run and to be waited for: its first job after a cold start loads about 68 GB", async () => {
+  it("gives an LTX job twenty minutes to run and thirty to be waited for: its first job after a cold start loads about 68 GB", async () => {
     const api = new FakeRunpodApi(() => []);
     const l = new RunpodVideo(deps(api), ltx);
-    const w = new RunpodVideo(deps(api), wan);
     await l.submit({ input: { task: "clip" } }, { signal: signal() });
-    await w.submit({ input: { task: "clip" } }, { signal: signal() });
-    expect(api.runs.map((r) => r.policy)).toEqual([{ executionTimeout: 1_200_000, ttl: 3_600_000 }, { executionTimeout: 600_000, ttl: 3_600_000 }]);
-    expect([l.waitMs, w.waitMs]).toEqual([30 * 60_000, 20 * 60_000]);
+    expect(api.runs.map((r) => r.policy)).toEqual([{ executionTimeout: 1_200_000, ttl: 3_600_000 }]);
+    expect(l.waitMs).toBe(30 * 60_000);
   });
 
-  async function collected(output: Record<string, unknown>, target = ltx) {
+  async function collected(output: Record<string, unknown>) {
     const api = new FakeRunpodApi(() => [{ status: "COMPLETED", output, executionTime: 100_000 }]);
-    const video = new RunpodVideo(deps(api), target);
+    const video = new RunpodVideo(deps(api), ltx);
     const id = await video.submit({ input: {} }, { signal: signal() });
     return video.wait(id, { timeoutMs: 60_000 });
   }
@@ -468,14 +415,6 @@ describe("the LTX clip worker (phase 15)", () => {
     expect((await collected({ url: "https://r2/c.mp4", has_audio: true, words: null, voice_heard: false })).voiceHeard).toBe(false);
     const unasked = await collected({ url: "https://r2/c.mp4", has_audio: true, words: null });
     expect(unasked).not.toHaveProperty("voiceHeard");
-  });
-
-  it("returns none of the three for a Wan clip, whatever its answer carries", async () => {
-    const out = await collected({ url: "https://r2/c.mp4", has_audio: true, words: [{ text: "x", start: 0, end: 1 }], voice_heard: true }, wan);
-    expect(out).not.toHaveProperty("fps");
-    expect(out).not.toHaveProperty("hasAudio");
-    expect(out).not.toHaveProperty("words");
-    expect(out).not.toHaveProperty("voiceHeard");
   });
 
   it("refuses a malformed answer as paid for but unusable, with the job's cost", async () => {
@@ -535,9 +474,10 @@ describe("what an LTX clip is charged (createProviders)", () => {
     expect((await charged(runpodModelId("ep-l", "clip-ltx25", 1), Prices.parse(ltxPrices))).costUsd).toBe(0.11); // 100 s x $0.0011/s
   });
 
-  it("is still Wan's rate for a Wan clip, whether or not the LTX rates are set", async () => {
-    expect((await charged(runpodModelId("ep-c", "clip-wan22-480p", 1), Prices.parse(ltxPrices))).costUsd).toBe(0.0306); // 100 s x $0.000306/s
-    expect((await charged(runpodModelId("ep-c", "clip-wan22-480p", 1), Prices.parse({}))).costUsd).toBe(0.0306);
+  it("is never charged for a Wan clip, which can no longer be bought, whether or not the LTX rates are set", async () => {
+    for (const prices of [Prices.parse(ltxPrices), Prices.parse({})]) {
+      await expect(charged(runpodModelId("ep-c", "clip-wan22-480p", 1), prices)).rejects.toThrow(RETIRED_CLIP_ENGINE);
+    }
   });
 
   it("refuses to build the clip provider for an LTX run whose rates were removed from prices.json, rather than charge a guess", () => {

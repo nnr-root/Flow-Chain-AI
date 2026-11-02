@@ -209,8 +209,8 @@ describe("the clips stage on LTX", () => {
     expect(ctx.manifest.abandonedUsd).toBeUndefined();
   });
 
-  it("submits no job for the early-start step to a real LTX provider, and one to a real Wan provider", async () => {
-    // (the stand-in above has no `warm` at all; this asks the real provider, whose LTX contract refuses a warm-up)
+  it("submits no job for the early-start step to the real clip provider, whose LTX contract refuses a warm-up", async () => {
+    // (the stand-in above has no `warm` at all; this asks the real provider)
     const submitted = async (workflow: string) => {
       const { ctx } = await ltxRun();
       await runPipeline(ctx, [scriptStage, ttsStage, silenceStage], auto);
@@ -221,7 +221,6 @@ describe("the clips stage on LTX", () => {
       return api.runs;
     };
     expect(await submitted("clip-ltx25")).toEqual([]);
-    expect(await submitted("clip-wan22-480p")).toEqual([expect.objectContaining({ input: { task: "warm" } })]);
   });
 
   it("fits a 24 fps clip to exactly the scene's frames at the video's rate, and chains from its last shown frame", async () => {
@@ -237,7 +236,7 @@ describe("the clips stage on LTX", () => {
   });
 });
 
-describe("a Wan run's clips are asked for and keyed exactly as before", () => {
+describe("an old Wan run's clips are keyed exactly as before", () => {
   it("keeps the literal inputs the old code hashed, with no seed, for 480p and 720p", async () => {
     const { ctx } = await makeTestContext({ modes: [1, 1], shots: ["cut", "continue"] });
     await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage], auto);
@@ -254,16 +253,6 @@ describe("a Wan run's clips are asked for and keyed exactly as before", () => {
     expect(await clipsStage.inputsFor(ctx, 0)).toStrictEqual(old);
     m.request.videoProfile = "wan22-720p@1";
     expect(await clipsStage.inputsFor(ctx, 0)).toStrictEqual({ ...old, requestedSec: videoProfileOf("wan22-720p@1").clipSec(m.scenes[0].audio!.duration), height: 720 });
-  });
-
-  it("asks a Wan clip with the motion prompt even when the script wrote an LTX prompt, and records no rate or sound", async () => {
-    const { ctx, fakes } = await makeTestContext({ modes: [1], shots: ["cut"] });
-    ctx.manifest.request.videoProfile = "wan22-480p@1";
-    await runPipeline(ctx, [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage], auto);
-    expect(fakes.video.submits[0].prompt).toBe(motionPrompt(ctx.manifest.script!, 0, PRESETS.cinematic_history));
-    expect(fakes.video.submits[0].seed).toBeUndefined();
-    expect(fakes.video.submits[0].detectVoice).toBeUndefined();
-    expect(Object.keys(ctx.manifest.scenes[0].clip!).sort()).toEqual(["duration", "path", "requestedSec", "sourceUrl"]);
   });
 
   it("clipPrompt is the motion prompt for every profile but LTX", () => {

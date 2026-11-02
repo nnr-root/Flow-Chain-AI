@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { Prices, flux3Rates, loadEnv } from "../../src/config.js";
 import { IMAGE_PROFILES, imageProfileOf, takesReference, takesSeveralReferences } from "../../src/image-profiles.js";
-import { newRunProviders } from "../../src/providers/new-run.js";
+import { newRunImage } from "../../src/providers/new-run.js";
 
 const rates = { runpodPicture3UsdPerSec: 0.0006, runpodPicture3Sec: 24, runpodPortrait3Sec: 12, runpodPicture3ColdStartSec: 90 };
-const base = { GEMINI_API_KEY: "k", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "kf1", RUNPOD_CLIP_ENDPOINT: "cl1" };
+const base = { GEMINI_API_KEY: "k", RUNPOD_API_KEY: "r", RUNPOD_KEYFRAME_ENDPOINT: "kf1" };
 
 describe("the FLUX 3 picture profile", () => {
   it("cannot be priced until all four rates are in the price table", () => {
@@ -35,30 +35,30 @@ describe("the picture model a new run is made with", () => {
   const p = Prices.parse(rates);
 
   it("is the 4B klein while the new one is not set up", () => {
-    expect(newRunProviders(loadEnv(base), "480p", p).imageProfile).toBe("runpod-klein@1");
-    expect(newRunProviders(ready, "480p", Prices.parse({})).imageProfile).toBe("runpod-klein@1");
-    expect(newRunProviders(ready, "480p").imageProfile).toBe("runpod-klein@1");
+    expect(newRunImage(loadEnv(base), p).imageProfile).toBe("runpod-klein@1");
+    expect(newRunImage(ready, Prices.parse({})).imageProfile).toBe("runpod-klein@1");
+    expect(newRunImage(ready).imageProfile).toBe("runpod-klein@1");
   });
 
   it("is FLUX 3 klein when its endpoint and rates are both set, on that endpoint", () => {
-    const chosen = newRunProviders(ready, "480p", p);
+    const chosen = newRunImage(ready, p);
     expect(chosen.imageProfile).toBe("runpod-flux3-klein@1");
     expect(chosen.image).toBe("runpod:f3x/keyframe-flux3-klein@1");
   });
 
   it("is the 4B again when the owner says so, whatever else is set", () => {
     const forced = loadEnv({ ...base, RUNPOD_PICTURE3_ENDPOINT: "f3x", FLOWCHAIN_IMAGE_MODEL: "klein4b" });
-    expect(newRunProviders(forced, "480p", p).imageProfile).toBe("runpod-klein@1");
+    expect(newRunImage(forced, p).imageProfile).toBe("runpod-klein@1");
   });
 
   it("refuses to start a run when the owner insists on FLUX 3 and it is not ready", () => {
     const insist = loadEnv({ ...base, FLOWCHAIN_IMAGE_MODEL: "flux3" });
-    expect(() => newRunProviders(insist, "480p", p)).toThrow(/FLOWCHAIN_IMAGE_MODEL=flux3/);
+    expect(() => newRunImage(insist, p)).toThrow(/FLOWCHAIN_IMAGE_MODEL=flux3/);
   });
 
   it("does not need the 4B endpoint when it makes the pictures on FLUX 3", () => {
     const { RUNPOD_KEYFRAME_ENDPOINT: _gone, ...without } = base;
-    expect(newRunProviders(loadEnv({ ...without, RUNPOD_PICTURE3_ENDPOINT: "f3x" }), "480p", p).imageProfile).toBe("runpod-flux3-klein@1");
+    expect(newRunImage(loadEnv({ ...without, RUNPOD_PICTURE3_ENDPOINT: "f3x" }), p).imageProfile).toBe("runpod-flux3-klein@1");
   });
 });
 

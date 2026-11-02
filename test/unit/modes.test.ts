@@ -3,6 +3,7 @@ import { Prices } from "../../src/config.js";
 import { round4, scriptCost } from "../../src/cost.js";
 import type { ActionLevel, Shot } from "../../src/manifest/schema.js";
 import { planModes } from "../../src/modes.js";
+import { RETIRED_CLIP_ENGINE } from "../../src/video-profiles.js";
 
 // Only images and clips cost money here: a keyframe is $0.025 (1 MP), a 5 s clip $0.25, a 10 s clip $0.50.
 const prices = Prices.parse({ llmPerMInputTokens: 0, llmPerMOutputTokens: 0, ttsPer1kChars: 0 });
@@ -102,18 +103,27 @@ describe("planModes with pinned scenes", () => {
 
 describe("planModes on RunPod profiles", () => {
   it("adds each endpoint's cold start once: images always, video only when a scene is Mode 1", () => {
-    const base = { prices: Prices.parse({}), keyframeSize: { width: 1000, height: 1000 }, budgetUsd: 10 };
-    const scenes = [{ actionLevel: "low" as const, shot: "cut" as const, requestedSec: 81 / 16, narrationChars: 0 }];
-    const stills = planModes({ ...base, scenes, imageProfile: "runpod-sdxl@1", videoProfile: "wan22-480p@1" });
+    const prices = Prices.parse({ runpodLtxUsdPerSec: 0.001, runpodLtxSecPerClipSec: 30, runpodLtxColdStartSec: 100 });
+    const base = { prices, keyframeSize: { width: 1000, height: 1000 }, budgetUsd: 10 };
+    const scenes = [{ actionLevel: "low" as const, shot: "cut" as const, requestedSec: 121 / 24, narrationChars: 0 }];
+    const stills = planModes({ ...base, scenes, imageProfile: "runpod-sdxl@1", videoProfile: "ltx25@1" });
     // script + 1 keyframe (8 s × $0.000306) + the keyframe endpoint's cold start; no clip, so no clip cold start
-    expect(stills.estimatedUsd).toBe(round4(scriptCost(base.prices) + 0.0024 + 0.0275));
+    expect(stills.estimatedUsd).toBe(round4(scriptCost(prices) + 0.0024 + 0.0275));
     const moving = planModes({
       ...base,
       scenes: [{ ...scenes[0], actionLevel: "high" }],
       imageProfile: "runpod-sdxl@1",
-      videoProfile: "wan22-480p@1",
+      videoProfile: "ltx25@1",
     });
-    expect(moving.estimatedUsd).toBe(round4(scriptCost(base.prices) + 0.0024 + 0.0275 + 0.0248 + 0.0275));
+    // + the clip (121/24 s × 30 s × $0.001) and the LTX endpoint's cold start (100 s × $0.001)
+    expect(moving.estimatedUsd).toBe(round4(scriptCost(prices) + 0.0024 + 0.0275 + 0.1513 + 0.1));
+  });
+
+  it("plans an old Wan run made of pictures without pricing a clip, and refuses one that would buy a clip, naming no model", () => {
+    const base = { prices: Prices.parse({}), keyframeSize: { width: 1000, height: 1000 }, budgetUsd: 10, imageProfile: "runpod-sdxl@1" as const, videoProfile: "wan22-480p@1" as const };
+    const scene = { actionLevel: "low" as const, shot: "cut" as const, requestedSec: 81 / 16, narrationChars: 0 };
+    expect(planModes({ ...base, scenes: [scene] }).modes).toEqual([2]);
+    expect(() => planModes({ ...base, scenes: [{ ...scene, actionLevel: "high" }] })).toThrow(RETIRED_CLIP_ENGINE);
   });
 });
 

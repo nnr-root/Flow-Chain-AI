@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { LTX_RATES_MISSING, Prices } from "../../src/config.js";
-import { LTX_FPS, ltxFrames, NEW_RUN_VIDEO_PROFILE, VIDEO_PROFILES, videoProfileOf, wanFrames } from "../../src/video-profiles.js";
+import { NonRetryableError } from "../../src/providers/retry.js";
+import { LTX_FPS, ltxFrames, RETIRED_CLIP_ENGINE, VIDEO_PROFILES, videoProfileOf, wanFrames } from "../../src/video-profiles.js";
 
 describe("video profiles", () => {
   it("kling-v1 (runs made before 2.3) buys 5 s up to 5.0 s of narration, else 10 s", () => {
@@ -19,38 +20,30 @@ describe("video profiles", () => {
     expect(VIDEO_PROFILES["kling-v2"].costUsd(prices, 10)).toBe(0.5);
   });
 
-  it("gives new runs the GPU clip profile and keeps runs without a profile on kling-v1", () => {
-    expect(NEW_RUN_VIDEO_PROFILE).toBe("wan22-480p@1");
+  it("keeps runs without a profile on kling-v1", () => {
     expect(videoProfileOf(undefined).id).toBe("kling-v1");
     expect(videoProfileOf("kling-v2").id).toBe("kling-v2");
   });
 });
 
-describe("wan22-480p@1", () => {
-  const wan = VIDEO_PROFILES["wan22-480p@1"];
+describe("the Wan profiles (old runs only)", () => {
   const prices = Prices.parse({});
 
-  it("buys only the 4k+1 frames the narration needs after a 1.25× stretch, 33 to 81", () => {
+  it("still buy only the 4k+1 frames the narration needs after a 1.25× stretch, 33 to 81", () => {
     expect([2.5, 3, 4.5, 6, 6.3, 10].map(wanFrames)).toEqual([33, 41, 61, 81, 81, 81]);
-    expect(wan.clipSec(3)).toBe(41 / 16);
+    expect(VIDEO_PROFILES["wan22-480p@1"].clipSec(3)).toBe(41 / 16);
   });
 
-  it("prices a clip by frames × GPU seconds per frame × $/s, plus one cold start per run", () => {
-    expect(wan.costUsd(prices, 81 / 16)).toBe(0.0248); // 81 × 1.0 s × $0.000306
-    expect(wan.runOverheadUsd(prices)).toBe(0.0275); // 90 s × $0.000306
-    expect(VIDEO_PROFILES["kling-v2"].runOverheadUsd(prices)).toBe(0);
-  });
-
-  it("prices a 720p clip by its own seconds a frame, for the same lengths as a 480p one", () => {
-    const prices = Prices.parse({});
-    const [sd, hd] = [VIDEO_PROFILES["wan22-480p@1"], VIDEO_PROFILES["wan22-720p@1"]];
-    for (const narration of [1, 3.2, 5, 9]) expect(hd.clipSec(narration)).toBe(sd.clipSec(narration));
-    // 65 frames: 157 s measured on the card the endpoint runs on
-    expect(hd.costUsd(prices, 65 / 16)).toBe(0.0497);
-    expect(hd.costUsd(prices, 65 / 16)).toBeGreaterThan(sd.costUsd(prices, 65 / 16) * 1.5);
-    expect([sd.clipHeight, hd.clipHeight]).toEqual([undefined, 720]);
-    expect(hd.runOverheadUsd(prices)).toBe(sd.runOverheadUsd(prices));
-    expect(hd.costUsd(Prices.parse({ runpodClip720SecPerFrame: 1 }), 65 / 16)).toBe(0.0199);
+  it("refuse to price a clip or a cold start, in words that name no model, whatever the price table says", () => {
+    const old = Prices.parse({ runpodClipSecPerFrame: 1, runpodClip720SecPerFrame: 2.5, runpodClipUsdPerSec: 0.0003, runpodColdStartSec: 90 });
+    for (const id of ["wan22-480p@1", "wan22-720p@1"] as const) {
+      for (const p of [prices, old]) {
+        expect(() => VIDEO_PROFILES[id].costUsd(p, 81 / 16)).toThrow(NonRetryableError);
+        expect(() => VIDEO_PROFILES[id].costUsd(p, 81 / 16)).toThrow(RETIRED_CLIP_ENGINE);
+        expect(() => VIDEO_PROFILES[id].runOverheadUsd(p)).toThrow(RETIRED_CLIP_ENGINE);
+      }
+    }
+    expect(RETIRED_CLIP_ENGINE).not.toMatch(/wan|runpod|ltx/i);
   });
 });
 
