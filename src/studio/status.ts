@@ -77,7 +77,7 @@ export type RunStatus = {
   localized?: true;
   /** The run this one is a version of, in another language (phase 8 spec §4). */
   versionOf?: string;
-  /** Made with scene sound (phase 14 spec §6): only then do its sound effects switch anything. */
+  /** Made with scene sound (phase 14 spec §6): an old run whose scenes' sounds were bought; no new run is (phase 15 spec §13.12). */
   sceneSound?: true;
 };
 

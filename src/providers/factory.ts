@@ -1,14 +1,14 @@
-import { type Env, FOLEY_RATES_MISSING, foleyRates, flux3Rates, LTX_RATES_MISSING, ltxRates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
+import { type Env, flux3Rates, LTX_RATES_MISSING, ltxRates, type Prices, RESTORE_RATES_MISSING, restoreRates, runpodRates } from "../config.js";
 import type { Models } from "../manifest/schema.js";
 import { ElevenLabsTts } from "./elevenlabs.js";
 import { GeminiLlm } from "./gemini.js";
 import { CLIPS_UNAVAILABLE, NO_CLIPS_MODEL, parseModelId, RUNPOD_WORKFLOWS } from "./model-id.js";
 import { R2 } from "./r2.js";
 import { RunpodClient } from "./runpod.js";
-import { type RunpodDeps, RunpodFoley, RunpodImage, RunpodUpscale, RunpodVideo } from "./runpod-providers.js";
+import { type RunpodDeps, RunpodImage, RunpodUpscale, RunpodVideo } from "./runpod-providers.js";
 import { NonRetryableError } from "./retry.js";
 import { RunpodTts } from "./runpod-voice.js";
-import type { ImageProvider, Providers, QueuedProvider, SoundOutput, SoundRequest, TtsProvider, VideoProvider } from "./types.js";
+import type { ImageProvider, Providers, QueuedProvider, TtsProvider, VideoProvider } from "./types.js";
 import { RETIRED_CLIP_ENGINE } from "../video-profiles.js";
 
 function need(value: string | undefined, name: string, why: string): string {
@@ -121,21 +121,13 @@ export function createProviders(env: Env, models: Models, prices: Prices): Provi
           };
   // full HD only where the run asked for it (phase 8 spec §8), on the endpoint it was made with
   const upscaleRef = models.upscale ? parseModelId(models.upscale) : undefined;
-  // scene sound only where the run was made with it (phase 14 spec §3), on its endpoint, charged at its card's own
-  // measured rate: without the three rates a resumed run refuses rather than charging a guess
-  const soundRef = models.sound ? parseModelId(models.sound) : undefined;
-  const sound = () => {
-    if (soundRef!.provider === "retired") return retired<SoundRequest, SoundOutput>("scene sounds", soundRef!.model);
-    const r = foleyRates(prices);
-    if (!r) throw new NonRetryableError(FOLEY_RATES_MISSING);
-    return new RunpodFoley(runpodDeps(), soundRef!, r.usdPerSec);
-  };
+  // (`models.sound`, the endpoint a run made with scene sound bought its sounds on, gets no provider: that worker was
+  // removed, phase 15 spec §13.12; such a run's sounds are on disk, and the sound stage refuses one it would have to buy)
   return {
     llm: new GeminiLlm(env.GEMINI_API_KEY, models.llm),
     tts,
     image,
     video,
     ...(upscaleRef ? { upscale: upscaleRef.provider === "retired" ? retired("full HD clips", upscaleRef.model) : new RunpodUpscale(upscaleDeps(upscaleRef.workflow), upscaleRef) } : {}),
-    ...(soundRef ? { sound: sound() } : {}),
   };
 }

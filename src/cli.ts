@@ -28,7 +28,7 @@ import { fetchChart } from "./providers/youtube-chart.js";
 import { makeIdeas } from "./trends/run.js";
 import { createProviders } from "./providers/factory.js";
 import { NO_CLIPS_MODEL } from "./providers/model-id.js";
-import { frozenModePrices, newRunProviders, newRunSound, newRunSpeech, newRunVoice, onlyPictures, restorerFor, SPEECH_REQUEST } from "./providers/new-run.js";
+import { frozenModePrices, newRunProviders, newRunSpeech, newRunVoice, onlyPictures, restorerFor, SPEECH_REQUEST } from "./providers/new-run.js";
 import type { Providers } from "./providers/types.js";
 import { applyRenderOptions, assertRenderOnly, noPaidProviders, withLook } from "./rerender.js";
 import { bumpNonce, REROLLABLE } from "./reroll.js";
@@ -275,10 +275,6 @@ program
     // refused now, before anything is bought, where the run's clips cannot speak (phase 15 spec §5, §7)
     const speech = newRunSpeech(env, providers.video === NO_CLIPS_MODEL ? undefined : providers.videoProfile, o.speech, o.language);
     const voice = newRunVoice(env, o.language);
-    // scene sound is frozen now, on only when everything it needs is here (phase 14 spec §3); a switch that is on without
-    // what it needs says so once, and nothing is said otherwise
-    const sound = newRunSound(env, loadPrices(), o.sfx !== false);
-    if ("say" in sound && sound.say) console.log(sound.say);
     const request = RunRequest.parse({
       topic: o.topic,
       aspect: o.aspect,
@@ -291,7 +287,6 @@ program
       edit: o.edit,
       ...(o.upscale ? { upscale: true } : {}),
       ...(o.fps === "60" ? { fps: 60 as const } : {}),
-      ...("model" in sound ? { sceneSound: true as const } : {}),
       // frozen with the run: it changes what the script is asked for and what each clip is
       ...(speech ? SPEECH_REQUEST : {}),
       // made for the viewers of its one language, frozen now (phase 8 spec §5): never for English, which names no one
@@ -335,7 +330,6 @@ program
       image: providers.image,
       video: providers.video,
       ...(restorer ? { upscale: restorer } : {}),
-      ...("model" in sound ? { sound: sound.model } : {}),
     };
     await requireDoctor(env, models);
     const runId = chosenRunId(o.runId);

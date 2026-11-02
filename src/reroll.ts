@@ -1,12 +1,14 @@
 import type { Manifest } from "./manifest/schema.js";
 import { referenceApplies } from "./stages/reference.js";
 import { isSmoothed } from "./stages/interpolate.js";
+import { RETIRED_SOUND_ENGINE } from "./sound.js";
 import { hasSceneSound } from "./stages/sound.js";
 import { isUpscaled } from "./stages/upscale.js";
 import { needsKeyframe } from "./stages/visual.js";
 
 // (a full HD clip too, phase 8 spec §8: a failed upscale is kept for its inputs, and only a new nonce asks again)
-// (a scene's sound too, phase 14 spec §3: a new nonce is a new seed)
+// ("sound" is still a name the CLI and the studio's API accept, but nothing can be rerolled by it: a scene's sound is its
+// clip's, made again with its clip, and an old run's bought sound can no longer be bought, phase 15 spec §13.12)
 export const REROLLABLE = ["tts", "keyframes", "clips", "upscale", "interpolate", "sound", "reference"] as const;
 export type RerollStage = (typeof REROLLABLE)[number];
 
@@ -34,8 +36,11 @@ export function bumpNonce(m: Manifest, sceneNumber: number, stage: string): void
   if (stage === "interpolate" && !isSmoothed(m, idx)) {
     throw new Error(`scene ${sceneNumber} has no smoothed clip: only a moving clip of a 60 fps run that is not in full HD is smoothed on its own`);
   }
-  if (stage === "sound" && !hasSceneSound(m, idx)) {
-    throw new Error(`scene ${sceneNumber} has no scene sound: only a run made with scene sound and sound effects on, in a scene its script wrote a sound for, has one`);
+  if (stage === "sound") {
+    // refused here, before anything is planned: an old run's sound would have to be bought, and a clip's own is remade
+    // only with its clip
+    if (hasSceneSound(m, idx)) throw new Error(RETIRED_SOUND_ENGINE);
+    throw new Error(`scene ${sceneNumber}'s sound cannot be remade on its own: a scene's sound is its clip's, and comes new with a new clip`);
   }
   if (stage === "keyframes" && !needsKeyframe(m, idx)) {
     throw new Error(`scene ${sceneNumber} continues from the previous clip and has no keyframe; reroll its clips instead`);

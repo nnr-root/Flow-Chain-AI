@@ -394,8 +394,9 @@ export const RunRequest = z.object({
   /** Smooth motion (--fps 60, phase 11 spec §2): the run is made and rendered at 60 frames a second. Frozen; absent = 30. */
   fps: z.literal(60).optional(),
   /**
-   * Scene sound (phase 14 spec §3): every scene's sound is made from its picture. Frozen true at creation only while the
-   * run has sound effects and the studio has the switch, the endpoint and the three prices; absent = none.
+   * Scene sound (phase 14 spec §3): every scene's sound was bought, made from its picture. Frozen true at creation only
+   * while the run had sound effects and the studio had the switch, the endpoint and the three prices; absent = none. Set
+   * by no new run since that worker was removed (phase 15 spec §13.12): kept so an old run loads and keeps its sounds.
    */
   sceneSound: z.literal(true).optional(),
   /**
@@ -443,7 +444,8 @@ export type RunRequest = z.infer<typeof RunRequest>;
 
 /**
  * `upscale`: the restorer endpoint (phase 8 spec §8; phase 11: it also interpolates) a run that asked for full HD or 60 fps has its clips made on; absent on every other run.
- * `sound`: the Foley endpoint a run made with scene sound has its scenes' sounds made on (phase 14 spec §3); absent on every other run.
+ * `sound`: the endpoint a run made with scene sound had its scenes' sounds made on (phase 14 spec §3; the Foley worker, removed on
+ * 2026-11-02, phase 15 spec §13.12, so it parses as retired); absent on every other run, and set by no new one.
  */
 export const Models = z.object({ llm: z.string(), tts: z.string(), image: z.string(), video: z.string(), upscale: z.string().optional(), sound: z.string().optional() });
 export type Models = z.infer<typeof Models>;

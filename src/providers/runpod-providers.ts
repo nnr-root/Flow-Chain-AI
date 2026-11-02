@@ -7,7 +7,7 @@ import type { R2 } from "./r2.js";
 import { NonRetryableError, UnusableResultError } from "./retry.js";
 import type { RunpodClient, RunpodJob, RunpodPolicy } from "./runpod.js";
 import type {
-  ImageOutput, ImageProvider, ImageRequest, PreparedJob, SoundOutput, SoundProvider, SoundRequest, SubmitOptions, UpscaleProvider, UpscaleRequest, VideoOutput,
+  ImageOutput, ImageProvider, ImageRequest, PreparedJob, SubmitOptions, UpscaleProvider, UpscaleRequest, VideoOutput,
   VideoProvider, VideoRequest, WaitOptions,
 } from "./types.js";
 import { HeardWord } from "../manifest/heard-word.js";
@@ -52,7 +52,7 @@ abstract class RunpodQueued<Req, Out extends { url: string; costUsd?: number; re
     protected readonly target: Target,
     private readonly policy: RunpodPolicy,
     readonly waitMs: number,
-    private readonly ext: "png" | "mp4" | "wav",
+    private readonly ext: "png" | "mp4",
   ) {}
 
   protected abstract input(req: Req): Promise<Record<string, unknown>>;
@@ -322,41 +322,5 @@ export class RunpodUpscale extends RunpodQueued<UpscaleRequest, VideoOutput> imp
 
   protected output(_jobId: string, out: { url: string }, costUsd: number | undefined): VideoOutput {
     return { url: out.url, ...(costUsd === undefined ? {} : { costUsd }) };
-  }
-}
-
-/**
- * A scene's sound from the Foley worker (phase 14 spec §4). The small silent video of the scene goes inside the request
- * as a clip does; the answer is a wav in the bucket. Its rate is its own card's (`foleyRates`), so it is given here.
- */
-export class RunpodFoley extends RunpodQueued<SoundRequest, SoundOutput> implements SoundProvider {
-  constructor(
-    deps: RunpodDeps,
-    target: Target,
-    private readonly rate: number,
-  ) {
-    // (a job is seconds of GPU on a warm worker; the wait covers a cold start that pulls a large image first)
-    super(deps, target, { executionTimeout: 300_000, ttl: 3_600_000 }, 25 * 60_000, "wav");
-  }
-
-  protected async input(req: SoundRequest) {
-    return {
-      task: "sound",
-      video: (await readFile(req.videoPath)).toString("base64"),
-      prompt: req.prompt,
-      negative_prompt: req.negativePrompt,
-      seed: req.seed,
-      guidance_scale: req.guidanceScale,
-      steps: req.steps,
-      audio_length: req.audioLengthSec,
-    };
-  }
-
-  protected usdPerSec() {
-    return this.rate;
-  }
-
-  protected output(_jobId: string, out: { url: string; seed?: number }, costUsd: number | undefined): SoundOutput {
-    return { url: out.url, ...(out.seed === undefined ? {} : { seed: out.seed }), ...(costUsd === undefined ? {} : { costUsd }) };
   }
 }

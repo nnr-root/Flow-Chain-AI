@@ -1,10 +1,10 @@
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Prices } from "../../src/config.js";
 import { fileSha256 } from "../../src/manifest/hash.js";
 import { ffmpeg, probeDuration } from "../../src/media/ffmpeg.js";
 import { computeHash, planRun, type RunOptions, runPipeline } from "../../src/pipeline.js";
-import { guidanceFor, LOUDNESS_TARGET_LUFS, SCENE_SOUND_MAX_SEC, SOUND_NEGATIVE_PROMPT, SOUND_STEPS, soundAskSeconds, soundSeed } from "../../src/sound.js";
+import { LOUDNESS_TARGET_LUFS } from "../../src/sound.js";
 import { buildRenderProps } from "../../src/stages/build-render-props.js";
 import { clipsStage } from "../../src/stages/clips.js";
 import { fitStage } from "../../src/stages/fit.js";
@@ -17,15 +17,15 @@ import { soundStage } from "../../src/stages/sound.js";
 import { ttsStage } from "../../src/stages/tts.js";
 import { NO_VOICES_SENTENCE, sceneFrames } from "../../src/stages/visual.js";
 import { sceneStagesShown } from "../../src/studio/status.js";
-import { FakeLtxVideo, FakeSound, fakeScript } from "../fakes/providers.js";
+import { FakeLtxVideo, fakeScript } from "../fakes/providers.js";
 import { makeTestContext } from "../helpers/context.js";
 
-// Phase 15 spec §6: an LTX clip's own sound is a scene's sound, as a Foley sound is, made for nothing from the clip; a
-// speaking scene's sound is its voice and nothing more; Foley, where a run has it, wins. §9.4: nothing strips what a clip carries.
+// Phase 15 spec §6: an LTX clip's own sound is a scene's sound, made for nothing from the clip; a speaking scene's sound is
+// its voice and nothing more. (An old run made with scene sound keeps what it bought: test/pipeline/foley-old-run.test.ts.)
+// §9.4: nothing strips what a clip carries.
 
 const auto: RunOptions = { budgetUsd: 100, confirm: async () => true };
 const LTX_PRICES = { runpodLtxUsdPerSec: 0.0011, runpodLtxSecPerClipSec: 30, runpodLtxColdStartSec: 120 };
-const FOLEY_RATES = { runpodFoleyUsdPerSec: 0.0003, runpodFoleySecPerClipSec: 4, runpodFoleyColdStartSec: 90 };
 const MEDIA = [scriptStage, ttsStage, silenceStage, keyframesStage, clipsStage, fitStage, soundStage];
 
 /** An LTX run of three moving scenes; `speaking` scenes say a sentence (a run that allows speech, in English). */
@@ -65,7 +65,7 @@ describe("a scene's own clip sound", () => {
   it("is laid under an ordinary LTX scene as its sound, never longer than the scene and levelled to the scene-sound loudness, for nothing", async () => {
     const { ctx } = await ltxRun();
     await runPipeline(ctx, MEDIA.slice(0, -1), auto);
-    // planned, and free: no Foley price is needed, nothing is bought
+    // planned, and free: no price is needed, nothing is bought
     const planned = (await planRun(ctx, MEDIA)).items.filter((i) => i.stage === "sound");
     expect(planned.map((i) => [i.scene, i.costUsd])).toEqual([[0, 0], [1, 0], [2, 0]]);
     await runPipeline(ctx, MEDIA, auto);
@@ -81,7 +81,7 @@ describe("a scene's own clip sound", () => {
       expect(m.scenes[i].stages.sound).toMatchObject({ status: "done", costUsd: 0 });
     }
     expect(m.ledger.filter((e) => e.stage === "sound")).toEqual([]);
-    // the render lays each one down as it lays down a Foley sound
+    // the render lays each one down
     expect(props(ctx).audio.sound.map((s) => s.src)).toEqual([0, 1, 2].map((i) => paths.sound(i)));
     // and a resume makes nothing again
     expect((await planRun(ctx, MEDIA)).items).toEqual([]);
@@ -110,50 +110,6 @@ describe("a scene's own clip sound", () => {
     expect(sceneStagesShown(m, 0)).toContain("sound");
     expect(props(ctx).audio.sound.map((s) => s.src)).toEqual([paths.sound(0), paths.sound(2)]);
     expect(renderStage.deps(m).filter((d) => d.stage === "sound").map((d) => d.scene)).toEqual([0, 2]);
-  });
-
-  it("gives way to a Foley sound in a run made with scene sound", async () => {
-    const { ctx } = await ltxRun();
-    const foley = new FakeSound(join(ctx.dir, "_fakes"));
-    ctx.providers = { ...ctx.providers, sound: foley };
-    Object.assign(ctx.prices, FOLEY_RATES);
-    ctx.manifest.request.sceneSound = true;
-    ctx.manifest.models.sound = "runpod:fo1/sound-foley@1";
-    await runPipeline(ctx, MEDIA, auto);
-    expect(foley.submits).toHaveLength(3);
-    for (const s of ctx.manifest.scenes) {
-      expect(s.sound).toMatchObject({ steps: SOUND_STEPS });
-      expect(s.sound!.source).toBeUndefined();
-    }
-    expect(ctx.manifest.ledger.filter((e) => e.stage === "sound")).toHaveLength(3);
-  });
-
-  it("keys a Foley scene's sound on exactly what it was keyed on before", async () => {
-    const { ctx } = await ltxRun();
-    ctx.providers = { ...ctx.providers, sound: new FakeSound(join(ctx.dir, "_fakes")) };
-    Object.assign(ctx.prices, FOLEY_RATES);
-    ctx.manifest.request.sceneSound = true;
-    ctx.manifest.models.sound = "runpod:fo1/sound-foley@1";
-    await runPipeline(ctx, MEDIA.slice(0, -1), auto);
-    const m = ctx.manifest;
-    const sec = sceneSec(ctx, 0);
-    // (the phase 14 key, written out: a Foley run's sound is never made again because the stage learnt the clip's sound)
-    const before = {
-      model: "runpod:fo1/sound-foley@1",
-      prompt: m.script!.scenes[0].soundPrompt!.trim(),
-      negativePrompt: SOUND_NEGATIVE_PROMPT,
-      seed: soundSeed(7, 0, 0),
-      guidanceScale: guidanceFor(m.script!.scenes[0].actionLevel),
-      steps: SOUND_STEPS,
-      audioLengthSec: soundAskSeconds(sec),
-      trackSec: Math.round(Math.min(sec, SCENE_SOUND_MAX_SEC) * 1000) / 1000,
-      fadeOut: sec > SCENE_SOUND_MAX_SEC,
-      still: false,
-      picture: await fileSha256(abs(ctx, paths.fitted(0))),
-    };
-    const now = (await soundStage.inputsFor(ctx, 0)) as Record<string, unknown>;
-    expect(now).toEqual(before);
-    expect(Object.keys(now)).toEqual(Object.keys(before));
   });
 
   it("is made again when the clip or the scene's length changes, and not when only the mix level does", async () => {
@@ -281,20 +237,18 @@ describe("a voice in an ordinary scene's clip sound", () => {
     expect(props(ctx).audio.sound.map((s) => s.src)).toEqual([paths.sound(0), paths.sound(2)]);
   });
 
-  it("is not listened for in a run made with scene sound, whose clip sound is never used, and the clip's key is the same either way", async () => {
+  it("is not listened for in an old run made with scene sound, whose clip sound is never used, and the clip's key is the same either way", async () => {
     const { ctx, ltx } = await ltxRun();
-    ctx.providers = { ...ctx.providers, sound: new FakeSound(join(ctx.dir, "_fakes")) };
-    Object.assign(ctx.prices, FOLEY_RATES);
     ctx.manifest.request.sceneSound = true;
     ctx.manifest.models.sound = "runpod:fo1/sound-foley@1";
     await runPipeline(ctx, MEDIA.slice(0, -2), auto);
-    const withFoley = await computeHash(ctx, clipsStage, 0);
-    await runPipeline(ctx, MEDIA, auto);
+    const withSceneSound = await computeHash(ctx, clipsStage, 0);
+    await runPipeline(ctx, MEDIA.slice(0, -1), auto);
     expect(ltx.submits.map((r) => r.detectVoice)).toEqual([undefined, undefined, undefined]);
-    // (not asked, so not taken as heard: unknown, as the voice of a clip whose sound is replaced by Foley is)
+    // (not asked, so not taken as heard: unknown, as the voice of a clip whose sound is replaced by a bought one is)
     expect(ctx.manifest.scenes.map((s) => s.clip!.voiceHeard)).toEqual([undefined, undefined, undefined]);
     delete ctx.manifest.request.sceneSound;
-    expect(await computeHash(ctx, clipsStage, 0)).toBe(withFoley);
+    expect(await computeHash(ctx, clipsStage, 0)).toBe(withSceneSound);
   });
 
   it("leaves a clip whose voice is unknown, as in a run made before the check, with its sound as before", async () => {

@@ -172,12 +172,7 @@ export type UpscaleRequest = { videoPath: string; short?: number; interpolate?: 
 export type UpscaleProvider = QueuedProvider<UpscaleRequest, VideoOutput>;
 
 /**
- * A scene's sound (phase 14 spec §3): the small silent video of the scene, what is heard in it and what never is, the
- * scene's seed, and the model's settings.
+ * `upscale`: only for a run that asked for full HD. A scene's sound needs no provider: it is its own clip's, taken out of it
+ * for nothing (the worker that once made one was removed, phase 15 spec §13.12).
  */
-export type SoundRequest = { videoPath: string; prompt: string; negativePrompt: string; seed: number; guidanceScale: number; steps: number; audioLengthSec: number };
-export type SoundOutput = { url: string; seed?: number; costUsd?: number; remove?: () => Promise<void> };
-export type SoundProvider = QueuedProvider<SoundRequest, SoundOutput>;
-
-/** `upscale`: only for a run that asked for full HD. `sound`: only for a run made with scene sound. */
-export type Providers = { llm: LlmProvider; tts: TtsProvider; image: ImageProvider; video: VideoProvider; upscale?: UpscaleProvider; sound?: SoundProvider };
+export type Providers = { llm: LlmProvider; tts: TtsProvider; image: ImageProvider; video: VideoProvider; upscale?: UpscaleProvider };

@@ -2,7 +2,8 @@
  * Which provider serves a run (2.4 spec §3.4). Ids are frozen in each run's manifest: `runpod:<endpointId>/
  * <workflow>@<version>` for the studio's own GPU worker. Anything else names a hosted model the studio no longer
  * buys from (phase 5 spec §5.1): such a run still loads and re-renders, but nothing more can be bought for it. So does a
- * RunPod id whose worker is gone from the studio: Wan's clips (`clip-wan22-*`, removed on 2026-11-02, phase 15 spec §13.10).
+ * RunPod id whose worker is gone from the studio: Wan's clips (`clip-wan22-*`, removed on 2026-11-02, phase 15 spec §13.10)
+ * and Foley's scene sounds (`sound-foley`, removed the same day, §13.12).
  */
 export type ModelRef =
   | { provider: "retired"; model: string }
@@ -10,8 +11,8 @@ export type ModelRef =
 
 const RUNPOD = /^runpod:([A-Za-z0-9_-]+)\/([a-z0-9-]+)@(\d+)$/;
 
-/** Workflows of RunPod workers the studio no longer has (their endpoints are deleted, their code is at the tag `wan-last`). */
-const RETIRED_WORKFLOWS = /^clip-wan22-/;
+/** Workflows of RunPod workers the studio no longer has (their endpoints are deleted, their code is at the tags `wan-last` and `foley-last`). */
+const RETIRED_WORKFLOWS = /^(clip-wan22-|sound-foley$)/;
 
 export function parseModelId(id: string): ModelRef {
   if (!id.startsWith("runpod:")) return { provider: "retired", model: id };
@@ -49,8 +50,6 @@ export const RUNPOD_WORKFLOWS = {
   upscale: { workflow: "upscale-seedvr2", version: 1 },
   // the restorer's new workflow (phase 11): Full HD and/or smooth motion in one job
   restore: { workflow: "restore-video", version: 1 },
-  // the Foley worker (phase 14 spec §4): a scene's sound from its picture
-  sound: { workflow: "sound-foley", version: 1 },
   // the LTX worker (phase 15): a clip with its sound and speech, the only clip engine since Wan was removed (§13.10)
   clipLtx: { workflow: "clip-ltx25", version: 1 },
 } as const;

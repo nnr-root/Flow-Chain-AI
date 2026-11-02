@@ -1,10 +1,15 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { Prices } from "../../src/config.js";
+import { loadEnv, Prices } from "../../src/config.js";
 import { fileSha256 } from "../../src/manifest/hash.js";
 import { loadManifest, saveManifest } from "../../src/manifest/store.js";
 import { computeHash, planRun, type RunOptions, runPipeline } from "../../src/pipeline.js";
+import { createProviders } from "../../src/providers/factory.js";
+import { bumpNonce } from "../../src/reroll.js";
+import { RETIRED_SOUND_ENGINE } from "../../src/sound.js";
+import { soundNotMade } from "../../src/stages/sound.js";
+import { statusOf } from "../../src/studio/status.js";
 import { applyRenderOptions, assertRenderOnly, noPaidProviders, withLook } from "../../src/rerender.js";
 import { buildRenderProps } from "../../src/stages/build-render-props.js";
 import { STAGES } from "../../src/stages/index.js";
@@ -41,7 +46,7 @@ const sceneSec = (ctx: StageContext, i: number) => sceneFrames(ctx.manifest, ctx
  * script that wrote no sound for them, so nothing was bought there. `ltx`: its clips were made on LTX, and carry a sound
  * of their own that a Foley run never used.
  */
-async function finishedFoleyRun(opts: { ltx?: boolean; blank?: number[] } = {}) {
+async function finishedFoleyRun(opts: { ltx?: boolean; blank?: number[]; sfx?: false } = {}) {
   const made = await makeTestContext({ modes: [1, 1, 2, 1], shots: ["cut", "continue", "cut", "cut"], actionLevels: ["high", "low", "medium", "high"], seed: 4242 });
   const { ctx } = made;
   const m = ctx.manifest;
@@ -54,11 +59,13 @@ async function finishedFoleyRun(opts: { ltx?: boolean; blank?: number[] } = {}) 
   }
   m.request.sceneSound = true;
   m.models.sound = FOLEY_MODEL;
+  // (made with sound effects off: no sound was bought for it)
+  if (opts.sfx === false) m.request.render.sfx = false;
   await runPipeline(ctx, STAGES.slice(0, STAGES.findIndex((s) => s.name === "fit") + 1), auto);
   for (const i of opts.blank ?? []) m.script!.scenes[i].soundPrompt = "  ";
   for (const s of m.scenes) {
     const i = s.idx;
-    if (opts.blank?.includes(i)) continue;
+    if (opts.blank?.includes(i) || opts.sfx === false) continue;
     const seconds = Math.round(Math.min(sceneSec(ctx, i), 10) * 1000) / 1000;
     const file = abs(ctx, paths.sound(i));
     await mkdir(dirname(file), { recursive: true });
@@ -136,5 +143,45 @@ describe("a run finished with Foley, after Foley was removed", () => {
     expect(m.scenes[1].stages.sound).toBeUndefined();
     expect(soundsPlayed({ ...ctx, manifest: m })).toEqual([paths.sound(0), paths.sound(2), paths.sound(3)]);
     expect((await planRun({ ...ctx, manifest: m, providers: noPaidProviders() }, STAGES)).items).toEqual([]);
+  }, 180_000);
+});
+
+/*
+ * After the removal (phase 15 spec §13.12): what such a run cannot have any more is refused in words that name no model,
+ * before anything is bought. (These describe the code after the removal; the pins above held before it too.)
+ */
+describe("a run finished with Foley, asked for a sound it does not have", () => {
+  const env = loadEnv({ GEMINI_API_KEY: "g", RUNPOD_API_KEY: "rk", R2_ACCOUNT_ID: "a", R2_BUCKET: "b", R2_ACCESS_KEY_ID: "i", R2_SECRET_ACCESS_KEY: "s" });
+
+  it("refuses a scene's sound whose file is gone, when planned and when run, and buys nothing", async () => {
+    const { ctx } = await finishedFoleyRun();
+    const loaded = await loadManifest(ctx.dir);
+    await rm(abs(ctx, paths.sound(1)));
+    // (its providers are made without any scene-sound price: none is needed, nothing can be bought)
+    const real = { ...ctx, manifest: loaded, providers: createProviders(env, loaded.models, Prices.parse({})) };
+    expect("sound" in real.providers).toBe(false);
+    await expect(planRun(real, STAGES)).rejects.toThrow(RETIRED_SOUND_ENGINE);
+    await expect(runPipeline(real, STAGES, { budgetUsd: 100, confirm: async () => true })).rejects.toThrow(RETIRED_SOUND_ENGINE);
+    expect((await loadManifest(ctx.dir)).ledger.filter((e) => e.stage === "sound")).toHaveLength(4);
+  }, 180_000);
+
+  it("refuses a scene's sound asked for again, before anything is planned", async () => {
+    const { ctx } = await finishedFoleyRun();
+    const loaded = await loadManifest(ctx.dir);
+    expect(() => bumpNonce(loaded, 2, "sound")).toThrow(RETIRED_SOUND_ENGINE);
+    expect(loaded.scenes[1].nonces.sound).toBeUndefined();
+  }, 180_000);
+
+  it("refuses a re-render that turns on sound effects it was made without, and says so before one is started", async () => {
+    const { ctx } = await finishedFoleyRun({ sfx: false });
+    const loaded = await loadManifest(ctx.dir);
+    expect(loaded.scenes.every((s) => s.sound === undefined)).toBe(true);
+    expect(statusOf(loaded).sceneSound).toBe(true);
+    expect(soundNotMade(loaded)).toBe(true);
+    const free = { ...ctx, manifest: loaded, providers: noPaidProviders() };
+    await expect(planRun({ ...free, manifest: withLook(loaded, { sfx: true }) }, STAGES)).rejects.toThrow(RETIRED_SOUND_ENGINE);
+    // the copy is the one changed, never the run
+    expect(loaded.request.render.sfx).toBe(false);
+    expect((await planRun(free, STAGES)).items).toEqual([]);
   }, 180_000);
 });

@@ -199,9 +199,9 @@ export const clipsStage: Stage = {
     const seconds = clipSeconds(m, i);
     const speaking = isSpeaking(m, i);
     const language = speaking ? spokenLanguage(m, i) : undefined;
-    // An ordinary LTX scene is listened to for a voice the prompt asked it not to make (phase 15 spec §13.10); not in a run
-    // made with scene sound, where a clip's own sound is never used (Foley wins, §6.3). Not part of the clip's key: only
-    // what is done with the clip's sound depends on it.
+    // An ordinary LTX scene is listened to for a voice the prompt asked it not to make (phase 15 spec §13.10); not in an old
+    // run made with scene sound, where a clip's own sound is never used (its bought sounds win, §6.3). Not part of the
+    // clip's key: only what is done with the clip's sound depends on it.
     const checkVoice = seeded(m) && !speaking && m.request.sceneSound !== true;
     // (an earlier clip's sound is not this one's: until this clip gives the scene its audio, the scene has none)
     if (speaking) delete state.audio;
