@@ -49,7 +49,6 @@ read the one for the area you are changing before changing it (table at the end)
 | `web/lib/` | code shared by server and browser; no secrets, few imports |
 | `db/migrations/` | the database: plain SQL, ten files (accounts, tenancy, billing, three for series, publishing, plans by the year, series without a budget, topic ideas) |
 | `src/db/client.ts`, `src/auth/` | the one client for the studio's Postgres (`Db`), and password hashing |
-| `workers/` | the clip worker (Python, a ComfyUI graph for Wan 2.2 at 480p and 720p; text encoder and VAE in its image, the rest on the volume) |
 | `worker-picture/` | the picture worker (Python, two engines in one image: FLUX.2 klein 4B and FLUX 3 klein, through diffusers; weights on the network volume) |
 | `worker-upscale/` | the restorer worker (Python: SeedVR2 3B for full HD and RIFE for 60 fps, two workflows; weights inside its image; phase 8 spec §8, phase 11 spec) |
 | `src/providers/elevenlabs.ts`, `src/voice/hosted.ts`, `assets/voices/elevenlabs.json` | the hosted voice, and which of its voices plays each of the studio's voices in each language |
@@ -82,7 +81,7 @@ npm run studio:local       # the OWNER's command: the whole studio on this machi
 npm run make:showcase -- <runId> --slug <name>   # publish a finished run for the landing page (free)
 npm run eval:cuts -- <runWith> <runWithout>   # free: compares two finished runs (cut references on / off) by look consistency
 npm run eval:prompts -- --cap <usd>   # the OWNER's command: real Gemini calls, scores the prompts against test/eval/baseline.json
-npm run test:worker        # Python tests of the RunPod worker (npm run setup:worker once)
+npm run test:worker        # Python tests of the voice, picture, restorer and Foley workers (npm run setup:worker once)
 ```
 
 What a test needs, and what happens without it:
@@ -146,8 +145,10 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
   Rollback: `RUNPOD_PICTURE_IMAGE=ghcr.io/<owner>/flowchain-picture:p-795ce3d4a463 npm run runpod:deploy` puts back the
   pre-Phase-10 picture image (and takes FLUX 3 down). Keep the four `runpodPicture3*` prices in `prices.json` while any
   FLUX 3 run may be resumed or remade (the profile throws without them).
-- **A run may be made for 60 fps** (`request.fps`, frozen; `fpsOf()` is the only reader; phase 11 spec): the default stays
-  30, since clips arrive at 32 from the clip worker's own RIFE. At 60 its moving clips are interpolated by the restorer worker
+- **A run may be made for 60 fps** (`request.fps`, frozen; `fpsOf()` is the only reader; phase 11 spec). **Not available now:** it was
+  measured on Wan's clips only (16 fps made, 32 after Wan's own RIFE), Wan is gone, and LTX clips are 24 fps, so `restorerFor` refuses
+  `--fps 60` for every new run and `health()` never offers `smooth`, whatever `FLOWCHAIN_SMOOTH_MOTION` says, until it is measured on
+  LTX's clips (phase 15 spec §13.5, §13.10). As it was built: the default stays 30; at 60 its moving clips are interpolated by the restorer worker
   (`worker-upscale/`, RIFE x2: 32 in, 64 out, and `fit` thins to 60), inside the Full HD upscale job when both are chosen (one job
   per clip), else in the `interpolate` stage. Never add a second place that reads the constant `FPS`. A 60 fps run is refused until the four
   `runpodInterpolate*`/`runpodRestoreExtra*` prices are set (keep them in `prices.json` while any 60 fps run may be resumed or remade); the
@@ -165,7 +166,8 @@ No test reaches a provider or Stripe. Stand-ins: `web/test/stub-cli.mjs` (the CL
 - **A script of more than 90 seconds is written in parts** (an outline, then each part), each answer checked
   and saved with its charge (`manifest.scriptParts`), so a stopped run buys none again.
 - **Every change to a prompt bumps `PROMPT_VERSION`** (`src/providers/prompt-version.ts`; phase 9 spec §4), including a change to a niche, type, edit, culture or preset text; `test/unit/prompt-pin.test.ts` fails without it.
-- **The clip engine is a video profile** (`src/video-profiles.ts`; phase 15 spec §13.4): `ltx25@1` (24 fps, `8k+1` frames, 49 to 361, 640x1152) only while the owner's switch `FLOWCHAIN_LTX=on`, `RUNPOD_LTX_ENDPOINT` and the three `runpodLtx*` prices are all set (phase 15 spec §13.8: a deploy and `server:setup` alone must never move customers onto LTX before the licence answer); until then a new run is made on Wan as before, and a run already made on LTX resumes on it whatever the switch says. `FLOWCHAIN_SPEECH=on` is a second switch and needs LTX on too. `FLOWCHAIN_LTX=off` is the rollback. A run keeps its engine through `models.video`, and a clip carries its own `fps` (`fit`, the seam frame and `interpolate` read it, never a constant). No step may strip metadata from an LTX clip (the licence forbids weakening its provenance marks; a test greps for it). Wan is removed only in a later task, after the owner has watched a real LTX run.
+- **LTX is the only clip engine** (`src/video-profiles.ts`; phase 15 spec §13.4, §13.10): `ltx25@1` (24 fps, `8k+1` frames, 49 to 361, 640x1152), for a new run only while the owner's switch `FLOWCHAIN_LTX=on`, `RUNPOD_LTX_ENDPOINT` and the three `runpodLtx*` prices are all set (phase 15 spec §13.8: a deploy and `server:setup` alone must never move customers onto LTX before the licence answer); until then `newRunProviders` refuses a run that may need a moving clip in one sentence naming nothing (`CLIPS_UNAVAILABLE`), and a run of pictures only (`onlyPictures`) is frozen with `NO_CLIPS_MODEL`, whose provider refuses only a clip actually asked for. A run already made on LTX resumes on it whatever the switch says. `FLOWCHAIN_SPEECH=on` is a second switch and needs LTX on too. `FLOWCHAIN_LTX=off` is the rollback. A run keeps its engine through `models.video`, and a clip carries its own `fps` (`fit`, the seam frame and `interpolate` read it, never a constant). No step may strip metadata from an LTX clip (the licence forbids weakening its provenance marks; a test greps for it).
+- **Wan 2.2 was removed on 2026-11-02** (the owner's word; phase 15 spec §13.10). Its way back is the local tag `wan-last` and the registry image `ghcr.io/nnr-root/flowchain-worker:w-3b68cb11d681`. An old Wan run still loads and re-renders for free: `wanFrames`, each Wan profile's `clipSec` and `clipHeight`, and the `VideoProfileId` members `wan22-480p@1`/`wan22-720p@1` stay **unchanged** (they are in its stages' keys; `test/unit/wan-old-runs.test.ts` pins them), its profiles' price refuses (`RETIRED_CLIP_ENGINE`, naming no model), and `clip-wan22-*` model ids parse as retired. The Wan price keys stay readable in `Prices` and `RUNPOD_CLIP_ENDPOINT` stays accepted in the env, both read by nothing. `test/unit/no-wan.test.ts` lists the only files that may still name it.
 - **A scene may speak** (`request.speech`, frozen; `isSpeaking`; phase 15 spec §5, §13): the clip's whole sound is the scene's audio and only its tail is cut (last word plus `SPEECH_TAIL_SEC`), so lips and voice stay in step; the words are the clip worker's Whisper and are kept in the persisted job result; `tts` and `silence` skip the scene, and a speaking scene is always Mode 1. Never in a language version of a video, only in English and Turkish, at most two scenes and one speaker, never a real person.
 - **A scene's sound is written as a `soundBible` (once) and a `soundPrompt` per scene, plain strings** (phase 14 spec §2; the phase 12 closed library, `SCENE_SOUNDS` and `make:sfx` are gone). Keep them free of enum, `maxItems` and nested lists in the script schema: Gemini once refused a response schema as a whole for an enum together with `maxItems`. Any change to their rule bumps `PROMPT_VERSION`. A scene's sound is made from its `soundPrompt` by the `sound` stage (after `fit`, on `RUNPOD_FOLEY_ENDPOINT`, only with `FLOWCHAIN_SCENE_SOUND=on` and the three `runpodFoley*` prices), with a seed of its own for each scene: the trial sounded alike because the model's program fixed one seed. The licence excludes the EU, the UK and South Korea (README, "Scene sound"); `FLOWCHAIN_SCENE_SOUND=off` is the rollback and a run without sound is complete.
 
@@ -381,7 +383,7 @@ graphify god-nodes --top 20       # the hubs
 | Rendering with Remotion | `2026-10-03-phase2.1-remotion-render-engine-design.md` |
 | Modes, transitions, style presets | `2026-10-04-phase2.2-content-intelligence-design.md` |
 | Hook, sound effects, brand kit, clip lengths | `2026-10-05-phase2.3-retention-brand-design.md` |
-| RunPod providers (Wan 2.2; the SDXL pictures it describes are replaced, see phase 5 §9.9–9.11) | `2026-10-05-phase2.4-runpod-providers-design.md` |
+| RunPod providers (history: Wan 2.2, removed in phase 15 §13.10; the SDXL pictures it describes are replaced, see phase 5 §9.9–9.11) | `2026-10-05-phase2.4-runpod-providers-design.md` |
 | The studio web app and its player | `2026-10-06-phase3.1-web-ui-player-design.md` |
 | The queue, the worker, the server | `2026-10-07-phase3.2-job-queue-deployment-design.md` |
 | Accounts, credit, storage | `2026-10-07-phase3.3-multi-tenant-design.md` (§14–§15 win) |
@@ -397,7 +399,7 @@ graphify god-nodes --top 20       # the hubs
 | Scene sound effects: a closed synthesized library the script names (§1–§2 replaced by phase 14) | `2026-10-29-phase12-scene-sfx-design.md` |
 | Scene sound: a sound made for each scene from its picture, on the studio's own endpoint (§12 wins) | `2026-10-30-phase14-scene-sound-design.md` |
 | Topic ideas: "Suggest a topic" paid by a fixed credit | `2026-10-30-phase13-trend-ideas-design.md` (§10 wins) |
-| LTX-2.5 as the clip engine (replacing Wan 2.2) and a character who speaks; the licence reading | `2026-10-31-phase15-ltx-engine-design.md` (built through Task 11; the licence's competition clause, item 20, is open and needs the owner's written question before a paying customer is served an LTX video) |
+| LTX-2.5 as the only clip engine (Wan 2.2 removed, §13.10) and a character who speaks; the licence reading | `2026-10-31-phase15-ltx-engine-design.md` (built through Task 11; the licence's competition clause, item 20, is open and needs the owner's written question before a paying customer is served an LTX video) |
 
 The README is the owner's manual: setup, usage, costs, and what to know about each part.
 

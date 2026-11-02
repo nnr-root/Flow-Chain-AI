@@ -423,3 +423,34 @@ must be rebuilt (the owner's push runs the `ltx` job of the image workflow) and 
 `runpodLtxSecPerClipSec` (11) and `runpodLtxColdStartSec` (110) predate that and are measured again on the first real run after the rebuild.
 Until then an old image refuses `detect_voice` as an unknown field, and every ordinary LTX clip fails (refused before any clip is made, so at most the worker's start is billed).
 
+
+**Wan removed (2026-11-02, phase 15b Task 16, on the owner's word "Wan'ı sil"; wins over §8).** Step (c) of §8 is done, without the real
+LTX run and the owner's viewing it was to wait for: the owner decided. LTX is the only clip engine.
+
+- **The way back:** the local git tag `wan-last` (on `dc85f29`, the commit before the removal; pushing it is the owner's click) and the image
+  `ghcr.io/nnr-root/flowchain-worker:w-3b68cb11d681`, which stays in the registry. Not a switch (§8). The RunPod template and endpoint
+  (`flowchain-worker`, `flowchain-clip`) are no longer made or changed by `runpod:deploy`; deleting them is Task 17, the owner's click.
+- **Gone:** `workers/` and its image job (and `workers/**` from the workflow's paths); the deploy's Wan template, endpoint, card list
+  (`clipGpus`), weights download and `RUNPOD_CLIP_ENDPOINT` write; `RUNPOD_WORKFLOWS.clip`; Wan's request, sizes, `WAN_FPS` and early start in
+  `RunpodVideo`; the Wan rate getters; `CLIP_QUALITIES`, `NEW_RUN_VIDEO_PROFILE`, the CLI's `--clips` (now an unknown option) and the form's
+  480p/720p control (a series' recipe saved with one loads, and the value says nothing; `1080p` is still full HD).
+- **Kept for old runs**, unchanged since they are in their stages' keys: `wanFrames`, each Wan profile's `clipSec` and `clipHeight`, and the
+  `VideoProfileId` members `wan22-480p@1`/`wan22-720p@1` (literals pinned in `test/unit/wan-old-runs.test.ts`). A Wan profile's price now refuses
+  in words that name no model (`RETIRED_CLIP_ENGINE`: "this run's clips came from a clip engine this studio no longer uses; it can be
+  re-rendered, but no clip can be bought for it — start a new run instead"), and `clip-wan22-*` model ids parse as retired, with the same words
+  from their provider. Such a run loads, plans nothing paid and re-renders for free; a clip asked of it (a reroll, a stale stage) is refused before
+  anything is bought, and a Wan clip job it left pending can no longer be collected (it is refused, never retried). The Wan price keys stay
+  readable in `Prices` and `RUNPOD_CLIP_ENDPOINT` stays accepted in the env, both read by nothing.
+- **New runs need `FLOWCHAIN_LTX=on`** (with the endpoint and the three `runpodLtx*` prices) for any moving clip. Without it `newRunProviders`
+  refuses a run that may need one, at creation, in one sentence that names nothing: "moving clips are not available in this studio right now"
+  (`CLIPS_UNAVAILABLE`). A run made of pictures only (`--mode 2`, `--modes` of 2s, `--pin-modes 2`, the studio's "Pictures only") is still made:
+  it is frozen with the clip model `NO_CLIPS_MODEL` (parsed as retired, whose provider refuses only a clip actually asked for, in the same sentence)
+  and LTX's profile, whose rates are never read for a picture. The studio's health answer gains `clips` (LTX on and its endpoint set); without it
+  the form offers "Pictures only", `createDraft` refuses another choice and `setModes` refuses a clip pinned on such a draft, both in that sentence,
+  and a series whose recipe may have a clip stops with a reason. `health().missing` no longer names a clip endpoint. `newRunImage`
+  (make:styles, make:voices) needs no clip setting.
+- **Smooth motion (60 fps) is not offered now**: it was measured on Wan's clips only and is refused for LTX's 24 fps ones (§8, §13.5), so
+  `health().smooth` is never set until it is measured on LTX's clips; the rollback order of phase 11 is unchanged.
+- **Not changed:** the warm-up stage (`src/stages/warmup.ts`) stays as it is, as a provider-neutral step: no clip provider has an early
+  start any more, so it asks for none. An old Wan run stopped while its warm-up was pending keeps that record (its expected cost stays in
+  `inFlight`), since no clip of it is bought again and so none settles it.

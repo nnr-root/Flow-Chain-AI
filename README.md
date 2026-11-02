@@ -86,38 +86,42 @@ smoke:brand` a 4-scene `--style anime` video with the example brand kit.
 
 Rendering a 16 s 1080×1920 video takes about 1.5 minutes on Apple Silicon (`--render-concurrency` tunes it).
 
-## The GPU worker (keyframes and clips)
+## The GPU workers (pictures and clips)
 
-Pictures (FLUX.2 klein, which keeps a character from a portrait) and clips (Wan 2.2 image-to-video) run on
-your own RunPod Serverless endpoints: roughly $0.20 per 4-scene video at 480p, about $0.30 and twice the wait with 720p clips
-(`--clips 720p`, or "HD" in the studio's form). This is the only way the studio makes
-pictures. Runs made earlier on hosted models (fal) still load and re-render for free, but they can no longer be
-resumed or rerolled: `resume` and `reroll` say so and buy nothing.
+Pictures (FLUX.2 klein, which keeps a character from a portrait) run on your own RunPod Serverless endpoint, and moving clips
+on the LTX endpoint (below, "Clips with LTX"): this is the only way the studio makes either. LTX is the only clip engine: until it is
+switched on and set up, a new video can be made of pictures only (`--mode 2`, `--pin-modes 2`, or "Pictures only" in the studio's form),
+and any other is refused when it is created, in one sentence ("moving clips are not available in this studio right now"). Runs made
+earlier on hosted models (fal) still load and re-render for free, but they can no longer be resumed or rerolled: `resume` and
+`reroll` say so and buy nothing.
+
+**Wan 2.2 was removed on 2026-11-02** (spec phase 15 §13.10). It made the clips before LTX, at 480p or 720p (`--clips`, gone with it).
+A video made on it still loads and re-renders for free (`rerender`); nothing more can be bought for it, and a step that would buy a clip
+says so without naming a model. Its code is at the local git tag `wan-last` (`git checkout wan-last`) and its last image stays in the
+registry (`ghcr.io/nnr-root/flowchain-worker:w-3b68cb11d681`); its RunPod template and endpoint are no longer made or changed by
+`runpod:deploy`, and `RUNPOD_CLIP_ENDPOINT` in an older `.env` is accepted and read by nothing.
 
 One-time setup (accounts and keys only):
 
 1. RunPod: create an API key → `RUNPOD_API_KEY` in `.env`.
 2. Cloudflare R2: create a bucket and an S3 API token with read/write on it → `R2_ACCOUNT_ID`, `R2_BUCKET`,
    `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` in `.env`.
-3. Push this repo to GitHub: the `worker-image` Action builds `ghcr.io/<owner>/flowchain-worker`. Make that
-   package public (GitHub → Packages → flowchain-worker → Package settings → Change visibility).
-4. `npm run runpod:deploy` creates the network volume, template and two endpoints, downloads the model weights
-   onto the volume and writes `RUNPOD_KEYFRAME_ENDPOINT` / `RUNPOD_CLIP_ENDPOINT` into `.env`. It shows what it
-   will create, the monthly volume cost (≈ $3.50 for 50 GB, which the two models fill almost to the brim) and the one-time model download it runs on the
-   endpoints' GPUs (≈ $1–2), and asks first; re-running it updates in place. It uses the image tag built from the
-   current `workers/` folder and stops if that image is not public on GHCR. `RUNPOD_WORKER_IMAGE` deploys another
-   image instead, `RUNPOD_DATACENTER` picks another data centre (default `EU-RO-1`), and `--yes` skips the question.
+3. Push this repo to GitHub: the `worker-image` Action builds `ghcr.io/<owner>/flowchain-picture` (and the other workers' images). Make
+   each package public (GitHub → Packages → the package → Package settings → Change visibility).
+4. `npm run runpod:deploy` creates the network volume, the picture template and endpoint (and the others named below), downloads the
+   picture weights onto the volume and writes `RUNPOD_KEYFRAME_ENDPOINT` (and the other endpoints' ids) into `.env`. It shows what it
+   will create, the monthly volume cost (≈ $3.50 for 50 GB; a volume can grow but never shrink, so it keeps the size it had when it also held
+   Wan's weights, which are still on it) and the one-time model download it runs on the endpoint's GPU (≈ $1–2), and asks first; re-running
+   it updates in place. It uses the image tag built from the current `worker-picture/` folder and stops if that image is not public on
+   GHCR. `RUNPOD_PICTURE_IMAGE` deploys another image instead, `RUNPOD_DATACENTER` picks another data centre (default `EU-RO-1`), and
+   `--yes` skips the question.
 
 Then `npm run flowchain -- doctor`. `npm run smoke:runpod` makes a real 4-scene video and is a paid run.
-
-While a run's pictures are made, the clip worker is asked to start (a job that makes one tiny throwaway clip, so its models are loaded;
-nothing is uploaded), so the first clip does not wait for it; what that start costs is charged with the first clip.
 
 `npm run runpod:deploy -- --remove-old-volume` deletes the larger volume used before (`flowchain-models`), once a
 run on the new one has worked. It refuses while any endpoint still reads from it. A deleted volume is gone for good.
 
-Re-running `runpod:deploy` also takes off the volume any weight the clip worker no longer lists (the earlier
-picture models; the text encoder and VAE, which are inside the clip image now).
+Nothing takes Wan's clip weights off the volume now (its worker did that; it is gone): they cost nothing more than the volume's size.
 
 ### FLUX 3 klein pictures (optional)
 
@@ -136,8 +140,13 @@ Both picture models are one image and one template, so any `runpod:deploy` puts 
 
 A video can be made at 60 frames a second instead of 30. It is a choice made when the video is created (`--fps 60`, or "Frame rate" in
 the studio's form once it is switched on); it cannot be added to a video that exists, because chained clips are made for one frame rate.
-The default stays 30: clips already arrive at 32 fps from the clip worker. At 60, every moving clip goes through the restorer
-worker (`worker-upscale/`, the one that does Full HD), which interpolates it from 32 to 64 fps; the fit then thins 64 to 60, so one frame
+**Not available now.** Smooth motion was measured on Wan's clips only (made at 16 fps, delivered at 32 after its worker's own RIFE), and
+Wan was removed on 2026-11-02; LTX's clips are 24 fps, and a new video asking for 60 fps is refused when it is created
+("smooth motion is not available yet for clips made at 24 frames a second"). The studio does not offer it, whatever
+`FLOWCHAIN_SMOOTH_MOTION` says, until it is measured on LTX's clips. What follows is how it worked on Wan's clips, and what to measure again.
+
+The default stays 30. At 60, every moving clip went through the restorer
+worker (`worker-upscale/`, the one that does Full HD), which interpolated it from 32 to 64 fps; the fit then thins 64 to 60, so one frame
 in 16 is dropped (there is no mode that lands on 60 exactly). In a Full HD video at 60 fps it is one job per clip, not two. The render takes
 longer and the file is larger; measure both on your machine. A 60 fps run is refused until the four prices below are set. In order:
 
@@ -202,15 +211,15 @@ made without sound; a video already made keeps its sound and plays it.
 Runs with characters get one generated reference portrait (or a brand kit's `reference` image), made after the
 voice and straight before the pictures so the picture worker starts once; every keyframe of a scene the
 character is in is conditioned on it; `reroll <runId> --stage reference --scene 1` generates a new portrait (keyframes are then
-redone from it). Clips are 480p (upscaled to the output size) with frame interpolation to 32 fps. GPU time is
+redone from it). LTX clips are 640 pixels on the short side at 24 fps (scaled to the output size). GPU time is
 charged per job from RunPod's measured execution time; cold starts and idle time are not attributed per job.
 
 ### Clips with LTX (optional)
 
-A scene's clip can be made by LTX-2.5 on the studio's own GPU endpoint (`worker-ltx/`) instead of Wan. Its clips are up to 15 seconds,
-cost about a third to a half of Wan's, and carry their own sound; a scene can also have a character who speaks (below). Wan stays the clip
-engine until **you switch LTX on** (`FLOWCHAIN_LTX=on`) and the LTX endpoint and its three prices all exist: without any one of them a new video is made
-on Wan exactly as before, and removing Wan is a later step that waits for you to watch a real LTX video and approve it. A video keeps the engine it
+A scene's clip is made by LTX-2.5 on the studio's own GPU endpoint (`worker-ltx/`), the only clip engine since Wan was removed
+(2026-11-02, above). Its clips are up to 15 seconds and carry their own sound; a scene can also have a character who speaks (below).
+Moving clips need **you to switch LTX on** (`FLOWCHAIN_LTX=on`) and the LTX endpoint and its three prices to exist: without any one of them
+a new video that may have a moving clip is refused when it is created, and a video of pictures only is still made. A video keeps the engine it
 was made with (`models.video`): the switch decides new videos only, and a video already made on LTX resumes on it whatever the switch says.
 
 - `FLOWCHAIN_LTX=on|off` (default off). The deploy writes `RUNPOD_LTX_ENDPOINT` to `.env` and `npm run server:setup` hands this machine's settings to the
@@ -278,7 +287,7 @@ territory is excluded (none was found in the text). Your own machine and tests a
 cannot read `prices.json`, so the health answer can offer speech and sound before the prices exist; the CLI refuses such a draft in one plain sentence. The
 sound option's note that sound "adds to the price" is wrong for LTX-only sound (a known wording issue).
 
-Rollback: set `FLOWCHAIN_LTX=off` (on a server in `deploy/server.env`, then `npm run server:setup`); new videos are made on Wan again and speech is no longer offered. A video already made on LTX still finishes on it, and refuses to resume without its three prices.
+Rollback: set `FLOWCHAIN_LTX=off` (on a server in `deploy/server.env`, then `npm run server:setup`); new videos can then be made of pictures only, and speech is no longer offered (Wan is gone: going back to it is `git checkout wan-last`, above). A video already made on LTX still finishes on it, and refuses to resume without its three prices.
 
 ### Topic ideas (optional)
 
@@ -343,7 +352,7 @@ answer. The first line on a host that has never run it waits about four minutes 
 
 The model stack is licensed for commercial use (VoxCPM2 and Whisper: Apache 2.0 and MIT).
 
-FLUX.2 klein 4B and Wan 2.2 are Apache 2.0, which allows commercial use. The FLUX 3 klein picture model (when you set it up, below) is not: it is under the FLUX Kommunity License v.1.0. Its outputs may be used commercially while your gross annualised revenue, with your affiliates, is under US$5M; the text does not address hosting the model for others; Black Forest Labs may end the license on notice; and its pictures must not be used to train another model. `docs/superpowers/specs/2026-10-18-phase10-flux3-reframe-design.md` §1 has the details, and the license itself is the one to read.
+FLUX.2 klein 4B is Apache 2.0, which allows commercial use (so was Wan 2.2, removed on 2026-11-02). The FLUX 3 klein picture model (when you set it up, below) is not: it is under the FLUX Kommunity License v.1.0. Its outputs may be used commercially while your gross annualised revenue, with your affiliates, is under US$5M; the text does not address hosting the model for others; Black Forest Labs may end the license on notice; and its pictures must not be used to train another model. `docs/superpowers/specs/2026-10-18-phase10-flux3-reframe-design.md` §1 has the details, and the license itself is the one to read.
 
 ## Studio (web app)
 
@@ -669,5 +678,5 @@ a stand-in bucket). `npm run test:accounts` drives the studio with accounts in a
 calculator, a topic carried through sign-up, welcome credit, how fast it paints on a slowed-down phone),
 sign-up, credit, a video, buying a top-up and a plan, and a second user who sees none of it. It turns a
 database-wide setting on for a moment, so run it on its own, not beside `npm test`. Payments are tested against a
-stand-in Stripe (`web/test/stripe.ts`); no test reaches Stripe or needs its keys. The RunPod worker's Python tests: `npm run setup:worker` once,
-then `npm run test:worker`.
+stand-in Stripe (`web/test/stripe.ts`); no test reaches Stripe or needs its keys. The RunPod workers' Python tests: `npm run setup:worker` once,
+then `npm run test:worker` (the voice, picture, restorer and Foley workers; the LTX worker's are run with `python3.11 -m pytest worker-ltx/tests`).
