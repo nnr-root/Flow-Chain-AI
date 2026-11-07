@@ -1,0 +1,16 @@
+{
+  "runpodPicture3UsdPerSec": 0.00076,
+  "runpodPicture3Sec": 20,
+  "runpodPortrait3Sec": 20,
+  "runpodPicture3ColdStartSec": 80,
+  "runpodInterpolateUsdPerSec": 0.00031,
+  "runpodInterpolateSecPerClipSec": 4.7,
+  "runpodInterpolateColdStartSec": 90,
+  "runpodRestoreExtraSecPerClipSec": 60,
+  "runpodFoleyUsdPerSec": 0.00031,
+  "runpodFoleySecPerClipSec": 6,
+  "runpodFoleyColdStartSec": 120,
+  "runpodLtxUsdPerSec": 0.00076,
+  "runpodLtxSecPerClipSec": 11,
+  "runpodLtxColdStartSec": 110
+}
